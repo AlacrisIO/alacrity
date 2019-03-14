@@ -11,7 +11,13 @@
          cons
          list*
          list
-         quote)
+         quote
+         (for-syntax base-pattern-transformer
+                     normal+base-pattern
+                     make-var-like-transformer
+                     syntax-class
+                     full-pattern
+                     pattern-data-constructor))
 
 (require racket/match
          (prefix-in rkt-
@@ -95,7 +101,7 @@
     #:attributes [[matcher 0] [out 1]]
     [pattern :base-pattern]
     [pattern x:id #:with :base-pattern #'{~var x}]
-    [pattern {~and x {~or :boolean :number :str :char}}
+    [pattern {~and x {~or :boolean :number :str :bytes :char}}
       #:with :base-pattern #'(quote x)])
 
   (define-syntax-class (pattern-data-constructor ctor-matcher)
