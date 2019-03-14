@@ -1,0 +1,34 @@
+# Ocaml-generated files
+*.annot
+*.cmo
+*.cma
+*.cmi
+*.a
+*.o
+*.cmx
+*.cmxs
+*.cmxa
+
+# ocamlbuild working directory
+_build/
+
+# ocamlbuild targets
+*.byte
+*.native
+
+# oasis-generated files
+setup.data
+setup.log
+
+# Merlin-generated files
+.merlin
+
+# Racket-generated files
+compiled/
+doc/
+
+# Editor-generated files
+*~
+
+# Operating-system-generated files
+.DS_Store
