@@ -8,6 +8,7 @@
          ~and
          ~or
          ~refine
+         ~with
          cons
          list*
          list
@@ -53,6 +54,7 @@
 ;;             | {~or pattern ...}
 ;;             | {~and pattern ...}
 ;;             | {~refine pattern expression}
+;;             | {~with pattern expression}
 ;;             | (constructor pattern ...)
 
 ;; -------------------------------------------------------------------
@@ -153,6 +155,14 @@
     [pattern (_ pat:full-pattern prop:expr)
       #:with matcher #'(refine/p pat.matcher
                                  (match-lambda [(list pat.out ...) prop]))
+      #:with [out ...] #'[pat.out ...]])))
+
+(define-syntax ~with
+  (base-pattern-transformer
+   (syntax-class
+    #:attributes [matcher [out 1]]
+    [pattern (_ pat:full-pattern val:expr)
+      #:with matcher #'(with/p pat.matcher val)
       #:with [out ...] #'[pat.out ...]])))
 
 (define-syntax ~or

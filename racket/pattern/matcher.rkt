@@ -8,6 +8,7 @@
          equal/p
          and/p
          refine/p
+         with/p
          ;---
          empty/p
          cons/p
@@ -73,6 +74,13 @@
 (define ((refine/p pat prop) x)
   (define r (pat x))
   (and r (prop r) r))
+
+;; with/p :
+;;   [Matcher X Y (Z ...)]
+;;   X
+;;   ->
+;;   [Matcher Any Any (Z ...)]
+(define ((with/p p x) _) (p x))
 
 ;; -----------------------------------------------
 

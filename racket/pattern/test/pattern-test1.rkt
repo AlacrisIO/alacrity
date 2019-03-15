@@ -46,4 +46,15 @@
   (check-equal? (rev2 (list "do" "re" "mi")) (list "mi" "re" "do"))
   (check-equal? (revapp (list "do" "re" "mi") (list 1 2 3))
                 (list "mi" "re" "do" 1 2 3))
+
+  (check-equal? (match (list 1 2 6) with
+                  [{~or {~and '() {~with (cons first rest) '(0)}}
+                        (cons first rest)} ->
+                   (list first rest)])
+                (list 1 '(2 6)))
+  (check-equal? (match '() with
+                  [{~or {~and '() {~with (cons first rest) '(0)}}
+                        (cons first rest)} ->
+                   (list first rest)])
+                (list 0 '()))
   )
