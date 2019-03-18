@@ -3,6 +3,7 @@
 (provide match match* with when ->
          _
          ~var
+         ~app
          ~pred
          ~=
          ~and
@@ -137,6 +138,14 @@
    (syntax-class
     #:attributes [matcher [out 1]]
     [pattern (_ x:id) #:with matcher #'var/p #:with [out ...] #'[x]])))
+
+(define-syntax ~app
+  (base-pattern-transformer
+   (syntax-class
+    #:attributes [matcher [out 1]]
+    [pattern (_ f:expr p:full-pattern)
+      #:with matcher #'(app/p f p.matcher)
+      #:with [out ...] #'[p.out ...]])))
 
 (define-syntax ~=
   (base-pattern-transformer

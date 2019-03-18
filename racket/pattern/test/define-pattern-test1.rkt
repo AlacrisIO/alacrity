@@ -34,13 +34,23 @@
   {~or '()
        (cons p (Listof p))})
 
+(define-pattern (Listof/len p len) #:bind [len] <-
+  {~or {~and '() {~with len 0}}
+       (cons p (Listof/len p {~app add1 len}))})
+
 (module+ test
   (check-true (match '() with
                 [(Listof {~pred number?}) -> #true]
                 [_                        -> #false]))
+  (check-equal? (match '() with
+                  [(Listof/len {~pred number?} n) -> n])
+                0)
   (check-true (match (list 1 2 3) with
                 [(Listof {~pred number?}) -> #true]
                 [_                        -> #false]))
+  (check-equal? (match (list 1 2 3) with
+                  [(Listof/len {~pred number?} n) -> n])
+                3)
   (check-false (match (list 1 "tooo" 3) with
                  [(Listof {~pred number?}) -> #true]
                  [_                        -> #false]))
@@ -53,6 +63,9 @@
   (check-false (match "Experience 'Fa!' in amazing 4D!" with
                  [(Listof x) -> #true]
                  [_          -> #false]))
+  (check-equal? (match (list "do" "re" "mi" "fa" "sol" "la" "ti") with
+                  [(Listof/len x n) -> n])
+                7)
   )
 
 ;; ---------------------------------------------------------

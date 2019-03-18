@@ -4,6 +4,7 @@
          ;---
          any/p
          var/p
+         app/p
          pred/p
          equal/p
          and/p
@@ -47,6 +48,9 @@
 
 ;; var/p : [Matcher X X (X)]
 (define (var/p x) (list x))
+
+;; app/p : [X -> Y] [Matcher Y Y (Z ...)] -> [Matcher X X (Z ...)]
+(define ((app/p f p) x) (p (f x)))
 
 ;; pred/p : [X -> Bool : Y] -> [Matcher X Y ()]
 (define ((pred/p y?) x)
