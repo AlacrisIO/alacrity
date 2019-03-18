@@ -50,14 +50,21 @@
 
 (define-syntax-parser define-pattern
   #:literals [<-]
-  [(_ name:id <- pat:full-pattern)
+  [(_ name:id
+      {~optional {~and pat-only? <-}}
+      {~and exp:expr pat:full-pattern})
    #:fail-when (and (pair? (attribute pat.out)) (car (attribute pat.out)))
    "unexpected free variable in pattern"
+   #:attr name/v (and (not (attribute pat-only?)) (generate-temporary #'name))
    #:with name/p (generate-temporary #'name)
+   #:with make-pattern-transformer
+   (if (attribute pat-only?) #'base-pattern-transformer #'normal+base-pattern)
    #'(begin
+       (~? (define name/v exp))
        (define name/p pat.matcher)
        (define-syntax name
-         (base-pattern-transformer
+         (make-pattern-transformer
+          (~? (make-var-like-transformer #'name/v))
           (syntax-class
            #:attributes [matcher [out 1]]
            [pattern {~var || (pattern-data-id-constructor #'name/p)}]))))]
@@ -67,8 +74,9 @@
              {~fail #:unless
                     (member #'attr (attribute param) bound-identifier=?)}}
        ...]
-      <-
-      pat)
+      {~optional {~and pat-only? <-}}
+      {~and exp pat})
+   #:attr name/v (and (not (attribute pat-only?)) (generate-temporary #'name))
    #:with [param/p ...] (generate-temporaries #'[param ...])
    #:with [param/wp ...] (generate-temporaries #'[param ...])
    #:with [param-x ...] (generate-temporaries #'[param ...])
@@ -78,7 +86,10 @@
    #:with [attr-x ...]
    (for/list ([i (in-list (syntax->datum #'(index ...)))])
      (list-ref (attribute param-x) i))
+   #:with make-pattern-transformer
+   (if (attribute pat-only?) #'base-pattern-transformer #'normal+base-pattern)
    #'(begin
+       (~? (define (name/v param ...) exp))
        (define ((name/p param/p ...) x)
          (let ([param/wp (wrap/p param/p)] ...)
            (let-syntax
@@ -93,7 +104,8 @@
                [pat -> (append attr-x ...)]
                [_ -> #false]))))
        (define-syntax name
-         (base-pattern-transformer
+         (make-pattern-transformer
+          (~? (make-var-like-transformer #'name/v))
           (syntax-class
            #:attributes [matcher [out 1]]
            [pattern {~var || (pattern-body #'name/p '(index ...))}]))))]

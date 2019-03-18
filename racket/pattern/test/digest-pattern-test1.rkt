@@ -9,9 +9,9 @@
 ;; A [DConsListof X] is one of:
 ;;  - (dbytes #"")
 ;;  - (dlist (dbytes #"\001") X [DConsListof X])
-(define-pattern DEmpty <- (dbytes #""))
+(define-pattern DEmpty (dbytes #""))
 (define-pattern (DCons first rest)
-  #:bind [first rest] <-
+  #:bind [first rest]
   (dlist (dbytes #"\001") first rest))
 
 (define (len1 xs)
@@ -29,30 +29,29 @@
 (define (app1 xs ys)
   (match xs with
     [DEmpty       -> ys]
-    [(DCons x xs) -> (dlist (dbytes #"\001") x (app1 xs ys))]))
+    [(DCons x xs) -> (DCons x (app1 xs ys))]))
 
 (define (rev1 xs)
   (match xs with
-    [DEmpty       -> (dbytes #"")]
+    [DEmpty       -> DEmpty]
     [(DCons x xs) ->
-     (app1 (rev1 xs) (dlist (dbytes #"\001") x (dbytes #"")))]))
+     (app1 (rev1 xs) (DCons x DEmpty))]))
 
 (define (revapp xs ys)
   (match xs with
     [DEmpty       -> ys]
-    [(DCons x xs) ->
-     (revapp xs (dlist (dbytes #"\001") x ys))]))
+    [(DCons x xs) -> (revapp xs (DCons x ys))]))
 
-(define (rev2 xs) (revapp xs (dbytes #"")))
+(define (rev2 xs) (revapp xs DEmpty))
 
 (define (app2 xs ys) (revapp (rev2 xs) ys))
 
 (module+ test
   (define (t x)
     (cond [(string? x) (dbytes (string->bytes/utf-8 x))]
-          [(null? x) (dbytes #"")]
+          [(null? x) DEmpty]
           [(pair? x)
-           (dlist (dbytes #"\001") (t (car x)) (t (cdr x)))]
+           (DCons (t (car x)) (t (cdr x)))]
           [else (equal-hash-code x)]))
   (check-equal? (len1 (t '())) 0)
   (check-equal? (len1 (t (list "a"))) 1)
