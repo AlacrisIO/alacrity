@@ -18,6 +18,7 @@
                      make-var-like-transformer
                      syntax-class
                      full-pattern
+                     pattern-data-id-constructor
                      pattern-data-constructor))
 
 (require racket/match
@@ -37,6 +38,10 @@
 (begin-for-syntax
   (define (make-var-like-transformer id)
     (set!-transformer-procedure (make-variable-like-transformer id)))
+  (define (intdefctx->intdefctxs ctx)
+    (cond [(not ctx) '()]
+          [(internal-definition-context? ctx) (list ctx)]
+          [else ctx]))
   (define-simple-macro (syntax-class stuff ...)
     (let ()
       (define-syntax-class reified-class stuff ...)
@@ -80,34 +85,43 @@
     (λ (self)
       (base-pattern-transformer
        (normal+base-pattern-base-pattern self))))
-  (define-syntax-class base-pattern
+  (define-syntax-class (base-pattern [ctx #f])
     #:attributes [[matcher 0] [out 1]]
-    [pattern {~and stx {~or m (m . _)}}
-      #:declare m (static base-pattern-transformer? "pattern")
+    [pattern {~and stx {~or m:id (m:id . _)}}
+      #:do [(define m.value (syntax-local-value #'m (λ () #f) ctx))]
+      #:fail-unless (base-pattern-transformer? m.value)
+      "expected a pattern"
       #:with {~and props [matcher* [out ...]]}
       (local-apply-transformer
        (syntax-parser
          #:track-literals
          [{~reflect x
-            ((base-pattern-transformer-class (attribute m.value)))
+            ((base-pattern-transformer-class m.value))
             #:attributes [[matcher 0] [out 1]]}
           #'[x.matcher [x.out ...]]])
        #'stx
-       'expression)
+       'expression
+       (intdefctx->intdefctxs ctx))
       #:with matcher (syntax-track-origin
                       (syntax-track-origin
                        (syntax-parse-track-literals #'matcher*)
                        #'stx #'m)
                       #'props #'m)])
-  (define-syntax-class full-pattern
+  (define-syntax-class (full-pattern [ctx #f])
     #:attributes [[matcher 0] [out 1]]
-    [pattern :base-pattern]
-    [pattern x:id #:with :base-pattern #'{~var x}]
+    [pattern {~var || (base-pattern ctx)}]
+    [pattern x:id #:with {~var || (base-pattern ctx)} #'{~var x}]
     [pattern {~and x {~or :boolean :number :str :bytes :char}}
-      #:with :base-pattern #'(quote x)])
+      #:with {~var || (base-pattern ctx)} #'(quote x)])
 
-  (define-syntax-class (pattern-data-constructor ctor-matcher)
-    [pattern (_ p:full-pattern ...)
+  (define-syntax-class (pattern-data-id-constructor ctor-matcher)
+    [pattern :id
+      #:with matcher ctor-matcher
+      #:with [out ...] '()])
+
+  (define-syntax-class (pattern-data-constructor ctor-matcher [ctx #f])
+    [pattern (_ p ...)
+      #:declare p (full-pattern ctx)
       #:with matcher #`(#,ctor-matcher p.matcher ...)
       #:with [out ...] #'[p.out ... ...]])
   )
@@ -218,13 +232,13 @@
 (define-syntax -> #f)
 
 (begin-for-syntax
-  (define-splicing-syntax-class full-pattern/when
+  (define-splicing-syntax-class (full-pattern/when [ctx #f])
     #:attributes [matcher [out 1]]
     #:literals [when]
     [pattern {~seq pa:expr {~peek-not when} ~!}
-      #:with :full-pattern #'pa]
+      #:with {~var || (full-pattern ctx)} #'pa]
     [pattern {~seq pa:expr when ~! pr:expr}
-      #:with :full-pattern #'{~refine pa pr}]))
+      #:with {~var || (full-pattern ctx)} #'{~refine pa pr}]))
 
 (define-syntax-parser match
   #:track-literals
