@@ -1,41 +1,46 @@
 #lang racket/base
 
 (require "../pattern.rkt"
-         "../digest-pattern.rkt")
+         "../digest-pattern.rkt"
+         "../define-pattern.rkt")
 (module+ test
   (require rackunit))
 
 ;; A [DConsListof X] is one of:
 ;;  - (dbytes #"")
 ;;  - (dlist (dbytes #"\001") X [DConsListof X])
+(define-pattern DEmpty <- (dbytes #""))
+(define-pattern (DCons first rest)
+  #:bind [first rest] <-
+  (dlist (dbytes #"\001") first rest))
 
 (define (len1 xs)
   (match xs with
-    [(dbytes #"")                  -> 0]
-    [(dlist (dbytes #"\001") _ xs) -> (add1 (len1 xs))]))
+    [DEmpty       -> 0]
+    [(DCons _ xs) -> (add1 (len1 xs))]))
 
 (define (len+ xs n)
   (match xs with
-    [(dbytes #"")                  -> n]
-    [(dlist (dbytes #"\001") _ xs) -> (len+ xs (add1 n))]))
+    [DEmpty       -> n]
+    [(DCons _ xs) -> (len+ xs (add1 n))]))
 
 (define (len2 xs) (len+ xs 0))
 
 (define (app1 xs ys)
   (match xs with
-    [(dbytes #"")                  -> ys]
-    [(dlist (dbytes #"\001") x xs) -> (dlist (dbytes #"\001") x (app1 xs ys))]))
+    [DEmpty       -> ys]
+    [(DCons x xs) -> (dlist (dbytes #"\001") x (app1 xs ys))]))
 
 (define (rev1 xs)
   (match xs with
-    [(dbytes #"")                  -> (dbytes #"")]
-    [(dlist (dbytes #"\001") x xs) ->
+    [DEmpty       -> (dbytes #"")]
+    [(DCons x xs) ->
      (app1 (rev1 xs) (dlist (dbytes #"\001") x (dbytes #"")))]))
 
 (define (revapp xs ys)
   (match xs with
-    [(dbytes #"")                  -> ys]
-    [(dlist (dbytes #"\001") x xs) ->
+    [DEmpty       -> ys]
+    [(DCons x xs) ->
      (revapp xs (dlist (dbytes #"\001") x ys))]))
 
 (define (rev2 xs) (revapp xs (dbytes #"")))

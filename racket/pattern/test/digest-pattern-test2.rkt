@@ -1,7 +1,8 @@
 #lang racket/base
 
 (require "../pattern.rkt"
-         "../digest-pattern.rkt")
+         "../digest-pattern.rkt"
+         "../define-pattern.rkt")
 (module+ test
   (require rackunit
            (only-in "../digest-matcher.rkt"
@@ -11,30 +12,39 @@
 ;; A [Treeof X] is one of:
 ;;  - (dbytes #"")
 ;;  - (dlist (dbytes #"\001") X)
-;;  - (dlist (dbytes #"\002") [Treeof X] [Treeof Y])
+;;  - (dlist (dbytes #"\002") [Treeof X] [Treeof X])
+(define-pattern TreeEmpty <- (dbytes #""))
+(define-pattern (TreeLeaf x) #:bind [x] <- (dlist (dbytes #"\001") x))
+(define-pattern (TreeBranch x y) #:bind [x y] <-
+  (dlist (dbytes #"\002") x y))
 
 ;; A PathThere is one of:
 ;;  - (dbytes #"")
 ;;  - (dlist (dbytes #"\001") StepThere PathThere)
+(define-pattern PathThereEmpty <- (dbytes #""))
+(define-pattern (PathThereCons step rest) #:bind [step rest] <-
+  (dlist (dbytes #"\001") step rest))
 
 ;; A StepThere is one of:
 ;;  - (dbytes #"")
 ;;  - (dbytes #"\001")
+(define-pattern StepLeft <- (dbytes #""))
+(define-pattern StepRight <- (dbytes #"\001"))
 
 ;; [Treeof X] PathThere -> [Treeof X]
 (define (follow-path-there t p)
   (match p with
-    [(dbytes #"")                       -> t]
-    [(dlist (dbytes #"\001") step rest) ->
+    [PathThereEmpty            -> t]
+    [(PathThereCons step rest) ->
      (follow-path-there (follow-step-there t step) rest)]))
 
 ;; [Treeof X] StepThere -> [Treeof X]
 (define (follow-step-there t s)
   (match t with
-    [(dlist (dbytes #"\002") left right) ->
+    [(TreeBranch left right) ->
      (match s with
-       [(dbytes #"")     -> left]
-       [(dbytes #"\001") -> right])]))
+       [StepLeft  -> left]
+       [StepRight -> right])]))
 
 ;; [Treeof X] PathThere X -> Bool
 (define (check-path-to t p x)
