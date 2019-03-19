@@ -13,10 +13,16 @@
 ;;  - (dbytes #"")
 ;;  - (dlist (dbytes #"\001") X)
 ;;  - (dlist (dbytes #"\002") [Treeof X] [Treeof X])
-(define-pattern TreeEmpty <- (dbytes #""))
-(define-pattern (TreeLeaf x) #:bind [x] <- (dlist (dbytes #"\001") x))
-(define-pattern (TreeBranch x y) #:bind [x y] <-
+(define-pattern TreeEmpty (dbytes #""))
+(define-pattern (TreeLeaf x) #:bind [x] (dlist (dbytes #"\001") x))
+(define-pattern (TreeBranch x y) #:bind [x y]
   (dlist (dbytes #"\002") x y))
+
+(define-pattern (Treeof X)
+  #:bind [] <-
+  {~or TreeEmpty
+       (TreeLeaf X)
+       (TreeBranch (Treeof X) (Treeof X))})
 
 ;; A PathThere is one of:
 ;;  - (dbytes #"")
@@ -62,6 +68,14 @@
     (foldr (λ (x y) (dlist (dbytes #"\001") x y))
            (dbytes #"")
            (map t x)))
+
+  (check-equal?
+   (match (TreeBranch (TreeLeaf (dlist)) (TreeLeaf (dbytes #"helo"))) with
+     [(Treeof (dbytes _)) -> "it's a tree of dbytes"]
+     [(Treeof (dlist)) -> "it's a tree of dlist"]
+     [(Treeof {~or (dlist) (dbytes _)}) -> "it's a tree of dlist or dbytes"]
+     [_ -> "not a tree of dlist or dbytes"])
+   "it's a tree of dlist or dbytes")
 
   (check-equal? (follow-path-there (t 0) (p '())) (t 0))
   (check-equal? (follow-path-there (t '(1 "ello")) (p '()))
