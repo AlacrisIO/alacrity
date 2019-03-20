@@ -23,6 +23,29 @@ setup.log
 # Merlin-generated files
 .merlin
 
+# Coq-generated files
+.*.aux
+*.glob
+*.ml.d
+*.ml4.d
+*.mli.d
+*.mllib.d
+*.mlpack.d
+*.v.d
+*.vio
+*.vo
+.coq-native/
+.csdp.cache
+.lia.cache
+.nia.cache
+.nlia.cache
+.nra.cache
+csdp.cache
+lia.cache
+nia.cache
+nlia.cache
+nra.cache
+
 # Racket-generated files
 compiled/
 doc/
