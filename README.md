@@ -282,4 +282,18 @@ will take.
 
 #### Blackjack
 
-XXX
+The rock-paper-scissors example can be generalized to an interaction
+where the submission is not three values (rock, paper, scissors), but
+is an arbitrary N-bit number. The result could then be the XOR of the
+two numbers. Once the result is available, the rest of the program now
+has an N-bit number that neither side controlled the creation of.
+
+If N were 6, then it could designate one of 64 cards in a generalized
+version of Blackjack. The two players could then collaboratively
+implement the random deck of cards and perform a larger interaction
+involving drawing N cards and then deciding whether to draw more and
+so. This is generalized version of Blackjack because there are more
+than 52 cards and they can appear multiple times in the same deck.
+
+This is an example of the sort of abstraction that we will be able to
+build with Alacrity by laying abstractions and protocols.
