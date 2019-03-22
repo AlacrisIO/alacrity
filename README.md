@@ -256,47 +256,29 @@ Two participants want to play Rock-Paper-Scissors, but are distrustful
 of the other player peeking or delaying their choice until after the
 other exposes themselves. They agree to play on the blockchain.
 
-```
-RPS := Rock | Paper | Scissors
-Player := Key x Maybe RPS
-State := Player x Player x Maybe Boolean
+The protocol proceeds by the players posting their hands,
+encrypted. The other player can check if a posting is valid, because
+they know the public part of the key. Once a player observes the other
+one posting their hand, they reveal their own key. Once both do this,
+they can both see the hands and know who one.
 
-Protocol := {
- init := ((Key_a, None), (Key_b, None), None)
- observe (s as ((Key_a, A), (Key_b, B), R)) M :=
-  match M with
-  | Choose (Encrypt c Key_a) 
-    when R = None and A = None =>
-    ((Key_a, A'), (Key_b, B), (result A' B))
-    where A' := (Just c)
-  | Choose (Encrypt c Key_b) 
-    when R = None and B = None =>
-    ((Key_a, A), (Key_b, B'), (result A B'))
-    where B' := (Just c)
-  | Reveal K_n => s
-  end
-}
+The state of the protocol is the actual hands of the players and
+whether they've revealed yet. Each player's view is simply whether
+they've posted yet, whether the other side posted, and whether they've
+revealed yet. When player X has posted, the view is constrained to be
+their actual hand. When the other player has posted, X just knows
+that the internal state is a `Just`, but doesn't know what the
+contents are.
 
-Internal := Key
-View := Boolean x Boolean
-
-Participant := {
- abstract (me, them) := (absplayer me) x (absplayer them) x (absresult me them)
- absplayer b := (abskey, if b then Just absrps else None)
- absrps := either Rock Paper Scissors
- absresult x y := if x && y then Just absbool else None
- absbool := either True False
- 
- concrete ((Key_a, A), (Key_b, B), R) = (crps A), (crps B)
- crps (Just _) = True
- crps None = False
- 
- init := Key_me x (Choose (Encrypt Choice_me Key_me))
-
- XXX If I haven't posted, then post; once I see that they post; reveal
-}
-
-```
+This protocol could be elaborated with "stakes" about what the winner
+gets. In this situation, the person that reveals first is at a
+disadvantage because the second person can know if they are going to
+lose and then not reveal. The court-system-idea comes into play here,
+because they can take the chain to a third party and hold the other
+side accountable for not revealing; if they are honest, they will do
+it, but if they are not audience, the court will give them the
+opportunity to reveal that they didn't lose, which, of course, they
+will take.
 
 #### Blackjack
 
