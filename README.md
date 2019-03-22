@@ -43,7 +43,7 @@ blockchain; it uses existing blockchains. The minimal API Alacrity
 expects from a blockchain is:
 
 ```
-data Chain = Genesis | Closed Msg Chain
+data Chain = Genesis | Confirmed Msg Chain
 
 current : () -> Chain
 
@@ -92,7 +92,7 @@ information, then it is statically rejected.)
 Our representation of the interpretation is similarly subtle. It is
 plausible to use a representation such as `interp : Chain ->
 State`. This is problematic because it means that the interpretation
-of `Closed m1 c0` can be arbitrarily different from the interpretation
+of `Confirmed m1 c0` can be arbitrarily different from the interpretation
 of `c0`. This means, for example, that a message in the future can
 cause a message in the past to have a completely different effect. Our
 representation (as a catamorphism) guarantees that there is a unique
@@ -115,3 +115,21 @@ this is like how in a blockchain like Bitcoin, it is trivial to find
 out the wallet with the largest amount of Bitcoin
 (`385cR5DM96n1HvBDMzLHPYcw89fZAXULJP` as of March 2019.)
 
+XXX Goal is not to prove these things about arbitrary programs, but to
+construct a DSL that is constrained enough to prove the properties
+automatically.
+
+XXX Opacity of messages --- Opaque (List Key -> Msg)
+
+XXX Blackjack / Poker example
+
+```
+Participant :=
+ { Internal : Set; View : Set;
+   abstract : View → Set State
+   concrete : State → View  
+   value    : State → Real;
+   init     : Internal × List Msg;
+   react    : View x Internal × Msg →
+              View x Internal × List Msg }
+```
