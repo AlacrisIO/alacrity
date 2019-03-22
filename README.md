@@ -228,11 +228,76 @@ piece and so on. The problem is that `concrete` could not synthesize
 information that is truly never in the protocol state, such as the
 hidden goals of a participant.
 
+As a final note, participants react to their own messages, so the
+`init` value doesn't need to returned an update view and the new view
+returned by `react` is the view based on the received message, not the
+sent message. This is because message posting may not succeed. A
+typical programming pattern will be to store a desired post inside of
+`Internal` and continue trying to post until it is successful,
+and afterwards removing that internal state.
+
 ### Verification
 
-XXX What it means to verify
+XXX Execution
+
+XXX Compilation
+
+XXX Correctness
+
+XXX Security
+
+XXX Efficiency
 
 ### Examples
 
-XXX Blackjack / Poker example
+#### Rock-Paper-Scissors
 
+Two participants want to play Rock-Paper-Scissors, but are distrustful
+of the other player peeking or delaying their choice until after the
+other exposes themselves. They agree to play on the blockchain.
+
+```
+RPS := Rock | Paper | Scissors
+Player := Key x Maybe RPS
+State := Player x Player x Maybe Boolean
+
+Protocol := {
+ init := ((Key_a, None), (Key_b, None), None)
+ observe (s as ((Key_a, A), (Key_b, B), R)) M :=
+  match M with
+  | Choose (Encrypt c Key_a) 
+    when R = None and A = None =>
+    ((Key_a, A'), (Key_b, B), (result A' B))
+    where A' := (Just c)
+  | Choose (Encrypt c Key_b) 
+    when R = None and B = None =>
+    ((Key_a, A), (Key_b, B'), (result A B'))
+    where B' := (Just c)
+  | Reveal K_n => s
+  end
+}
+
+Internal := Key
+View := Boolean x Boolean
+
+Participant := {
+ abstract (me, them) := (absplayer me) x (absplayer them) x (absresult me them)
+ absplayer b := (abskey, if b then Just absrps else None)
+ absrps := either Rock Paper Scissors
+ absresult x y := if x && y then Just absbool else None
+ absbool := either True False
+ 
+ concrete ((Key_a, A), (Key_b, B), R) = (crps A), (crps B)
+ crps (Just _) = True
+ crps None = False
+ 
+ init := Key_me x (Choose (Encrypt Choice_me Key_me))
+
+ XXX If I haven't posted, then post; once I see that they post; reveal
+}
+
+```
+
+#### Blackjack
+
+XXX
