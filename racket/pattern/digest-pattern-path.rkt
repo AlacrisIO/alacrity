@@ -9,12 +9,10 @@
 
 ;; A PathContextStep is one of:
 ;;  - (deref)
-;;  - (list-index Natural)
+;;  - (product-index Natural)
+;;  - (sum-index Natural)
 ;;  - (or-index Natural)
 ;;  - (and-index Natural)
-
-;; TODO: make sum types primitive, and have paths work with
-;;       them
 
 ;; ---------------------------------------------------------
 
@@ -32,7 +30,8 @@
 ;;                ; simple atomic data
 ;;    just run the pattern from here using the trimmed DAG
 ;;  - (deref PosPathTree)
-;;  - (list-all [Listof PosPathTree])
+;;  - (sum-index Natural PosPathTree)
+;;  - (product-all [Listof PosPathTree])
 ;;  - (or-index Natural PosPathTree)
 ;;  - (and-all [Listof PosPathTree])
 ;;  - (exists-witness Digest PosPathTree)
@@ -42,7 +41,8 @@
 ;;                ; surface-level mismatches
 ;;    just run the pattern from here using the trimmed DAG
 ;;  - (deref NegPathTree)
-;;  - (list-index Natural NegPathTree)
+;;  - (sum-all [Listof NegPathTree])
+;;  - (product-index Natural NegPathTree)
 ;;  - (or-all [Listof NegPathTree])
 ;;  - (and-index Natural NegPathTree)
 ;;  - (forall-counterexample Digest NegPathTree)
