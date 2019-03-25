@@ -7,14 +7,14 @@
 (module+ test
   (require rackunit))
 
-(define-pattern None (dbytes #""))
-(define-pattern (Some v) #:bind [v] (dlist (dbytes #"\001") v))
+(define-pattern None (dtagged 0 (dlist)))
+(define-pattern (Some v) #:bind [v] (dtagged 1 v))
 (define-pattern (Option v) #:bind [] <-
   {~or None
        (Some v)})
 
-(define-pattern Z (dbytes #""))
-(define-pattern (S n) #:bind [n] (dlist (dbytes #"\001") n))
+(define-pattern Z (dtagged 0 (dlist)))
+(define-pattern (S n) #:bind [n] (dtagged 1 n))
 (define-pattern Nat <- {~or Z (S Nat)})
 (define (nat->rkt n)
   (match n with
@@ -36,8 +36,8 @@
 (define-pattern B1 (dbytes #"\001"))
 (define-pattern Bit <- {~or B0 B1})
 ;; binary numbers as little-endian lists of bits
-(define-pattern BEmpty (dbytes #""))
-(define-pattern (BCons b rst) #:bind [b rst] (dlist (dbytes #"\001") b rst))
+(define-pattern BEmpty (dtagged 0 (dlist)))
+(define-pattern (BCons b rst) #:bind [b rst] (dtagged 1 (dlist b rst)))
 (define-pattern Binary <- {~or BEmpty (BCons Bit Binary)})
 (define (rkt->bit i) (match i with [0 -> B0] [1 -> B1]))
 (define (bit->rkt b) (match b with [B0 -> 0] [B1 -> 1]))
@@ -84,9 +84,9 @@
 
 ;; ---------------------------------------------------------
 
-(define-pattern Empty (dbytes #""))
-(define-pattern (Leaf v) #:bind [v] (dlist (dbytes #"\001") v))
-(define-pattern (Branch h l r) #:bind [h l r] (dlist (dbytes #"\002") h l r))
+(define-pattern Empty (dtagged 0 (dlist)))
+(define-pattern (Leaf v) #:bind [v] (dtagged 1 v))
+(define-pattern (Branch h l r) #:bind [h l r] (dtagged 2 (dlist h l r)))
 (define-pattern (Trie v) #:bind [] <-
   {~or Empty
        (Leaf v)

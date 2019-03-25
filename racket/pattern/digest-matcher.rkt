@@ -2,12 +2,15 @@
 
 (provide dbytes? dbytes dbytes/p
          dlist? dlist dlist/p
+         dtagged? dtagged dtagged/p
          record-dag
          with-recorded-dag)
 
-(require racket/set
+(require racket/match
+         racket/set
          syntax/parse/define
-         "matcher.rkt")
+         "matcher.rkt"
+         "util/product-sum.rkt")
 
 ;; A Digest is an Integer
 ;; representing the hash of some data
@@ -76,11 +79,17 @@
 ;; dlist? : Digest -> Bool
 (define (dlist? d) (list? (deref d)))
 
+;; dtagged? : Digest -> Bool
+(define (dtagged? d) (sum? (deref d)))
+
 ;; dbytes : Bytes -> Digest
 (define (dbytes b) (ref b))
 
 ;; dlist : Digest ... -> Digest
 (define (dlist . ds) (ref ds))
+
+;; dtagged : Natural Digest -> Digest
+(define (dtagged tag d) (ref (tagged tag d)))
 
 ;; dbytes/p : [Matcher Bytes Bytes (Z ...)] -> [Matcher Digest Digest (Z ...)]
 (define (dbytes/p p)
@@ -93,4 +102,16 @@
 ;;  [Matcher Digest Digest (Z ... ...)]
 (define (dlist/p . ps)
   (compose (apply list/p ps) deref))
+
+;; dtagged/p
+;;   [Matcher Natural Natural (Z1 ...)]
+;;   [Matcher Digest Digest (Z2 ...)]
+;;   ->
+;;   [Matcher Digest Digest (Z1 ... Z2 ...)]
+(define ((dtagged/p p-tag p-elem) x)
+  (match (deref x)
+    [(tagged (app p-tag (and (not #f) vs1))
+             (app p-elem (and (not #f) vs2)))
+     (append vs1 vs2)]
+    [_ #f]))
 
