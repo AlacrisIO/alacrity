@@ -236,15 +236,85 @@ typical programming pattern will be to store a desired post inside of
 `Internal` and continue trying to post until it is successful,
 and afterwards removing that internal state.
 
+**Whole application programs** are programs that combine all aspects
+of Alacrity programs by writing a sequenced version of a protocol
+specification annotated with a finite number of participants roles,
+each with initial messages and view specifications. In these programs,
+the `observe` and `react` functions are combined together and for all
+participants, but automatically extracted through end-point
+projection. Although this is a crucial part of practically using
+Alacrity, it is merely a convenience library and not core to the
+semantic model.
+
 ### Verification
 
-XXX Execution
+Alacrity uses a multi-layered, cascading style of verification. We
+discuss each aspect in turn. In general, verification exists in one of
+two categories: either it is property about the Alacrity tool suite or
+it is a property about the particular Alacrity program. We'll refer to
+the first as "DSL verification" and the second as "protocol
+verification."
 
-XXX Compilation
+**Execution** verification is a kind of DSL verification whereby
+the blockchain operations (such as the construction of the chain and
+enforcement of the `valid` invariants) obey the semantics of
+Alacrity. Each Alacrity implementation must prove that it provides
+this as a matter of correct compilation.
 
-XXX Correctness
+**Full abstraction** is another DSL verification property whereby we
+guarantee that the DSL semantics cannot be violated by lower-level
+blockchain operations. For example, Alacrity guarantees that messages
+that do not pass `valid` are not sent to the participants. This
+guarantee could be enforced by ensuring that the underlying blockchain
+observer faithful implements `valid` when it consumes messages from
+the chain or by guaranteeing that the underlying blockchain itself has
+been programmed to enforce the rules of `valid` (which may not be
+possible, but is desirable when possible.)
 
-XXX Security
+These two properties are not interesting to Alacrity protocols
+themselves. Instead, they are a necessary precondition for the proofs
+that we do *about* Alacrity protocols to be meaningful when they are
+deployed on actual blockchains.
+
+**Correctness** is a protocol verification property that refers to the
+"functional correctness" of the protocol. This means that the protocol
+fulfills its overall mission; for example, that it represents a
+balanced ledger. We express this mathematically via temporal logic
+formula over the sequence of states, called traces. In Alacrity, a
+trace always starts with `init` and is followed (in a branching
+fashion) by all states such that there exists a message that when
+`observe`d could lead from another state in the trace to it. We can
+expressive this inductively:
+
+```
+Inductive ValidTrace : List State -> Prop :=
+| VT_Init : ValidTrace [init]
+| VT_Observe : forall s ss m,
+                 ValidTrace ss ++ [s] ->
+                 ValidTrace ss ++ [s; observe s m].
+```
+
+Correctness propositions are statements in a temporal logic (like LTL
+or CTL), such as "For all states in the trace, the sum of the values
+of accounts is zero."
+
+This notion of verification matches precisely the existing notions
+used in model checkers, like Alloy and SPIN, as well as fit nicely
+into models used in verification environments like Coq.
+
+**Security** verification is a form of protocol verification that
+refers to the inability of irregular participants to falsify messages
+or otherwise mislead regular participants. This means that the
+participants in the protocol will not react to messages that are not
+sent by another faithful participant. We express this mathematically
+as a proposition on the strand space induced by the participant
+programs. Strand spaces are an existing cryptographic protocol
+specification and verification technique due to Guttman and Thayer. A
+full explanation of their definition is beyond the scope of this
+document. However, the model assumes a powerful attacker, called the
+Dolev-Yao attacker, that the blockchain represents quite well. (The
+main caveat is that some blockchains can restrict message
+transmissions to satisfying the `valid` test.)
 
 XXX Efficiency
 
@@ -280,7 +350,24 @@ it, but if they are not audience, the court will give them the
 opportunity to reveal that they didn't lose, which, of course, they
 will take.
 
+This protocol does not have enough interesting invariants to have an
+interesting correctness property. One plausible property is that any
+message indicating a choice of move has no effect on the state after
+the first choice.
+
+However, there are meaningful security properties, such as the
+inability of a man-in-middle-attack wherein player A tricks player B
+into playing a game with player C, revealing their hand, and then
+re-using that hand in the game with A, thus allowing A to observe B's
+hand and control the win. A strand space analysis would, for example,
+push us to ensure that the messages from B are marked with their
+intended recipient A.
+
 XXX Verification for this
+
+TODO Someone other than Jay should try to write down the Alacrity
+program for this example as a test of their comprehension and Jay's
+ability to explain the ideas.
 
 #### Blackjack
 
@@ -300,6 +387,12 @@ a number between 1 and 52, encrypts it, posts, and reveals their key;
 X now computes `X + Y % 52` and uses the value as the card they
 drew. Later in the game when the card would be revealed, X does so by
 revealing their key, so the public can compute the number as well.
+
+Another approach to a card game like Blackjack is to split the deck
+beforehand and then randomize the individual sides. This would
+disallow cards from repeating (because a player could compare with
+their current drawn pile) but it would also expose a priori the
+information about which side a given player has.
 
 This is an example of the sort of abstraction that we will be able to
 build with Alacrity by laying abstractions and protocols.
