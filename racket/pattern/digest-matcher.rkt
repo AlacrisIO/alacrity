@@ -5,6 +5,8 @@
          dtagged? dtagged dtagged/p
          record-dag
          with-recorded-dag)
+(module+ private
+  (provide ref deref))
 
 (require racket/match
          racket/set
