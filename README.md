@@ -81,6 +81,14 @@ compilers specific to particular blockchains) may make use of these
 features, as an optimization, but we intentionally choose a
 lowest-common denominator perspective on blockchains.
 
+Alacrity assumes that blockchain platforms provide per-application
+chains; in other words, if two distributed applications X and Y are
+both deployed on chain A, then the messages for X and Y can never be
+confused with each other. For platforms that do not actually support
+this, Alacrity compiles messages to be prefixed with unique designations
+that isolate communication for an application, in a way analogous to
+ports in TCP/UDP.
+
 A **distributed application** is a collection of _participants_ that post
 to a _blockchain_ to collaboratively implement some functionality. These
 participants agree on a _protocol_.
@@ -316,7 +324,15 @@ Dolev-Yao attacker, that the blockchain represents quite well. (The
 main caveat is that some blockchains can restrict message
 transmissions to satisfying the `valid` test.)
 
-XXX Efficiency
+**Efficiency** verification is a protocol verification that refers to
+the economic efficiency of protocol runs. In Alacrity, each
+participant provides a function that evaluates the value of states as
+a real number. Using the same trace space as in correctness
+verification, we build a dynamical system that aggregates the value
+across all participants. We can then investigate the long-run
+equilibria of this system and asks questions about its efficiency and
+optimality, such as whether all interactions preserve or increase
+value.
 
 ### Examples
 
@@ -363,7 +379,10 @@ hand and control the win. A strand space analysis would, for example,
 push us to ensure that the messages from B are marked with their
 intended recipient A.
 
-XXX Verification for this
+Given the simplicity of this application, its efficiency is
+uncontroversial. Each player would rank all states as zero, except for
+ones in which they win (one) or tie (half). The value is guaranteed to
+increase or stay the same regardless of the state transitions.
 
 TODO Someone other than Jay should try to write down the Alacrity
 program for this example as a test of their comprehension and Jay's
@@ -396,3 +415,23 @@ information about which side a given player has.
 
 This is an example of the sort of abstraction that we will be able to
 build with Alacrity by laying abstractions and protocols.
+
+### Tools
+
+The Alacrity tool suite includes:
+
+- TODO A simulated blockchain for testing purposes.
+
+- TODO A compiler from Alacrity programs to participants programs targeting
+  the testing chain.
+
+- Extractors that consume Alacrity programs and produce
+
+--- TODO state space models for correctness proofs;
+
+--- TODO strand space models for security proofs;
+
+--- TODO dynamical systems for efficiency experiments;
+
+--- TODO theorems to be verified for the soundness of the
+participants' views.
