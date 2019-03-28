@@ -1,0 +1,59 @@
+---
+
+Standard Library
+
+define random-element lst =
+  list-ref lst (random (length lst))
+
+data SaltedHash = SaltedHash Salt Hash
+
+define salted-hash v =
+  let salt = random-salt ()
+  SaltedHash salt (hash (salt, v))
+
+define valid-salted-hash? val (SaltedHash salt salted-hash) =
+  hash (salt, val) = salted-hash
+
+---
+
+Application
+
+data Hand = Rock
+          | Paper
+          | Scissors
+
+define hand<? a b =
+  match a, b with
+  | Rock, Paper     -> True
+  | Paper, Scissors -> True
+  | Scissors, Rock  -> True
+  | _               -> False
+
+define fair-win other-id = ???
+
+define fair-loss other-id = ???
+
+define fair-draw other-id = ???
+
+define the-other-guy-cheated other-id = ???
+
+define player-actions other-id =
+  let hand = random-element [Rock,Paper,Scissors]
+  let hash-hand = salted-hash hand
+  send other-id hash-hand
+  let other-hash-hand = wait-for other-id hash-hand
+  send other-id hand
+  match wait-for/timeout other-id hand with
+  | Ok other-hand when valid-salted-hash? other-hand other-hash-hand ->
+    if hand<? other-hand hand
+    then fair-win other-id
+    else if hand<? hand other-hand
+    then fair-loss other-id
+    else fair-draw other-id
+  | _ ->
+    the-other-guy-cheated other-id
+
+define rock-paper-scissors p1 p2 =
+  participant p1 (player-actions p2)
+  participant p2 (player-actions p1)
+
