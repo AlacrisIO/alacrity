@@ -5,14 +5,11 @@ Standard Library
 define random-element lst =
   list-ref lst (random (length lst))
 
-data SaltedHash = SaltedHash Salt Hash
+data Salted a = Salted Salt a
 
-define salted-hash v =
+define salted v =
   let salt = random-salt ()
-  SaltedHash salt (hash (salt, v))
-
-define valid-salted-hash? val (SaltedHash salt salted-hash) =
-  hash (salt, val) = salted-hash
+  Salted salt v
 
 ---
 
@@ -39,12 +36,13 @@ define the-other-guy-cheated other-id = ???
 
 define player-actions other-id =
   let hand = random-element [Rock,Paper,Scissors]
-  let hash-hand = salted-hash hand
-  send other-id hash-hand
-  let other-hash-hand = wait-for other-id hash-hand
-  send other-id hand
+  let salted-hand = salted hand
+  send other-id hash-salted-hand = hash salted-hand
+  let other-hash-salted-hand = wait-for other-id hash-salted-hand
+  send other-id salted-hand = salted-hand
   match wait-for/timeout other-id hand with
-  | Ok other-hand when valid-salted-hash? other-hand other-hash-hand ->
+  | Ok other-salted-hand when (hash other-salted-hand = other-hash-salted-hand) ->
+    let other-hand = other-salted-hand.value
     if hand<? other-hand hand
     then fair-win other-id
     else if hand<? hand other-hand
