@@ -10,14 +10,52 @@ Let's consider a simple game of coin flipping.
 We might want to write it as follows:
 
 ```
-function trusted_randomness () Players ==> @consensual uint256 {
-  for_each {
-    let r = random(2**256);
-    let @verifiable @public h = hash(r);
+function salt () : unit =[random]=> uint256 {
+    return random_uint256();
+}
+
+function atomically_mutualize (data) : Players ==> @for_each 'data => @consensual per_player<'data> {
+  @for_each {
+    let @verifiable @public commitment = digest(data);
+    sync (); // wait for everyone to publish their commitment.
+    publish data; // As part of publish, others verify that the data fits its declared type.
+    // TODO Optimization: if messages are somehow synchronous (e.g. posting to a blockchain consensus),
+    // the last one may reveal the data directly without needing to first commit in a separate message.
+    // In particular, when there are only two players, the "last one" is the other-than-first-one.
+    // In an iterated game, this can halve the number of messages(!)
+    // Should the programmer be responsible for that optimization? Then what API makes it reasonable?
+    // Should merging messages and optimizing away commitments be done at a lower-level?
+    // Is it done statically or dynamically? Again, what model makes that trivial?
     sync ();
-    publish r;
-    verify h;
-    return @consensual reduce (logxor) all_values(r);
+    verify commitment; // the commitment must to be the digest of data, as per its verifiable definition.
+    return @consensual all_values(data);
+  }
+}
+
+function trusted_randomness () : Players ==> @consensual uint256 {
+  @for_each {
+    @consensual return reduce(logxor, atomically_mutualize(@for_each salt ()));
+  }
+}
+
+type hand = Rock | Paper | Scissors
+
+function hands_beat(hand0, hand1) : hand => hand => bool {
+  return (hand0 = Scissors && hand1 = Paper)
+    || (hand0 = Rock && hand1 = Scissors)
+    || (hand0 = Paper && hand1 = Rock)
+}
+
+function rock_paper_scissors (amount) : TwoPlayers ==> amount => @consensual game_result {
+  @consensual {
+    let [(_, hand0), (_, hand1)] = atomically_mutualize(@for_each (salt (), input hand));
+    if (hand0 = hand1) {
+      game_is_draw();
+    } else if (beats_hand (hand0, hand1)) {
+      wins(player0);
+    } else {
+      wins(player1);
+    }
   }
 }
 ```
@@ -25,9 +63,9 @@ function trusted_randomness () Players ==> @consensual uint256 {
 In the above example, `Players` is some kind of typeclass
 that provides the notion of there being many players,
 as well as the primitives
-`for_each` `@verifiable` `@public` `sync` `publish` `verify` and `consensual`.
+`@for_each` `@verifiable` `@public` `sync` `publish` `verify` and `consensual`.
 
-The `for_each` block marks the algorithm as working similarly
+The `@for_each` block marks some part of the algorithm as working similarly
 on each of the players in the `Players` pool.
 
 The `@public` attribute works as if `publish h` was called after the definition of `h`
@@ -67,5 +105,7 @@ and/or to the Rho calculus (for the digestible reification of computations).
 
 NB: Maybe we should use some variant of the quasiquote and unquote like xapping syntax
 for SIMD vs MIMD fragments of code as in the Connection Machine's *Lisp (starlisp) ?
-https://pdfs.semanticscholar.org/15cb/2e60fb0dab06dcf3519c22e28f1c5a42c541.pdf
-
+(Not the best reference, but we should be able to unravel the original from it:
+<https://pdfs.semanticscholar.org/15cb/2e60fb0dab06dcf3519c22e28f1c5a42c541.pdf>).
+In this general theme, see also the talk by Guy Steele about the semantics of the
+notation used in CS articles for action on vectors of data.
