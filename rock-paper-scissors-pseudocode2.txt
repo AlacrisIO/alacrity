@@ -1,0 +1,73 @@
+---
+
+Standard Library
+
+define random-element lst =
+  list-ref lst (random (length lst))
+
+data Salted a = Salted Salt a
+
+define salted v =
+  let salt = random-salt ()
+  Salted salt v
+
+; send-or-receive = send address name : type <- expression
+;                 | receive address name : type -> pattern
+
+define-syntax-class sync-clause
+  #:literals [send receive <- ->]
+  pattern (send other-id name : type <- expr)
+    #:with first-phase-send (let internal-name : type = expr
+                             send other-id hash-name : Hash <- hash internal-name)
+    #:with first-phase-receive ()
+    #:with second-phase-send (send other-id name <- internal-name)
+    #:with second-phase-receive ()
+  pattern (receive other-id name : type ->)
+    #:with first-phase-send ()
+    #:with first-phase-receive (receive other-id hash-name : Hash -> other-hash-name)
+    #:with second-phase-send ()
+    #:with second-phase-receive (receive other-id name : type -> other-name
+                                 check (hash other-name) = other-hash-name)
+
+define-simple-macro (syncronous clause:sync-clause ...)
+  clause.first-phase-send ...
+  clause.first-phase-receive ...
+  clause.second-phase-send ...
+  clause.second-phase-receive ...
+
+---
+
+Application
+
+data Hand = Rock
+          | Paper
+          | Scissors
+
+define hand<? a b =
+  match a, b with
+  | Rock, Paper     -> True
+  | Paper, Scissors -> True
+  | Scissors, Rock  -> True
+  | _               -> False
+
+define fair-win other-id = ???
+
+define fair-loss other-id = ???
+
+define fair-draw other-id = ???
+
+define player-actions other-id =
+  let hand = random-element [Rock,Paper,Scissors]
+  syncronous
+    send other-id salted-hand : Salted Hand <- Salted (random-salt) hand
+    receive other-id salted-hand : Salted Hand -> Salted _ other-hand
+  if hand<? other-hand hand
+  then fair-win other-id
+  else if hand<? hand other-hand
+  then fair-loss other-id
+  else fair-draw other-id
+
+define rock-paper-scissors p1 p2 =
+  participant p1 (player-actions p2)
+  participant p2 (player-actions p1)
+
