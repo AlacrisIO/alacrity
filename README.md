@@ -58,17 +58,22 @@ write : Msg -> Raw
 read  : (Var -> Key) x Raw -> Msg
 ```
 
-A **blockchain** is a unique ordered list of messages that is
-common knowledge and globally authoritative. Alacrity is not a
-blockchain; it uses existing blockchains. The minimal API Alacrity
-expects from a blockchain is:
-XXX and monotonically increases with time? i.e.
-XXX the value at a given time is the tail of the values at latter times.
-XXX Also, by this definition, the "messages" in a typical "blockchain"
-XXX is actually a list of individual transactions plus administrative data.
-XXX Maybe we should call the list-of-message abstraction something else than a "blockchain".
-XXX maybe a message history or something? And then say a blockchain is a history of blocks?
+A **blockchain** is a unique ordered list of messages that is common
+knowledge, globally authoritative, and monotonically
+increasing. Alacrity is not a blockchain; it uses existing
+blockchains. The minimal API Alacrity expects from a blockchain is:
 
+XXX Also, by this definition, the "messages" in a typical "blockchain"
+    is actually a list of individual transactions plus administrative
+    data. Maybe we should call the list-of-message abstraction
+    something else than a "blockchain". Maybe a message history or
+    something? And then say a blockchain is a history of blocks?
+
+YYY This is all true, but I think it is beneath the level of
+    abstraction Alacrity is at. For example, if the administrative
+    messages are relevant, then they are part of the message history;
+    otherwise they are just details about the blockchain was
+    implemented.
 
 ```
 data Chain = Genesis | Confirmed Raw Chain
@@ -77,16 +82,34 @@ current : () -> Chain
 
 post : Raw -> Boolean
 ```
-XXX Why not just a list or sequence (actually trie) of blocks?
-XXX This way we can abstract away the means of sequencing and use generic theorems about sequences
-XXX instead of introducing new ad hoc chaining constructors.
-XXX Also, why does `post` return a boolean and not unit, if we're having side-effects anyway?
+
+XXX Why not just a list or sequence (actually trie) of blocks? This
+    way we can abstract a way the means of sequencing and use
+    generic theorems about sequences instead of introducing new ad hoc
+    chaining constructors.
+
+YYY We are not actually using this type. It is just for explanatory
+    purposes. Furthermore, I don't believe there are relevant theorems
+    about sequences other than fold.
+
+XXX Also, why does `post` return a boolean and not unit, if we're
+    having side-effects anyway?
+
+YYY This represents how posting may not succeed.
+
 XXX Finally, a block usually includes a set of valid transactions, not just one;
-XXX a miner may post a block, but individual users post a single transaction
-XXX that a miner may eventually include in a block, or not.
-XXX One essential thing a blockchain does bring, though, is a *consensus*,
-XXX that ensures that the state grows monotonically, and
-XXX you cannot remove a message from the history.
+    a miner may post a block, but individual users post a single transaction
+    that a miner may eventually include in a block, or not.
+    One essential thing a blockchain does bring, though, is a *consensus*,
+    that ensures that the state grows monotonically, and
+    you cannot remove a message from the history.
+
+YYY Below our abstraction. This isn't a description of how to
+    implement a blockchain. It is just what we want from it. The fact
+    that an actual blockchain has a bunch in one block just means that
+    when you observe incoming messages, they come in chunks. They are
+    not truly set-like btw because even within a block they are
+    ordered.
 
 That is, Alacrity only expects that a blockchain provides the ability
 to observe the history of the chain (`current`) and attempt to post a
@@ -105,29 +128,37 @@ confused with each other. For platforms that do not actually support
 this, Alacrity compiles messages to be prefixed with unique designations
 that isolate communication for an application, in a way analogous to
 ports in TCP/UDP.
-XXX The sub-blockchains are even per-application-instance. If we play rock-paper-scissors many time,
-XXX each instance will have its own prefix or encoding.
-XXX In practice, it's not so much a prefix as it is part of the "address" of the computation:
-XXX In Bitcoin, you'd send money to a continuation "script" identified by
-XXX the hash of code including all closed-over variables, which if needed
-XXX would include some unique differentiating value.
-XXX In rchain's rholang, which uses a variant of the Pi calculus,
-XXX this would be even more directly supported.
-XXX On Ethereum, the code would be in a "contract" with a unique address and a read/write state
-XXX (at the VM level, a map from uint256 to uint256, but higher-level languages build arbitrary stuff
-XXX on top of that). You'd somehow generate a unique address for the interaction
-XXX that can't be faked by third parties (hash of the player addresses and number they provide),
-XXX and would store the state of the interaction under that address.
-XXX When we prove full abstraction for the sub-blockchain and study the strand spaces,
-XXX we must show somehow that indeed each instance of interaction is well separate from the others.
-XXX Presumably, at the beginning at least, we'll axiomatize that the proper use of contracts works.
-XXX Later on, we may prove it from a model of the Blockchain.
+
+XXX The sub-blockchains are even per-application-instance. If we play
+    rock-paper-scissors many time, each instance will have its own
+    prefix or encoding.  In practice, it's not so much a prefix as it
+    is part of the "address" of the computation: In Bitcoin, you'd
+    send money to a continuation "script" identified by the hash of
+    code including all closed-over variables, which if needed would
+    include some unique differentiating value.  In rchain's rholang,
+    which uses a variant of the Pi calculus, this would be even more
+    directly supported.  On Ethereum, the code would be in a
+    "contract" with a unique address and a read/write state (at the VM
+    level, a map from uint256 to uint256, but higher-level languages
+    build arbitrary stuff on top of that). You'd somehow generate a
+    unique address for the interaction that can't be faked by third
+    parties (hash of the player addresses and number they provide),
+    and would store the state of the interaction under that address.
+    When we prove full abstraction for the sub-blockchain and study
+    the strand spaces, we must show somehow that indeed each instance
+    of interaction is well separate from the others.  Presumably, at
+    the beginning at least, we'll axiomatize that the proper use of
+    contracts works.  Later on, we may prove it from a model of the
+    Blockchain.
 
 A **distributed application** is a collection of _participants_ that post
 to a _blockchain_ to collaboratively implement some functionality. These
 participants agree on a _protocol_.
+
 XXX Apparently, our current investors prefer the term "Decentralized Application"
-XXX to "Distributed Application". Go figure.
+    to "Distributed Application". Go figure.
+    
+YYY Feel free to `replace-string`
 
 A **protocol** is the language of _messages_ that the set of
 _participants_ in a _distributed application_, as well as an
@@ -143,8 +174,6 @@ Protocol State := {
  observe : State x Msg -> State
 }
 ```
-XXX I might instead call `observe` a function `list Msg → State`, and
-XXX have `accept : State × Msg → State` or `apply : Msg → State → State`.
 
 In this type, we represent the set of valid messages for a protocol as
 a predicate that determines membership in the set, `valid`. Alacrity
@@ -154,13 +183,22 @@ message sets that is guaranteed to produce membership functions with
 desirable properties, like computability. This also facilitates
 specially compiling protocols for particular blockchain platforms with
 expressive message constraints.
-XXX Yes, but then, there is also a concept of context-dependent validity,
-XXX that is not captured by the internal structure of the message alone,
-XXX but also by the current State, i.e. you can't withdraw more than you
-XXX have in your account. Maybe we need two separate words for that.
-XXX I propose well-formed vs valid, a common distinction in logic.
-XXX Or do we want to reserve well-formed for an element merely being of the correct type,
-XXX with some different name for some additional intermediate state-less predicate?
+
+XXX Yes, but then, there is also a concept of context-dependent
+    validity, that is not captured by the internal structure of the
+    message alone, but also by the current State, i.e. you can't
+    withdraw more than you have in your account. Maybe we need two
+    separate words for that.  I propose well-formed vs valid, a common
+    distinction in logic.  Or do we want to reserve well-formed for an
+    element merely being of the correct type, with some different name
+    for some additional intermediate state-less predicate?
+    
+YYY I agree that this is a problem with the representation. As
+    written, the `valid` predicate is state-independent and
+    corresponds to well-formed-ness. The problem with validity is that
+    it depends on some way to describe the public perspective on the
+    message. My plan is to represent invalid messages as idempotent
+    messages where `observe s invalid = s`.
 
 Our representation of the interpretation is similarly subtle. It is
 plausible to use a representation such as `interp : Chain ->
@@ -183,9 +221,6 @@ new_observe s m :=
   else
      s
 ```
-XXX so, valid s m. I'd rather have an axiom:
-XXX Parameter observe_valid_messages_only :
-XXX  ∀ s : State, ∀ m : Msg, valid s m = false → observe s m = s
 
 However, we include `valid` because some blockchain platforms offer
 the efficient ability to reject messages based on their structure.
@@ -198,11 +233,6 @@ encryption. The type specification shows this by `observe` receiving
 a `Msg` argument and not a `Bytes` argument. This means that the
 protocol represents an external, omniscient perspective on the
 application state.
-XXX especially if we take an epistemic logic point of view.
-XXX Also, by abstracting messages away from Bytes,
-XXX we can write theorems about the observe function being parametric
-XXX in the cryptographic functions / factoring through an erasure
-XXX of the contents that you're not supposed to know how to decrypt.
 
 A **participant** of a protocol is a particular agent that is taking
 part in the protocol conversation. It has its own interpretation of
@@ -226,16 +256,37 @@ Participant State (p:Protocol State) Internal View := {
             Internal x View x Maybe Msg
 }
 ```
-XXX I believe the value must come from the View, because the Liveness property
-XXX will suppose that everyone "acts according to their interest", and this has
-XXX to be defined in terms of a value function that each participant can reason about
-XXX and ascertain has increased between safe observable points.
-XXX Also, I'm not convinced that View shouldn't be "just" `Internal` or `Internal × Public`;
-XXX I can see it be some erasure of the content that you can't decrypt,
-XXX but somehow equality still matters, especially as to what you include in a message you send,
-XXX so it's not exactly an erasure, though it is a limitation on what functions
-XXX the participant can use in their continuations, i.e. can't decrypt with other keys.
-XXX There ought to be a way to express that in types — maybe an effect system for key management?
+
+XXX I believe the value must come from the View, because the Liveness
+    property will suppose that everyone "acts according to their
+    interest", and this has to be defined in terms of a value function
+    that each participant can reason about and ascertain has increased
+    between safe observable points.
+    
+YYY First, this is equivalent, because we can just compose `value` and
+    `concrete` in that case. Second, whenever we reason about the
+    global behavior of the protocol, we use `State` and not
+    `View`. The game theory verification is about that global
+    perspective. Individual participants will essentially act as
+    though the actual state is the one with the minimum value from
+    those abstracted by the concrete view.
+
+XXX Also, I'm not convinced that View shouldn't be "just" `Internal`
+    or `Internal × Public`; I can see it be some erasure of the
+    content that you can't decrypt, but somehow equality still
+    matters, especially as to what you include in a message you send,
+    so it's not exactly an erasure, though it is a limitation on what
+    functions the participant can use in their continuations,
+    i.e. can't decrypt with other keys.  There ought to be a way to
+    express that in types — maybe an effect system for key management?
+    
+YYY I think that eventually we will want some library that knows the
+    available keys and automatically updates the view with the
+    now-publicly available information. The problem is that doing this
+    efficiently is difficult because we don't want to assume that we
+    store the complete message history in case maybe in the future we
+    learn a key. The current specification is a pragmatic
+    factorization.
 
 In this type, `Internal` represents private information that the
 participant holds, such as their secret keys or goals. `View`
@@ -247,9 +298,12 @@ Galois connection. They do this by providing the `abstract` and
 of possible real states that it corresponds to. The second translates
 a real state into the unique view that it would have. These two
 functions must be related:
-XXX I'm not sure what we gain by this `abstract` function,
-XXX especially if we make the value depend on the view.
-XXX Then we only need the `view` function (better name for `concrete`?)
+
+XXX I'm not sure what we gain by this `abstract` function, especially
+    if we make the value depend on the view. Then we only need the
+    `view` function (better name for `concrete`?)
+    
+YYY It is necessary for maintaining consistency during reaction.
 
 ```
 forall (v:View) (s:State),
@@ -286,12 +340,6 @@ forall (i:Internal) (v:View) (m:Msg) (s:State),
   In s (abstract v) /\ p.valid m ->
   (concrete (p.observe s m)) = (second (react i v (write m)))
 ```
-XXX If we realize that the equality matters even for data that is otherwise opaque to this candidate,
-XXX (because the protocol may very well include our carrying and relaying messages we can't decrypt;
-XXX or things like commutatively encrypted / decrypted messages, e.g. for shuffling decks of cards).
-XXX then it is less important to restrict the view than to restrict the (en|de)cryption effects.
-XXX Even if all the messaging is public (which it kind of is, in the Strand Space model of the attacker),
-XXX the participant cannot do anything useful with it.
 
 In other words, for every actual state that the view represents, we
 have to ensure that if that protocol state observed this message, then
@@ -376,9 +424,12 @@ Inductive ValidTrace : List State -> Prop :=
                  ValidTrace ss ++ [s] ->
                  ValidTrace ss ++ [s; observe s m].
 ```
-XXX The trace is probably more primitive than that,
-XXX is not specific to the functional correctness, and
-XXX should be introduced earlier.
+
+XXX The trace is probably more primitive than that, is not specific to
+    the functional correctness, and should be introduced earlier.
+    
+YYY I agree that it is a general property, but I do not have an
+    application other than functional correctness yet.
 
 Correctness propositions are statements in a temporal logic (like LTL
 or CTL), such as "For all states in the trace, the sum of the values
@@ -401,10 +452,6 @@ document. However, the model assumes a powerful attacker, called the
 Dolev-Yao attacker, that the blockchain represents quite well. (The
 main caveat is that some blockchains can restrict message
 transmissions to satisfying the `valid` test.)
-XXX I'd say that from this point of view the property I called "game theoretic safety"
-XXX is what is usually meant here by "security":
-XXX even if other players do whatever, including Dolev-Yao attacks,
-XXX they can't get the player to lose their money.
 
 **Efficiency** verification is a protocol verification that refers to
 the economic efficiency of protocol runs. In Alacrity, each
@@ -465,10 +512,6 @@ Given the simplicity of this application, its efficiency is
 uncontroversial. Each player would rank all states as zero, except for
 ones in which they win (one) or tie (half). The value is guaranteed to
 increase or stay the same regardless of the state transitions.
-
-TODO Someone other than Jay should try to write down the Alacrity
-program for this example as a test of their comprehension and Jay's
-ability to explain the ideas.
 
 #### Blackjack
 
