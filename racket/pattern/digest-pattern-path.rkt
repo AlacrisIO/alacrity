@@ -23,12 +23,14 @@
 ;;  - (pc-product-index Natural)
 ;;  - (pc-or-index Natural)
 ;;  - (pc-and-index Natural)
+;;  - (pc-refine-index Natural[0,1])
 (define-datatype path-context-step
   (pc-deref)
   (pc-sum-index natural)
   (pc-product-index natural)
   (pc-or-index natural)
-  (pc-and-index natural))
+  (pc-and-index natural)
+  (pc-refine-index natural))
 
 ;; ---------------------------------------------------------
 
@@ -50,6 +52,7 @@
 ;;  - (product-all [Listof PosPathTree])
 ;;  - (or-index Natural PosPathTree)
 ;;  - (and-all [Listof PosPathTree])
+;;  - (pos-refine PosPathTree PosPathTree)
 ;;  - (exists-witness Digest PosPathTree)
 (define-datatype pos-path-tree
   (trivial)
@@ -69,6 +72,8 @@
 ;;  - (product-index Natural NegPathTree)
 ;;  - (or-all [Listof NegPathTree])
 ;;  - (and-index Natural NegPathTree)
+;;  - (neg-refine-first NegPathTree)
+;;  - (neg-refine-second PosPathTree NegPathTree)
 ;;  - (forall-counterexample Digest NegPathTree)
 (define-datatype neg-path-tree
   (impossible)
@@ -95,6 +100,7 @@
 ;;  - (pat-product [Listof PatternFormula])
 ;;  - (pat-or [Listof PatternFormula])
 ;;  - (pat-and [Listof PatternFormula])
+;;  - (pat-refine PatternFormula [[Listof Any] -> PatternFormula])
 ;;  - (pat-exists [Any -> PatternFormula])
 ;;  - (pat-forall [Any -> PatternFormula])
 (define-datatype pattern-formula
@@ -104,6 +110,7 @@
   (pat-product subs)
   (pat-or subs)
   (pat-and subs)
+  (pat-refine shape f)
   (pat-exists f)
   (pat-forall f))
 
