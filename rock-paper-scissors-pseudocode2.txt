@@ -2,6 +2,24 @@
 
 Standard Library
 
+class Communication a where
+  send_to : a -> Symbol -> Message =[IO]=> unit
+  receive_from : a -> Symbol =[IO]=> Message
+
+instance Communication BlockchainAddressAndPublicKey where
+  send_to = post to blockchain, encryping with that key
+  receive_from = look at blockchain for something posted by that key
+
+instance Communication IPAddressAndPublicKey where
+  send_to = send using TLS with the IP address and key
+  receive_from = receive using TLS with the IP address and key
+
+instance Communication BlockChainAddressPublicKeyAndIPAddress where
+  send_to = try private IP address communication first, then fall back to blockchain
+  receive_from = try private IP address communication first, then after a timeout,
+                 post a message on the blockchain forcing them to post their message
+                 on the blockchain or loose their bond
+
 define random-element lst =
   list-ref lst (random (length lst))
 
@@ -56,6 +74,7 @@ define fair-loss other-id = ???
 
 define fair-draw other-id = ???
 
+player-actions : (Communication a) => a -> ???
 define player-actions other-id =
   let hand = random-element [Rock,Paper,Scissors]
   syncronous
