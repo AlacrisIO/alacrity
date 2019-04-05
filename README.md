@@ -50,12 +50,11 @@ of the message.)
 We may express this as a type:
 
 ```
-MsgPat := Atom Bytes | Concat MsgPat MsgPat | Encrypt MsgPat Var
-Msg := (Var -> Key) x MsgPat
-Raw := Bytes
+MsgPat := Atom Var | Concat MsgPat MsgPat | Encrypt MsgPat Var
+Msg := (Var -> Bytes) x MsgPat
 
-write : Msg -> Raw
-read  : (Var -> Key) x Raw -> Msg
+write : Msg -> Bytes
+read  : Msg x Bytes -> Msg
 ```
 
 A **blockchain** is a unique ordered list of messages that is common
@@ -76,11 +75,11 @@ YYY This is all true, but I think it is beneath the level of
     implemented.
 
 ```
-data Chain = Genesis | Confirmed Raw Chain
+data Chain = Genesis | Confirmed Bytes Chain
 
 current : () -> Chain
 
-post : Raw -> Boolean
+post : Bytes -> Boolean
 ```
 
 XXX Why not just a list or sequence (actually trie) of blocks? This
@@ -252,7 +251,7 @@ Participant State (p:Protocol State) Internal View := {
  concrete : State -> View
  value    : State -> Real
  init     : Internal x Maybe Msg
- react    : Internal x View x Raw ->
+ react    : Internal x View x Bytes ->
             Internal x View x Maybe Msg
 }
 ```
