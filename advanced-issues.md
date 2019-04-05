@@ -14,6 +14,14 @@ function salt () : unit =[random]=> uint256 {
     return random_uint256();
 }
 
+// Players is a typeclass for a interaction or game with some set of players.
+// Assumed is that at the start of the game, the players should deposit their game stake
+// *plus* a collateral that will cover any court fees in case of misbehavior and dispute.
+// When all players have deposited stake and collateral, the game actually starts and all are committed;
+// until then, anyone can leave, though they may first have to wait for a timeout.
+// (Note that when compiling to a lower-level language, the typeclass is typically translated to
+// an additional parameter that remains implicit in the higher-level language, being filled in
+// by the type system.)
 function atomically_mutualize (data) : Players ==> @for_each 'data => @consensual per_player<'data> {
   @for_each {
     let @verifiable @public commitment = digest(data);
@@ -22,7 +30,7 @@ function atomically_mutualize (data) : Players ==> @for_each 'data => @consensua
     // TODO Optimization: if messages are somehow synchronous (e.g. posting to a blockchain consensus),
     // the last one may reveal the data directly without needing to first commit in a separate message.
     // In particular, when there are only two players, the "last one" is the other-than-first-one.
-    // In an iterated game, this can halve the number of messages(!)
+    // In an iterated game, this can halve the number of messages, noticeably reducing blockchain fees.
     // Should the programmer be responsible for that optimization? Then what API makes it reasonable?
     // Should merging messages and optimizing away commitments be done at a lower-level?
     // Is it done statically or dynamically? Again, what model makes that trivial?
@@ -46,15 +54,17 @@ function hands_beat(hand0, hand1) : hand => hand => bool {
     || (hand0 = Paper && hand1 = Rock)
 }
 
+// TwoPlayers is a typeclass that specializes Players in the case there are only two players,
+// Player0 and Player1. The vector returned by atomically_mutualize will be of size 2.
 function rock_paper_scissors (amount) : TwoPlayers ==> amount => @consensual game_result {
   @consensual {
     let [(_, hand0), (_, hand1)] = atomically_mutualize(@for_each (salt (), input hand));
     if (hand0 = hand1) {
       game_is_draw();
     } else if (beats_hand (hand0, hand1)) {
-      wins(player0);
+      wins(Player0);
     } else {
-      wins(player1);
+      wins(Player1);
     }
   }
 }
@@ -105,7 +115,6 @@ and/or to the Rho calculus (for the digestible reification of computations).
 
 NB: Maybe we should use some variant of the quasiquote and unquote like xapping syntax
 for SIMD vs MIMD fragments of code as in the Connection Machine's *Lisp (starlisp) ?
-(Not the best reference, but we should be able to unravel the original from it:
-<https://pdfs.semanticscholar.org/15cb/2e60fb0dab06dcf3519c22e28f1c5a42c541.pdf>).
+<https://dl.acm.org/citation.cfm?id=319870>.
 In this general theme, see also the talk by Guy Steele about the semantics of the
 notation used in CS articles for action on vectors of data.

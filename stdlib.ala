@@ -1,0 +1,175 @@
+// For the sake of static typing, inheritance of types and other static fields should only be
+// allowed within some declared statically computable (semi?)lattice such that prototype inheritance
+// is monotonic, and static analysis can reach a fixpoint.
+// TODO: have mechanized support for this.
+
+// An amount of Ethereum Tokens.
+type TokenAmount = UInt256;
+
+// For now, Assets is just an amount of Ethereum tokens.
+// In the future it would be left as a parameter to each Interaction.
+// a set of various tokens on or off the Ethereum blockchain.
+type Assets = TokenAmount;
+
+// Identity of an actor. For now, we identify it with an Address.
+// But in the future, it could be any arbitrarily complex protocol to create a "signature",
+// with an accordingly advanced script to check the signature validity (see Bitcoin script, or more).
+// Thus, an "Interaction" could itself create a signature (e.g. a committee is designated then
+// makes a synthetic signature), and Identity should be an abstract interface.
+// This would make it easy to transfer or bundle assets and liabilities, to hand off interactions
+// to a persistent entity when a reluctant player slows it down, etc.
+// But for now, just "Address" will do.
+type Identity = Address;
+
+// Failure
+bottom : lazy _ = builtin "bottom"; // evaluation won't terminate, but actually abort.
+abort : _ =[IO]=> _;
+assert : (bool, lazy _) =[IO]=> unit = (asserted, alert) => {
+  if (!asserted) {
+    abort(force alert);
+  }
+}
+
+// Generalizing the blockchain to the EventChain.
+
+class EventChain {
+  type Event extends Messageable; // The elements of the Chain.
+  type Index extends Comparable;
+  type Sequence(t : type) extends IndexedSequence(Index);
+  type EventChain = Sequence(Event);
+  // Subject? Counter? Signatures? "Just" put it in the message.
+  post : Event =[IO]=> Index; // tells you where the message made it?
+  watch : Index =[IO]=> Event; // watches the chain starting a this point?
+}
+
+class Request(return_type) extends Effect {
+  caller_id : unit =[IO]=> Identity = builtin "caller_id"; // who is making the request.
+  value : unit =[IO]=> Assets; // how much value is accompanying the request for payment (excluding gas(?))
+  reply : return_type =[IO]=> unit = builtin "reply";
+}
+
+// How do we represent a select(2) where only one channel gets dequeued?
+class OutputChannel {
+  send : Message =[IO]=> unit
+}
+class InputChannel {
+  receive : (Message => 'a) =[IO]=> 'a
+}
+
+
+class Interaction {
+  class PlayerType;
+  type PlayerDescription <: {identity: Identity; t: PlayerType};
+  stake : PlayerType => Assets;
+  players : Array(PlayerDescription); // A list of players.
+
+  //
+  type Consensual (data: Type) : Type = builtin "ForEach";
+  type ForEach (data: Type) : Type = builtin "ForEach";
+
+  class Over extends Interaction; // exports nothing, so the interaction is stopped forever.
+
+  // TODO: define an interaction loop? Something that processes a request to call one of the functions
+  // exported via @export and provide it with arguments, using Request.reply
+  // to "return" a value to the caller if needed, and returning a new state object for the interaction.
+
+  abort_interaction : unit =[IO]=> Interaction = () => {
+    players.for_each({identity;t} => send_tokens(identity, stake(t)));
+    become new Over; // become is the same as return, but for the same type, typically for use in interaction loop.
+  }
+}
+
+class ClosedInteraction extends Interaction {
+  static num_players : Natural; // Number of players, "static": known at compile-time (?)
+  type PlayerIndex = NaturalBelow(num_player);
+
+  class Body extends ClosedInteraction {
+    players : Array(PlayerDescription, num_players);
+  }
+
+  class Initial extends Body;
+
+  class Handshake extends ClosedInteraction {
+    players : GrowableArray(PlayerDescription, num_players) =
+      new CappedGrowableArray { max_size = num_players };
+
+    is_admissible : PlayerType => bool;
+
+    @export
+    register_player : PlayerType =[Request(PlayerIndex)]=> Interaction = (t) => {
+      if (is_admissible(t) && Request.value () == collateral_required(t)) {
+        let identity = Request.caller_id();
+        Request.reply(players.size());
+        let players = players.add(PlayerDescription {identity; t});
+        if (players.is_full()) {
+          become Initial { players = players.to_array(); }
+        } else {
+          // `change x` is same as `become x + self`
+          change { players; };
+        }
+      }
+    }
+  }
+}
+
+class TwoPlayers extends ClosedInteraction {
+    num_players = 2;
+}
+
+class Game extends ClosedInteraction {
+  class game_result {
+    enact : game_result =[IO]=> unit;
+  }
+}
+
+class WinnerTakesAll extends Game {
+  total_proceeds () : Assets {
+    return players.map({t} => stake(t)).reduce((+), 0);
+  }
+  wins : PlayerIndex => game_result = (winner) => {
+    enact () {
+      send_tokens(players[winner].identity, total_proceeds());
+    }
+  }
+  draw : game_result = {
+    enact = abort_interaction;
+  }
+}
+
+// effect: Committed Choice Non Determinism
+function salt () : unit =[CCNonDet]=> uint256 {
+    return Random.random_uint256();
+}
+
+// Players is a typeclass for a interaction or game with some set of players.
+// Assumed is that at the start of the game, the players should deposit their game stake
+// *plus* a collateral that will cover any court fees in case of misbehavior and dispute.
+// When all players have deposited stake and collateral, the game actually starts and all are committed;
+// until then, anyone can leave, though they may first have to wait for a timeout.
+// (Note that when compiling to a lower-level language, the typeclass is typically translated to
+// an additional parameter that remains implicit in the higher-level language, being filled in
+// by the type system.)
+
+atomically_mutualize (interaction, data) : Interaction ==> @for_each 'data => @consensual per_player<'data> {
+  @for_each {
+    let @verifiable @public commitment = digest(data);
+    sync (); // wait for everyone to publish their commitment.
+    publish data; // As part of publish, others verify that the data fits its declared type.
+    // TODO Optimization: if messages are somehow synchronous (e.g. posting to a blockchain consensus),
+    // the last one may reveal the data directly without needing to first commit in a separate message.
+    // In particular, when there are only two players, the "last one" is the other-than-first-one.
+    // In an iterated game, this can halve the number of messages, noticeably reducing blockchain fees.
+    // Should the programmer be responsible for that optimization? Then what API makes it reasonable?
+    // Should merging messages and optimizing away commitments be done at a lower-level?
+    // Is it done statically or dynamically? Again, what model makes that trivial?
+    sync ();
+    verify commitment; // the commitment must to be the digest of data, as per its verifiable definition.
+    return @consensual all_values(data);
+  }
+}
+
+function trusted_randomness (Interaction ==> @consensual uint256 {
+  @for_each {
+    @consensual return reduce(logxor, atomically_mutualize(@for_each salt ()));
+  }
+}
