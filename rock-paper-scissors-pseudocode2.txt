@@ -61,6 +61,12 @@ data Hand = Rock
           | Paper
           | Scissors
 
+;; TODO: find a way of writing down the protocol in a way that makes
+;; clear when a participant *must* send a message or loose their
+;; bond. This is what determines whether another participant can
+;; receive a message with a timeout fallback to posting on the
+;; blockchain to force a response.
+
 define hand<? a b =
   match a, b with
   | Rock, Paper     -> True
