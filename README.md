@@ -62,13 +62,13 @@ knowledge, globally authoritative, and monotonically
 increasing. Alacrity is not a blockchain; it uses existing
 blockchains. The minimal API Alacrity expects from a blockchain is:
 
-XXX Also, by this definition, the "messages" in a typical "blockchain"
+FRR Also, by this definition, the "messages" in a typical "blockchain"
     is actually a list of individual transactions plus administrative
     data. Maybe we should call the list-of-message abstraction
     something else than a "blockchain". Maybe a message history or
     something? And then say a blockchain is a history of blocks?
 
-YYY This is all true, but I think it is beneath the level of
+JMC This is all true, but I think it is beneath the level of
     abstraction Alacrity is at. For example, if the administrative
     messages are relevant, then they are part of the message history;
     otherwise they are just details about the blockchain was
@@ -82,33 +82,51 @@ current : () -> Chain
 post : Bytes -> Boolean
 ```
 
-XXX Why not just a list or sequence (actually trie) of blocks? This
+FRR Why not just a list or sequence (actually trie) of blocks? This
     way we can abstract a way the means of sequencing and use
     generic theorems about sequences instead of introducing new ad hoc
     chaining constructors.
 
-YYY We are not actually using this type. It is just for explanatory
+JMC We are not actually using this type. It is just for explanatory
     purposes. Furthermore, I don't believe there are relevant theorems
     about sequences other than fold.
 
-XXX Also, why does `post` return a boolean and not unit, if we're
+FRR Also, why does `post` return a boolean and not unit, if we're
     having side-effects anyway?
 
-YYY This represents how posting may not succeed.
+JMC This represents how posting may not succeed.
 
-XXX Finally, a block usually includes a set of valid transactions, not just one;
+FRR We don't have liveness anymore, and in the almost inevitable presence of timeouts, no safety anymore.
+    Only simple transfers or "intrinsically" atomic transactions in a single "contract" call are safe.
+    Also, while it's possible to get an acknowledgement and return true, it's not possible to be sure
+    that the message didn't make it and false just means "I don't know for sure but I timed out".
+    At the high-level where the logical content of messages is decided, our first iteration of a language
+    should probably just assume that messages are delivered eventually, and even within strict enough
+    time constraints (say, one hour, one day, one week) that applications can possibly use timeouts.
+    What the function would return would be the index of the block that includes the message.
+    At a lower-level, we definitely need something that watches the chain and determines whether
+    a message made it, plays the auction game to get the message included,
+    superseding messages previously proposed for posting with newer versions using higher fees, etc.
+    Actually, that's what Lucy Zhang is working on. But we can probably leave that out of
+    the reasoning for now.
+
+FRR Finally, a block usually includes a set of valid transactions, not just one;
     a miner may post a block, but individual users post a single transaction
     that a miner may eventually include in a block, or not.
     One essential thing a blockchain does bring, though, is a *consensus*,
     that ensures that the state grows monotonically, and
     you cannot remove a message from the history.
 
-YYY Below our abstraction. This isn't a description of how to
+JMC Below our abstraction. This isn't a description of how to
     implement a blockchain. It is just what we want from it. The fact
     that an actual blockchain has a bunch in one block just means that
     when you observe incoming messages, they come in chunks. They are
     not truly set-like btw because even within a block they are
     ordered.
+
+FRR OK so at some level we "explode" at least notionally the blockchain
+    into many messages, one for each transaction or event posted on the
+    blockchain.
 
 That is, Alacrity only expects that a blockchain provides the ability
 to observe the history of the chain (`current`) and attempt to post a
@@ -121,14 +139,14 @@ features, as an optimization, but we intentionally choose a
 lowest-common denominator perspective on blockchains.
 
 Alacrity assumes that blockchain platforms provide per-application
-chains; in other words, if two distributed applications X and Y are
+chains; in other words, if two decentralized applications X and Y are
 both deployed on chain A, then the messages for X and Y can never be
 confused with each other. For platforms that do not actually support
 this, Alacrity compiles messages to be prefixed with unique designations
 that isolate communication for an application, in a way analogous to
 ports in TCP/UDP.
 
-XXX The sub-blockchains are even per-application-instance. If we play
+FRR The sub-blockchains are even per-application-instance. If we play
     rock-paper-scissors many time, each instance will have its own
     prefix or encoding.  In practice, it's not so much a prefix as it
     is part of the "address" of the computation: In Bitcoin, you'd
@@ -150,17 +168,19 @@ XXX The sub-blockchains are even per-application-instance. If we play
     contracts works.  Later on, we may prove it from a model of the
     Blockchain.
 
-A **distributed application** is a collection of _participants_ that post
+A **decentralized application** is a collection of _participants_ that post
 to a _blockchain_ to collaboratively implement some functionality. These
 participants agree on a _protocol_.
 
-XXX Apparently, our current investors prefer the term "Decentralized Application"
-    to "Distributed Application". Go figure.
-    
-YYY Feel free to `replace-string`
+FRR Apparently, our current investors prefer the term "Decentralized Application"
+    to "Decentralized Application". Go figure.
+
+JMC Feel free to `replace-string`
+
+FRR Done. (Actually, `M-%` a.k.a. `query-replace`)
 
 A **protocol** is the language of _messages_ that the set of
-_participants_ in a _distributed application_, as well as an
+_participants_ in a _decentralized application_, as well as an
 interpretation of the messages.  By "interpretation of the messages",
 we mean an abstract type that represents the meaning of the chain. For
 example, this type might be an account ledger (a mapping of account
@@ -183,7 +203,7 @@ desirable properties, like computability. This also facilitates
 specially compiling protocols for particular blockchain platforms with
 expressive message constraints.
 
-XXX Yes, but then, there is also a concept of context-dependent
+FRR Yes, but then, there is also a concept of context-dependent
     validity, that is not captured by the internal structure of the
     message alone, but also by the current State, i.e. you can't
     withdraw more than you have in your account. Maybe we need two
@@ -191,13 +211,20 @@ XXX Yes, but then, there is also a concept of context-dependent
     distinction in logic.  Or do we want to reserve well-formed for an
     element merely being of the correct type, with some different name
     for some additional intermediate state-less predicate?
-    
-YYY I agree that this is a problem with the representation. As
+
+JMC I agree that this is a problem with the representation. As
     written, the `valid` predicate is state-independent and
     corresponds to well-formed-ness. The problem with validity is that
     it depends on some way to describe the public perspective on the
     message. My plan is to represent invalid messages as idempotent
     messages where `observe s invalid = s`.
+
+FRR As an additional subtle pain in the ass, on Ethereum at least,
+    you can publish a message saying that you send 10 ETH with serial number 42
+    (they call that "nonce" in Ethereum parlance). But that message isn't valid
+    because you only have 8 ETH in your account... until you receive more ETH
+    at which point the message suddenly becomes valid... assuming another valid
+    message with the same serial number wasn't included in the chain before.
 
 Our representation of the interpretation is similarly subtle. It is
 plausible to use a representation such as `interp : Chain ->
@@ -256,13 +283,13 @@ Participant State (p:Protocol State) Internal View := {
 }
 ```
 
-XXX I believe the value must come from the View, because the Liveness
+FRR I believe the value must come from the View, because the Liveness
     property will suppose that everyone "acts according to their
     interest", and this has to be defined in terms of a value function
     that each participant can reason about and ascertain has increased
     between safe observable points.
-    
-YYY First, this is equivalent, because we can just compose `value` and
+
+JMC First, this is equivalent, because we can just compose `value` and
     `concrete` in that case. Second, whenever we reason about the
     global behavior of the protocol, we use `State` and not
     `View`. The game theory verification is about that global
@@ -270,22 +297,29 @@ YYY First, this is equivalent, because we can just compose `value` and
     though the actual state is the one with the minimum value from
     those abstracted by the concrete view.
 
-XXX Also, I'm not convinced that View shouldn't be "just" `Internal`
-    or `Internal × Public`; I can see it be some erasure of the
+FRR Then you want the value to be stable through `Set.map concrete ∘ abstract`?
+    That's a strong property, at which point indeed the proposals are equivalent.
+    Otherwise, you now have a set of possible values.
+
+FRR Also, I'm not convinced that View shouldn't be "just" `Internal`
+    or `Internal × Public`; I can see it be kind of some erasure of the
     content that you can't decrypt, but somehow equality still
     matters, especially as to what you include in a message you send,
     so it's not exactly an erasure, though it is a limitation on what
     functions the participant can use in their continuations,
     i.e. can't decrypt with other keys.  There ought to be a way to
     express that in types — maybe an effect system for key management?
-    
-YYY I think that eventually we will want some library that knows the
+
+JMC I think that eventually we will want some library that knows the
     available keys and automatically updates the view with the
     now-publicly available information. The problem is that doing this
     efficiently is difficult because we don't want to assume that we
     store the complete message history in case maybe in the future we
     learn a key. The current specification is a pragmatic
     factorization.
+
+FRR At this point I'll just defer to you to write a suitable Coq
+    formalization of a simple protocol to see what you mean exactly.
 
 In this type, `Internal` represents private information that the
 participant holds, such as their secret keys or goals. `View`
@@ -298,11 +332,11 @@ of possible real states that it corresponds to. The second translates
 a real state into the unique view that it would have. These two
 functions must be related:
 
-XXX I'm not sure what we gain by this `abstract` function, especially
+FRR I'm not sure what we gain by this `abstract` function, especially
     if we make the value depend on the view. Then we only need the
     `view` function (better name for `concrete`?)
-    
-YYY It is necessary for maintaining consistency during reaction.
+
+JMC It is necessary for maintaining consistency during reaction.
 
 ```
 forall (v:View) (s:State),
@@ -424,10 +458,10 @@ Inductive ValidTrace : List State -> Prop :=
                  ValidTrace ss ++ [s; observe s m].
 ```
 
-XXX The trace is probably more primitive than that, is not specific to
+FRR The trace is probably more primitive than that, is not specific to
     the functional correctness, and should be introduced earlier.
-    
-YYY I agree that it is a general property, but I do not have an
+
+JMC I agree that it is a general property, but I do not have an
     application other than functional correctness yet.
 
 Correctness propositions are statements in a temporal logic (like LTL
