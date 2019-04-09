@@ -75,9 +75,9 @@ JMC This is all true, but I think it is beneath the level of
     implemented.
 
 ```
-data Chain = Genesis | Confirmed Bytes Chain
+Chain := List Bytes
 
-current : () -> Chain
+since : Time -> Chain
 
 post : Bytes -> Boolean
 ```
