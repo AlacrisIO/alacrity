@@ -1,0 +1,54 @@
+// For the sake of static typing, inheritance of types and other static fields should only be
+// allowed within some declared statically computable (semi?)lattice such that prototype inheritance
+// is monotonic, and static analysis can reach a fixpoint.
+// TODO: have mechanized support for this.
+
+// An amount of Ethereum Tokens.
+type TokenAmount = UInt256;
+
+// For now, Assets is just an amount of Ethereum tokens.
+// In the future it would be left as a parameter to each Interaction.
+// a set of various tokens on or off the Ethereum blockchain.
+type Assets = TokenAmount;
+
+// Identity of an actor. For now, we identify it with an Address.
+// But in the future, it could be any arbitrarily complex protocol to create a "signature",
+// with an accordingly advanced script to check the signature validity (see Bitcoin script, or more).
+// Thus, an "Interaction" could itself create a signature (e.g. a committee is designated then
+// makes a synthetic signature), and Identity should be an abstract interface.
+// This would make it easy to transfer or bundle assets and liabilities, to hand off interactions
+// to a persistent entity when a reluctant player slows it down, etc.
+// Ideally, most high-level protocols would be expressed in terms of roles bound to identifiers
+// in the code, maybe even type-level identifiers that can be used to specify the capability
+// to encode and decode using corresponding keys in an effect system.
+// A first-class notion of Identity would then only appear at lower levels of abstraction,
+// when instantiating an interaction, and maybe when composing interactions in non-standard ways.
+// But for now, just "Address" will do.
+type Identity = Address;
+
+// Failure
+bottom : lazy _ = builtin "bottom"; // The evaluation won't terminate
+abort : _ =[IO]=> _;
+assert : (bool, lazy _) =[IO]=> unit = (asserted, alert) => {
+  if (!asserted) {
+    abort(force alert);
+  }
+}
+
+class Comparable {
+  type t;
+  (=) : t => t => bool;
+  (<=) : t => t => bool;
+  (<) : t => t => bool;
+}
+
+// A Sequence.
+// Conceptually isomorphic to a linked list, but typically implemented with a Trie,
+// so as to achieve logarithmic access
+class Sequence(element: type) {
+  include Comparable; // a <= b iff a is a prefix of b. // Or have separate classes for various comparisons?
+  length: t => nat;
+  append1: t => element => t;
+  get_opt: nat => t => option(element);
+  get: nat => t =[Fail]=> element;
+}
