@@ -118,3 +118,6 @@ for SIMD vs MIMD fragments of code as in the Connection Machine's *Lisp (starlis
 <https://dl.acm.org/citation.cfm?id=319870>.
 In this general theme, see also the talk by Guy Steele about the semantics of the
 notation used in CS articles for action on vectors of data.
+
+Apparently, someone has a type system for Nix that might handle prototype OO correctly.
+Ask m@tweag.io.

@@ -795,35 +795,15 @@ those at the extreme get paid less than the lowest of the previous.
 
 ### Benchmark Applications (V1, V2)
 
-To illustrate the DSL as well as to guide which precise primitives
-shall be part of the final version,
-we will write the following applications.
-We will start with just simplified variants of a couple of them,
-and will ramp up to more, more elaborate variants.
+To illustrate the DSL, we will write a collection of benchmark applications.
+They will serve as tutorials so that users can understand the basic concepts.
+Their complexity will increase slowly to illustrate how to grow programs in the DSL.
+Along the way, we will grow a standard library of reusable primitives
+that users can leverage in their applications.
+Thus, these benchmark applications will guide both users and implementers
+in their experience with the language.
 
-* Fast payments (our current demo, productized).
-  Start with phone-to-phone payments, then Point-of-Sale capability.
-  Add ERC-20 support instead of just ETH tokens.
-
-* ex_net: matching + atomic swap (first: nervos + eth, partnering with Belvedere?).
-
-* Non-Fungible Token (NFT): ERC-721, cryptoscalies, video-game tokens, foo-on-the-blockchain.
-  With atomic swap capability.
-
-* Supply chain application: public acks for fixed multiparty workflow.
-
-* Crowdfunding: participants pledge money;
-  the total amount is disbursed to the designated campaign recipient
-  if and only if the required amount is reached before the deadline;
-  otherwise it is returned to pledgers.
-  This benchmark allows to compare our system to Scilla and Plutus.
-
-* Private transactions: ZCash or MimbleWimble on a side-chain.
-
-* Poker: some card game where each party can only see part of the state.
-  Start with a much simplified subset of Poker.
-
-* Insurance: futures contract assuming an oracle for e.g. weather or earthquakes.
+See the [examples](examples/index.md) directory.
 
 ## Competition
 
