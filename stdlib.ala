@@ -85,26 +85,6 @@ class TwoPlayers extends ClosedInteraction {
     num_players = 2;
 }
 
-class Game extends ClosedInteraction {
-  class game_result {
-    enact : game_result =[IO]=> unit;
-  }
-}
-
-class WinnerTakesAll extends Game {
-  total_proceeds () : Assets {
-    return players.map({t} => stake(t)).reduce((+), 0);
-  }
-  wins : PlayerIndex => game_result = (winner) => {
-    enact () {
-      send_tokens(players[winner].identity, total_proceeds());
-    }
-  }
-  draw : game_result = {
-    enact = abort_interaction;
-  }
-}
-
 // effect: Committed Choice Non Determinism
 function salt () : unit =[CCNonDet]=> uint256 {
     return Random.random_uint256();

@@ -1,7 +1,8 @@
+import Game;
 
-type hand = Rock | Paper | Scissors
+type hand = Rock | Paper | Scissors;
 
-function hands_beat(hand0, hand1) : hand => hand => bool {
+function hands_beat(hand0, hand1) : (hand, hand) => bool {
   return (hand0 = Scissors && hand1 = Paper)
     || (hand0 = Rock && hand1 = Scissors)
     || (hand0 = Paper && hand1 = Rock)
@@ -11,13 +12,8 @@ function hands_beat(hand0, hand1) : hand => hand => bool {
 // Player0 and Player1. The vector returned by atomically_mutualize will be of size 2.
 function rock_paper_scissors (amount) : TwoPlayers ==> amount => @consensual game_result {
   @consensual {
-    let [(_, hand0), (_, hand1)] = atomically_mutualize(@for_each (salt (), input hand));
-    if (hand0 = hand1) {
-      game_is_draw();
-    } else if (beats_hand (hand0, hand1)) {
-      wins(Player0);
-    } else {
-      wins(Player1);
-    }
+    let {player0: (_, hand0), player1: (_, hand1)} =
+      atomically_mutualize(@for_each (salt (), input hand));
+    return domination_game_result(hands_beat)(hand0, hand1);
   }
 }

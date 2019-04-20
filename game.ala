@@ -1,0 +1,39 @@
+// General-Purpose support for Adversarial Games
+//
+// Most games over the blockchain are two-player games, because
+// if people know each other they don't usually need blockchain to create trust,
+// whereas if they do need blockchain to create trust, then more than two players
+// mean that several players could improve their odds by colluding or playing more than one role,
+// unless it's a pure lottery with no useful private information to share that could improve strategy.
+
+class Game extends ClosedInteraction {
+  class game_result {
+    enact : game_result =[IO]=> unit;
+  }
+}
+
+class WinnerTakesAll extends Game {
+  total_proceeds () : Assets {
+    return players.map({t} => stake(t)).reduce((+), 0);
+  }
+  wins : PlayerIndex => game_result = (winner) => {
+    enact () {
+      send_tokens(players[winner].identity, total_proceeds());
+    }
+  }
+  draw : unit => game_result = {
+    enact = abort_interaction;
+  }
+}
+
+function domination_game_result(domination) :
+    TwoPlayers ==> ((hand, hand) => bool) => (hand, hand) => game_result {
+  function (hand0, hand1) {
+    if (beats_hand (hand0, hand1)) {
+      wins(Player0);
+    } else if (beats_hand (hand1, hand0)) {
+      wins(Player1);
+    } else {
+      draw();
+  }
+}
