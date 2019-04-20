@@ -827,49 +827,50 @@ and will ramp up to more, more elaborate variants.
 
 ## Competition
 
-* [scilla](https://scilla-lang.org/)
+* [Scilla](https://scilla-lang.org/)
   is the smart contract language for Zilliqa.
   It is embedded in Coq, and features total functions with eventual message sends.
 
-* [plutus](https://cardanodocs.com/technical/plutus/introduction/)
+* [Plutus](https://cardanodocs.com/technical/plutus/introduction/)
   is the smart contract language for Cardano.
   It is a richly statically typed functional language developed by IOHK.
   It can use Haskell as a metalanguage to write applications
   in which most of the application is run off-chain but some parts are run in a contract.
 
-* [marlowe](https://iohk.io/blog/marlowe-financial-contracts-on-blockchain/)
+* [Marlowe](https://iohk.io/blog/marlowe-financial-contracts-on-blockchain/)
   is another domain-specific language for smart contract language embedded in Plutus.
-  It has relevant primitives, but it is somewhat insufficiently typed
+  It has relevant primitives, but (a) it can only deal with finitary code with
+  a fixed number of inputs and outputs, and (b) it is somewhat insufficiently typed
   (no labels of types to distinguish amounts and timeouts, for ensuring resources are linear, etc.).
   There is a "simulation environment" that allows interpreted client-style actions,
   which is done by dynamic evaluation without type protection either.
 
-* [pact](https://github.com/kadena-io/pact)
+* [Pact](https://github.com/kadena-io/pact)
   is the smart contract language for Kadena.
   It has a Lisp syntax but Haskell-like types (its metalanguage is Haskell);
   it features builtin key management, and each contract having a small relational database
   instead of some ad-hoc low-level storage.
 
-* [rholang](https://github.com/rchain/rchain/tree/master/rholang)
+* [RhoLang](https://github.com/rchain/rchain/tree/master/rholang)
   is the smart contract language for R-Chain.
   It is a distributed calculus (distant descendant of the Pi-calculus),
   with some reflective features and session typing.
 
-* [solidity](https://solidity.readthedocs.io/)
+* [Solidity](https://solidity.readthedocs.io/)
   is the main smart contract language for Ethereum.
   Its design is not very principled, but it has evolved a lot of practical features
   based on the experience of the largest user base so far.
 
-* [simplicity](https://blockstream.com/simplicity.pdf)
+* [Simplicity](https://blockstream.com/simplicity.pdf)
   is the main smart contract language for Blockstream's Liquid Network.
   It is a functional language that can express finitary computations only,
   rebuilding everything from bits and pairs.
 
-* [michelson](https://www.michelson-lang.com/)
+* [Michelson](https://www.michelson-lang.com/)
   is the native smart contract language for Tezos.
   It is a simple typed functional combinators virtual machine.
 
-* [liquidity](http://www.liquidity-lang.org/)
+* [Liquidity](http://www.liquidity-lang.org/)
   is a smart contract language for Tezos.
   It brings a nice functional language syntax in the style of OCaml on top of Michelson,
   but is semantically the same.
