@@ -837,6 +837,13 @@ and will ramp up to more, more elaborate variants.
   It can use Haskell as a metalanguage to write applications
   in which most of the application is run off-chain but some parts are run in a contract.
 
+* [marlowe](https://iohk.io/blog/marlowe-financial-contracts-on-blockchain/)
+  is another domain-specific language for smart contract language embedded in Plutus.
+  It has relevant primitives, but it is somewhat insufficiently typed
+  (no labels of types to distinguish amounts and timeouts, for ensuring resources are linear, etc.).
+  There is a "simulation environment" that allows interpreted client-style actions,
+  which is done by dynamic evaluation without type protection either.
+
 * [pact](https://github.com/kadena-io/pact)
   is the smart contract language for Kadena.
   It has a Lisp syntax but Haskell-like types (its metalanguage is Haskell);
