@@ -2,10 +2,18 @@ import Game;
 
 type hand = Rock | Paper | Scissors;
 
-function hands_beat(hand0, hand1) : (hand, hand) => bool {
-  return (hand0 = Scissors && hand1 = Paper)
-    || (hand0 = Rock && hand1 = Scissors)
-    || (hand0 = Paper && hand1 = Rock)
+// obtain this function automatically via a macro annotation,
+// e.g. @enum type hand = Rock | Paper | Scissors;
+function int_of_hand (hand) : hand => int {
+  match hand with
+  | Rock => 0
+  | Paper => 1
+  | Scissors => 2;
+}
+
+// strcmp style comparison
+function hand_compare (hand0, hand1) : hand => int {
+  return (int_of_hand(hand1)-int_of_hand(hand0)+4) mod 3 - 1;
 }
 
 // TwoPlayers is a typeclass that specializes Players in the case there are only two players,
@@ -14,6 +22,6 @@ function rock_paper_scissors (amount) : TwoPlayers ==> amount => @consensual gam
   @consensual {
     let {player0: (_, hand0), player1: (_, hand1)} =
       atomically_mutualize(@for_each (salt (), input hand));
-    return domination_game_result(hands_beat)(hand0, hand1);
+    return domination_game_result(hand_compare)(hand0, hand1);
   }
 }

@@ -3,8 +3,12 @@
 // Most games over the blockchain are two-player games, because
 // if people know each other they don't usually need blockchain to create trust,
 // whereas if they do need blockchain to create trust, then more than two players
-// mean that several players could improve their odds by colluding or playing more than one role,
-// unless it's a pure lottery with no useful private information to share that could improve strategy.
+// (or teams of players) mean that several players (or teams) could improve their odds
+// by colluding or playing more than one role, unless it's a pure lottery
+// with no useful private information to share that could improve strategy.
+
+import base;
+import stdlib;
 
 class Game extends ClosedInteraction {
   class game_result {
@@ -26,14 +30,16 @@ class WinnerTakesAll extends Game {
   }
 }
 
-function domination_game_result(domination) :
-    TwoPlayers ==> ((hand, hand) => bool) => (hand, hand) => game_result {
+function domination_game_result(domination_compare) :
+    TwoPlayers ==> ((hand, hand) => int) => (hand, hand) => game_result {
   function (hand0, hand1) {
-    if (beats_hand (hand0, hand1)) {
+    let cmp = domination_compare(hand0, hand1);
+    if (cmp > 0) {
       wins(Player0);
-    } else if (beats_hand (hand1, hand0)) {
+    } else if (cmp < 0) {
       wins(Player1);
     } else {
       draw();
+    }
   }
 }

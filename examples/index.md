@@ -42,3 +42,6 @@
 * supply_chain.ala: public acknowledgements for fixed multiparty workflow.
 
 * insurance.ala: futures contract assuming an oracle for e.g. weather or earthquakes.
+
+* automated_bill_payment.ala: subscription to a service with a service meter, and
+  an arbiter in case of timely disputes.

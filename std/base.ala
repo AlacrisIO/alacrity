@@ -15,7 +15,8 @@ type Assets = TokenAmount;
 // But in the future, it could be any arbitrarily complex protocol to create a "signature",
 // with an accordingly advanced script to check the signature validity (see Bitcoin script, or more).
 // Thus, an "Interaction" could itself create a signature (e.g. a committee is designated then
-// makes a synthetic signature), and Identity should be an abstract interface.
+// makes a synthetic signature), and Identity should be an abstract interface,
+// maybe some kind of continuation for some Assets.
 // This would make it easy to transfer or bundle assets and liabilities, to hand off interactions
 // to a persistent entity when a reluctant player slows it down, etc.
 // Ideally, most high-level protocols would be expressed in terms of roles bound to identifiers
@@ -35,12 +36,25 @@ assert : (bool, lazy _) =[IO]=> unit = (asserted, alert) => {
   }
 }
 
-class Comparable {
+@enum type TotalComparisonResult = Lesser @int(-1) | Equivalent @int(0) | Greater @int(1)
+@enum type ComparisonResult = Incomparable @int(-2) | ComparisonResult
+
+// Is this for TotalOrder only? Or also for PartialOrder?
+// Or should we have -2, -1, 0, 1, where -2 represents incomparability?
+class PreOrder {
   type t;
-  (=) : t => t => bool;
-  (<=) : t => t => bool;
-  (<) : t => t => bool;
+  (=) : (t, t) => bool;
+  (<=) : (t, t) => bool;
+  (<) : (t, t) => bool;
+  is_comparable : (t, t) => bool;
+  comparison : (t, t) => ComparisonResult;
 }
+
+class TotalPreOrder {
+  inherit PreOrder;
+  let is_comparable = (_, _) => true;
+}
+
 
 // A Sequence.
 // Conceptually isomorphic to a linked list, but typically implemented with a Trie,
