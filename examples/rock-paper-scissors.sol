@@ -1,7 +1,7 @@
 pragma solidity ^0.5.2;
 
 // TODO: Should we emit an event for each transition,
-// or rely on people watching the chain?
+// or rely on people watching the chain transactions and/or running the query function?
 
 /*
   From the DSL to the solidity contract, many optimizations were manually done,
@@ -54,6 +54,17 @@ contract RockPaperScissors
 
         address payable player1_address;
         uint8 hand1;
+
+        enum Outcome {
+            Unknown,
+            Draw,
+            Player0_wins,
+            Player1_wins,
+            Player0_defaults,
+            Player1_defaults,
+            Player0_fails
+        }
+        Outcome outcome;
 
         // Utility functions
 
@@ -151,28 +162,28 @@ contract RockPaperScissors
         }
 
         // State 3, called by player0 after player1 played, reveals the committed hand.
-        function player0_reveal (bytes31 salt, uint8 hand0) external payable {
+        function player0_reveal (bytes32 salt, uint8 hand0) external payable {
                 require(state == State.Waiting_for_player0_reveal);
                 require_player0();
-                if (hand0 >= 3 || player0_commitment != keccak256(abi.encodePacked(salt, hand0))) {
-                        // If the reveal is invalid, player1 wins and player0 loses escrow.
-                        player1_gets(2*wager_amount+escrow_amount);
-                } else {
-                        // compute difference modulo 3 without underflowing
-                        uint8 diff = (hand0 + 3 - hand1) % 3;
+                require(hand0 < 3 && player0_commitment == keccak256(abi.encodePacked(salt, hand0)));
 
-                        if (diff == 1) {
-                                // The reveal is in favor of player0
-                                player0_gets(2*wager_amount+escrow_amount);
-                        } else if (diff == 2) {
-                                // The reveal is in favor of player1
-                                player1_gets(2*wager_amount);
-                                player0_gets(escrow_amount);
-                        } else {
-                                // The reveal is a draw
-                                player1_gets(wager_amount);
-                                player0_gets(wager_amount+escrow_amount);
-                        }
+                // compute difference modulo 3 without underflowing
+                uint8 diff = (hand0 + 3 - hand1) % 3;
+
+                if (diff == 1) {
+                        // The reveal is in favor of player0
+                        outcome = Outcome.Player0_wins;
+                        player0_gets(2*wager_amount+escrow_amount);
+                } else if (diff == 2) {
+                        // The reveal is in favor of player1
+                        outcome = Outcome.Player1_wins;
+                        player1_gets(2*wager_amount);
+                        player0_gets(escrow_amount);
+                } else {
+                        // The reveal is a draw
+                        outcome = Outcome.Draw;
+                        player1_gets(wager_amount);
+                        player0_gets(wager_amount+escrow_amount);
                 }
                 state = State.Completed;
         }
@@ -182,6 +193,7 @@ contract RockPaperScissors
                 require(state == State.Waiting_for_player1);
                 require_player0();
                 require_timeout();
+                outcome = Outcome.Player1_defaults;
                 player0_gets(wager_amount+escrow_amount);
                 state = State.Completed;
         }
@@ -191,8 +203,15 @@ contract RockPaperScissors
                 require(state == State.Waiting_for_player0_reveal);
                 require_player1();
                 require_timeout();
+                outcome = Outcome.Player0_defaults;
                 player1_gets(2*wager_amount+escrow_amount);
                 state = State.Completed;
+        }
+
+        function query_state () external view
+                returns(State, Outcome, uint, address, address, bytes32, uint, uint, uint8) {
+                return (state, outcome, previous_block, player0_address, player1_address,
+                        player0_commitment, wager_amount, escrow_amount, hand1);
         }
 }
 
