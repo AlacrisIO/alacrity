@@ -33,19 +33,13 @@ contract RockPaperScissors
         uint8 constant rock = 0;
         uint8 constant paper = 1;
         uint8 constant scissors = 2;
-        uint8 constant none = 255;
 
-        /** Current state of the state machine. Possible States:
-            Uninitialized
-            Waiting_for_player1        - player0 funded wager+escrow and published a commitment; waiting for player1
-            Waiting_for_player0_reveal - player1 showed his hand; waiting for player0
-            Completed                  - end of game (in the future, have a way to reset the contract to state Uninitialized?)
-         */
+        /** Current state of the state machine. */
         enum State {
             Uninitialized,
-            Waiting_for_player1,
-            Waiting_for_player0_reveal,
-            Completed
+            Waiting_for_player1,        // player0 funded wager+escrow and published a commitment
+            Waiting_for_player0_reveal, // player1 showed his hand
+            Completed                   // end of game (in the future, have a way to reset the contract to state Uninitialized?)
         }
         State state = State.Uninitialized;
 
@@ -57,7 +51,6 @@ contract RockPaperScissors
         bytes32 player0_commitment;
         uint wager_amount;
         uint escrow_amount;
-        bytes32 key_hash;
 
         address payable player1_address;
         uint8 hand1;
@@ -74,6 +67,16 @@ contract RockPaperScissors
         function require_player1 () view internal
         {
                 require(player1_address == msg.sender);
+        }
+
+        // The current invocation be done by player1, or by anyone if the offer is open.
+        function require_or_set_player1 () internal
+        {
+                if (player1_address == address(0)) {
+                        player1_address = msg.sender;
+                } else {
+                        require_player1();
+                }
         }
 
         // Player0 wins the given amount
@@ -93,10 +96,11 @@ contract RockPaperScissors
                 require(block.number > previous_block + timeout_in_blocks);
         }
 
-        // State 1, called by player0 when initializing the game
-        // Let the address be 0 if this is an open offer, or the address of a specific opponent.
+        // Constructor called by player0 when initializing the game.
         // The commitment is a hash of some salt and the hand.
-        constructor (bytes32 _commitment, bytes32 _key_hash, uint _wager_amount) public payable
+        // The key_hash is a handshake so only trusted players can play.
+        constructor (bytes32 _commitment, address payable _player1_address, uint _wager_amount)
+                public payable
         {
                 // This function can only be called while at state Uninitialized.
                 require(state == State.Uninitialized);
@@ -106,34 +110,35 @@ contract RockPaperScissors
                 // The amount that a player gains if they win fairly,
                 // or loses if they loose fairly
                 wager_amount = _wager_amount;
+
                 // The amount that player0 looses if they "cheat" by
                 // not revealing their hand after they committed.
                 // Player0 gets this back if they "play fair" by
                 // revealing their hand, whether they win or lose.
                 escrow_amount = msg.value - wager_amount;
+
                 // The address of player0, including to transfer to
                 // if player0 wins.
                 player0_address = msg.sender;
-                // Restricts what player0's hand can be: he has to
-                // know the preimage of this hash, to reveal later
-                // in player0_reveal.
+
+                // Restricts what player0's hand can be: she will have to reveal and play
+                // the preimage of this hash, chosen *before* player1 showed his hand.
                 player0_commitment = _commitment;
-                // Restricts who player1 can be: he has to know the
-                // preimage of this hash, and send it to player1
-                // out-of-band.
-                key_hash = _key_hash;
+
+                // If non-zero, restricts who player1 can be.
+                player1_address = _player1_address;
 
                 // Set the new state and previous_block
                 state = State.Waiting_for_player1;
                 previous_block = block.number;
         }
 
-        // State 2, called by player1 when joining the game
-        // NB: the player1 address and amount MUST match, and the hand must be valid.
-        function player1_show_hand (bytes32 key, uint8 _hand1) external payable
+        // Function called by player1 when joining the game.
+        // NB: player1 must show the key, address and amount MUST match, and the hand must be valid.
+        function player1_show_hand (uint8 _hand1) external payable
         {
                 require(state == State.Waiting_for_player1);
-                require(keccak256(abi.encodePacked(key)) == key_hash);
+                require_or_set_player1();
                 require(msg.value == wager_amount);
                 require(_hand1 < 3);
 
@@ -186,7 +191,7 @@ contract RockPaperScissors
                 require(state == State.Waiting_for_player0_reveal);
                 require_player1();
                 require_timeout();
-                player1_gets(wager_amount+escrow_amount);
+                player1_gets(2*wager_amount+escrow_amount);
                 state = State.Completed;
         }
 }
@@ -194,9 +199,9 @@ contract RockPaperScissors
 contract RockPaperScissorsFactory
 {
         function createRockPaperScissors
-                (bytes32 _commitment, bytes32 _key_hash, uint _wager_amount) public payable
+                (bytes32 _commitment, address payable _player1_address, uint _wager_amount) public payable
         {
-                (new RockPaperScissors).value(msg.value)(_commitment, _key_hash, _wager_amount);
-                // NB: Not returning the address; you have to get it from the transaction receipt.
+                (new RockPaperScissors).value(msg.value)(_commitment, _player1_address, _wager_amount);
+                // NB: You have to get the address from the transaction receipt.
         }
 }
