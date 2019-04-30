@@ -36,16 +36,18 @@ contract RockPaperScissors
         uint8 constant none = 255;
 
         /** Current state of the state machine. Possible States:
-            0 - uninitialized
-            1 - player0 funded wager+escrow and published a commitment; waiting for player1
-            2 - player1 showed his hand; waiting for player0
-            255 - end of game (in the future, have a way to reset the contract to state 0?)
+            Uninitialized
+            Waiting_for_player1        - player0 funded wager+escrow and published a commitment; waiting for player1
+            Waiting_for_player0_reveal - player1 showed his hand; waiting for player0
+            Completed                  - end of game (in the future, have a way to reset the contract to state Uninitialized?)
          */
-        uint8 state = 0;
-        uint8 constant uninitialized = 0;
-        uint8 constant waiting_for_player1 = 1;
-        uint8 constant waiting_for_reveal = 2;
-        uint8 constant completed = 255;
+        enum State {
+            Uninitialized,
+            Waiting_for_player1,
+            Waiting_for_player0_reveal,
+            Completed
+        }
+        State state = State.Uninitialized;
 
         /** Previous block at which state transition happened,
             for timeouts when waiting for a player */
@@ -96,19 +98,33 @@ contract RockPaperScissors
         // The commitment is a hash of some salt and the hand.
         constructor (bytes32 _commitment, bytes32 _key_hash, uint _wager_amount) public payable
         {
-                // This function can only be called while at state 0.
-                require(state == uninitialized);
+                // This function can only be called while at state Uninitialized.
+                require(state == State.Uninitialized);
                 require(msg.value > _wager_amount);
 
                 // Initialize the game
+                // The amount that a player gains if they win fairly,
+                // or loses if they loose fairly
                 wager_amount = _wager_amount;
+                // The amount that player0 looses if they "cheat" by
+                // not revealing their hand after they committed.
+                // Player0 gets this back if they "play fair" by
+                // revealing their hand, whether they win or lose.
                 escrow_amount = msg.value - wager_amount;
+                // The address of player0, including to transfer to
+                // if player0 wins.
                 player0_address = msg.sender;
+                // Restricts what player0's hand can be: he has to
+                // know the preimage of this hash, to reveal later
+                // in player0_reveal.
                 player0_commitment = _commitment;
+                // Restricts who player1 can be: he has to know the
+                // preimage of this hash, and send it to player1
+                // out-of-band.
                 key_hash = _key_hash;
 
                 // Set the new state and previous_block
-                state = waiting_for_player1;
+                state = State.Waiting_for_player1;
                 previous_block = block.number;
         }
 
@@ -116,7 +132,7 @@ contract RockPaperScissors
         // NB: the player1 address and amount MUST match, and the hand must be valid.
         function player1_show_hand (bytes32 key, uint8 _hand1) external payable
         {
-                require(state == waiting_for_player1);
+                require(state == State.Waiting_for_player1);
                 require(keccak256(abi.encodePacked(key)) == key_hash);
                 require(msg.value == wager_amount);
                 require(_hand1 < 3);
@@ -125,13 +141,13 @@ contract RockPaperScissors
                 hand1 = _hand1;
 
                 // Set the new state and previous_block
-                state = waiting_for_reveal;
+                state = State.Waiting_for_player0_reveal;
                 previous_block = block.number;
         }
 
         // State 3, called by player0 after player1 played, reveals the committed hand.
         function player0_reveal (bytes31 salt, uint8 hand0) external payable {
-                require(state == waiting_for_reveal);
+                require(state == State.Waiting_for_player0_reveal);
                 require_player0();
                 if (hand0 >= 3 || player0_commitment != keccak256(abi.encodePacked(salt, hand0))) {
                         // If the reveal is invalid, player1 wins and player0 loses escrow.
@@ -153,25 +169,25 @@ contract RockPaperScissors
                                 player0_gets(wager_amount+escrow_amount);
                         }
                 }
-                state = completed;
+                state = State.Completed;
         }
 
         // State 2 bis, rescind the offer to play -- called by player0 after player1 times out.
         function player0_rescind () external payable {
-                require(state == waiting_for_player1);
+                require(state == State.Waiting_for_player1);
                 require_player0();
                 require_timeout();
                 player0_gets(wager_amount+escrow_amount);
-                state = completed;
+                state = State.Completed;
         }
 
         // State 3 bis, win by default -- called by player1 after player0 times out rather than reveal hand.
         function player1_win_by_default () external payable {
-                require(state == waiting_for_reveal);
+                require(state == State.Waiting_for_player0_reveal);
                 require_player1();
                 require_timeout();
                 player1_gets(wager_amount+escrow_amount);
-                state = completed;
+                state = State.Completed;
         }
 }
 
