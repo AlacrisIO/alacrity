@@ -47,7 +47,7 @@ define-syntax-class sync-clause
     #:with second-phase-receive (receive other-id name : type -> other-name
                                  check (hash other-name) = other-hash-name)
 
-define-simple-macro (syncronous clause:sync-clause ...)
+define-simple-macro (synchronous clause:sync-clause ...)
   clause.first-phase-send ...
   clause.first-phase-receive ...
   clause.second-phase-send ...
@@ -83,7 +83,7 @@ define fair-draw other-id = ???
 player-actions : (Communication a) => a -> ???
 define player-actions other-id =
   let hand = random-element [Rock,Paper,Scissors]
-  syncronous
+  synchronous
     send other-id salted-hand : Salted Hand <- Salted (random-salt) hand
     receive other-id salted-hand : Salted Hand -> Salted _ other-hand
   if hand<? other-hand hand
