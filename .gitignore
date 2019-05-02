@@ -55,3 +55,6 @@ doc/
 
 # Operating-system-generated files
 .DS_Store
+
+_run
+_build

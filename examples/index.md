@@ -1,5 +1,11 @@
 # Examples
 
+* [nginx](nginx): a simple configuration for running nginx on your localhost,
+  such that after you run the [./start.sh](nginx/start.sh) script,
+  you can point your browser at < http://localhost:8088/rps-demo/ >
+  and play our "Rock, Paper, Scissors" demo.
+  To stop the server, run the [./stop.sh](nginx/stop.sh).
+
 * [rock_papers_scissors.ala](rock_papers_scissors.ala):
   a very simple two-person game, to illustrate our conflict resolution mechanisms
   on the simplest adversarial system possible.
