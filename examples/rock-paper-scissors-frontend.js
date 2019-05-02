@@ -8,6 +8,8 @@ if (typeof window.ethereum !== 'undefined' ||
     alert('You need a Web3-compatible browser. Consider downloading the MetaMask extension.');
 }
 
+const R = require("./rock-paper-scissors.js");
+
 async function getAccount() {
     try {
         const accounts = await ethereum.enable();

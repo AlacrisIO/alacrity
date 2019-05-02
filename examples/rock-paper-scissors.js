@@ -3,6 +3,8 @@
 // In the future, we should post transactions only after persisting locally
 // and carefully play the auction game so as to post transactions without paying too much in fees.
 
+'use strict';
+
 const Web3 = require('web3');
 
 
@@ -13,7 +15,7 @@ const rockPaperScissorsFactoryAbi =
       [{"constant":false,"inputs":[{"name":"_commitment","type":"bytes32"},{"name":"_player1_address","type":"address"},{"name":"_wager_amount","type":"uint256"}],"name":"createRockPaperScissors","outputs":[],"payable":true,"stateMutability":"payable","type":"function"}];
 const rockPaperScissorsFactory = web3.eth.contract(rockPaperScissorsFactoryAbi).at(rockPaperScissorsFactoryAddress);
 
-let rockPaperScissorsAbi =
+const rockPaperScissorsAbi =
       // const rockPaperScissorsAbi = require('./rockPaperScissorsAbi.json');
     [{"constant":false,"inputs":[{"name":"salt","type":"bytes32"},{"name":"hand0","type":"uint8"}],"name":"player0_reveal","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":true,"inputs":[],"name":"query_state","outputs":[{"name":"","type":"uint8"},{"name":"","type":"uint8"},{"name":"","type":"uint256"},{"name":"","type":"address"},{"name":"","type":"address"},{"name":"","type":"bytes32"},{"name":"","type":"uint256"},{"name":"","type":"uint256"},{"name":"","type":"uint8"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"_hand1","type":"uint8"}],"name":"player1_show_hand","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":false,"inputs":[],"name":"player1_win_by_default","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":false,"inputs":[],"name":"player0_rescind","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"inputs":[{"name":"_commitment","type":"bytes32"},{"name":"_player1_address","type":"address"},{"name":"_wager_amount","type":"uint256"}],"payable":true,"stateMutability":"payable","type":"constructor"}];
 
@@ -23,15 +25,8 @@ const rock = 0;
 const paper = 1;
 const scissors = 2;
 
-// () => Uint8Array(32)
-function random_salt () {
-    let array = new Uint8Array(32);
-    window.crypto.getRandomValues(array);
-    return array;
-}
-
 // (Uint8) => string
-function byteToHex(byte) {
+const byteToHex = (byte) => {
     return ('0' + (byte & 0xFF).toString(16)).slice(-2);
 }
 // (Uint8Array) => string
@@ -43,79 +38,116 @@ function bytesTo0x (bytes) {
     return "0x" + bytesToHex(bytes);
 }
 
+// () => Uint8Array(32)
+const random_salt = () => {
+    const array = new Uint8Array(32);
+    window.crypto.getRandomValues(array);
+    return array;
+}
+
+const snoc = (l, e) => l.concat([e]);
+
+const eth_query = (f) => (...args) => (k) =>
+    f.apply(snoc(args,(error, result) => error ? console.log(error) : k(result)));
+
 // With inspiration from https://medium.com/pixelpoint/track-blockchain-transactions-like-a-boss-with-web3-js-c149045ca9bf
 // The string must be in "0x..." format.
 // (string) => int
-async function getConfirmations(txHash) {
-    try {
-        // Get transaction details
-        const tx = await web3.eth.getTransaction(txHash);
+const getConfirmations = (txHash) => (k) =>
+    eth_query(web3.eth.getTransaction)(txHash)((txInfo) => // Get TxInfo
+    eth_query(web3.eth.getBlockNumber)()((currentBlock) => // Get current block number
+    // When transaction is unconfirmed, its block number is null.
+    // In this case we return -1 as number of confirmations
+    k(tx.blockNumber === null ? -1 : currentBlock - txInfo.blockNumber)));
 
-        // Get current block number
-        const currentBlock = await web3.eth.getBlockNumber();
-
-        // When transaction is unconfirmed, its block number is null.
-        // In this case we return 0 as number of confirmations
-        return tx.blockNumber === null ? Number.MIN_SAFE_INTEGER : currentBlock - tx.blockNumber;
-    }
-    catch (error) {
-        console.log(error);
-    }
-}
-
-/** Number of confirmations (in blocks) wanted to consider a transaction done.
-    2 is only good enough for toys / tests / demos.
+/** configuration
+    confirmations_wanted_in_blocks: Number of confirmations (in blocks) wanted
+    to consider a transaction done.
+    1 is only good enough for toys / tests / demos.
     12 is what metamask uses by default for regular transactions.
     100 or more should be used for serious / large transactions, even more on ETC.
-  */
-var confirmations_wanted_in_blocks = 2;
-var block_polling_period_in_seconds = 10;
 
-async function confirmEtherTransaction(txHash, confirmations = confirmations_wanted_in_blocks) {
-    const txConfirmations = await getConfirmations(txHash);
-    if (txConfirmations >= confirmations) {
-        return;
-    } else {
-        setTimeout(async () => {
-            return confirmEtherTransaction(txHash, confirmations, k);
-        }, block_polling_period_in_seconds * 1000);
-    }
-}
-
-async function createRockPaperScissors (salt, hand, player1_address, wagerAmount, escrowAmount) {
-    let commitment = web3.utils.soliditySha3(
-        {t: 'bytes', value: bytesTo0x(salt)},
-        {t: 'uint8', value: hand});
-    let totalAmount = wagerAmount.add(escrowAmount);
-    let txHash = await rockPaperScissorsFactory.methods
-        .createRockPaperScissors(commitment, player1_address, wagerAmount)
-        .send({value: totalAmount});
-    await confirmEtherTransaction(txHash);
-    let receipt = await web3.eth.getTransactionReceipt(txHash);
-    return receipt.contractAddress;
-}
-
-async function player1_show_hand (contractAddress, wagerAmount, hand) {
-    const rockPaperScissors = web3.eth.contract(rockPaperScissorsAbi).at(contractAddress);
-    let c = rockPaperScissors.
-    let txHash = await rockPaperScissors.methods
-        .player1_show_hand(hand)
-        .send({value=wagerAmount});
-    return txHash;
-}
-
-/*
-async function player0_reveal (contractAddress, wagerAmount, hand) {
-    const rockPaperScissors = web3.eth.contract(rockPaperScissorsAbi).at(contractAddress);
-    let c = rockPaperScissors.
-    let txHash = await rockPaperScissors.methods
-        .player1_show_hand(hand)
-        .send({value=wagerAmount});
-    return txHash;
-}
-
-function player0_reveal (bytes32 salt, uint8 hand0) external payable
-function player0_rescind () external payable
-function player1_win_by_default () external payable
-function query_state () external view returns(State, Outcome, uint, address, address, bytes32, uint, uint, uint8)
+    block_polling_period_in_seconds: How often to poll the chain for results.
 */
+const config = {
+    confirmations_wanted_in_blocks: 1,
+    block_polling_period_in_seconds: 5 };
+
+const confirmEtherTransaction = (txHash, confirmations = config.confirmations_wanted_in_blocks) => (k) =>
+    eth_query(getConfirmations)(txHash)((txConfirmations) =>
+    (txConfirmations >= confirmations) ? k() :
+    setTimeout((() => confirmEtherTransaction(txHash, confirmations)(k)),
+              config.block_polling_period_in_seconds * 1000));
+
+// (Uint8Array(32), Uint8, address, BN, BN) => ((address) => `a) => `a
+const createRockPaperScissors = (salt, hand, player1_address, wagerAmount, escrowAmount) => (k) => {
+    const commitment = web3.utils.soliditySha3(
+        {t: 'bytes32', value: bytesTo0x(salt)},
+        {t: 'uint8', value: hand});
+    const totalAmount = wagerAmount.add(escrowAmount);
+    eth_query(rockPaperScissorsFactory.methods
+              .createRockPaperScissors(commitment, player1_address, wagerAmount).send)
+    ({value: totalAmount})((txHash) =>
+    confirmEtherTransaction(txHash)(() =>
+    eth_query(web3.eth.getTransactionReceipt)(txHash)((receipt) =>
+    k(receipt.contractAddress)))) };
+
+// (address, BN, Uint8) => (() => `a) => `a
+const player1_show_hand = (contractAddress, wagerAmount, hand) => (k) => {
+    const rockPaperScissors = web3.eth.contract(rockPaperScissorsAbi).at(contractAddress);
+    eth_query(rockPaperScissors.methods.player1_show_hand(hand).send)({value: wagerAmount})((txHash) =>
+    confirmEtherTransaction(txHash)(k)) };
+
+// (address, Uint8Array(32), Uint8) => (() => `a) => `a
+const player0_reveal = (contractAddress, salt, hand) => (k) => {
+    const rockPaperScissors = web3.eth.contract(rockPaperScissorsAbi).at(contractAddress);
+    eth_query(rockPaperScissors.methods.player0_reveal(bytesTo0x(salt),hand).send)
+    ({value: wagerAmount})((txHash) =>
+    confirmEtherTransaction(txHash)(k)) };
+
+// (address) => (() => `a) => `a
+const player0_rescind = (contractAddress) => (k) => {
+    const rockPaperScissors = web3.eth.contract(rockPaperScissorsAbi).at(contractAddress);
+    eth_query(rockPaperScissors.methods.player0_rescind().send)()((txHash) =>
+    confirmEtherTransaction(txHash)(k)) };
+
+// (address) => (() => `a) => `a
+const player1_win_by_default = (contractAddress) => (k) => {
+    const rockPaperScissors = web3.eth.contract(rockPaperScissorsAbi).at(contractAddress);
+    eth_query(rockPaperScissors.methods.player1_win_by_default().send)()((txHash) =>
+    confirmEtherTransaction(txHash)(k)) };
+
+// state, outcome, previous_block, player0_address, player1_address, player0_commitment, wager_amount, escrow_amount, hand1
+// (address) => ((Uint8, Uint8, int, address, address, bytes32, BN, BN, uint8) => `a) => `a
+const query_state = (contractAddress, blockNumber) => (k) => {
+    const rockPaperScissors = web3.eth.contract(rockPaperScissorsAbi).at(contractAddress);
+    eth_query(rockPaperScissors.methods.player1_win_by_default().call)({}, blockNumber)(k.apply); };
+
+// (int => `a) => `a
+const confirmedBlockNumber = (k) =>
+    eth_query(web3.eth.getBlockNumber)()((currentBlock) => // Get current block number
+    k(currentBlock-config.confirmations_wanted_in_blocks));
+
+const query_confirmed_state = (contractAddress) => (k) => {
+
+
+module.exports = {
+    rock: rock,
+    paper: paper,
+    scissors: scissors,
+    random_salt: random_salt,
+    byteToHex: byteToHex,
+    bytesToHex: bytesToHex,
+    bytesTo0x: bytesTo0x,
+    snoc: snoc,
+    eth_query: eth_query,
+    getConfirmations: getConfirmations,
+    config: config,
+    confirmEtherTransaction: confirmEtherTransaction,
+    createRockPaperScissors: createRockPaperScissors,
+    player1_show_hand: player1_show_hand,
+    player0_reveal: player0_reveal,
+    player0_rescind: player0_rescind,
+    player1_win_by_default: player1_win_by_default,
+    query_state: query_state
+}
