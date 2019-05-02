@@ -1,17 +1,7 @@
 'use strict';
 
-// import { rock } from './rock-paper-scissors';
-const rps = window.alacrisRps;
-
-if (typeof window.ethereum !== 'undefined' ||
-    (typeof window.web3 !== 'undefined')) {
-
-    // Web3 browser user detected. You can now use the provider.
-    const provider = window['ethereum'] || window.web3.currentProvider
-    init();
-} else {
-    alert('You need a Web3-compatible browser. Consider downloading the MetaMask extension.');
-}
+const web3 = window.web3
+const rps = window.rock_paper_scissors;
 
 
 async function getAccount() {
@@ -29,7 +19,6 @@ async function init () {
     const body = document.querySelector('body');
     body.innerHTML = '';
     body.append(renderForm(account, true));
-
 }
 
 function renderForm (account, editable, amount) {
@@ -87,10 +76,9 @@ function renderChoice (value) {
     return `
     <label style="display: inline-block; margin: .5em; text-align: center;">
         <input type="radio" value="${value}" required name="choice">
-        <br>
-        ${getIconForValue(value)}
-        <br>
+        <div style='font-family: "BabelStone Han", "EversonMono", "FreeSerif", "Segoe UI Emoji", "Segoe UI Symbol", "Symbola", "Unifont"; font-size: 3em; color: black; background-color: white;'>${getIconForValue(value)} </div>
         ${getLabelForValue(value)}
+
     </label>
     `;
 }
@@ -125,9 +113,12 @@ function getFormValuesForEvent (e) {
 }
 
 function getLabelForValue (choice) {
-    return ['Rock', 'Paper', 'Scissors'][choice] || '';
+    return ['Rock &#9994;', 'Paper &#9995;', 'Scissors &#9996;'][choice] || '';
 }
 
+// TODO: either configure fonts to display these correctly, or use PNG icons.
 function getIconForValue (choice) {
     return ['✊', '✋', '✌'][choice] || '';
 }
+
+init();
