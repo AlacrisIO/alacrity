@@ -45,6 +45,7 @@ function renderForm (account, editable, amount) {
     el.addEventListener('submit', (e) => {
         e.preventDefault();
         const {wager, choice} = getFormValuesForEvent(e);
+        const escrow = wager * 0.2;
         // store 256bit salt in local storage
         // concatenate choice to the salt
         // hash the concatenation with sha
