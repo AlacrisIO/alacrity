@@ -217,10 +217,17 @@ contract RockPaperScissors
 
 contract RockPaperScissorsFactory
 {
+        event Created(address _contract, address payable _player0, address payable _player1,
+                      bytes32 _commitment, uint _wager_amount, uint _escrow_amount);
+
         function createRockPaperScissors
-                (bytes32 _commitment, address payable _player1_address, uint _wager_amount) public payable
+                (bytes32 _commitment, address payable _player1_address, uint _wager_amount)
+                public payable returns(address)
         {
-                (new RockPaperScissors).value(msg.value)(_commitment, _player1_address, _wager_amount);
+                RockPaperScissors rpsContract = (new RockPaperScissors).value(msg.value)(_commitment, _player1_address, _wager_amount);
                 // NB: You have to get the address from the transaction receipt.
+                emit Created(address(rpsContract), msg.sender, _player1_address,
+                             _commitment, _wager_amount, msg.value - _wager_amount);
+                return address(rpsContract);
         }
 }

@@ -13,17 +13,15 @@ if (typeof window.web3 !== 'undefined') {
     alert('You need a Web3-compatible browser. Consider downloading the MetaMask extension.');
 }
 
-
 // Output of solc --abi rock-paper-scissors.sol
 const rockPaperScissorsFactoryAddress = "0xY...Z";
 const rockPaperScissorsFactoryAbi =
       // const rockPaperScissorsFactoryAbi = require('./rockPaperScissorsFactoryAbi.json');
-      [{"constant":false,"inputs":[{"name":"_commitment","type":"bytes32"},{"name":"_player1_address","type":"address"},{"name":"_wager_amount","type":"uint256"}],"name":"createRockPaperScissors","outputs":[],"payable":true,"stateMutability":"payable","type":"function"}];
-const rockPaperScissorsFactory = web3.eth.contract(rockPaperScissorsFactoryAbi).at(rockPaperScissorsFactoryAddress);
+      [{"constant":false,"inputs":[{"name":"_commitment","type":"bytes32"},{"name":"_player1_address","type":"address"},{"name":"_wager_amount","type":"uint256"}],"name":"createRockPaperScissors","outputs":[{"name":"","type":"address"}],"payable":true,"stateMutability":"payable","type":"function"},{"anonymous":false,"inputs":[{"indexed":false,"name":"_contract","type":"address"},{"indexed":false,"name":"_player0","type":"address"},{"indexed":false,"name":"_player1","type":"address"},{"indexed":false,"name":"_commitment","type":"bytes32"},{"indexed":false,"name":"_wager_amount","type":"uint256"},{"indexed":false,"name":"_escrow_amount","type":"uint256"}],"name":"Created","type":"event"}];
 
 const rockPaperScissorsAbi =
       // const rockPaperScissorsAbi = require('./rockPaperScissorsAbi.json');
-    [{"constant":false,"inputs":[{"name":"salt","type":"bytes32"},{"name":"hand0","type":"uint8"}],"name":"player0_reveal","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":true,"inputs":[],"name":"query_state","outputs":[{"name":"","type":"uint8"},{"name":"","type":"uint8"},{"name":"","type":"uint256"},{"name":"","type":"address"},{"name":"","type":"address"},{"name":"","type":"bytes32"},{"name":"","type":"uint256"},{"name":"","type":"uint256"},{"name":"","type":"uint8"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"_hand1","type":"uint8"}],"name":"player1_show_hand","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":false,"inputs":[],"name":"player1_win_by_default","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":false,"inputs":[],"name":"player0_rescind","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"inputs":[{"name":"_commitment","type":"bytes32"},{"name":"_player1_address","type":"address"},{"name":"_wager_amount","type":"uint256"}],"payable":true,"stateMutability":"payable","type":"constructor"}];
+      [{"constant":false,"inputs":[{"name":"salt","type":"bytes32"},{"name":"hand0","type":"uint8"}],"name":"player0_reveal","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":true,"inputs":[],"name":"query_state","outputs":[{"name":"","type":"uint8"},{"name":"","type":"uint8"},{"name":"","type":"uint256"},{"name":"","type":"address"},{"name":"","type":"address"},{"name":"","type":"bytes32"},{"name":"","type":"uint256"},{"name":"","type":"uint256"},{"name":"","type":"uint8"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"_hand1","type":"uint8"}],"name":"player1_show_hand","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":false,"inputs":[],"name":"player1_win_by_default","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":false,"inputs":[],"name":"player0_rescind","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"inputs":[{"name":"_commitment","type":"bytes32"},{"name":"_player1_address","type":"address"},{"name":"_wager_amount","type":"uint256"}],"payable":true,"stateMutability":"payable","type":"constructor"}];
 
 const BN = web3.utils.BN;
 const digest = web3.utils.keccak256;
@@ -134,8 +132,10 @@ const confirmedBlockNumber = (k) =>
     eth_query(web3.eth.getBlockNumber)()((currentBlock) => // Get current block number
     k(currentBlock-config.confirmations_wanted_in_blocks));
 
-// const query_confirmed_state = (contractAddress) => (k) => {}
-window.alacrisRps = {
+const queryConfirmedState = (contractAddress) => (k) =>
+    confirmedBlockNumber((blockNumber) => queryState(contractAddress, blockNumber)(k));
+
+kwindow.alacrisRps = {
     rock,
     paper,
     scissors,
@@ -153,5 +153,7 @@ window.alacrisRps = {
     player0_reveal,
     player0_rescind,
     player1_win_by_default,
-    query_state
+    queryState,
+    confirmedBlockNumber,
+    queryConfirmedState
 }
