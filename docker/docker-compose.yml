@@ -1,0 +1,13 @@
+version: '3'
+services:
+  rps-demo:
+    image: nginx:1.15
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ../examples/rps-demo/:/usr/share/nginx/html
+      - ./nginx/alacrity.local.crt:/etc/nginx/alacrity.local.crt
+      - ./nginx/alacrity.local.key:/etc/nginx/alacrity.local.key
+    ports:
+    - "8080:80"
+    - "443:443"
+
