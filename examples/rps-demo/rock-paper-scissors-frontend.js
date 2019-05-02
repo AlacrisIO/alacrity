@@ -1,3 +1,6 @@
+// import { rock } from './rock-paper-scissors';
+const rps = window.alacrisRps;
+
 if (typeof window.ethereum !== 'undefined' ||
     (typeof window.web3 !== 'undefined')) {
 
@@ -8,7 +11,6 @@ if (typeof window.ethereum !== 'undefined' ||
     alert('You need a Web3-compatible browser. Consider downloading the MetaMask extension.');
 }
 
-const R = require("./rock-paper-scissors.js");
 
 async function getAccount() {
     try {
@@ -114,8 +116,8 @@ function renderSubmit (editable, amount) {
 
 function getFormValuesForEvent (e) {
     return {
-        wager: e.target.querySelector('[name=wager]').value,
-        choice: e.target.querySelector('[name=choice]:checked').value
+        wager: e.target.elements.wager.value,
+        choice: e.target.elements.choice.value
     };
 }
 

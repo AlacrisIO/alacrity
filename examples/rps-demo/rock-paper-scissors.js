@@ -5,7 +5,7 @@
 
 'use strict';
 
-const Web3 = require('web3');
+// const Web3 = require('web3');
 
 
 // Output of solc --abi rock-paper-scissors.sol
@@ -19,8 +19,8 @@ const rockPaperScissorsAbi =
       // const rockPaperScissorsAbi = require('./rockPaperScissorsAbi.json');
     [{"constant":false,"inputs":[{"name":"salt","type":"bytes32"},{"name":"hand0","type":"uint8"}],"name":"player0_reveal","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":true,"inputs":[],"name":"query_state","outputs":[{"name":"","type":"uint8"},{"name":"","type":"uint8"},{"name":"","type":"uint256"},{"name":"","type":"address"},{"name":"","type":"address"},{"name":"","type":"bytes32"},{"name":"","type":"uint256"},{"name":"","type":"uint256"},{"name":"","type":"uint8"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"_hand1","type":"uint8"}],"name":"player1_show_hand","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":false,"inputs":[],"name":"player1_win_by_default","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":false,"inputs":[],"name":"player0_rescind","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"inputs":[{"name":"_commitment","type":"bytes32"},{"name":"_player1_address","type":"address"},{"name":"_wager_amount","type":"uint256"}],"payable":true,"stateMutability":"payable","type":"constructor"}];
 
-const BN = web3.utils.BN;
-const digest = web3.utils.keccak256;
+// const BN = web3.utils.BN;
+// const digest = web3.utils.keccak256;
 const rock = 0;
 const paper = 1;
 const scissors = 2;
@@ -128,26 +128,24 @@ const confirmedBlockNumber = (k) =>
     eth_query(web3.eth.getBlockNumber)()((currentBlock) => // Get current block number
     k(currentBlock-config.confirmations_wanted_in_blocks));
 
-const query_confirmed_state = (contractAddress) => (k) => {
-
-
-module.exports = {
-    rock: rock,
-    paper: paper,
-    scissors: scissors,
-    random_salt: random_salt,
-    byteToHex: byteToHex,
-    bytesToHex: bytesToHex,
-    bytesTo0x: bytesTo0x,
-    snoc: snoc,
-    eth_query: eth_query,
-    getConfirmations: getConfirmations,
-    config: config,
-    confirmEtherTransaction: confirmEtherTransaction,
-    createRockPaperScissors: createRockPaperScissors,
-    player1_show_hand: player1_show_hand,
-    player0_reveal: player0_reveal,
-    player0_rescind: player0_rescind,
-    player1_win_by_default: player1_win_by_default,
-    query_state: query_state
+// const query_confirmed_state = (contractAddress) => (k) => {}
+window.alacrisRps = {
+    rock,
+    paper,
+    scissors,
+    random_salt,
+    byteToHex,
+    bytesToHex,
+    bytesTo0x,
+    snoc,
+    eth_query,
+    getConfirmations,
+    config,
+    confirmEtherTransaction,
+    createRockPaperScissors,
+    player1_show_hand,
+    player0_reveal,
+    player0_rescind,
+    player1_win_by_default,
+    query_state
 }
