@@ -128,8 +128,7 @@ const confirmedBlockNumber = (k) =>
 const queryConfirmedState = (contractAddress) => (k) =>
     confirmedBlockNumber((blockNumber) => queryState(contractAddress, blockNumber)(k));
 
-
-exports = {
+const exports = {
     rock,
     paper,
     scissors,
