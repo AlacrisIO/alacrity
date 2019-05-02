@@ -23,8 +23,8 @@ const rockPaperScissorsAbi =
       // const rockPaperScissorsAbi = require('./rockPaperScissorsAbi.json');
       [{"constant":false,"inputs":[{"name":"salt","type":"bytes32"},{"name":"hand0","type":"uint8"}],"name":"player0_reveal","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":true,"inputs":[],"name":"query_state","outputs":[{"name":"","type":"uint8"},{"name":"","type":"uint8"},{"name":"","type":"uint256"},{"name":"","type":"address"},{"name":"","type":"address"},{"name":"","type":"bytes32"},{"name":"","type":"uint256"},{"name":"","type":"uint256"},{"name":"","type":"uint8"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"_hand1","type":"uint8"}],"name":"player1_show_hand","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":false,"inputs":[],"name":"player1_win_by_default","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":false,"inputs":[],"name":"player0_rescind","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"inputs":[{"name":"_commitment","type":"bytes32"},{"name":"_player1_address","type":"address"},{"name":"_wager_amount","type":"uint256"}],"payable":true,"stateMutability":"payable","type":"constructor"}];
 
-const BN = web3.utils.BN;
-const digest = web3.utils.keccak256;
+const BN = web3.toBigNumber;
+const digest = web3.sha3;
 const rock = 0;
 const paper = 1;
 const scissors = 2;
@@ -123,7 +123,7 @@ const player1_win_by_default = (contractAddress) => (k) => {
 
 // state, outcome, previous_block, player0_address, player1_address, player0_commitment, wager_amount, escrow_amount, hand1
 // (address) => ((Uint8, Uint8, int, address, address, bytes32, BN, BN, uint8) => `a) => `a
-const query_state = (contractAddress, blockNumber) => (k) => {
+const queryState = (contractAddress, blockNumber) => (k) => {
     const rockPaperScissors = web3.eth.contract(rockPaperScissorsAbi).at(contractAddress);
     eth_query(rockPaperScissors.methods.player1_win_by_default().call)({}, blockNumber)(k.apply); };
 
@@ -135,7 +135,7 @@ const confirmedBlockNumber = (k) =>
 const queryConfirmedState = (contractAddress) => (k) =>
     confirmedBlockNumber((blockNumber) => queryState(contractAddress, blockNumber)(k));
 
-kwindow.alacrisRps = {
+window.alacrisRps = {
     rock,
     paper,
     scissors,
