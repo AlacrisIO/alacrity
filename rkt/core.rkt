@@ -251,6 +251,8 @@
       [(de:let v (de:if ca te fe) b)
        (de-state pre-sends
                  (de:if ca
+                        ;; XXX potentially add a jump because this is
+                        ;; expensive
                         (de-merge v b te)
                         (de-merge v b fe)))]
       [(de:let v (de:app op args) b)
@@ -333,3 +335,15 @@
                                             (he:var 'anf-app7)))
                               (ht:stop (he:var 'anf-app8) '()))))))
     'top0)))
+
+;; XXX parser for whole-program style
+
+;; XXX epp
+
+;; XXX parser for direct-style
+
+;; XXX evaluator connected to simulator
+
+;; XXX compile to other formats
+
+;; XXX extract verification models
