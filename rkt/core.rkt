@@ -159,7 +159,7 @@
       [(de:send e)
        (define nv (freshen 'anf-send))
        (match-define (anf-res nvs1 e1) (da-anf n->fun ρ #f e))
-       (anf-res (snoc nvs1 (cons nv (de:send e1))) (de:var nv))]
+       (anf-res (snoc nvs1 (cons nv (de:send e1))) (de:con (void)))]
       [(de:recv)
        (cond
          [tail?
@@ -246,7 +246,6 @@
        (define b-fvs1 (set-remove b-fvs v))
        (define b-st (cons v (set->sorted-list b-fvs1)))
        (define (bk a pre-sends)
-         ;; XXX include pre-sends in fvs
          (st-res (hasheq) b-fvs1
                  (ht:let v a (ht:jump bh b-st pre-sends))))
        (match-define (st-res n->h2 t-fvs tt)
@@ -277,7 +276,6 @@
          (de-state '() b k))
        (define fvs1 (set-remove fvs v))
        (define st (set->sorted-list fvs1))
-       ;; XXX include pre-sends in fvs
        (st-res
         (hash-set n->h1 nh (hh:handler st v ht))
         fvs1
@@ -288,7 +286,6 @@
     (match-define (st-res n->h body-fvs body1)
       (de-state '() body
                 (λ (a pre-sends)
-                  ;; XXX include pre-sends in fvs
                   (st-res (hasheq) (seteq)
                           (ht:stop a pre-sends)))))
     (unless (subset? body-fvs (list->seteq args))
@@ -341,6 +338,53 @@
                               (list (ha:var 'anf-recv0)
                                     (ha:var 'anf-app7)))
                       (ht:stop (ha:var 'anf-app8) '())))))
+    'top0))
+
+  (chk
+   (direct->handle
+    (dp:program
+     (hasheq
+      'main
+      (df:fun
+       '(x)
+       (de:let*
+        (list (cons 'r0 (de:recv))
+              (cons 's0 (de:send (de:var 'r0)))
+              (cons 'r1 (de:recv))
+              (cons 's1 (de:send
+                         (de:app 'join (list (de:var 'x)
+                                             (de:var 'r1)))))
+              (cons 'r2 (de:recv)))
+        (de:send
+         (de:app 'join (list (de:var 'r0)
+                             (de:var 'r1)
+                             (de:var 'r2)))))))
+     'main))
+   (hp:program
+    (hasheq
+     'top0
+     (hh:handler '(x) #f (ht:wait 'recv1 '(x) '()))
+     'recv1
+     (hh:handler '(x) 'anf-recv0
+                 (ht:wait 'recv2 '(anf-recv0 x)
+                          (list (ha:var 'anf-recv0))))
+     'recv2
+     (hh:handler '(anf-recv0 x) 'anf-recv2
+                 (ht:let 'anf-app4
+                         (he:app 'join
+                                 (list (ha:var 'x)
+                                       (ha:var 'anf-recv2)))
+                         (ht:wait 'recv3 '(anf-recv0 anf-recv2)
+                                  (list (ha:var 'anf-app4)))))
+     'recv3
+     (hh:handler '(anf-recv0 anf-recv2) 'anf-recv5
+                 (ht:let 'anf-app7
+                         (he:app 'join
+                                 (list (ha:var 'anf-recv0)
+                                       (ha:var 'anf-recv2)
+                                       (ha:var 'anf-recv5)))
+                         (ht:stop (ha:con (void))
+                                  (list (ha:var 'anf-app7))))))
     'top0)))
 
 ;; XXX parser for whole-program style
