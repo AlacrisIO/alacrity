@@ -5,7 +5,13 @@
 
 'use strict';
 
-const Web3 = require('web3');
+let web3;
+
+if (typeof window.web3 !== 'undefined') {
+    web3 = window.web3;
+} else {
+    alert('You need a Web3-compatible browser. Consider downloading the MetaMask extension.');
+}
 
 
 // Output of solc --abi rock-paper-scissors.sol
@@ -128,26 +134,24 @@ const confirmedBlockNumber = (k) =>
     eth_query(web3.eth.getBlockNumber)()((currentBlock) => // Get current block number
     k(currentBlock-config.confirmations_wanted_in_blocks));
 
-const query_confirmed_state = (contractAddress) => (k) => {
-
-
-module.exports = {
-    rock: rock,
-    paper: paper,
-    scissors: scissors,
-    random_salt: random_salt,
-    byteToHex: byteToHex,
-    bytesToHex: bytesToHex,
-    bytesTo0x: bytesTo0x,
-    snoc: snoc,
-    eth_query: eth_query,
-    getConfirmations: getConfirmations,
-    config: config,
-    confirmEtherTransaction: confirmEtherTransaction,
-    createRockPaperScissors: createRockPaperScissors,
-    player1_show_hand: player1_show_hand,
-    player0_reveal: player0_reveal,
-    player0_rescind: player0_rescind,
-    player1_win_by_default: player1_win_by_default,
-    query_state: query_state
+// const query_confirmed_state = (contractAddress) => (k) => {}
+window.alacrisRps = {
+    rock,
+    paper,
+    scissors,
+    random_salt,
+    byteToHex,
+    bytesToHex,
+    bytesTo0x,
+    snoc,
+    eth_query,
+    getConfirmations,
+    config,
+    confirmEtherTransaction,
+    createRockPaperScissors,
+    player1_show_hand,
+    player0_reveal,
+    player0_rescind,
+    player1_win_by_default,
+    query_state
 }
