@@ -88,13 +88,15 @@
 (struct handle-tail () #:transparent)
 (struct ht:let handle-tail (x xe ht) #:transparent)
 (struct ht:if handle-tail (ce tt ft) #:transparent)
+(struct ht:jump handle-tail (ns st msgs) #:transparent)
 (struct ht:wait handle-tail (ns st msgs) #:transparent)
 (struct ht:stop handle-tail (st msgs) #:transparent)
 
+(struct handle-arg () #:transparent)
+(struct ha:var handle-arg (v) #:transparent)
+(struct ha:con handle-arg (b) #:transparent)
+
 (struct handle-expr () #:transparent)
-;; XXX rename ha:
-(struct he:var handle-expr (v) #:transparent)
-(struct he:con handle-expr (b) #:transparent)
 (struct he:app handle-expr (op args) #:transparent)
 
 ;; The compiler transforms a direct program into a handler program
@@ -107,6 +109,8 @@
   (for/fold ([y (hasheq)]) ([x (in-list xs)])
     (merge-non-overlapping-hash x y)))
 
+(define (d-arg? x)
+  (or (de:var? x) (de:con? x)))
 (define (dp-anf dp)
   (struct anf-res (nvs e))
   (define (da-anf n->fun ρ tail? e)
@@ -210,8 +214,8 @@
   (struct st-res (n->h fvs ht) #:transparent)
   (define (da-state e)
     (match e
-      [(de:var v) (values (seteq v) (he:var v))]
-      [(de:con b) (values (seteq) (he:con b))]))
+      [(de:var v) (values (seteq v) (ha:var v))]
+      [(de:con b) (values (seteq) (ha:con b))]))
   (define (das-state es)
     (match es
       ['() (values (seteq) '())]
@@ -219,60 +223,61 @@
        (define-values (fvs1 a1) (da-state a))
        (define-values (fvs2 d1) (das-state d))
        (values (set-union fvs1 fvs2) (cons a1 d1))]))
-  (define (de-merge kv k e)
+  (define (de-state pre-sends e k)
     (match e
-      [(de:let v va b)
-       (de:let v va (de-merge kv k b))]
-      [(de:if ca te fe)
-       (de:if ca (de-merge kv k te) (de-merge kv k fe))]
-      [arg
-       (de:let kv arg k)]))
-  (define (de-state pre-sends e)
-    (match e
-      [(and a (or (de:var _) (de:con _)))
+      [(? d-arg? a)
        (define-values (a-fvs a1) (da-state a))
-       (st-res (hasheq) a-fvs (ht:stop a1 pre-sends))]
-      ;; XXX add renaming
-      [(de:let v (and va (or (de:var _) (de:con _))) b)
-       (define-values (va-fvs va1) (da-state va))
-       (match-define (st-res n->h1 b-fvs bt)
-         (de-state pre-sends b))
-       (st-res n->h1 (set-union va-fvs (set-remove b-fvs v))
-               (ht:let v va1 bt))]
+       (match-define (st-res n->h1 k-fvs kt) (k a1 pre-sends))
+       (st-res n->h1 (set-union a-fvs k-fvs) kt)]
       [(de:if ca te fe)
        (define-values (ca-fvs ca1) (da-state ca))
        (match-define (st-res n->h1 te-fvs te1)
-         (de-state pre-sends te))
+         (de-state pre-sends te k))
        (match-define (st-res n->h2 fe-fvs fe1)
-         (de-state pre-sends fe))
+         (de-state pre-sends fe k))
        (st-res (merge-non-overlapping-hash n->h1 n->h2)
                (set-union ca-fvs te-fvs fe-fvs)
                (ht:if ca1 te1 fe1))]
       [(de:let v (de:if ca te fe) b)
-       (de-state pre-sends
-                 (de:if ca
-                        ;; XXX potentially add a jump because this is
-                        ;; expensive
-                        (de-merge v b te)
-                        (de-merge v b fe)))]
+       (define-values (ca-fvs ca1) (da-state ca))
+       (define bh (freshen 'let-if-body))
+       (match-define (st-res n->h1 b-fvs bt)
+         (de-state '() b k))
+       (define b-fvs1 (set-remove b-fvs v))
+       (define b-st (cons v (set->sorted-list b-fvs1)))
+       (define (bk a pre-sends)
+         ;; XXX include pre-sends in fvs
+         (st-res (hasheq) b-fvs1
+                 (ht:let v a (ht:jump bh b-st pre-sends))))
+       (match-define (st-res n->h2 t-fvs tt)
+         (de-state pre-sends te bk))
+       (match-define (st-res n->h3 f-fvs ft)
+         (de-state pre-sends fe bk))
+       (define n->h4
+         (merge-non-overlapping-hashes (list n->h1 n->h2 n->h3)))
+       (define n->h5
+         (hash-set n->h4 bh (hh:handler b-st #f bt)))
+       (st-res n->h5 (set-union ca-fvs t-fvs f-fvs b-fvs1)
+               (ht:if ca1 tt ft))]
       [(de:let v (de:app op args) b)
        (define-values (args-fvs args1) (das-state args))
        (match-define (st-res n->h1 fvs ht)
-         (de-state pre-sends b))
+         (de-state pre-sends b k))
        (st-res n->h1 (set-union args-fvs (set-remove fvs v))
                (ht:let v (he:app op args1)
                        ht))]
       [(de:let v (de:send a) b)
        (define-values (a-fvs a1) (da-state a))
        (match-define (st-res n->h1 fvs ht)
-         (de-state (snoc pre-sends a1) b))
+         (de-state (snoc pre-sends a1) b k))
        (st-res n->h1 (set-union a-fvs (set-remove fvs v)) ht)]
       [(de:let v (de:recv) b)
        (define nh (freshen 'recv))
        (match-define (st-res n->h1 fvs ht)
-         (de-state '() b))
+         (de-state '() b k))
        (define fvs1 (set-remove fvs v))
        (define st (set->sorted-list fvs1))
+       ;; XXX include pre-sends in fvs
        (st-res
         (hash-set n->h1 nh (hh:handler st v ht))
         fvs1
@@ -281,8 +286,13 @@
     (match-define (df:fun args body) df)
     (define nh (freshen 'top))
     (match-define (st-res n->h body-fvs body1)
-      (de-state '() body))
-    ;; XXX check body-fvs ⊆ args
+      (de-state '() body
+                (λ (a pre-sends)
+                  ;; XXX include pre-sends in fvs
+                  (st-res (hasheq) (seteq)
+                          (ht:stop a pre-sends)))))
+    (unless (subset? body-fvs (list->seteq args))
+      (error 'dp-state "Body free variables(~e) beyond args(~e)" body-fvs args))
     (hp:program (hash-set n->h nh (hh:handler args #f body1))
                 nh)))
 
@@ -297,43 +307,40 @@
      (hh:handler '() #f (ht:wait 'recv1 '() '()))
      'recv1
      (hh:handler '() 'anf-recv0
-                 (ht:wait 'recv2 (list 'anf-recv0)
-                          (list (he:con 1))))
+                 (ht:wait 'recv2 '(anf-recv0)
+                          (list (ha:con 1))))
      'recv2
-     (hh:handler (list 'anf-recv0) 'anf-recv2
-                 (ht:wait 'recv3 (list 'anf-recv0 'anf-recv2) '()))
+     (hh:handler '(anf-recv0) 'anf-recv2
+                 (ht:wait 'recv3 '(anf-recv0 anf-recv2) '()))
      'recv3
      (hh:handler
-      (list 'anf-recv0 'anf-recv2) 'anf-recv3
+      '(anf-recv0 anf-recv2) 'anf-recv3
       (ht:let 'anf-app4
-              (he:app '= (list (he:con 0)
-                               (he:var 'anf-recv3)))
-              (ht:if (he:var 'anf-app4)
-                     (ht:wait 'recv4 (list 'anf-recv0 'anf-recv2)
-                              '())
-                     (ht:let 'anf-if6 (he:con 0)
-                             (ht:let 'anf-app7
-                                     (he:app '+
-                                             (list (he:var 'anf-recv2)
-                                                   (he:var 'anf-if6)))
-                                     (ht:let 'anf-app8
-                                             (he:app '+
-                                                     (list (he:var 'anf-recv0)
-                                                           (he:var 'anf-app7)))
-                                             (ht:stop (he:var 'anf-app8) '())))))))
-     'recv4
+              (he:app '= (list (ha:con 0)
+                               (ha:var 'anf-recv3)))
+              (ht:if (ha:var 'anf-app4)
+                     (ht:wait 'recv5 '(anf-recv0 anf-recv2) '())
+                     (ht:let 'anf-if6 (ha:con 0)
+                             (ht:jump 'let-if-body4
+                                      '(anf-if6 anf-recv0 anf-recv2) '())))))
+     'recv5
      (hh:handler
-      (list 'anf-recv0 'anf-recv2) 'anf-recv5
-      (ht:let 'anf-if6 (he:var 'anf-recv5)
-              (ht:let 'anf-app7
+      '(anf-recv0 anf-recv2) 'anf-recv5
+      (ht:let 'anf-if6 (ha:var 'anf-recv5)
+              (ht:jump 'let-if-body4
+                       '(anf-if6 anf-recv0 anf-recv2) '())))
+     'let-if-body4
+     (hh:handler
+      '(anf-if6 anf-recv0 anf-recv2) #f
+      (ht:let 'anf-app7
+              (he:app '+
+                      (list (ha:var 'anf-recv2)
+                            (ha:var 'anf-if6)))
+              (ht:let 'anf-app8
                       (he:app '+
-                              (list (he:var 'anf-recv2)
-                                    (he:var 'anf-if6)))
-                      (ht:let 'anf-app8
-                              (he:app '+
-                                      (list (he:var 'anf-recv0)
-                                            (he:var 'anf-app7)))
-                              (ht:stop (he:var 'anf-app8) '()))))))
+                              (list (ha:var 'anf-recv0)
+                                    (ha:var 'anf-app7)))
+                      (ht:stop (ha:var 'anf-app8) '())))))
     'top0)))
 
 ;; XXX parser for whole-program style
@@ -342,8 +349,10 @@
 
 ;; XXX parser for direct-style
 
+;; XXX primitives
+
 ;; XXX evaluator connected to simulator
 
-;; XXX compile to other formats
+;; XXX compile to other formats (i.e. contract vms)
 
-;; XXX extract verification models
+;; XXX extract verification models (including simple dot graph)
