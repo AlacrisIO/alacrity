@@ -1,3 +1,5 @@
+'use strict';
+
 // import { rock } from './rock-paper-scissors';
 const rps = window.alacrisRps;
 

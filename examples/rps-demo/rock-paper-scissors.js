@@ -5,7 +5,13 @@
 
 'use strict';
 
-const web3 = window.web3;
+let web3;
+
+if (typeof window.web3 !== 'undefined') {
+    web3 = window.web3;
+} else {
+    alert('You need a Web3-compatible browser. Consider downloading the MetaMask extension.');
+}
 
 
 // Output of solc --abi rock-paper-scissors.sol
