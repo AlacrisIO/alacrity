@@ -129,8 +129,7 @@ const queryConfirmedState = (contractAddress) => (k) =>
     confirmedBlockNumber((blockNumber) => queryState(contractAddress, blockNumber)(k));
 
 
-// FOO
-window.rock_paper_scissors = {
+exports = {
     rock,
     paper,
     scissors,
@@ -151,4 +150,6 @@ window.rock_paper_scissors = {
     queryState,
     confirmedBlockNumber,
     queryConfirmedState
-}
+};
+
+window.rock_paper_scissors = exports;
