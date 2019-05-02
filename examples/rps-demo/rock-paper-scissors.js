@@ -5,7 +5,7 @@
 
 'use strict';
 
-// const Web3 = require('web3');
+const web3 = window.web3;
 
 
 // Output of solc --abi rock-paper-scissors.sol
@@ -19,8 +19,8 @@ const rockPaperScissorsAbi =
       // const rockPaperScissorsAbi = require('./rockPaperScissorsAbi.json');
     [{"constant":false,"inputs":[{"name":"salt","type":"bytes32"},{"name":"hand0","type":"uint8"}],"name":"player0_reveal","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":true,"inputs":[],"name":"query_state","outputs":[{"name":"","type":"uint8"},{"name":"","type":"uint8"},{"name":"","type":"uint256"},{"name":"","type":"address"},{"name":"","type":"address"},{"name":"","type":"bytes32"},{"name":"","type":"uint256"},{"name":"","type":"uint256"},{"name":"","type":"uint8"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"_hand1","type":"uint8"}],"name":"player1_show_hand","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":false,"inputs":[],"name":"player1_win_by_default","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":false,"inputs":[],"name":"player0_rescind","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"inputs":[{"name":"_commitment","type":"bytes32"},{"name":"_player1_address","type":"address"},{"name":"_wager_amount","type":"uint256"}],"payable":true,"stateMutability":"payable","type":"constructor"}];
 
-// const BN = web3.utils.BN;
-// const digest = web3.utils.keccak256;
+const BN = web3.utils.BN;
+const digest = web3.utils.keccak256;
 const rock = 0;
 const paper = 1;
 const scissors = 2;
