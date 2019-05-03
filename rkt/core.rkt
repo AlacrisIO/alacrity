@@ -19,6 +19,15 @@
     [(check-duplicates l)
      => (λ (el) (error where msg el))]))
 
+(define (merge-non-overlapping-hash x y)
+  (for/fold ([x x]) ([(k v) (in-hash y)])
+    (when (hash-has-key? x k)
+      (error 'merge-non-overlapping-hash "Hash cannot overlap!"))
+    (hash-set x k v)))
+(define (merge-non-overlapping-hashes xs)
+  (for/fold ([y (hasheq)]) ([x (in-list xs)])
+    (merge-non-overlapping-hash x y)))
+
 (define fresh-box (make-parameter #f))
 (define-syntax-rule (with-fresh b ...)
   (begin
@@ -48,11 +57,8 @@
 (define (primitive-op? x)
   (hash-has-key? primitive->info x))
 
-;; A whole program is one that does not use send/recv directly, but
-;; combines all of the agents into a single program with a generic msg
-;; operations.
-(struct wp:program (part->st n->fun in) #:transparent)
-(struct wf:fun (args body) #:transparent)
+;; Keys and participants
+(define (participant? p) (or (symbol? p) (eq? p #f)))
 
 (struct msg-key () #:transparent)
 (struct mk:one-way (a) #:transparent)
@@ -84,6 +90,12 @@
     [(mk:pub-key p) (list 'pub p)]
     [(mk:pri-key p) (list 'pri p)]))
 
+;; A whole program is one that does not use send/recv directly, but
+;; combines all of the agents into a single program with a generic msg
+;; operations.
+(struct wp:program (part->st n->fun in) #:transparent)
+(struct wf:fun (args body) #:transparent)
+
 (struct whole-msg () #:transparent)
 (struct wm:cat whole-msg (l r) #:transparent)
 (struct wm:var whole-msg (v) #:transparent)
@@ -98,7 +110,6 @@
 (struct whole-expr () #:transparent)
 (struct we:var whole-expr (v) #:transparent)
 (struct we:con whole-expr (b) #:transparent)
-;; @ may be #f for a global operation
 (struct we:let@ whole-expr (@ x xe be) #:transparent)
 (struct we:if whole-expr (ce te fe) #:transparent)
 (struct we:app whole-expr (op args) #:transparent)
@@ -114,7 +125,6 @@
 
 ;; XXX type and knowledge checker
 
-(define (participant? p) (symbol? p))
 (define (wm-parse se)
   (match se
     [(list 'enc m k) (wm:enc (wm-parse m) (mk-parse k))]
@@ -197,7 +207,7 @@
                ,@(we-emit fe)]))]
     [(we:let@ at x xe be)
      (cons `(define ,x @ ,at ,(we-emit1 xe))
-           (we-emit be))]    
+           (we-emit be))]
     [(we:msg m)
      (list `(msg ,(wm-emit m)))]
     [(we:match@ at e m be)
@@ -231,8 +241,7 @@
         (define n1x @ N2 (- z n2x))
         [N1 -> N2 : n2x]
         [N2 -> N1 : n1x])))
-  (define wp:adds
-    (wp-parse wp:adds-se))
+  (define wp:adds (wp-parse wp:adds-se))
   (chk (wp-parse (wp-emit wp:adds)) wp:adds))
 
 (define (wp-epp wp)
@@ -255,7 +264,7 @@
       [(we:if ce te fe)
        (de:if (rec ce) (rec te) (rec fe))]
       [(we:app op args)
-       (de:app op (map rec args))]      
+       (de:app op (map rec args))]
       [(we:msg m)
        (define (wm-make m)
          (match m
@@ -451,7 +460,7 @@
     (de:let (car x*xe) (cdr x*xe) be)))
 
 (module+ test
-  (define de:add-some-numbers-se
+  (define dp:add-some-numbers-se
     `(program
       (define (add-some-numbers)
         (add3 (?) (begin (! 1) (?))
@@ -460,10 +469,8 @@
         (+ x (+ y z)))
       (define (zero? x)
         (= 0 x))))
-  (define de:add-some-numbers
-    (dp-parse de:add-some-numbers-se))
-  (chk (dp-emit de:add-some-numbers)
-       de:add-some-numbers-se))
+  (define dp:add-some-numbers (dp-parse dp:add-some-numbers-se))
+  (chk (dp-parse (dp-emit dp:add-some-numbers)) dp:add-some-numbers))
 
 (define (da-anf? da)
   (or (de:var? da) (de:con? da)))
@@ -568,7 +575,7 @@
     (dp:program (hasheq 'main (df:fun args e1)) 'main)))
 (module+ test
   (chk
-   (dp-emit (dp-anf de:add-some-numbers))
+   (dp-emit (dp-anf dp:add-some-numbers))
    `(program
      (define (main)
        (define anf-recv0 (?))
@@ -606,7 +613,53 @@
 (struct handle-expr () #:transparent)
 (struct he:app handle-expr (op args) #:transparent)
 
-;; XXX parser for handler-style
+(define (ha-parse se)
+  (match se
+    [(? symbol? v) (ha:var v)]
+    [(? number? n) (ha:con n)]
+    [`(void) (ha:con (void))]))
+(define (he-parse se)
+  (match se
+    [(cons (? primitive-op? op) args)
+     (he:app op (map ha-parse args))]
+    [x (ha-parse x)]))
+(define (ht-parse handler? se)
+  (define (rec se) (ht-parse handler? se))
+  (match se
+    [`(begin (define ,(? symbol? x) ,xe) ,@more)
+     (ht:let x (he-parse xe) (rec `(begin ,@more)))]
+    [`(begin (cond [,ce ,@tes] [else ,@fes]))
+     (ht:if (he-parse ce) (rec `(begin ,@tes)) (rec `(begin ,@fes)))]
+    [`(begin (send! ,@msgs) (jump! ,(? handler? ns) ,(? symbol? st) ...))
+     (ht:jump ns st (map ha-parse msgs))]
+    [`(begin (jump! ,(? handler? ns) ,(? symbol? st) ...))
+     (ht:jump ns st '())]
+    [`(begin (send! ,@msgs) (wait! ,(? handler? ns) ,(? symbol? st) ...))
+     (ht:wait ns st (map ha-parse msgs))]
+    [`(begin (wait! ,(? handler? ns) ,(? symbol? st) ...))
+     (ht:wait ns st '())]
+    [`(begin (send! ,@msgs) (stop! ,ans))
+     (ht:stop (ha-parse ans) (map ha-parse msgs))]
+    [`(begin (stop! ,ans))
+     (ht:stop (ha-parse ans) '())]
+    [`(begin (ignore!))
+     (ht:ignore)]))
+(define (hp-parse se)
+  (match se
+    [`(program
+       (define ((,(? symbol? h) ,(? symbol? st) ...)
+                ,(and msg (or (? symbol?) #f))) ,@body)
+       ...)
+     (error-on-dupes 'hp-parse "Duplicate handler: ~e" h)
+     (define hans (list->seteq h))
+     (define (handler? x) (set-member? hans x))
+     (hp:program (for/hasheq ([h (in-list h)]
+                              [st (in-list st)]
+                              [msg (in-list msg)]
+                              [body (in-list body)])
+                   (error-on-dupes 'hp-parse "Duplicate state or msg: ~e" (cons msg st))
+                   (values h (hh:handler st msg (ht-parse handler? `(begin ,@body)))))
+                 (first h))]))
 
 (define (ha-emit ha)
   (match ha
@@ -648,15 +701,6 @@
 ;; XXX checker for handler-style
 
 ;; The compiler transforms a direct program into a handler program
-(define (merge-non-overlapping-hash x y)
-  (for/fold ([x x]) ([(k v) (in-hash y)])
-    (when (hash-has-key? x k)
-      (error 'merge-non-overlapping-hash "Hash cannot overlap!"))
-    (hash-set x k v)))
-(define (merge-non-overlapping-hashes xs)
-  (for/fold ([y (hasheq)]) ([x (in-list xs)])
-    (merge-non-overlapping-hash x y)))
-
 (define (dp-state dp)
   (struct st-res (n->h fvs ht) #:transparent)
   (define (da-state e)
@@ -749,8 +793,10 @@
     (error 'direct->handle "Failed to convert to ANF"))
   (dp-state ap))
 (module+ test
+  (define hp:add-some-numbers (direct->handle dp:add-some-numbers))
+  (define hp:add-some-numbers-se (hp-emit hp:add-some-numbers))
   (chk
-   (hp-emit (direct->handle de:add-some-numbers))
+   hp:add-some-numbers-se
    `(program
      (define ((top0) #f) (wait! recv1))
      (define ((let-if-body4 anf-if6 anf-recv0 anf-recv2) #f)
@@ -772,6 +818,7 @@
      (define ((recv5 anf-recv0 anf-recv2) anf-recv5)
        (define anf-if6 anf-recv5)
        (jump! let-if-body4 anf-if6 anf-recv0 anf-recv2))))
+  (chk (hp-parse hp:add-some-numbers-se) hp:add-some-numbers)
 
   (chk
    (hp-emit
