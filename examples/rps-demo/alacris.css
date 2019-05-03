@@ -10,3 +10,9 @@ h3 { font-size: 1.2em; font-weight:600; }
 h4 { font-size: 1.15em; font-weight:600; }
 h5 { font-size: 1.1em; font-weight:600; }
 h6 { font-size: 1em; font-weight:600; }
+
+.symbol {
+    font-family: "BabelStone Han", "EversonMono", "FreeSerif", "Segoe UI Emoji", "Segoe UI Symbol", "Symbola", "Unifont";
+    font-size: 3em;
+    /* color: black; background-color: white; */
+}

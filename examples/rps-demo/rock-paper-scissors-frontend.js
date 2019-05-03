@@ -76,9 +76,8 @@ function renderChoice (value) {
     return `
     <label style="display: inline-block; margin: .5em; text-align: center;">
         <input type="radio" value="${value}" required name="choice">
-        <div style='font-family: "BabelStone Han", "EversonMono", "FreeSerif", "Segoe UI Emoji", "Segoe UI Symbol", "Symbola", "Unifont"; font-size: 3em; color: black; background-color: white;'>${getIconForValue(value)} </div>
+        <div class="symbol">${getIconForValue(value)}</div>
         ${getLabelForValue(value)}
-
     </label>
     `;
 }
