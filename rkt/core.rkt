@@ -5,7 +5,8 @@
          racket/list
          racket/set)
 (module+ test
-  (require chk))
+  (require racket/pretty
+           chk))
 
 ;; Utility
 (define (snoc l x) (append l (list x)))
@@ -33,6 +34,20 @@
 
 (define _seq_ (gensym '_))
 
+;; Types
+;; XXX
+
+;; Primitives
+(define primitive->info
+  ;; XXX fill this out
+  (hasheq 'rand #t
+          '+ #t
+          '- #t
+          '= #t
+          'msg-cat #t))
+(define (primitive-op? x)
+  (hash-has-key? primitive->info x))
+
 ;; A whole program is one that does not use send/recv directly, but
 ;; combines all of the agents into a single program with a generic msg
 ;; operations.
@@ -56,6 +71,12 @@
     [(mk:sym-key k) k]
     [(mk:pub-key p) (format-symbol "~a-pk" p)]
     [(mk:pri-key p) (format-symbol "~a-sk" p)]))
+(define (mk-parse se)
+  (match se
+    ['HASH (mk:one-way 'HASH)]
+    [(? symbol? v) (mk:sym-key v)]
+    [(list 'pub (? from-symbol? p)) (mk:pub-key p)]
+    [(list 'pri (? from-symbol? p)) (mk:pri-key p)]))
 
 (struct whole-msg () #:transparent)
 (struct wm:cat whole-msg (l r) #:transparent)
@@ -66,7 +87,7 @@
 (define (wm:seal-for m p)
   (wm:enc m (mk:pub-key p)))
 (define (wm:hash m)
-  (wm:enc m (mk:one-way)))
+  (wm:enc m (mk:one-way 'HASH)))
 
 (struct whole-expr () #:transparent)
 (struct we:var whole-expr (v) #:transparent)
@@ -92,38 +113,42 @@
 (define (to-symbol? p) (or (from-symbol? p) (eq? p '*)))
 (define (wm-parse se)
   (match se
-    ;; XXX enc, sign, seal-for, hash
+    [(list 'enc m k) (wm:enc (wm-parse m) (mk-parse k))]
+    [(list 'sign m (? from-symbol? p)) (wm:sign (wm-parse m) p)]
+    [(list 'seal-for m (? from-symbol? p)) (wm:seal-for (wm-parse m) p)]
+    [(list 'hash m) (wm:hash (wm-parse m))]
     [(list mx my) (wm:cat (wm-parse mx) (wm-parse my))]
     [(? symbol? v) (wm:var v)]))
-(define (we-parse se)
+(define (we-parse operation? se)
+  (define (rec se) (we-parse operation? se))
   (match se
     [`(begin) (we:con (void))]
     [`(begin (begin ,@more1) ,@more2)
-     (we-parse `(begin ,@more1 ,@more2))]
+     (rec `(begin ,@more1 ,@more2))]
     [`(begin (define ,(? symbol? x) ,xe) ,@more)
-     (we:let@ #f x (we-parse xe) (we-parse `(begin ,@more)))]
+     (we:let@ #f x (rec xe) (rec `(begin ,@more)))]
     [`(begin (define ,(? symbol? x) @ ,(? from-symbol? at) ,xe)
              ,@more)
-     (we:let@ at x (we-parse xe) (we-parse `(begin ,@more)))]
+     (we:let@ at x (rec xe) (rec `(begin ,@more)))]
     [`(begin [,(? from-symbol? from)
               -> ,(? to-symbol? to) : ,m] ,@more)
      (we:comm from (if (eq? to '*) #f to)
-              (wm-parse m) (we-parse `(begin ,@more)))]
+              (wm-parse m) (rec `(begin ,@more)))]
     [`(begin (match @ ,(? from-symbol? at) ,e ,m) ,@more)
-     (we:match@ at (we-parse e) (wm-parse m)
-                (we-parse `(begin ,@more)))]
-    [`(begin ,e) (we-parse e)]
+     (we:match@ at (rec e) (wm-parse m)
+                (rec `(begin ,@more)))]
+    [`(begin ,e) (rec e)]
     [`(cond [,ce ,@te] [else ,@fe])
-     (we:if (we-parse ce) (we-parse `(begin ,@te)) (we-parse `(begin ,@fe)))]
+     (we:if (rec ce) (rec `(begin ,@te)) (rec `(begin ,@fe)))]
     [`(if ,ce ,te ,fe)
-     (we:if (we-parse ce) (we-parse te) (we-parse fe))]
+     (we:if (rec ce) (rec te) (rec fe))]
     [`(msg ,m) (we:msg (wm-parse m))]
-    [`(! ,e) (we:recv (we-parse e))]
+    [`(! ,e) (we:recv (rec e))]
     [`(?) (we:recv)]
     [(? number? n) (we:con n)]
     [(? symbol? v) (we:var v)]
-    [(cons (? symbol? op) args)
-     (we:app op (map we-parse args))]))
+    [(cons (? operation? op) args)
+     (we:app op (map rec args))]))
 (define (wp-parse se)
   (match se
     [`(program
@@ -131,11 +156,14 @@
        (define (,(? symbol? f) ,(? symbol? args) ...) ,@body)
        ...)
      (error-on-dupes 'wp-parse "Duplicate participant: ~e" p)
+     (error-on-dupes 'wp-parse "Duplicate function: ~e" f)
+     (define fs (list->seteq f))
+     (define (operation? x) (or (primitive-op? x) (set-member? fs x)))
      (wp:program (for/hasheq ([p (in-list p)] [st (in-list st)])
                    (values p st))
                  (for/hasheq ([f (in-list f)] [args (in-list args)] [body (in-list body)])
                    (error-on-dupes 'wp-parse "Duplicate argument: ~e" args)
-                   (values f (wf:fun args (we-parse `(begin ,@body)))))
+                   (values f (wf:fun args (we-parse operation? `(begin ,@body)))))
                  (first f))]))
 
 (define (wm-emit wm)
@@ -274,19 +302,20 @@
                                   (wm-match Γ1 (de:var rv) rm k)))))]
            [(wm:enc im ek)
             (define inv-ek-v (mk->v (mk-inv ek)))
-            ;; XXX check if really encryption
-            (cond
-              [(set-member? Γ inv-ek-v)
-               (define imv (freshen 'wm-recv-dec))
-               (de:let* (list
-                         (cons imv (de:app 'msg-decrypt (list mv (de:var inv-ek-v)))))
-                        (wm-match Γ (de:var imv) im k))]
-              [(set-member? Γ (mk->v ek))
-               (define nv (freshen 'wm-recv-enc-chk))
-               (we:let@ me nv (we:msg m)
-                        (wm-match (set-add Γ nv) nv (wm:var mv) k))]
-              [else
-               (error 'wp-epp "~e does not know enough to receive message ~e: ~e or inv" me m ek)])]))
+            (de:ignore-unless
+             (de:app 'msg-enc? (list mv))
+             (cond
+               [(set-member? Γ inv-ek-v)
+                (define imv (freshen 'wm-recv-dec))
+                (de:let* (list
+                          (cons imv (de:app 'msg-dec (list mv (de:var inv-ek-v)))))
+                         (wm-match Γ (de:var imv) im k))]
+               [(set-member? Γ (mk->v ek))
+                (define nv (freshen 'wm-recv-enc-chk))
+                (we:let@ me nv (we:msg m)
+                         (wm-match (set-add Γ nv) nv (wm:var mv) k))]
+               [else
+                (error 'wp-epp "~e does not know enough to receive message ~e: ~e or inv" me m ek)]))]))
        (cond
          [(or (not @) (eq? @ me))
           (define mv (freshen 'wm-recv))
@@ -319,70 +348,10 @@
           (values n (wf-epp p args f))))
       (values p (dp:program n->fun1 in)))))
 (module+ test
-  (chk (for/hasheq ([(p dp) (in-hash (wp-epp wp:adds))])
-         (values p (dp-emit dp)))
-       (hasheq
-        'Adder
-        `(program
-          (define (main Adder-sk HASH Adder-pk N2-pk N1-pk x)
-            (define wm-recv0 (?))
-            (define wm-recv-dec1 (msg-decrypt wm-recv0 N1-pk))
-            (define wm-recv-dec2 (msg-decrypt wm-recv-dec1 Adder-sk))
-            (cond
-              [(msg-cat? wm-recv-dec2)
-               (define wm-recv-catL3 (msg-left wm-recv-dec2))
-               (define wm-recv-catR4 (msg-right wm-recv-dec2))
-               (cond
-                 [(equal? wm-recv-catL3 x)
-                  (define n1x wm-recv-catR4)
-                  (define wm-recv5 (?))
-                  (define wm-recv-dec6 (msg-decrypt wm-recv5 N2-pk))
-                  (define wm-recv-dec7 (msg-decrypt wm-recv-dec6 Adder-sk))
-                  (cond
-                    [(msg-cat? wm-recv-dec7)
-                     (define wm-recv-catL8 (msg-left wm-recv-dec7))
-                     (define wm-recv-catR9 (msg-right wm-recv-dec7))
-                     (cond
-                       [(equal? wm-recv-catL8 x)
-                        (define n2x wm-recv-catR9)
-                        (define z (+ n1x n2x))
-                        (! (msg-enc (msg-enc z N1-pk) Adder-sk))
-                        (! (msg-enc (msg-enc z N2-pk) Adder-sk))]
-                       [else (ignore!)])]
-                    [else (ignore!)])]
-                 [else (ignore!)])]
-              [else (ignore!)])))
-        'N1
-        `(program
-          (define (main N1-sk HASH Adder-pk N2-pk N1-pk x)
-            (define n1x (rand 8))
-            (! (msg-enc (msg-enc (msg-cat x n1x) Adder-pk) N1-sk))
-            (define wm-recv16 (?))
-            (define wm-recv-dec17 (msg-decrypt wm-recv16 Adder-pk))
-            (define wm-recv-dec18 (msg-decrypt wm-recv-dec17 N1-sk))
-            (define z wm-recv-dec18)
-            (define n2x (- z n1x))
-            (! (msg-enc (msg-enc n2x N2-pk) N1-sk))
-            (define wm-recv19 (?))
-            (define wm-recv-dec20 (msg-decrypt wm-recv19 N2-pk))
-            (define wm-recv-dec21 (msg-decrypt wm-recv-dec20 N1-sk))
-            (cond [(equal? wm-recv-dec21 n1x)] [else (ignore!)])))
-        'N2
-        `(program
-          (define (main N2-sk HASH Adder-pk N2-pk N1-pk x)
-            (define n2x (rand 10))
-            (! (msg-enc (msg-enc (msg-cat x n2x) Adder-pk) N2-sk))
-            (define wm-recv10 (?))
-            (define wm-recv-dec11 (msg-decrypt wm-recv10 Adder-pk))
-            (define wm-recv-dec12 (msg-decrypt wm-recv-dec11 N2-sk))
-            (define z wm-recv-dec12)
-            (define n1x (- z n2x))
-            (define wm-recv13 (?))
-            (define wm-recv-dec14 (msg-decrypt wm-recv13 N1-pk))
-            (define wm-recv-dec15 (msg-decrypt wm-recv-dec14 N2-sk))
-            (if (equal? wm-recv-dec15 n2x)
-              (! (msg-enc (msg-enc n1x N1-pk) N2-sk))
-              (ignore!)))))))
+  (for ([(p dp) (in-hash (wp-epp wp:adds))])
+    (define dp-se (dp-emit dp))
+    (printf "\n~a =>\n" p)
+    (pretty-print dp-se)))
 
 ;; At a high-level, a program is written in a direct-style where the
 ;; communication primitives are synchronous and return values. The
@@ -402,32 +371,38 @@
 (struct de:recv direct-expr () #:transparent)
 (struct de:ignore direct-expr () #:transparent)
 
-(define (de-parse se)
+(define (de-parse operation? se)
+  (define (rec se) (de-parse operation? se))
   (match se
     [`(begin) de:unit]
     [`(begin (begin ,@more1) ,@more2)
-     (de-parse `(begin ,@more1 ,@more2))]
+     (rec `(begin ,@more1 ,@more2))]
     [`(begin (define ,(? symbol? x) ,xe) ,@more)
-     (de:let x (de-parse xe) (de-parse `(begin ,@more)))]
-    [`(begin ,e) (de-parse e)]
-    [`(begin ,e ,@more) (de:seq (de-parse e) (de-parse `(begin ,@more)))]
+     (de:let x (rec xe) (rec `(begin ,@more)))]
+    [`(begin ,e) (rec e)]
+    [`(begin ,e ,@more) (de:seq (rec e) (rec `(begin ,@more)))]
     [`(cond [,ce ,@te] [else ,@fe])
-     (de:if (de-parse ce) (de-parse `(begin ,@te)) (de-parse `(begin ,@fe)))]
+     (de:if (rec ce) (rec `(begin ,@te)) (rec `(begin ,@fe)))]
     [`(if ,ce ,te ,fe)
-     (de:if (de-parse ce) (de-parse te) (de-parse fe))]
+     (de:if (rec ce) (rec te) (rec fe))]
     [`(ignore!) (de:ignore)]
     [`(?) (de:recv)]
-    [`(! ,e) (de:send (de-parse e))]
+    [`(! ,e) (de:send (rec e))]
     [(? number? n) (de:con n)]
     [(? symbol? v) (de:var v)]
-    [(cons (? symbol? op) args) (de:app op (map de-parse args))]))
+    [(cons (? operation? op) args)
+     (de:app op (map rec args))]))
 (define (dp-parse se)
   (match se
     [`(program
        (define (,(? symbol? f) ,(? symbol? args) ...) ,@body)
        ...)
+     (error-on-dupes 'dp-parse "Duplicate function: ~e" f)
+     (define fs (list->seteq f))
+     (define (operation? x) (or (primitive-op? x) (set-member? fs x)))
      (dp:program (for/hasheq ([f (in-list f)] [args (in-list args)] [body (in-list body)])
-                   (values f (df:fun args (de-parse `(begin ,@body)))))
+                   (error-on-dupes 'dp-parse "Duplicate argument: ~e" args)
+                   (values f (df:fun args (de-parse operation? `(begin ,@body)))))
                  (first f))]))
 
 (define (de-emit1 we)
@@ -488,10 +463,30 @@
   (chk (dp-emit de:add-some-numbers)
        de:add-some-numbers-se))
 
-(define (d-arg? x)
-  (or (de:var? x) (de:con? x)))
-
-;; XXX anf format checker
+(define (da-anf? da)
+  (or (de:var? da) (de:con? da)))
+(define (de-anf? de)
+  (match de
+    [(? da-anf? a) #t]
+    [(de:if ce te fe) (and (da-anf? ce) (dt-anf? te) (dt-anf? fe))]
+    [(de:app op args) (andmap da-anf? args)]
+    [(de:send e) (da-anf? e)]
+    [(de:recv) #t]
+    [(de:ignore) #t]))
+(define (dt-anf? dt)
+  (match dt
+    [(? da-anf? a) #t]
+    [(de:let x xe be)
+     (and (de-anf? xe) (dt-anf? be))]))
+(define (df-anf? df)
+  (match-define (df:fun args e) df)
+  (dt-anf? e))
+(define (dp-anf? dp)
+  (match-define (dp:program n->fun in) dp)
+  (and (eq? in 'main)
+       (= 1 (hash-count n->fun))
+       (hash-has-key? n->fun 'main)
+       (df-anf? (hash-ref n->fun 'main))))
 
 (define (dp-anf dp)
   (struct anf-res (nvs e))
@@ -610,6 +605,7 @@
 (struct he:app handle-expr (op args) #:transparent)
 
 ;; XXX parser for handler-style
+
 (define (ha-emit ha)
   (match ha
     [(ha:var v) v]
@@ -643,12 +639,11 @@
      (list `(ignore!))]))
 (define (hp-emit hp)
   (match-define (hp:program n->han in) hp)
-  ;; XXX topological sort
   `(program ,@(for/list ([f (in-list (cons in (sort-symbols (remove in (hash-keys n->han)))))])
                 (match-define (hh:handler st msg ht) (hash-ref n->han f))
                 `(define ((,f ,@st) ,msg) ,@(ht-emit ht)))))
 
-;; XXX checker for handle-style
+;; XXX checker for handler-style
 
 ;; The compiler transforms a direct program into a handler program
 (define (merge-non-overlapping-hash x y)
@@ -675,7 +670,7 @@
        (values (set-union fvs1 fvs2) (cons a1 d1))]))
   (define (de-state pre-sends e k)
     (match e
-      [(? d-arg? a)
+      [(? da-anf? a)
        (define-values (a-fvs a1) (da-state a))
        (match-define (st-res n->h1 k-fvs kt) (k a1 pre-sends))
        (st-res n->h1 (set-union a-fvs k-fvs) kt)]
@@ -746,8 +741,11 @@
     (hp:program (hash-set n->h nh (hh:handler args #f body1))
                 nh)))
 
-(define (direct->handle d)
-  (dp-state (dp-anf d)))
+(define (direct->handle dp)
+  (define ap (dp-anf dp))
+  (unless (dp-anf? ap)
+    (error 'direct->handle "Failed to convert to ANF"))
+  (dp-state ap))
 (module+ test
   (chk
    (hp-emit (direct->handle de:add-some-numbers))
@@ -773,7 +771,6 @@
        (define anf-if6 anf-recv5)
        (jump! let-if-body4 anf-if6 anf-recv0 anf-recv2))))
 
-
   (chk
    (hp-emit
     (direct->handle
@@ -798,8 +795,6 @@
        (define anf-app7 (msg-cat anf-recv0 anf-recv2 anf-recv5))
        (send! anf-app7)
        (stop! (void))))))
-
-;; XXX primitives
 
 ;; XXX eval connected to simulator
 
