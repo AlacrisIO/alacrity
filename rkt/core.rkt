@@ -75,8 +75,14 @@
   (match se
     ['HASH (mk:one-way 'HASH)]
     [(? symbol? v) (mk:sym-key v)]
-    [(list 'pub (? from-symbol? p)) (mk:pub-key p)]
-    [(list 'pri (? from-symbol? p)) (mk:pri-key p)]))
+    [(list 'pub (? participant? p)) (mk:pub-key p)]
+    [(list 'pri (? participant? p)) (mk:pri-key p)]))
+(define (mk-emit k)
+  (match k
+    [(mk:one-way 'HASH) 'HASH]
+    [(mk:sym-key v) v]
+    [(mk:pub-key p) (list 'pub p)]
+    [(mk:pri-key p) (list 'pri p)]))
 
 (struct whole-msg () #:transparent)
 (struct wm:cat whole-msg (l r) #:transparent)
@@ -84,7 +90,7 @@
 (struct wm:enc whole-msg (x k) #:transparent)
 (define (wm:sign m p)
   (wm:enc m (mk:pri-key p)))
-(define (wm:seal-for m p)
+(define (wm:seal m p)
   (wm:enc m (mk:pub-key p)))
 (define (wm:hash m)
   (wm:enc m (mk:one-way 'HASH)))
@@ -96,7 +102,6 @@
 (struct we:let@ whole-expr (@ x xe be) #:transparent)
 (struct we:if whole-expr (ce te fe) #:transparent)
 (struct we:app whole-expr (op args) #:transparent)
-(struct we:comm whole-expr (from to m be) #:transparent)
 (struct we:msg whole-expr (m) #:transparent)
 (struct we:match@ whole-expr (@ e m be) #:transparent)
 (struct we:send whole-expr (e) #:transparent)
@@ -109,13 +114,12 @@
 
 ;; XXX type and knowledge checker
 
-(define (from-symbol? p) (and (symbol? p) (not (eq? p '*))))
-(define (to-symbol? p) (or (from-symbol? p) (eq? p '*)))
+(define (participant? p) (symbol? p))
 (define (wm-parse se)
   (match se
     [(list 'enc m k) (wm:enc (wm-parse m) (mk-parse k))]
-    [(list 'sign m (? from-symbol? p)) (wm:sign (wm-parse m) p)]
-    [(list 'seal-for m (? from-symbol? p)) (wm:seal-for (wm-parse m) p)]
+    [(list 'sign m (? participant? p)) (wm:sign (wm-parse m) p)]
+    [(list 'seal m (? participant? p)) (wm:seal (wm-parse m) p)]
     [(list 'hash m) (wm:hash (wm-parse m))]
     [(list mx my) (wm:cat (wm-parse mx) (wm-parse my))]
     [(? symbol? v) (wm:var v)]))
@@ -127,14 +131,18 @@
      (rec `(begin ,@more1 ,@more2))]
     [`(begin (define ,(? symbol? x) ,xe) ,@more)
      (we:let@ #f x (rec xe) (rec `(begin ,@more)))]
-    [`(begin (define ,(? symbol? x) @ ,(? from-symbol? at) ,xe)
+    [`(begin (define ,(? symbol? x) @ ,(? participant? at) ,xe)
              ,@more)
      (we:let@ at x (rec xe) (rec `(begin ,@more)))]
-    [`(begin [,(? from-symbol? from)
-              -> ,(? to-symbol? to) : ,m] ,@more)
-     (we:comm from (if (eq? to '*) #f to)
-              (wm-parse m) (rec `(begin ,@more)))]
-    [`(begin (match @ ,(? from-symbol? at) ,e ,m) ,@more)
+    [`(begin [,(? participant? from)
+              -> ,(? participant? to) : ,m] ,@more)
+     (define m0 (if to `(seal ,m ,to) m))
+     (define m1 (if from `(sign ,m0 ,from) m0))
+     (rec
+      `(begin (define ,_seq_ @ ,from (! (msg ,m1)))
+              (match @ ,to : (?) as ,m1)
+              ,@more))]
+    [`(begin (match @ ,(? participant? at) : ,e as ,m) ,@more)
      (we:match@ at (rec e) (wm-parse m)
                 (rec `(begin ,@more)))]
     [`(begin ,e) (rec e)]
@@ -143,7 +151,7 @@
     [`(if ,ce ,te ,fe)
      (we:if (rec ce) (rec te) (rec fe))]
     [`(msg ,m) (we:msg (wm-parse m))]
-    [`(! ,e) (we:recv (rec e))]
+    [`(! ,e) (we:send (rec e))]
     [`(?) (we:recv)]
     [(? number? n) (we:con n)]
     [(? symbol? v) (we:var v)]
@@ -152,7 +160,7 @@
 (define (wp-parse se)
   (match se
     [`(program
-       ([,(? from-symbol? p) ,(? symbol? st) ...] ...)
+       ([,(? participant? p) ,(? symbol? st) ...] ...)
        (define (,(? symbol? f) ,(? symbol? args) ...) ,@body)
        ...)
      (error-on-dupes 'wp-parse "Duplicate participant: ~e" p)
@@ -169,6 +177,7 @@
 (define (wm-emit wm)
   (match wm
     [(wm:var v) v]
+    [(wm:enc m k) (list 'enc (wm-emit m) (mk-emit k))]
     [(wm:cat x y) (list (wm-emit x) (wm-emit y))]))
 (define (we-emit1 we)
   (match (we-emit we)
@@ -188,14 +197,11 @@
                ,@(we-emit fe)]))]
     [(we:let@ at x xe be)
      (cons `(define ,x @ ,at ,(we-emit1 xe))
-           (we-emit be))]
-    [(we:comm from to m be)
-     (cons `[,from -> ,(or to '*) : ,(wm-emit m)]
-           (we-emit be))]
+           (we-emit be))]    
     [(we:msg m)
      (list `(msg ,(wm-emit m)))]
     [(we:match@ at e m be)
-     (cons `(match @ ,at : ,(we-emit1 e) ,(wm-emit m))
+     (cons `(match @ ,at : ,(we-emit1 e) as ,(wm-emit m))
            (we-emit be))]
     [(we:send e)
      (list `(! ,(we-emit1 e)))]
@@ -227,7 +233,7 @@
         [N2 -> N1 : n1x])))
   (define wp:adds
     (wp-parse wp:adds-se))
-  (chk (wp-emit wp:adds) wp:adds-se))
+  (chk (wp-parse (wp-emit wp:adds)) wp:adds))
 
 (define (wp-epp wp)
   ;; XXX generalize Γ to type environment
@@ -249,17 +255,7 @@
       [(we:if ce te fe)
        (de:if (rec ce) (rec te) (rec fe))]
       [(we:app op args)
-       (de:app op (map rec args))]
-      [(we:comm from to m ke)
-       (define m1 (wm:sign (if to (wm:seal-for m to) m) from))
-       (rec
-        (we:seq
-         (if (eq? from me)
-           (we:send (we:msg m1))
-           (we:con (void)))
-         (if (or (not to) (eq? to me))
-           (we:match@ me (we:recv) m1 ke)
-           ke)))]
+       (de:app op (map rec args))]      
       [(we:msg m)
        (define (wm-make m)
          (match m
@@ -424,9 +420,15 @@
      (define ces (de-emit1 ce))
      (define tes (de-emit te))
      (define fes (de-emit fe))
-     (if (= (length tes) (length fes) 1)
-       (list `(if ,ces ,@tes ,@fes))
-       (list `(cond [,ces ,@tes] [else ,@fes])))]
+     (cond
+       [(= (length tes) (length fes) 1)
+        (list `(if ,ces ,@tes ,@fes))]
+       [(empty? fes)
+        (list `(when ,ces ,@tes))]
+       [(empty? tes)
+        (list `(unless ,ces ,@fes))]
+       [else
+        (list `(cond [,ces ,@tes] [else ,@fes]))])]
     [(de:send e) (list `(! ,@(de-emit e)))]
     [(de:recv) (list `(?))]
     [(de:ignore) (list `(ignore!))]))
@@ -443,7 +445,7 @@
   (if (equal? f de:unit) s
       (de:let _seq_ f s)))
 (define (de:ignore-unless c be)
-  (de:if c be (de:ignore)))
+  (de:seq (de:if c de:unit (de:ignore)) be))
 (define (de:let* x*xes be)
   (for/fold ([be be]) ([x*xe (in-list (reverse x*xes))])
     (de:let (car x*xe) (cdr x*xe) be)))
