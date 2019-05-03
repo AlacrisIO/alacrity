@@ -12,6 +12,10 @@
   (sort l string<=? #:key symbol->string))
 (define (set->sorted-list s)
   (sort-symbols (set->list s)))
+(define (error-on-dupes where msg l)
+  (cond
+    [(check-duplicates l)
+     => (λ (el) (error where msg el))]))
 
 (define fresh-box (make-parameter #f))
 (define-syntax-rule (with-fresh b ...)
@@ -34,11 +38,28 @@
 (struct wp:program (part->st n->fun in) #:transparent)
 (struct wf:fun (args body) #:transparent)
 
+(struct msg-key () #:transparent)
+(struct mk:one-way (a) #:transparent)
+(struct mk:sym-key (v) #:transparent)
+(struct mk:pub-key (p) #:transparent)
+(struct mk:pri-key (p) #:transparent)
+(define mk-inv
+  (match-lambda
+    [(? mk:one-way?) #f]
+    [(? mk:sym-key? sk) sk]
+    [(mk:pub-key p) (mk:pri-key p)]
+    [(mk:pri-key p) (mk:pub-key p)]))
+
 (struct whole-msg () #:transparent)
 (struct wm:cat whole-msg (l r) #:transparent)
 (struct wm:var whole-msg (v) #:transparent)
-;; XXX Add encryption
-#;(struct wm:enc whole-msg (x k) #:transparent)
+(struct wm:enc whole-msg (x k) #:transparent)
+(define (wm:sign m p)
+  (wm:enc m (mk:pri-key p)))
+(define (wm:seal-for m p)
+  (wm:enc m (mk:pub-key p)))
+(define (wm:hash m)
+  (wm:enc m (mk:one-way)))
 
 (struct whole-expr () #:transparent)
 (struct we:var whole-expr (v) #:transparent)
@@ -47,24 +68,17 @@
 (struct we:let@ whole-expr (@ x xe be) #:transparent)
 (struct we:if whole-expr (ce te fe) #:transparent)
 (struct we:app whole-expr (op args) #:transparent)
-(struct we:letM whole-expr (from to m be) #:transparent)
-(define (we:seq f s) (we:let@ #f _seq_ f s))
-(define (we:seq* ss)
-  (match ss
-    [(list s) s]
-    [(cons f s) (we:seq f (we:seq* s))]))
-(define (we:let* is be)
-  (for/fold ([be be]) ([b (in-list (reverse is))])
-    (match b
-      [(list from to (? whole-msg? m))
-       (we:letM from to m be)]
-      [(list @ x (? whole-expr? xe))
-       (we:let@ @ x xe be)])))
+(struct we:comm whole-expr (from to m be) #:transparent)
+;; XXX message construction operation
+;; XXX key management (learn new keys)
 
 ;; XXX type and knowledge checker
 
+(define (from-symbol? p) (and (symbol? p) (not (eq? p '*))))
+(define (to-symbol? p) (or (from-symbol? p) (eq? p '*)))
 (define (wm-parse se)
   (match se
+    ;; XXX enc, sign, seal-for, hash
     [(list mx my) (wm:cat (wm-parse mx) (wm-parse my))]
     [(? symbol? v) (wm:var v)]))
 (define (we-parse se)
@@ -72,10 +86,15 @@
     [`(begin) (we:con (void))]
     [`(begin (begin ,@more1) ,@more2)
      (we-parse `(begin ,@more1 ,@more2))]
-    [`(begin (define ,(? symbol? x) @ ,(? symbol? @) ,xe) ,@more)
+    [`(begin (define ,(? symbol? x) ,xe) ,@more)
+     (we:let@ #f x (we-parse xe) (we-parse `(begin ,@more)))]
+    [`(begin (define ,(? symbol? x) @ ,(? from-symbol? @) ,xe)
+             ,@more)
      (we:let@ @ x (we-parse xe) (we-parse `(begin ,@more)))]
-    [`(begin [,(? symbol? from) -> ,(? symbol? to) : ,m] ,@more)
-     (we:letM from to (wm-parse m) (we-parse `(begin ,@more)))]
+    [`(begin [,(? from-symbol? from)
+              -> ,(? to-symbol? to) : ,m] ,@more)
+     (we:comm from (if (eq? to '*) #f to)
+              (wm-parse m) (we-parse `(begin ,@more)))]
     [`(begin ,e) (we-parse e)]
     [`(if ,ce ,te ,fe)
      (we:if (we-parse ce) (we-parse te) (we-parse fe))]
@@ -86,13 +105,14 @@
 (define (wp-parse se)
   (match se
     [`(program
-       ([,(? symbol? p) ,(? symbol? st) ...] ...)
+       ([,(? from-symbol? p) ,(? symbol? st) ...] ...)
        (define (,(? symbol? f) ,(? symbol? args) ...) ,@body)
        ...)
-     ;; XXX duplicates
+     (error-on-dupes 'wp-parse "Duplicate participant: ~e" p)
      (wp:program (for/hasheq ([p (in-list p)] [st (in-list st)])
                    (values p st))
                  (for/hasheq ([f (in-list f)] [args (in-list args)] [body (in-list body)])
+                   (error-on-dupes 'wp-parse "Duplicate argument: ~e" args)
                    (values f (wf:fun args (we-parse `(begin ,@body)))))
                  (first f))]))
 
@@ -117,8 +137,8 @@
     [(we:let@ at x xe be)
      (cons `(define ,x @ ,at ,(we-emit1 xe))
            (we-emit be))]
-    [(we:letM from to m be)
-     (cons `[,from -> ,to : ,(wm-emit m)]
+    [(we:comm from to m be)
+     (cons `[,from -> ,(or to '*) : ,(wm-emit m)]
            (we-emit be))]))
 (define (wp-emit wp)
   (match-define (wp:program part->st n->fun in) wp)
@@ -149,6 +169,7 @@
   (chk (wp-emit wp:adds) wp:adds-se))
 
 (define (wp-epp wp)
+  ;; XXX generalize Γ to type environment and "knows" predicate
   (define (wm-send-epp me Γ from m)
     (cond
       [(not (eq? from me)) de:unit]
@@ -158,6 +179,7 @@
            [(wm:var v)
             (unless (set-member? Γ v)
               (error 'wp-epp "~e does not know ~e" me v))
+            ;; XXX Insert coercion to bytes based on type
             (k (de:var v))]
            [(wm:cat lm rm)
             (rec Γ lm
@@ -166,31 +188,49 @@
                         (λ (rv)
                           (define mv (freshen 'wm-send-cat))
                           (de:let mv (de:app 'msg-cat (list lv rv))
-                                  (k (de:var mv)))))))]))
+                                  (k (de:var mv)))))))]
+           [(wm:enc im ek)
+            (error 'wm-send-epp "XXX enc")]))
        (let ()
          (rec Γ m (λ (mv) (de:send mv))))]))
   (define (wm-recv-epp me Γ to m k)
     (cond
-      [(not (eq? to me))
+      [(and to (not (eq? to me)))
        (k Γ)]
       [else
        (define (rec Γ mv m k)
          (match m
            [(wm:var v)
+            ;; XXX insert coercion from bytes based on type
             (cond
               [(set-member? Γ v)
-               ;; XXX Ignore this message and go back to waiting
-               (de:fail-unless (de:app 'equal? (list mv (de:var v))) (k Γ))]
+               (de:ignore-unless
+                (de:app 'equal? (list mv (de:var v)))
+                (k Γ))]
               [else
                (de:let v mv (k (set-add Γ v)))])]
            [(wm:cat lm rm)
             (define lv (freshen 'wm-recv-catL))
             (define rv (freshen 'wm-recv-catR))
-            (de:let* (list (cons lv (de:app 'msg-left (list mv)))
-                           (cons rv (de:app 'msg-right (list mv))))
-                     (rec Γ (de:var lv) lm
-                          (λ (Γ1)
-                            (rec Γ1 (de:var rv) rm k))))]))
+            (de:ignore-unless
+             (de:app 'msg-cat? (list mv))
+             (de:let* (list (cons lv (de:app 'msg-left (list mv)))
+                            (cons rv (de:app 'msg-right (list mv))))
+                      (rec Γ (de:var lv) lm
+                           (λ (Γ1)
+                             (rec Γ1 (de:var rv) rm k)))))]
+           [(wm:enc im ek)
+            (define inv-ek (mk-inv ek))
+            ;; XXX check if really encryption
+            (cond
+              [(set-member? Γ inv-ek)
+               (define imv (freshen 'wm-recv-enc))
+               (de:let* (list (cons imv (de:app 'msg-decrypt (list mv (de:con inv-ek)))))
+                        (rec Γ (de:var imv) im k))]
+              [(set-member? Γ ek)
+               (error 'wm-recv "XXX construct message and compare bytes")]
+              [else
+               (error 'wp-epp "~e does not know enough to receive message ~e: ~e or ~e" me m inv-ek ek)])]))
        (let ()
          (define mv (freshen 'wm-recv))
          (de:let mv (de:recv) (rec Γ (de:var mv) m k)))]))
@@ -213,9 +253,8 @@
        (de:if (rec ce) (rec te) (rec fe))]
       [(we:app op args)
        (de:app op (map rec args))]
-      [(we:letM from to m ke)
-       ;; XXX Add sign for from and encrypt for to
-       (define m1 m)
+      [(we:comm from to m ke)
+       (define m1 (wm:sign (if to (wm:seal-for m to) m) from))
        (de:seq (wm-send-epp p Γ from m1)
                (wm-recv-epp p Γ to m1
                             (λ (Γ1)
@@ -228,6 +267,8 @@
     (df:fun all-args body1))
   (with-fresh
     (match-define (wp:program part->st n->fun in) wp)
+    (define shared-Ks (map mk:pub-key (hash-keys part->st)))
+    ;; XXX populate initial key knowledge
     (for/hasheq ([(p st) (in-hash part->st)])
       (define n->fun1
         (for/hasheq ([(n f) (in-hash n->fun)])
@@ -297,6 +338,7 @@
 (struct de:app direct-expr (op args) #:transparent)
 (struct de:send direct-expr (e) #:transparent)
 (struct de:recv direct-expr () #:transparent)
+(struct de:ignore direct-expr () #:transparent)
 
 (define (de-parse se)
   (match se
@@ -304,10 +346,11 @@
     [`(begin (begin ,@more1) ,@more2)
      (de-parse `(begin ,@more1 ,@more2))]
     [`(begin (define ,(? symbol? x) ,xe) ,@more)
-     (de:let x (de-parse xe) (de-parse `(begin ,@more)))]    
+     (de:let x (de-parse xe) (de-parse `(begin ,@more)))]
     [`(begin ,e) (de-parse e)]
     [`(begin ,e ,@more) (de:seq (de-parse e) (de-parse `(begin ,@more)))]
     [`(if ,ce ,te ,fe) (de:if (de-parse ce) (de-parse te) (de-parse fe))]
+    [`(ignore!) (de:ignore)]
     [`(?) (de:recv)]
     [`(! ,e) (de:send (de-parse e))]
     [(? number? n) (de:con n)]
@@ -340,9 +383,10 @@
     [(de:if ce te fe)
      (list `(if ,(de-emit1 ce)
               ,(de-emit1 te)
-              ,(de-emit1 fe)))]    
+              ,(de-emit1 fe)))]
     [(de:send e) (list `(! ,@(de-emit e)))]
-    [(de:recv) (list `(?))]))
+    [(de:recv) (list `(?))]
+    [(de:ignore) (list `(ignore!))]))
 (define (dp-emit dp)
   (match-define (dp:program n->fun in) dp)
   `(program ,@(for/list ([f (in-list (cons in (sort-symbols (remove in (hash-keys n->fun)))))])
@@ -352,8 +396,8 @@
 ;; XXX checker for direct-style
 
 (define de:unit (de:con (void)))
-(define (de:fail-unless c be)
-  (de:if c be de:unit))
+(define (de:ignore-unless c be)
+  (de:if c be (de:ignore)))
 (define (de:let* x*xes be)
   (for/fold ([be be]) ([x*xe (in-list (reverse x*xes))])
     (de:let (car x*xe) (cdr x*xe) be)))
@@ -378,6 +422,9 @@
 
 (define (d-arg? x)
   (or (de:var? x) (de:con? x)))
+
+;; XXX anf format checker
+
 (define (dp-anf dp)
   (struct anf-res (nvs e))
   (define (da-anf n->fun ρ tail? e)
@@ -433,7 +480,10 @@
           (anf-res '() e)]
          [else
           (define nv (freshen 'anf-recv))
-          (anf-res (list (cons nv (de:recv))) (de:var nv))])]))
+          (anf-res (list (cons nv (de:recv))) (de:var nv))])]
+      [(de:ignore)
+       (anf-res (list (cons (freshen 'anf-ignore) (de:ignore)))
+                de:unit)]))
   (define (de-anf n->fun ρ tail? e)
     (match-define (anf-res nvs e1) (da-anf n->fun ρ tail? e))
     (de:let* nvs e1))
@@ -450,32 +500,21 @@
     (define e1 (df-anf de-anf n->fun (hasheq) #t in
                        (for/list ([a (in-list args)])
                          (de:var a))))
-    (df:fun args e1)))
+    (dp:program (hasheq 'main (df:fun args e1)) 'main)))
 (module+ test
   (chk
-   (dp-anf de:add-some-numbers)
-   (df:fun
-    '()
-    (de:let* (list (cons 'anf-recv0 (de:recv))
-                   (cons 'anf-send1 (de:send (de:con 1)))
-                   (cons 'anf-recv2 (de:recv))
-                   (cons 'anf-recv3 (de:recv))
-                   (cons 'anf-app4
-                         (de:app '= (list (de:con 0)
-                                          (de:var 'anf-recv3))))
-                   (cons 'anf-if6
-                         (de:if (de:var 'anf-app4)
-                                (de:let 'anf-recv5
-                                        (de:recv)
-                                        (de:var 'anf-recv5))
-                                (de:con 0)))
-                   (cons 'anf-app7
-                         (de:app '+ (list (de:var 'anf-recv2)
-                                          (de:var 'anf-if6))))
-                   (cons 'anf-app8
-                         (de:app '+ (list (de:var 'anf-recv0)
-                                          (de:var 'anf-app7)))))
-             (de:var 'anf-app8)))))
+   (dp-emit (dp-anf de:add-some-numbers))
+   `(program
+     (define (main)
+       (define anf-recv0 (?))
+       (define anf-send1 (! 1))
+       (define anf-recv2 (?))
+       (define anf-recv3 (?))
+       (define anf-app4 (= 0 anf-recv3))
+       (define anf-if6 (if anf-app4 (begin (define anf-recv5 (?)) anf-recv5) 0))
+       (define anf-app7 (+ anf-recv2 anf-if6))
+       (define anf-app8 (+ anf-recv0 anf-app7))
+       anf-app8))))
 
 ;; At a low-level, a program is a mapping from named states (a finite
 ;; set of labels) to a handler function that consumes the state
@@ -491,7 +530,8 @@
 (struct ht:if handle-tail (ce tt ft) #:transparent)
 (struct ht:jump handle-tail (ns st msgs) #:transparent)
 (struct ht:wait handle-tail (ns st msgs) #:transparent)
-(struct ht:stop handle-tail (st msgs) #:transparent)
+(struct ht:stop handle-tail (ans msgs) #:transparent)
+(struct ht:ignore handle-tail () #:transparent)
 
 (struct handle-arg () #:transparent)
 (struct ha:var handle-arg (v) #:transparent)
@@ -500,7 +540,44 @@
 (struct handle-expr () #:transparent)
 (struct he:app handle-expr (op args) #:transparent)
 
-;; XXX emiter/parser for handler-style
+;; XXX parser for handler-style
+(define (ha-emit ha)
+  (match ha
+    [(ha:var v) v]
+    [(ha:con (? number? n)) n]
+    [(ha:con (? void?)) `(void)]))
+(define (he-emit he)
+  (match he
+    [(he:app op args)
+     `(,op ,@(map ha-emit args))]
+    [x (ha-emit x)]))
+(define (ht-emit ht)
+  (define (sends-emit msgs)
+    (if (empty? msgs) '() (list `(send! ,@(map ha-emit msgs)))))
+  (match ht
+    [(ht:let x xe ht)
+     (cons `(define ,x ,(he-emit xe))
+           (ht-emit ht))]
+    [(ht:if ce tt ft)
+     (list `(cond [,(he-emit ce) ,@(ht-emit tt)]
+                  [else ,@(ht-emit ft)]))]
+    [(ht:jump ns st msgs)
+     (append (sends-emit msgs)
+             (list `(jump! ,ns ,@st)))]
+    [(ht:wait ns st msgs)
+     (append (sends-emit msgs)
+             (list `(wait! ,ns ,@st)))]
+    [(ht:stop ans msgs)
+     (append (sends-emit msgs)
+             (list `(stop! ,(ha-emit ans))))]
+    [(ht:ignore)
+     (list `(ignore!))]))
+(define (hp-emit hp)
+  (match-define (hp:program n->han in) hp)
+  ;; XXX topological sort
+  `(program ,@(for/list ([f (in-list (cons in (sort-symbols (remove in (hash-keys n->han)))))])
+                (match-define (hh:handler st msg ht) (hash-ref n->han f))
+                `(define ((,f ,@st) ,msg) ,@(ht-emit ht)))))
 
 ;; XXX checker for handle-style
 
@@ -514,7 +591,7 @@
   (for/fold ([y (hasheq)]) ([x (in-list xs)])
     (merge-non-overlapping-hash x y)))
 
-(define (dp-state df)
+(define (dp-state dp)
   (struct st-res (n->h fvs ht) #:transparent)
   (define (da-state e)
     (match e
@@ -583,8 +660,11 @@
        (st-res
         (hash-set n->h1 nh (hh:handler st v ht))
         fvs1
-        (ht:wait nh st pre-sends))]))
+        (ht:wait nh st pre-sends))]
+      [(de:let v (de:ignore) b)
+       (st-res (hasheq) (seteq) (ht:ignore))]))
   (with-fresh
+    (match-define (dp:program (hash-table ('main df)) 'main) dp)
     (match-define (df:fun args body) df)
     (define nh (freshen 'top))
     (match-define (st-res n->h body-fvs body1)
@@ -601,95 +681,54 @@
   (dp-state (dp-anf d)))
 (module+ test
   (chk
-   (direct->handle de:add-some-numbers)
-   (hp:program
-    (hasheq
-     'top0
-     (hh:handler '() #f (ht:wait 'recv1 '() '()))
-     'recv1
-     (hh:handler '() 'anf-recv0
-                 (ht:wait 'recv2 '(anf-recv0)
-                          (list (ha:con 1))))
-     'recv2
-     (hh:handler '(anf-recv0) 'anf-recv2
-                 (ht:wait 'recv3 '(anf-recv0 anf-recv2) '()))
-     'recv3
-     (hh:handler
-      '(anf-recv0 anf-recv2) 'anf-recv3
-      (ht:let 'anf-app4
-              (he:app '= (list (ha:con 0)
-                               (ha:var 'anf-recv3)))
-              (ht:if (ha:var 'anf-app4)
-                     (ht:wait 'recv5 '(anf-recv0 anf-recv2) '())
-                     (ht:let 'anf-if6 (ha:con 0)
-                             (ht:jump 'let-if-body4
-                                      '(anf-if6 anf-recv0 anf-recv2) '())))))
-     'recv5
-     (hh:handler
-      '(anf-recv0 anf-recv2) 'anf-recv5
-      (ht:let 'anf-if6 (ha:var 'anf-recv5)
-              (ht:jump 'let-if-body4
-                       '(anf-if6 anf-recv0 anf-recv2) '())))
-     'let-if-body4
-     (hh:handler
-      '(anf-if6 anf-recv0 anf-recv2) #f
-      (ht:let 'anf-app7
-              (he:app '+
-                      (list (ha:var 'anf-recv2)
-                            (ha:var 'anf-if6)))
-              (ht:let 'anf-app8
-                      (he:app '+
-                              (list (ha:var 'anf-recv0)
-                                    (ha:var 'anf-app7)))
-                      (ht:stop (ha:var 'anf-app8) '())))))
-    'top0))
+   (hp-emit (direct->handle de:add-some-numbers))
+   `(program
+     (define ((top0) #f) (wait! recv1))
+     (define ((let-if-body4 anf-if6 anf-recv0 anf-recv2) #f)
+       (define anf-app7 (+ anf-recv2 anf-if6))
+       (define anf-app8 (+ anf-recv0 anf-app7))
+       (stop! anf-app8))
+     (define ((recv1) anf-recv0)
+       (send! 1)
+       (wait! recv2 anf-recv0))
+     (define ((recv2 anf-recv0) anf-recv2)
+       (wait! recv3 anf-recv0 anf-recv2))
+     (define ((recv3 anf-recv0 anf-recv2) anf-recv3)
+       (define anf-app4 (= 0 anf-recv3))
+       (cond
+         [anf-app4 (wait! recv5 anf-recv0 anf-recv2)]
+         [else
+          (define anf-if6 0)
+          (jump! let-if-body4 anf-if6 anf-recv0 anf-recv2)]))
+     (define ((recv5 anf-recv0 anf-recv2) anf-recv5)
+       (define anf-if6 anf-recv5)
+       (jump! let-if-body4 anf-if6 anf-recv0 anf-recv2))))
+
 
   (chk
-   (direct->handle
-    (dp:program
-     (hasheq
-      'main
-      (df:fun
-       '(x)
-       (de:let*
-        (list (cons 'r0 (de:recv))
-              (cons 's0 (de:send (de:var 'r0)))
-              (cons 'r1 (de:recv))
-              (cons 's1 (de:send
-                         (de:app 'join (list (de:var 'x)
-                                             (de:var 'r1)))))
-              (cons 'r2 (de:recv)))
-        (de:send
-         (de:app 'join (list (de:var 'r0)
-                             (de:var 'r1)
-                             (de:var 'r2)))))))
-     'main))
-   (hp:program
-    (hasheq
-     'top0
-     (hh:handler '(x) #f (ht:wait 'recv1 '(x) '()))
-     'recv1
-     (hh:handler '(x) 'anf-recv0
-                 (ht:wait 'recv2 '(anf-recv0 x)
-                          (list (ha:var 'anf-recv0))))
-     'recv2
-     (hh:handler '(anf-recv0 x) 'anf-recv2
-                 (ht:let 'anf-app4
-                         (he:app 'join
-                                 (list (ha:var 'x)
-                                       (ha:var 'anf-recv2)))
-                         (ht:wait 'recv3 '(anf-recv0 anf-recv2)
-                                  (list (ha:var 'anf-app4)))))
-     'recv3
-     (hh:handler '(anf-recv0 anf-recv2) 'anf-recv5
-                 (ht:let 'anf-app7
-                         (he:app 'join
-                                 (list (ha:var 'anf-recv0)
-                                       (ha:var 'anf-recv2)
-                                       (ha:var 'anf-recv5)))
-                         (ht:stop (ha:con (void))
-                                  (list (ha:var 'anf-app7))))))
-    'top0)))
+   (hp-emit
+    (direct->handle
+     (dp-parse
+      `(program
+        (define (main x)
+          (define r0 (?))
+          (define s0 (! r0))
+          (define r1 (?))
+          (define s1 (! (msg-cat x r1)))
+          (define r2 (?))
+          (! (msg-cat r0 r1 r2)))))))
+   `(program
+     (define ((top0 x) #f) (wait! recv1 x))
+     (define ((recv1 x) anf-recv0)
+       (send! anf-recv0) (wait! recv2 anf-recv0 x))
+     (define ((recv2 anf-recv0 x) anf-recv2)
+       (define anf-app4 (msg-cat x anf-recv2))
+       (send! anf-app4)
+       (wait! recv3 anf-recv0 anf-recv2))
+     (define ((recv3 anf-recv0 anf-recv2) anf-recv5)
+       (define anf-app7 (msg-cat anf-recv0 anf-recv2 anf-recv5))
+       (send! anf-app7)
+       (stop! (void))))))
 
 ;; XXX primitives
 
