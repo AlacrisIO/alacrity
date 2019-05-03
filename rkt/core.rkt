@@ -1,6 +1,7 @@
 #lang racket/base
 (require racket/match
          racket/format
+         racket/syntax
          racket/list
          racket/set)
 (module+ test
@@ -49,6 +50,12 @@
     [(? mk:sym-key? sk) sk]
     [(mk:pub-key p) (mk:pri-key p)]
     [(mk:pri-key p) (mk:pub-key p)]))
+(define mk->v
+  (match-lambda
+    [(mk:one-way a) a]
+    [(mk:sym-key k) k]
+    [(mk:pub-key p) (format-symbol "~a-pk" p)]
+    [(mk:pri-key p) (format-symbol "~a-sk" p)]))
 
 (struct whole-msg () #:transparent)
 (struct wm:cat whole-msg (l r) #:transparent)
@@ -69,8 +76,15 @@
 (struct we:if whole-expr (ce te fe) #:transparent)
 (struct we:app whole-expr (op args) #:transparent)
 (struct we:comm whole-expr (from to m be) #:transparent)
-;; XXX message construction operation
-;; XXX key management (learn new keys)
+(struct we:msg whole-expr (m) #:transparent)
+(struct we:match@ whole-expr (@ e m be) #:transparent)
+(struct we:send whole-expr (e) #:transparent)
+(struct we:recv whole-expr () #:transparent)
+
+(define we:unit (we:con (void)))
+(define (we:seq f s)
+  (if (equal? f we:unit) s
+      (we:let@ #f _seq_ f s)))
 
 ;; XXX type and knowledge checker
 
@@ -88,16 +102,24 @@
      (we-parse `(begin ,@more1 ,@more2))]
     [`(begin (define ,(? symbol? x) ,xe) ,@more)
      (we:let@ #f x (we-parse xe) (we-parse `(begin ,@more)))]
-    [`(begin (define ,(? symbol? x) @ ,(? from-symbol? @) ,xe)
+    [`(begin (define ,(? symbol? x) @ ,(? from-symbol? at) ,xe)
              ,@more)
-     (we:let@ @ x (we-parse xe) (we-parse `(begin ,@more)))]
+     (we:let@ at x (we-parse xe) (we-parse `(begin ,@more)))]
     [`(begin [,(? from-symbol? from)
               -> ,(? to-symbol? to) : ,m] ,@more)
      (we:comm from (if (eq? to '*) #f to)
               (wm-parse m) (we-parse `(begin ,@more)))]
+    [`(begin (match @ ,(? from-symbol? at) ,e ,m) ,@more)
+     (we:match@ at (we-parse e) (wm-parse m)
+                (we-parse `(begin ,@more)))]
     [`(begin ,e) (we-parse e)]
+    [`(cond [,ce ,@te] [else ,@fe])
+     (we:if (we-parse ce) (we-parse `(begin ,@te)) (we-parse `(begin ,@fe)))]
     [`(if ,ce ,te ,fe)
      (we:if (we-parse ce) (we-parse te) (we-parse fe))]
+    [`(msg ,m) (we:msg (wm-parse m))]
+    [`(! ,e) (we:recv (we-parse e))]
+    [`(?) (we:recv)]
     [(? number? n) (we:con n)]
     [(? symbol? v) (we:var v)]
     [(cons (? symbol? op) args)
@@ -131,15 +153,26 @@
     [(we:con (? number? n)) (list n)]
     [(we:app op args) (list (cons op (map we-emit1 args)))]
     [(we:if ce te fe)
-     (list `(if ,(we-emit1 ce)
-              ,(we-emit1 te)
-              ,(we-emit1 fe)))]
+     (list `(cond
+              [,(we-emit1 ce)
+               ,@(we-emit te)]
+              [else
+               ,@(we-emit fe)]))]
     [(we:let@ at x xe be)
      (cons `(define ,x @ ,at ,(we-emit1 xe))
            (we-emit be))]
     [(we:comm from to m be)
      (cons `[,from -> ,(or to '*) : ,(wm-emit m)]
-           (we-emit be))]))
+           (we-emit be))]
+    [(we:msg m)
+     (list `(msg ,(wm-emit m)))]
+    [(we:match@ at e m be)
+     (cons `(match @ ,at : ,(we-emit1 e) ,(wm-emit m))
+           (we-emit be))]
+    [(we:send e)
+     (list `(! ,(we-emit1 e)))]
+    [(we:recv)
+     (list `(?))]))
 (define (wp-emit wp)
   (match-define (wp:program part->st n->fun in) wp)
   `(program ,(for/list ([p (in-list (sort-symbols (hash-keys part->st)))])
@@ -169,36 +202,56 @@
   (chk (wp-emit wp:adds) wp:adds-se))
 
 (define (wp-epp wp)
-  ;; XXX generalize Γ to type environment and "knows" predicate
-  (define (wm-send-epp me Γ from m)
-    (cond
-      [(not (eq? from me)) de:unit]
-      [else
-       (define (rec Γ m k)
+  ;; XXX generalize Γ to type environment
+  (define (we-epp me Γ e)
+    (define (rec e) (we-epp me Γ e))
+    (match e
+      [(we:var v)
+       (unless (set-member? Γ v)
+         (error 'wp-epp "~e does not know ~e" me v))
+       (de:var v)]
+      [(we:con b) (de:con b)]
+      [(we:let@ @ x xe be)
+       (cond
+         [(or (not @) (eq? @ me))
+          (de:let x (we-epp me Γ xe)
+                  (we-epp me (set-add Γ x) be))]
+         [else
+          (we-epp me Γ be)])]
+      [(we:if ce te fe)
+       (de:if (rec ce) (rec te) (rec fe))]
+      [(we:app op args)
+       (de:app op (map rec args))]
+      [(we:comm from to m ke)
+       (define m1 (wm:sign (if to (wm:seal-for m to) m) from))
+       (rec
+        (we:seq
+         (if (eq? from me)
+           (we:send (we:msg m1))
+           (we:con (void)))
+         (if (or (not to) (eq? to me))
+           (we:match@ me (we:recv) m1 ke)
+           ke)))]
+      [(we:msg m)
+       (define (wm-make m)
          (match m
            [(wm:var v)
             (unless (set-member? Γ v)
               (error 'wp-epp "~e does not know ~e" me v))
             ;; XXX Insert coercion to bytes based on type
-            (k (de:var v))]
+            (de:var v)]
            [(wm:cat lm rm)
-            (rec Γ lm
-                 (λ (lv)
-                   (rec Γ rm
-                        (λ (rv)
-                          (define mv (freshen 'wm-send-cat))
-                          (de:let mv (de:app 'msg-cat (list lv rv))
-                                  (k (de:var mv)))))))]
+            (de:app 'msg-cat (list (wm-make lm) (wm-make rm)))]
            [(wm:enc im ek)
-            (error 'wm-send-epp "XXX enc")]))
-       (let ()
-         (rec Γ m (λ (mv) (de:send mv))))]))
-  (define (wm-recv-epp me Γ to m k)
-    (cond
-      [(and to (not (eq? to me)))
-       (k Γ)]
-      [else
-       (define (rec Γ mv m k)
+            (define ek-v (mk->v ek))
+            (cond
+              [(set-member? Γ ek-v)
+               (de:app 'msg-enc (list (wm-make im) (de:var ek-v)))]
+              [else
+               (error 'wp-epp "~e does not know enough to construct message ~e: ~e" me m ek)])]))
+       (wm-make m)]
+      [(we:match@ @ e m be)
+       (define (wm-match Γ mv m k)
          (match m
            [(wm:var v)
             ;; XXX insert coercion from bytes based on type
@@ -216,49 +269,37 @@
              (de:app 'msg-cat? (list mv))
              (de:let* (list (cons lv (de:app 'msg-left (list mv)))
                             (cons rv (de:app 'msg-right (list mv))))
-                      (rec Γ (de:var lv) lm
-                           (λ (Γ1)
-                             (rec Γ1 (de:var rv) rm k)))))]
+                      (wm-match Γ (de:var lv) lm
+                                (λ (Γ1)
+                                  (wm-match Γ1 (de:var rv) rm k)))))]
            [(wm:enc im ek)
-            (define inv-ek (mk-inv ek))
+            (define inv-ek-v (mk->v (mk-inv ek)))
             ;; XXX check if really encryption
             (cond
-              [(set-member? Γ inv-ek)
-               (define imv (freshen 'wm-recv-enc))
-               (de:let* (list (cons imv (de:app 'msg-decrypt (list mv (de:con inv-ek)))))
-                        (rec Γ (de:var imv) im k))]
-              [(set-member? Γ ek)
-               (error 'wm-recv "XXX construct message and compare bytes")]
+              [(set-member? Γ inv-ek-v)
+               (define imv (freshen 'wm-recv-dec))
+               (de:let* (list
+                         (cons imv (de:app 'msg-decrypt (list mv (de:var inv-ek-v)))))
+                        (wm-match Γ (de:var imv) im k))]
+              [(set-member? Γ (mk->v ek))
+               (define nv (freshen 'wm-recv-enc-chk))
+               (we:let@ me nv (we:msg m)
+                        (wm-match (set-add Γ nv) nv (wm:var mv) k))]
               [else
-               (error 'wp-epp "~e does not know enough to receive message ~e: ~e or ~e" me m inv-ek ek)])]))
-       (let ()
-         (define mv (freshen 'wm-recv))
-         (de:let mv (de:recv) (rec Γ (de:var mv) m k)))]))
-  (define (we-epp p Γ e)
-    (define (rec e) (we-epp p Γ e))
-    (match e
-      [(we:var v)
-       (unless (set-member? Γ v)
-         (error 'wp-epp "~e does not know ~e" p v))
-       (de:var v)]
-      [(we:con b) (de:con b)]
-      [(we:let@ @ x xe be)
+               (error 'wp-epp "~e does not know enough to receive message ~e: ~e or inv" me m ek)])]))
        (cond
-         [(or (not @) (eq? @ p))
-          (de:let x (we-epp #f Γ xe)
-                  (we-epp p (set-add Γ x) be))]
-         [else
-          (we-epp p Γ be)])]
-      [(we:if ce te fe)
-       (de:if (rec ce) (rec te) (rec fe))]
-      [(we:app op args)
-       (de:app op (map rec args))]
-      [(we:comm from to m ke)
-       (define m1 (wm:sign (if to (wm:seal-for m to) m) from))
-       (de:seq (wm-send-epp p Γ from m1)
-               (wm-recv-epp p Γ to m1
+         [(or (not @) (eq? @ me))
+          (define mv (freshen 'wm-recv))
+          (de:let mv (rec e)
+                  (wm-match Γ (de:var mv) m
                             (λ (Γ1)
-                              (we-epp p Γ1 ke))))]))
+                              (we-epp me Γ1 be))))]
+         [else
+          (we-epp me Γ be)])]
+      [(we:send e)
+       (de:send (rec e))]
+      [(we:recv)
+       (de:recv)]))
   (define (wf-epp p extra-args f)
     (match-define (wf:fun args body) f)
     (define all-args (append extra-args args))
@@ -267,12 +308,15 @@
     (df:fun all-args body1))
   (with-fresh
     (match-define (wp:program part->st n->fun in) wp)
-    (define shared-Ks (map mk:pub-key (hash-keys part->st)))
-    ;; XXX populate initial key knowledge
+    (define shared-Ks (list* (mk:one-way 'HASH) (map mk:pub-key (hash-keys part->st))))
     (for/hasheq ([(p st) (in-hash part->st)])
+      (define my-Ks (list* (mk:pri-key p) shared-Ks))
+      (define args-b (map mk->v my-Ks))
       (define n->fun1
         (for/hasheq ([(n f) (in-hash n->fun)])
-          (values n (wf-epp p (if (eq? n in) st '()) f))))
+          (define args-a (if (eq? n in) st '()))
+          (define args (append args-b args-a))
+          (values n (wf-epp p args f))))
       (values p (dp:program n->fun1 in)))))
 (module+ test
   (chk (for/hasheq ([(p dp) (in-hash (wp-epp wp:adds))])
@@ -280,47 +324,65 @@
        (hasheq
         'Adder
         `(program
-          (define (main x)
+          (define (main Adder-sk HASH Adder-pk N2-pk N1-pk x)
             (define wm-recv0 (?))
-            (define wm-recv-catL1 (msg-left wm-recv0))
-            (define wm-recv-catR2 (msg-right wm-recv0))
-            (if (equal? wm-recv-catL1 x)
-              (begin
-                (define n1x wm-recv-catR2)
-                (define wm-recv3 (?))
-                (define wm-recv-catL4 (msg-left wm-recv3))
-                (define wm-recv-catR5 (msg-right wm-recv3))
-                (if (equal? wm-recv-catL4 x)
-                  (begin
-                    (define n2x wm-recv-catR5)
-                    (define z (+ n1x n2x))
-                    (! z)
-                    (! z))
-                  (begin)))
-              (begin))))
+            (define wm-recv-dec1 (msg-decrypt wm-recv0 N1-pk))
+            (define wm-recv-dec2 (msg-decrypt wm-recv-dec1 Adder-sk))
+            (cond
+              [(msg-cat? wm-recv-dec2)
+               (define wm-recv-catL3 (msg-left wm-recv-dec2))
+               (define wm-recv-catR4 (msg-right wm-recv-dec2))
+               (cond
+                 [(equal? wm-recv-catL3 x)
+                  (define n1x wm-recv-catR4)
+                  (define wm-recv5 (?))
+                  (define wm-recv-dec6 (msg-decrypt wm-recv5 N2-pk))
+                  (define wm-recv-dec7 (msg-decrypt wm-recv-dec6 Adder-sk))
+                  (cond
+                    [(msg-cat? wm-recv-dec7)
+                     (define wm-recv-catL8 (msg-left wm-recv-dec7))
+                     (define wm-recv-catR9 (msg-right wm-recv-dec7))
+                     (cond
+                       [(equal? wm-recv-catL8 x)
+                        (define n2x wm-recv-catR9)
+                        (define z (+ n1x n2x))
+                        (! (msg-enc (msg-enc z N1-pk) Adder-sk))
+                        (! (msg-enc (msg-enc z N2-pk) Adder-sk))]
+                       [else (ignore!)])]
+                    [else (ignore!)])]
+                 [else (ignore!)])]
+              [else (ignore!)])))
         'N1
         `(program
-          (define (main x)
+          (define (main N1-sk HASH Adder-pk N2-pk N1-pk x)
             (define n1x (rand 8))
-            (define wm-send-cat9 (msg-cat x n1x))
-            (! wm-send-cat9)
-            (define wm-recv10 (?))
-            (define z wm-recv10)
+            (! (msg-enc (msg-enc (msg-cat x n1x) Adder-pk) N1-sk))
+            (define wm-recv16 (?))
+            (define wm-recv-dec17 (msg-decrypt wm-recv16 Adder-pk))
+            (define wm-recv-dec18 (msg-decrypt wm-recv-dec17 N1-sk))
+            (define z wm-recv-dec18)
             (define n2x (- z n1x))
-            (! n2x)
-            (define wm-recv11 (?))
-            (if (equal? wm-recv11 n1x) (begin) (begin))))
+            (! (msg-enc (msg-enc n2x N2-pk) N1-sk))
+            (define wm-recv19 (?))
+            (define wm-recv-dec20 (msg-decrypt wm-recv19 N2-pk))
+            (define wm-recv-dec21 (msg-decrypt wm-recv-dec20 N1-sk))
+            (cond [(equal? wm-recv-dec21 n1x)] [else (ignore!)])))
         'N2
         `(program
-          (define (main x)
+          (define (main N2-sk HASH Adder-pk N2-pk N1-pk x)
             (define n2x (rand 10))
-            (define wm-send-cat6 (msg-cat x n2x))
-            (! wm-send-cat6)
-            (define wm-recv7 (?))
-            (define z wm-recv7)
+            (! (msg-enc (msg-enc (msg-cat x n2x) Adder-pk) N2-sk))
+            (define wm-recv10 (?))
+            (define wm-recv-dec11 (msg-decrypt wm-recv10 Adder-pk))
+            (define wm-recv-dec12 (msg-decrypt wm-recv-dec11 N2-sk))
+            (define z wm-recv-dec12)
             (define n1x (- z n2x))
-            (define wm-recv8 (?))
-            (if (equal? wm-recv8 n2x) (! n1x) (begin)))))))
+            (define wm-recv13 (?))
+            (define wm-recv-dec14 (msg-decrypt wm-recv13 N1-pk))
+            (define wm-recv-dec15 (msg-decrypt wm-recv-dec14 N2-sk))
+            (if (equal? wm-recv-dec15 n2x)
+              (! (msg-enc (msg-enc n1x N1-pk) N2-sk))
+              (ignore!)))))))
 
 ;; At a high-level, a program is written in a direct-style where the
 ;; communication primitives are synchronous and return values. The
@@ -349,7 +411,10 @@
      (de:let x (de-parse xe) (de-parse `(begin ,@more)))]
     [`(begin ,e) (de-parse e)]
     [`(begin ,e ,@more) (de:seq (de-parse e) (de-parse `(begin ,@more)))]
-    [`(if ,ce ,te ,fe) (de:if (de-parse ce) (de-parse te) (de-parse fe))]
+    [`(cond [,ce ,@te] [else ,@fe])
+     (de:if (de-parse ce) (de-parse `(begin ,@te)) (de-parse `(begin ,@fe)))]
+    [`(if ,ce ,te ,fe)
+     (de:if (de-parse ce) (de-parse te) (de-parse fe))]
     [`(ignore!) (de:ignore)]
     [`(?) (de:recv)]
     [`(! ,e) (de:send (de-parse e))]
@@ -381,9 +446,12 @@
      (cons `(define ,x ,(de-emit1 xe))
            (de-emit be))]
     [(de:if ce te fe)
-     (list `(if ,(de-emit1 ce)
-              ,(de-emit1 te)
-              ,(de-emit1 fe)))]
+     (define ces (de-emit1 ce))
+     (define tes (de-emit te))
+     (define fes (de-emit fe))
+     (if (= (length tes) (length fes) 1)
+       (list `(if ,ces ,@tes ,@fes))
+       (list `(cond [,ces ,@tes] [else ,@fes])))]
     [(de:send e) (list `(! ,@(de-emit e)))]
     [(de:recv) (list `(?))]
     [(de:ignore) (list `(ignore!))]))
@@ -396,14 +464,14 @@
 ;; XXX checker for direct-style
 
 (define de:unit (de:con (void)))
+(define (de:seq f s)
+  (if (equal? f de:unit) s
+      (de:let _seq_ f s)))
 (define (de:ignore-unless c be)
   (de:if c be (de:ignore)))
 (define (de:let* x*xes be)
   (for/fold ([be be]) ([x*xe (in-list (reverse x*xes))])
     (de:let (car x*xe) (cdr x*xe) be)))
-(define (de:seq f s)
-  (if (equal? f de:unit) s
-      (de:let _seq_ f s)))
 
 (module+ test
   (define de:add-some-numbers-se
@@ -511,7 +579,8 @@
        (define anf-recv2 (?))
        (define anf-recv3 (?))
        (define anf-app4 (= 0 anf-recv3))
-       (define anf-if6 (if anf-app4 (begin (define anf-recv5 (?)) anf-recv5) 0))
+       (define anf-if6 (cond [anf-app4 (define anf-recv5 (?)) anf-recv5]
+                             [else 0]))
        (define anf-app7 (+ anf-recv2 anf-if6))
        (define anf-app8 (+ anf-recv0 anf-app7))
        anf-app8))))
