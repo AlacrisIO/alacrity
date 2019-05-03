@@ -1,1 +1,1 @@
-`$ raco pkg install`
+`$ raco pkg install -n alacrity`
