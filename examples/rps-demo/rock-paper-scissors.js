@@ -22,8 +22,8 @@
 
 // Contracts to use:
 // contract 0xe7de0191a6f9683dd3f2011214e5533d00d604fe deployed on Rinkeby, created by transaction 0x47632009af8c66df628449f1a422d86aa3fd21d96ed93e050ca752bfcec2af93, with 11520 block timeout, from source at commit 99631383c862bea336afcc6bfbd615fd425834f9
-// contract 0x07326e7ec3935b4ff8411c08fa94deb0ad1c7e98 deployed on Rinkeby, created by transaction 0x61a83184580f8bc3d5bc077578c7533073dbf4eff7cde23fe30795e3c1ccd766, with 10 block timeout (very short!), from source at commit XXX, but reverse winner logic - oops
-// contract 0xa526caaabf917554bb49756409759fb0101e2ccd deployed on Rinkeby, created by transaction 0xf43b8c50018ec9a819e1022d9b6a7c07218a1a24e19260b6ca375d1cd34f6ec3, with 10 block timeout (very short!), from source at commit XXX
+// contract 0x07326e7ec3935b4ff8411c08fa94deb0ad1c7e98 deployed on Rinkeby, created by transaction 0x61a83184580f8bc3d5bc077578c7533073dbf4eff7cde23fe30795e3c1ccd766, with 10 block timeout (very short!), from source at commit 68ceb3cfd3dbacf88c1df4152307572a357bc80e, except with reverse winner logic - oops
+// contract 0xa526caaabf917554bb49756409759fb0101e2ccd deployed on Rinkeby, created by transaction 0xf43b8c50018ec9a819e1022d9b6a7c07218a1a24e19260b6ca375d1cd34f6ec3, with 10 block timeout (very short!), from source at commit 68ceb3cfd3dbacf88c1df4152307572a357bc80e
 
 const rockPaperScissorsFactoryAddress = "0xa526caaabf917554bb49756409759fb0101e2ccd";
 
@@ -158,6 +158,9 @@ const confirmedBlockNumber = (k) =>
 const queryConfirmedState = (contractAddress) => (k) =>
     confirmedBlockNumber((blockNumber) => queryState(contractAddress, blockNumber)(k));
 
+// () => string
+const getNetworkID = () => web3.currentProvider.networkVersion;
+
 // () => address
 const getUserAddress = () => web3.currentProvider.selectedAddress;
 
@@ -244,19 +247,19 @@ var deploy = () => srf(ethQuery(web3.eth.sendTransaction)({data: bytecode}));
 var gsalt = "0x30f6cb71704ee3321c0bb552120a492ab2406098f5a89b0a765155f4f5dd9124";
 var alice = "0x60B8193167c5355779B4d03cA37A0C11807e667f";
 var bob = "0xa8c6677434CDb243E9f19Cca387a916487da8C2f";
-var meth = web3.toBigNumber(1e15);
+var meth = web3.toBigNumber(1e15).mul;
 
-var play0 = () => srf(player0StartGame(gsalt, 2, alice, meth.mul(1000), meth.mul(100)));
+var play0 = () => srf(player0StartGame(gsalt, 2, alice, meth(1000), meth(100)));
 var c0 = () => srf(computeCommitment(gsalt, 2));
 
 var g0tx = "0xbc75c759901430f54694ff2ae4888e9b772c15f6364320ccbcab5cfbc9f870c3";
 var g0v0 = () => srf(getRockPaperScissorsCreationData(g0tx));
 var g0c = "0xd933e31efb452bfcc6f993e578946aafd6aa75d0"
-var g0p1 = () => srf(player1ShowHand(g0c, meth.mul(1000), 0));
+var g0p1 = () => srf(player1ShowHand(g0c, meth(1000), 0));
 var g0p2 = () => srf(player1WinByDefault(g0c));
 var g0s = () => srf(queryConfirmedState(g1c));
 
 var g1c = "0x21a63393301aa265ea7fbde8a7d43ea96a40f08f";
-var g1p1 = () => srf(player1ShowHand(g1c, meth.mul(1000), 0));
+var g1p1 = () => srf(player1ShowHand(g1c, meth(1000), 0));
 var g1p2 = () => srf(player0Reveal(g1c, gsalt, 2));
 var g1s = () => srf(queryConfirmedState(g1c));
