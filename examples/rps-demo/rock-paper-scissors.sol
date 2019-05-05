@@ -27,7 +27,8 @@ contract RockPaperScissors
 {
         // At about 15 seconds per block, 11520 blocks is about two days for a timeout,
         // which should be safe against connectivity attacks.
-        uint constant timeout_in_blocks = 11520;
+        // For the sake of demo, I'll use 10 blocks (about 2.5 minutes) as the timeout.
+        uint constant timeout_in_blocks = 10; // WARNING: DEMO ONLY
 
         // Possible hands
         uint8 constant rock = 0;
@@ -110,7 +111,8 @@ contract RockPaperScissors
         // Constructor called by player0 when initializing the game.
         // The commitment is a hash of some salt and the hand.
         // The key_hash is a handshake so only trusted players can play.
-        constructor (bytes32 _commitment, address payable _player1_address, uint _wager_amount)
+        constructor (address payable _player0_address, address payable _player1_address,
+                     bytes32 _commitment, uint _wager_amount)
                 public payable
         {
                 // This function can only be called while at state Uninitialized.
@@ -130,7 +132,7 @@ contract RockPaperScissors
 
                 // The address of player0, including to transfer to
                 // if player0 wins.
-                player0_address = msg.sender;
+                player0_address = _player0_address;
 
                 // Restricts what player0's hand can be: she will have to reveal and play
                 // the preimage of this hash, chosen *before* player1 showed his hand.
@@ -168,7 +170,7 @@ contract RockPaperScissors
                 require(hand0 < 3 && player0_commitment == keccak256(abi.encodePacked(salt, hand0)));
 
                 // compute difference modulo 3 without underflowing
-                uint8 diff = (hand0 + 3 - hand1) % 3;
+                uint8 diff = (hand1 + 3 - hand0) % 3;
 
                 if (diff == 1) {
                         // The reveal is in favor of player0
@@ -209,7 +211,10 @@ contract RockPaperScissors
         }
 
         function query_state () external view
-                returns(State, Outcome, uint, address, address, bytes32, uint, uint, uint8) {
+                returns (State _state, Outcome _outcome, uint _previous_block,
+                         address _player0_address, address _player1_address,
+                         bytes32 _player0_commitment,
+                         uint _wager_amount, uint _escrow_amount, uint8 _hand1) {
                 return (state, outcome, previous_block, player0_address, player1_address,
                         player0_commitment, wager_amount, escrow_amount, hand1);
         }
@@ -220,14 +225,33 @@ contract RockPaperScissorsFactory
         event Created(address _contract, address payable _player0, address payable _player1,
                       bytes32 _commitment, uint _wager_amount, uint _escrow_amount);
 
-        function createRockPaperScissors
-                (bytes32 _commitment, address payable _player1_address, uint _wager_amount)
-                public payable returns(address)
+        function player0_start_game
+                (address payable _player1_address, bytes32 _commitment, uint _wager_amount)
+                public payable returns (address _contract_address)
         {
-                RockPaperScissors rpsContract = (new RockPaperScissors).value(msg.value)(_commitment, _player1_address, _wager_amount);
+                RockPaperScissors rpsContract = (new RockPaperScissors).value(msg.value)(msg.sender, _player1_address, _commitment, _wager_amount);
                 // NB: You have to get the address from the transaction receipt.
                 emit Created(address(rpsContract), msg.sender, _player1_address,
                              _commitment, _wager_amount, msg.value - _wager_amount);
                 return address(rpsContract);
+        }
+
+        // The debugging functions below were used to ascertain how to commitments are computed
+        function compute_commitment_message (bytes32 _salt, uint8 _hand0)
+                public pure returns (bytes memory _message) {
+                return abi.encodePacked(_salt, _hand0);
+        }
+        function compute_commitment_digest (bytes32 _salt, uint8 _hand0)
+                public pure returns (bytes32 _digest) {
+                return keccak256(compute_commitment_message(_salt, _hand0));
+        }
+        event Commitment(bytes32 _hash, bytes _message);
+
+        function compute_commitment (bytes32 _salt, uint8 _hand0)
+                external returns (bytes32 _digest, bytes memory _message) {
+                bytes memory message = compute_commitment_message(_salt, _hand0);
+                bytes32 hash = keccak256(message);
+                emit Commitment(hash, message);
+                return (hash, message);
         }
 }

@@ -1,7 +1,7 @@
 'use strict';
 
 const web3 = window.web3
-const rps = window.rock_paper_scissors;
+const rps = window.RockPaperScissors;
 
 
 async function getAccount() {

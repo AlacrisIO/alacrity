@@ -25,8 +25,8 @@ build_all: contract
 
 CONTRACT_OUTPUTS=$(BUILD_DIR)/RockPaperScissors.abi $(BUILD_DIR)/RockPaperScissors.bin $(BUILD_DIR)/RockPaperScissorsFactory.abi $(BUILD_DIR)/RockPaperScissorsFactory.bin
 contract: $(CONTRACT_OUTPUTS)
-$(CONTRACT_OUTPUTS):
-	$(HIDE) solc --bin --abi -o $(BUILD_DIR) --overwrite rock-paper-scissors.sol
+$(CONTRACT_OUTPUTS): rock-paper-scissors.sol
+	$(HIDE) solc --bin --abi -o $(BUILD_DIR) --overwrite $<
 
 start_nginx:
 	$(HIDE) ../nginx/start.sh
