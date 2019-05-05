@@ -143,8 +143,8 @@ const player1WinByDefault = (contractAddress) => (k) => {
     return ethQuery(rockPaperScissors.player1_win_by_default().send)()((txHash) =>
     confirmEtherTransaction(txHash)(k)) };
 
-// state, outcome, previous_block, player0_address, player1_address, player0_commitment, wager_amount, escrow_amount, hand1
-// (address) => (Tuple(Uint8, Uint8, int, address, address, bytes32, BN, BN, uint8) => `a) => `a
+// state, outcome, timeout_in_blocks, previous_block, player0_address, player1_address, player0_commitment, wager_amount, escrow_amount, hand1
+// (address) => (Tuple(Uint8, Uint8, uint, uint, address, address, bytes32, BN, BN, uint8) => `a) => `a
 const queryState = (contractAddress, blockNumber) => (k) => {
     const rockPaperScissors = web3.eth.contract(rockPaperScissorsAbi).at(contractAddress);
     return ethQuery(rockPaperScissors.query_state.call)({}, blockNumber)(k); };

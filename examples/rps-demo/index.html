@@ -5,14 +5,86 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta charset="utf-8">
     <link rel="stylesheet" type="text/css" href="alacris.css">
-    <script src="web3-prelude.js"></script>
-    <script src="rock-paper-scissors.js"></script>
-    <script src="rock-paper-scissors-frontend.js"></script>
   </head>
   <body>
-    <p>To run <i>Rock, Paper, Scissors</i> you need
-      to use a Web3-compatible browser and grant us permission to use Web3.</p>
-    <p>If your browser does not support Web3 natively,
-      consider downloading the <a href="https://metamask.io/">MetaMask</a> extension.</p>
+    <div id="prerequisites">
+      <h2>Prerequisites</h2>
+      <p>To run <i>Rock, Paper, Scissors</i> you need
+        to use a Web3-compatible browser and grant us permission to use Web3.</p>
+      <p>If your browser does not support Web3 natively,
+        consider downloading the <a href="https://metamask.io/">MetaMask</a> extension.</p>
+    </div>
+    <h1>Rock, Paper, Scissors - by Alacris</h1>
+    <div id="Play">
+      <h2>New Game</h2>
+      <div id="NewGame">
+      </div>
+      <h2>Active Games</h2>
+      <div id="ActiveGames">
+      </div>
+    </div>
+    <div id="How to play">
+      <h2>How to play</h2>
+      <p>
+        Start a new game, or play an existing game.
+      </p>
+    </div>
+    <div id="WARNING">
+      <h2>WARNING</h2>
+      <p>
+        <em>If the opponent can deny you access to the Internet via a DDoS attack,
+        or otherwise cut your access to the Ethereum blockchain,
+        they can steal your wager and your escrow.</em>
+        This game supposes that you will remain reliably connected to the blockchain
+        for the duration of the game, especially as the first player of the game,
+        who is on notice to reveal their hand within a deadline after the second player shows theirs.
+      </p>
+      <p>
+        When running this code on the Rinkeby test network,
+        we use a timeout of 10 blocks (about 2.5 minutes).
+        On the actual network, we use a timeout of 11520 blocks (about 2 days).
+      </p>
+    </div>
+    <div id="related_works">
+      <h2>Related Works</h2>
+      <p>
+        This demo is being written by <a href="https://alacris.io">Alacris.io</a>.
+      </p>
+      <p>Other implementations of this simple game:</p>
+      <ul>
+        <li>A variant by Peter M. Phillips, based on Enigma.co by Guy Zyskind,
+          who also has a general system for Multi-Party Computations (MPC):
+          <a href="https://kauri.io/article/468b49fcd2ef48feaada3a4399d0b2a6/secret-rock-paper-scissors"
+             >Secret Rock, Paper, Scissors</a>
+          [<a href="https://github.com/PeterMPhillips/Enigma-Rock-Paper-Scissors/">github</a>]
+        </li>
+        <li>A variant made for Raiden:
+          <a href="https://medium.com/@loredana.cirstea/cryptobotwars-part-2-conclusions-ebde6fa716f6"
+             >CryptoBotWars — Part 2: Conclusions</a>
+          [<a href="https://github.com/cryptoplayerone/cryptobotwars">github</a>]
+        </li>
+        <li><a href="https://0xfair.com/">0xfair</a> by ikirch, with a nice UI,
+          but it is not clear where the source code is:
+          <a href="https://www.reddit.com/r/ethereum/comments/990tfi/i_make_a_funny_dapp_that_can_play/"
+             >announce on reddit</a>,
+          <a href="https://www.stateofthedapps.com/dapps/0xfair">link on stateofthedapps</a>.
+        </li>
+        <li><a href="http://roshambo.io/">Roshambo</a> by Ibex, using with a RNG for tie breaks:
+          <a href="https://www.stateofthedapps.com/dapps/roshambo">link on stateofthedapps</a>.
+        </li>
+        <li>A variant of <a href="https://cooloud.com/dapp/rock-paper-scissors">rock paper scissors</a>
+          by Yossi Pik:
+          <a href="https://www.stateofthedapps.com/dapps/rock-paper-scissors">link on stateofthedapps</a>.
+        </li>
+        <li>EthDevRPS [<a href="https://github.com/jpantunes/Ethdev-RPS">github</a>]
+        </li>
+        <li><a href="http://ethrps.com">EthRPS</a>:
+          <a href="https://www.reddit.com/r/EthRPS">reddit section</a>
+        </li>
+      </ul>
+    </footer>
   </body>
+  <script src="web3-prelude.js"></script>
+  <script src="rock-paper-scissors.js"></script>
+  <script src="rock-paper-scissors-frontend.js"></script>
 </html>

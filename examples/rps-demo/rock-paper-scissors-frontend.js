@@ -3,121 +3,120 @@
 const web3 = window.web3
 const rps = window.RockPaperScissors;
 
+/** State is a list of games.
+ * Each game has a state:
+   */
 
-async function getAccount() {
-    try {
-        const accounts = await ethereum.enable();
-        return accounts[0];
-    } catch (error) {
-        // Handle error. Likely the user rejected the login:
-        console.log(reason === "User rejected provider access");
-    }
+const userID = `${getNetworkID()}.${getUserAddress()}`;
+
+const getStorage = (key, default_ = null) => JSON.parse(window.localStorage.getItem(key)) || default_;
+const putStorage = (key, value) => window.localStorage.setItem(key, JSON.stringify(value));
+const getUserStorage = (key, default_ = null) => getStorage(`${userID}.${key}`, default_);
+const putUserStorage = (key, value) => putStorage(`${userID}.${key}`, value);
+
+let activeGamesById = {};
+let activeGamesByTxHash = {};
+let nextId = 1000000000;
+
+const setNodeBySelector = (selector, content) => {
+    const node = document.querySelector(selector);
+    node.innerHTML = '';
+    node.appendChild(content);
 }
 
-async function init () {
-    const account = await getAccount();
-    const body = document.querySelector('body');
-    body.innerHTML = '';
-    body.append(renderForm(account, true));
-}
-
-function renderForm (account, editable, amount) {
-    const shareUrl = `http://rps.alacris.io/?c=${account}`;
-    const child = `
-        ${renderWager(editable, amount)}
-        <br>
-        ${renderChoiceGroup()}
-        <br>
-        ${renderSubmit()}
-    `;
-    const el = document.createElement('form');
-    el.style.cssText = "max-width: 16em;";
-    el.innerHTML = child;
-    el.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const {wager, choice} = getFormValuesForEvent(e);
-        const escrow = wager * 0.2;
-        // store 256bit salt in local storage
-        // concatenate choice to the salt
-        // hash the concatenation with sha
-        // submit that hash to the static contract id to the `createGame` function, funded by the wager
-        // receipt is received from that
-        // keep checking the receipt until you get a new contract id
-        // display that contract id on the page so someone can copy and paste the new url
-        // keep checking the contract id until the friend completes their play
-        // when state is `2`, call `reveal` on new contract id with `salt` and `decision`
-        // when state is 3 = originator wins, 4 = secondary wins, 5 = draw
-        // display result
-        const confirmation = `You wagered ${wager}, escrowed ${escrow}, and played ${getLabelForValue(choice) }.`;
-        editable ?
-        window.prompt(
-            `${confirmation}\nCopy and share this URL to someone you want to play against:`,
-            `${shareUrl}`
-        )
-        :
-        window.alert(confirmation)
-        ;
-    });
-    return el;
-}
-
-function renderChoiceGroup () {
-    return `
-    <fieldset style="margin-top: .25em; text-align: center;">
-        <legend>Make your play:</legend>
-        ${renderChoice(0)}
-        ${renderChoice(1)}
-        ${renderChoice(2)}
-    </fieldset>
-    `;
-}
-
-function renderChoice (value) {
-    return `
-    <label style="display: inline-block; margin: .5em; text-align: center;">
-        <input type="radio" value="${value}" required name="choice">
-        <div class="symbol">${getIconForValue(value)}</div>
-        ${getLabelForValue(value)}
-    </label>
-    `;
-}
-
-function renderWager (editable, amount) {
+// TODO: offer easy standard amounts for the amount
+// TODO: either warn about the 10% escrow, and/or let the user edit it.
+// TODO: determine a minimum acceptable escrow, and suggest that?
+const renderWager = (editable, amount) => {
     const wagerStyle = 'font-size: 18pt;';
     return `
     <label style="text-align: center;">
-        Wager
+        Wager amount:
         <br>
         ${editable ?
-            `<input style="${wagerStyle}" type="number" name="wager" required pattern="[A-Za-z]+" min="1">`
+            `<input style="${wagerStyle}" type="number" name="wager" required
+    pattern="[0-9]+([.][0-9]+)?|[.][0-9]+" min="1">`
             :
             `<output style="${wagerStyle}" name="wager">${amount}</output>`
         }
-    </label>
-        `;
-}
+    </label>`;};
 
-function renderSubmit (editable, amount) {
+// TODO: have a greyed out message "default: anyone" in the input style
+// TODO: support a list of known opponents, and giving nicknames to known opponents
+// TODO: add known-partner and nickname support to MetaMask (?)
+const renderOpponent = (opponent) => {
+    const common='style="font-size: 18pt;" name="opponent"';
     return `
-    <button style="width: 100%;">Shoot!</button>
-    `;
-}
+    <label style="text-align: center;">
+        Opponent:
+        <br>
+        ${opponent ?
+            `<output ${common}">${opponent}</output>` :
+            `<input ${common}" pattern="0x[0-9A-Fa-f]{40}">`}</label>`;};
 
+// TODO: use nice icons.
+const iconOfHand = (hand) => ['✊', '✋', '✌'][hand] || '';
+const labelOfHand = (hand) => ['Rock', 'Paper', 'Scissors'][hand] || '';
+const renderHandOption = (hand) => `
+    <label style="display: inline-block; margin: .5em; text-align: center;">
+        <input type="radio" value="${hand}" required name="hand">
+        <div class="symbol">${iconOfHand(hand)}</div>
+        ${labelOfHand(hand)}
+    </label>`;
+const renderHandChoice = () => `
+    <fieldset style="margin-top: .25em; text-align: center;">
+        <legend>Choose your hand (default: random):</legend>
+        ${renderHandOption(0)}
+        ${renderHandOption(1)}
+        ${renderHandOption(2)}
+    </fieldset>`;
 
-function getFormValuesForEvent (e) {
+const gameParametersOfForm = (e) => {
     return {
         wager: e.target.elements.wager.value,
-        choice: e.target.elements.choice.value
+        opponent: e.target.elements.opponent.value,
+        hand: e.target.elements.hand.value
+    };};
+
+const submitNewGame = (e) => {
+        e.preventDefault();
+        const {wager, opponent, hand} = getFormValuesForEvent(e);
+        const escrow = wager * 0.1;
+        const confirmation = `You are going to start a new game ${opponent ? "with hand" : ""} for a wager of ${wager}, with an escrow of ${escrow}, and played ${labelOfHand(hand)}.`;
+        window.prompt(`${confirmation}`);
+        window.alert(confirmation);
     };
+
+// TODO: let you override the random salt (option hidden by default).
+const renderGameChoice = (wager, opponent) => `
+        ${renderWager(wager)}
+        <br>
+        ${renderOpponent(opponent)}
+        <br>
+        ${renderHandChoice()}
+        <br>
+        <button style="width: 100%;">Shoot!</button>
+    `;
+
+const renderNewGame = (id) => {
+    const el = document.createElement('form');
+    el.innerHTML = renderGameChoice (id, null, null);
+    el.addEventListener('submit', submitNewGame);
+    setNodeBySelector("#NewGame", el);
+};
+
+const restartGame = (id) => {
+    // XXX TODO
 }
 
-function getLabelForValue (choice) {
-    return ['Rock &#9994;', 'Paper &#9995;', 'Scissors &#9996;'][choice] || '';
+// TODO: way to download the localState
+// TODO: way to use a remote replicated backup service for encrypted state management.
+const init = () => {
+    nextId = getUserStorage("nextId") || 1000000000;
+    activeGamesById = getUserStorage("activeGamesById") || {};
+    renderNewGame(nextId);
+    for(id in activeGamesById) { restartGame(id); }
 }
 
-// TODO: either configure fonts to display these correctly, or use PNG icons.
-function getIconForValue (choice) {
-    return ['✊', '✋', '✌'][choice] || '';
-}
 
 init();

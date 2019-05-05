@@ -17,11 +17,10 @@ function hand_compare (hand0, hand1) : hand => int {
 }
 
 // TwoPlayers is a typeclass that specializes Players in the case there are only two players,
-// Player0 and Player1. The vector returned by atomically_mutualize will be of size 2.
+// Player0 and Player1. The vector returned by mutualize_salted will be of size 2.
 function rock_paper_scissors (amount) : TwoPlayers ==> amount => @consensual game_result {
   @consensual {
-    let {player0: (_, hand0), player1: (_, hand1)} =
-      atomically_mutualize(@for_each (salt (), input hand));
+    let [hand0, hand1] = mutualize_salted(@for_each (input hand));
     return domination_game_result(hand_compare)(hand0, hand1);
   }
 }

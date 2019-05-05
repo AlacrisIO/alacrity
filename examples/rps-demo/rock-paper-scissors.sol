@@ -25,11 +25,6 @@ pragma solidity ^0.5.2;
 
 contract RockPaperScissors
 {
-        // At about 15 seconds per block, 11520 blocks is about two days for a timeout,
-        // which should be safe against connectivity attacks.
-        // For the sake of demo, I'll use 10 blocks (about 2.5 minutes) as the timeout.
-        uint constant timeout_in_blocks = 10; // WARNING: DEMO ONLY
-
         // Possible hands
         uint8 constant rock = 0;
         uint8 constant paper = 1;
@@ -44,16 +39,26 @@ contract RockPaperScissors
         }
         State state = State.Uninitialized;
 
+        /** Timeout in blocks.
+            This needs be low enough to be bearable by humans,
+            yet large enough that attackers can't just DDoS you into timing out.
+            Players can mutually agree on this parameter depending on the amount at stake.
+            We recommend two days or more when running in production, two minutes and a half in test.
+            The period between blocks being targeted to about 15 seconds on Ethereum,
+            so this should be 11520 in production, and 10 in test.
+         */
+        uint timeout_in_blocks;
+
         /** Previous block at which state transition happened,
             for timeouts when waiting for a player */
         uint previous_block;
 
-        address payable player0_address;
+        address payable[2] player;
+
         bytes32 player0_commitment;
         uint wager_amount;
         uint escrow_amount;
 
-        address payable player1_address;
         uint8 hand1;
 
         enum Outcome {
@@ -62,8 +67,7 @@ contract RockPaperScissors
             Player0_wins,
             Player1_wins,
             Player0_defaults,
-            Player1_defaults,
-            Player0_fails
+            Player1_defaults
         }
         Outcome outcome;
 
@@ -72,20 +76,20 @@ contract RockPaperScissors
         // The current invocation MUST be done by player0.
         function require_player0 () view internal
         {
-                require(player0_address == msg.sender);
+                require(player[0] == msg.sender);
         }
 
         // The current invocation MUST be done by player1.
         function require_player1 () view internal
         {
-                require(player1_address == msg.sender);
+                require(player[1] == msg.sender);
         }
 
         // The current invocation be done by player1, or by anyone if the offer is open.
         function require_or_set_player1 () internal
         {
-                if (player1_address == address(0)) {
-                        player1_address = msg.sender;
+                if (player[1] == address(0)) {
+                        player[1] = msg.sender;
                 } else {
                         require_player1();
                 }
@@ -94,13 +98,13 @@ contract RockPaperScissors
         // Player0 wins the given amount
         function player0_gets(uint _amount) internal
         {
-                player0_address.transfer(_amount);
+                player[0].transfer(_amount);
         }
 
         // Player1 wins the given amount
         function player1_gets(uint _amount) internal
         {
-                player1_address.transfer(_amount);
+                player[1].transfer(_amount);
         }
 
         // Timeout
@@ -111,8 +115,8 @@ contract RockPaperScissors
         // Constructor called by player0 when initializing the game.
         // The commitment is a hash of some salt and the hand.
         // The key_hash is a handshake so only trusted players can play.
-        constructor (address payable _player0_address, address payable _player1_address,
-                     bytes32 _commitment, uint _wager_amount)
+        constructor (address payable _player0, address payable _player1,
+                     uint _timeout_in_blocks, bytes32 _commitment, uint _wager_amount)
                 public payable
         {
                 // This function can only be called while at state Uninitialized.
@@ -132,14 +136,17 @@ contract RockPaperScissors
 
                 // The address of player0, including to transfer to
                 // if player0 wins.
-                player0_address = _player0_address;
+                player[0] = _player0;
+
+                // If non-zero, restricts who player1 can be.
+                player[1] = _player1;
+
+                // Mutually agreeable timeout value
+                timeout_in_blocks = _timeout_in_blocks;
 
                 // Restricts what player0's hand can be: she will have to reveal and play
                 // the preimage of this hash, chosen *before* player1 showed his hand.
                 player0_commitment = _commitment;
-
-                // If non-zero, restricts who player1 can be.
-                player1_address = _player1_address;
 
                 // Set the new state and previous_block
                 state = State.Waiting_for_player1;
@@ -155,7 +162,6 @@ contract RockPaperScissors
                 require(msg.value == wager_amount);
                 require(_hand1 < 3);
 
-                player1_address = msg.sender;
                 hand1 = _hand1;
 
                 // Set the new state and previous_block
@@ -211,11 +217,12 @@ contract RockPaperScissors
         }
 
         function query_state () external view
-                returns (State _state, Outcome _outcome, uint _previous_block,
-                         address _player0_address, address _player1_address,
+                returns (State _state, Outcome _outcome,
+                         uint _timeout_in_blocks, uint _previous_block,
+                         address _player0, address _player1,
                          bytes32 _player0_commitment,
                          uint _wager_amount, uint _escrow_amount, uint8 _hand1) {
-                return (state, outcome, previous_block, player0_address, player1_address,
+                return (state, outcome, timeout_in_blocks, previous_block, player[0], player[1],
                         player0_commitment, wager_amount, escrow_amount, hand1);
         }
 }
@@ -223,17 +230,21 @@ contract RockPaperScissors
 contract RockPaperScissorsFactory
 {
         event Created(address _contract, address payable _player0, address payable _player1,
-                      bytes32 _commitment, uint _wager_amount, uint _escrow_amount);
+                      uint _timeout_in_blocks, bytes32 _commitment,
+                      uint _wager_amount, uint _escrow_amount);
 
         function player0_start_game
-                (address payable _player1_address, bytes32 _commitment, uint _wager_amount)
-                public payable returns (address _contract_address)
+                (address payable _player1, uint _timeout_in_blocks,
+                 bytes32 _commitment, uint _wager_amount)
+                public payable returns (RockPaperScissors _contract)
         {
-                RockPaperScissors rpsContract = (new RockPaperScissors).value(msg.value)(msg.sender, _player1_address, _commitment, _wager_amount);
+                RockPaperScissors rpsContract =
+                        (new RockPaperScissors).value(msg.value)
+                        (msg.sender, _player1, _timeout_in_blocks, _commitment, _wager_amount);
                 // NB: You have to get the address from the transaction receipt.
-                emit Created(address(rpsContract), msg.sender, _player1_address,
+                emit Created(address(rpsContract), msg.sender, _player1, _timeout_in_blocks,
                              _commitment, _wager_amount, msg.value - _wager_amount);
-                return address(rpsContract);
+                return rpsContract;
         }
 
         // The debugging functions below were used to ascertain how to commitments are computed
