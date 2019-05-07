@@ -6,17 +6,6 @@ const rps = window.RockPaperScissors;
  * Each game has a state:
    */
 
-let userID;
-const keyValuePair = (key, value) => { let o = {}; o[key] = value; return o; }
-const getStorage = (key, default_ = null) => JSON.parse(window.localStorage.getItem(key)) || default_;
-const putStorage = (key, value) => window.localStorage.setItem(key, JSON.stringify(value));
-const updateStorage = (key, update) => putStorage(key, {...getStorage(key), ...update});
-const userKey = (key) => `${userID}.${key}`;
-const getUserStorage = (key, default_ = null) => getStorage(userKey(key), default_);
-const putUserStorage = (key, value) => putStorage(userKey(key), value);
-const updateUserStorage = (key, update) => updateStorage(userKey(key), update);
-const putUserStorageField = (key, field, value) => updateUserStorage(key, keyValuePair(field, value));
-
 let nextID;
 let activeGamesById;
 let activeGamesByTxHash = {};
@@ -28,8 +17,8 @@ const setNodeBySelector = (selector, content) => {
     node.appendChild(content);
 }
 
-const simple_number_regex = "[0-9]+([.][0-9]+)?|[.][0-9]+";
-const address_regex = "0x[0-9A-Fa-f]{40}";
+const simpleNumberRegex = "[0-9]+([.][0-9]+)?|[.][0-9]+";
+const addressRegex = "0x[0-9A-Fa-f]{40}";
 
 // TODO: offer easy standard amounts for the amount
 // TODO: let the users negotiate the escrow.
@@ -39,13 +28,13 @@ const minWager = .01;
 const defaultWager = 1;
 
 const renderWager = (amount) => {
-    const common = 'style="${font-size: 10pt}" name="wager"';
+    const common = 'style="${font-size: 10pt}" name="wagerInEth"';
     return `
     <label style="text-align: center;">
        Wager amount in ETH${amount ? "" : " (plus automatic 10% escrow)"}:
        <br>
        ${amount ? `<output >${amount}</output>` :
-         `<input style="${common}" pattern="${simple_number_regex}"
+         `<input style="${common}" pattern="${simpleNumberRegex}"
            type="number" min="${minWager}" step="${minWager}" value="${defaultWager}" required />`}
     </label>`;};
 
@@ -59,7 +48,7 @@ const renderOpponent = (opponent) => {
         Opponent address${opponent ? "" : " (leave empty for an open game)"}: <br />
         ${opponent ?
             `<output ${common}">${opponent}</output>` :
-            `<input ${common}" pattern="${address_regex}" size="50">`}</label>`;};
+            `<input ${common}" pattern="${addressRegex}" size="50">`}</label>`;};
 
 // TODO: use nice icons.
 const iconOfHand = (hand) => ['✊', '✋', '✌'][hand] || '';
@@ -77,9 +66,6 @@ const renderHandChoice = () => `
         ${renderHandOption(1)}
         ${renderHandOption(2)}
     </fieldset>`;
-
-const weiPerEth = web3.toBigNumber(1e18);
-const ethToWei = (x) => web3.toBigNumber(x).mul(weiPerEth).floor();
 
 const gameParametersOfForm = (e) => {
     // TODO: validate input, instead of having a default values!
@@ -118,7 +104,7 @@ const uint32ToHex = (u) => web3.toHex(u + 0x100000000).slice(3);
 const getGameID = () => {
     const gameID = nextID;
     nextID = nextID + 1;
-    putUserStorage("nextID", uint32ToHex(nextID));
+    putUserStorage("nextID", nextID);
     return gameID;
 }
 
@@ -137,25 +123,25 @@ const createNewGame = (wager, escrow, _opponent, hand) => {
     // Could we save the TxHash locally *before* sending it online? Unhappily web3 doesn't allow that:
     // < https://github.com/MetaMask/metamask-extension/issues/3475 >.
     putUserStorage(key, {role: 0, status: "Creating the game…",
-                         salt, hand, opponent, timeout_in_blocks, wager, escrow});
+                         salt, hand, opponent, timeoutInBlocks, wagerInWei, escrowInWei});
     const commitment = makeCommitment(salt, hand);
     activeGamesByCommitment[commitment] = key;
-    return player0StartGame(salt, hand, opponent, timeout_in_blocks, wager, escrow)((txHash) => {
+    return player0StartGame(salt, hand, opponent, timeoutInBlocks, wagerInWei, escrowInWei)((txHash) => {
         activeGamesByTxHash[txHash] = key;
         updateUserStorage(key, {status: "Posted the game-creation transaction…", txHash})});}
 
 const submitNewGame = (e) => {
         e.preventDefault();
         try {
-            const {wager, opponent, hand} = gameParametersOfForm(e);
-            const escrow = wager.mul(0.1);
+            const {wagerInEth, opponent, hand} = gameParametersOfForm(e);
+            const escrowInEth = wagerInEth.mul(0.1);
             const h = hand || randomHand();
             const confirmation = `You are going to start a new game with ${opponent ? opponent : "anyone who will play"} for a wager of ${wager} ETH, with an escrow of ${escrow} ETH, and play ${labelOfHand(h)}.`;
             const confirmed = window.confirm(confirmation);
             if (confirmed) {
-                const wager_amount = ethToWei(wager);
-                const escrow_amount = ethToWei(escrow);
-                createNewGame(wager_amount, escrow_amount, opponent, h);
+                const wagerInWei = ethToWei(wagerInEth);
+                const escrowInWei = ethToWei(escrowInEth);
+                createNewGame(wagerInWei, escrowInWei, opponent, h);
                 renderNewGame();
             }
         } catch (e) {
@@ -172,7 +158,7 @@ const renderGameChoice = (id, wager, opponent) => `
         ${renderHandChoice()}
         <br>
         <button style="width: 100%;">Shoot!</button>
-        NB: Using a ${timeout_in_blocks}-block timeout (${timeout_string}).
+        NB: Using a ${config.timeoutInBlocks}-block timeout (${config.timeoutString}).
     `;
 
 const renderNewGame = () => {
@@ -185,7 +171,9 @@ const renderNewGame = () => {
 const restartGame = (node, id) => {
     // XXX TODO
 }
-
+const renderOpenGames = () => {
+    // XXX TODO
+}
 const renderActiveGames = () => {
     const node = document.createElement('div');
     if (activeGamesById) {
@@ -200,10 +188,9 @@ const renderActiveGames = () => {
 // TODO: way to use a remote replicated backup service for encrypted state management.
 const initFrontend = () => {
     setNodeBySelector("#Prerequisites", document.createTextNode(""));
-    userID = `${getNetworkID()}.${getUserAddress()}`;
-    nextID = parseInt(getUserStorage("nextID", "0"),16);
+    nextID = getUserStorage("nextID", 0);
     activeGamesById = getUserStorage("activeGamesById");
     renderNewGame();
+    renderOpenGames();
     renderActiveGames();
-    // TODO: Have a separate category for open games? for complete games?
 }
