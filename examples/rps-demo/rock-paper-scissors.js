@@ -37,64 +37,65 @@ const player0StartGame =
       (salt, hand, player1Address, timeoutInBlocks, wagerInWei, escrowInWei) => (k) => {
     const commitment = makeCommitment(salt, hand);
     const totalAmount = wagerInWei.add(escrowInWei);
-    return ethQuery(rockPaperScissorsFactory.player0_start_game)
+    return ethQuery(rpsFactory.player0_start_game)
     (player1Address, timeoutInBlocks, commitment, wagerInWei, {value: totalAmount})(k);
 }
 
 // (address, BN, Uint8) => (() => `a) => `a
 const player1ShowHand = (contractAddress, wagerInWei, hand) => (k) => {
-    const rockPaperScissors = web3.eth.contract(rockPaperScissorsAbi).at(contractAddress);
-    return ethQuery(rockPaperScissors.player1_show_hand)(hand, {value: wagerInWei})((txHash) =>
+    const rps = web3.eth.contract(rpsAbi).at(contractAddress);
+    return ethQuery(rps.player1_show_hand)(hand, {value: wagerInWei})((txHash) =>
     confirmEtherTransaction(txHash)(k)) };
 
 // (address, Uint8Array(32), Uint8) => (() => `a) => `a
 const player0Reveal = (contractAddress, salt, hand) => (k) => {
-    const rockPaperScissors = web3.eth.contract(rockPaperScissorsAbi).at(contractAddress);
-    return ethQuery(rockPaperScissors.player0_reveal)(salt, hand, {})((txHash) =>
+    const rps = web3.eth.contract(rpsAbi).at(contractAddress);
+    return ethQuery(rps.player0_reveal)(salt, hand, {})((txHash) =>
     confirmEtherTransaction(txHash)(k)) };
 
 // (address) => (() => `a) => `a
 const player0Rescind = (contractAddress) => (k) => {
-    const rockPaperScissors = web3.eth.contract(rockPaperScissorsAbi).at(contractAddress);
-    return ethQuery(rockPaperScissors.player0_rescind)()((txHash) =>
+    const rps = web3.eth.contract(rpsAbi).at(contractAddress);
+    return ethQuery(rps.player0_rescind)()((txHash) =>
     confirmEtherTransaction(txHash)(k)) };
 
 // (address) => (() => `a) => `a
 const player1WinByDefault = (contractAddress) => (k) => {
-    const rockPaperScissors = web3.eth.contract(rockPaperScissorsAbi).at(contractAddress);
-    return ethQuery(rockPaperScissors.player1_win_by_default().send)()((txHash) =>
+    const rps = web3.eth.contract(rpsAbi).at(contractAddress);
+    return ethQuery(rps.player1_win_by_default().send)()((txHash) =>
     confirmEtherTransaction(txHash)(k)) };
 
 // state, outcome, timeoutInBlocks, previousBlock, player0Address, player1Address, player0Commitment, wagerInWei, escrowInWei, hand1
 // (address) => (Tuple(Uint8, Uint8, uint, uint, address, address, bytes32, BN, BN, uint8) => `a) => `a
 const queryState = (contractAddress, blockNumber) => (k) => {
-    const rockPaperScissors = web3.eth.contract(rockPaperScissorsAbi).at(contractAddress);
-    return ethQuery(rockPaperScissors.query_state.call)({}, blockNumber)(k); };
+    const rps = web3.eth.contract(rpsAbi).at(contractAddress);
+    return ethQuery(rps.query_state.call)({}, blockNumber)(k); };
 
 // (int => `a) => `a
 const queryConfirmedState = (contractAddress) => (k) =>
     confirmedBlockNumber((blockNumber) => queryState(contractAddress, blockNumber)(k));
 
-// contractAddress, player0_address, player0_address, commitment, wager_amount, escrow_amount
-// string => address, address, address, bytes32, BN, BN
-const decodeGameCreationData = (data) => {
-    let x = (i) => data.slice(2+i*64,66+i*64);
-    return [hexToAddress(x(0)), hexToAddress(x(1)), hexToAddress(x(2)),
-            hexTo0x(x(3)), hexToBigNumber(x(4)), hexToBigNumber(x(5))];};
-
-// contractAddress, player0_address, player1_address, timeout_in_blocks, commitment, wager_amount, escrow_amount
-// (txHash) => [address, address, address, BN, bytes32, BN, BN]
+// (txHash) => {contract: address, player0: address, player1: address, timeoutInBlocks: integer,
+// commitment: bytes32, wagerInWei: BN, escrowInWei: BN, blockNumber: integer}
 const getGameCreationData = (txHash) => (k) => {
     ethQuery(web3.eth.getTransactionReceipt)(txHash)((receipt) => {
-    let result = decodeGameCreationData(receipt.logs[0].data);
-    let [contract, player0, player1, timeout, commitment, wager, escrow] = result;
+    const data = receipt.logs[0].data;
+    const x = (i) => data.slice(2+i*64,66+i*64);
+    const contract = hexToAddress(x(0));
+    const player0 = hexToAddress(x(1));
+    const player1 = hexToAddress(x(2));
+    const timeoutInBlocks = hexToBigNumber(x(3)).toNumber();
+    const commitment = hexTo0x(x(4));
+    const wagerInWei = hexToBigNumber(x(5));
+    const escrowInWei = hexToBigNumber(x(6));
     if(receipt.transactionHash == txHash
        && receipt.status == "0x1"
-       && receipt.from == player0_address
-       && receipt.to == rockPaperScissorsFactoryAddress
+       && receipt.from == player0
+       && receipt.to == config.contract.address
        && receipt.logs.length == 1) {
-        let blockNumber = receipt.blockNumber;
-        return k({contract, player0, player1, timeout, commitment, wager, escrow, blockNumber});
+        const blockNumber = receipt.blockNumber;
+        return k({contract, player0, player1, timeoutInBlocks,
+                  commitment, wagerInWei, escrowInWei, blockNumber});
     } else {
         console.log("bad rps game creation data receipt", txHash, receipt, result)
         return k(false);
