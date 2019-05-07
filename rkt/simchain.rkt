@@ -17,7 +17,7 @@
    (define-values (from to) (tcp-accept l))
    (thread (make-handle-client from to))))
 
-(struct bob (token data))
+(struct bob (token data) #:transparent)
 (define mt #"")
 (define big-endian? #t)
 (define payload-len-width 2)
@@ -42,13 +42,13 @@
   (define bob-read (make-bob-reader from))
   (define bob-write (make-bob-writer to))
   (forever
-   (eprintf "[BC] Reading req\n")
+   #;(eprintf "[BC] Reading req\n")
    (define req (bob-read))
-   (eprintf "[BC] Sending req to handler\n")
+   #;(eprintf "[BC] Sending req to handler\n")
    (channel-put request-ch (cons req (current-thread)))
-   (eprintf "[BC] Receiving reply\n")
+   #;(eprintf "[BC] Receiving reply\n")
    (define reply (thread-receive))
-   (eprintf "[BC] Writing reply\n")
+   #;(eprintf "[BC] Writing reply\n")
    (bob-write reply)))
 (define (make-bob-server-t port-no ready-sema initial-st handle-req done-f)
   (define req-ch (make-channel))
@@ -57,19 +57,19 @@
   (define bob-t
     (thread (λ ()
               (let loop ([st initial-st])
-                (eprintf "[BS] Waiting for req or done\n")
+                #;(eprintf "[BS] Waiting for req or done\n")
                 (sync
                  (handle-evt done-sema
                              (λ _
                                (kill-thread serve-t)
-                               (eprintf "[BS] Finishing\n")
+                               #;(eprintf "[BS] Finishing\n")
                                (done-f st)))
                  (handle-evt req-ch
                              (match-lambda
                                [(cons req rt)
-                                (eprintf "[BS] Handling req\n")
+                                #;(eprintf "[BS] Handling req\n")
                                 (define-values (reply new-st) (handle-req st req))
-                                (eprintf "[BS] Returning reply to client\n")
+                                #;(eprintf "[BS] Returning reply to client\n")
                                 (thread-send rt reply)
                                 (loop new-st)])))))))
   (λ ()
@@ -145,18 +145,76 @@
   (define bob-write (make-bob-writer to))
   (match-lambda
     [(req:get since-time)
-     (eprintf "[C] Write get\n")
+     #;(eprintf "[C] Write get\n")
      (bob-write (bob GET (time-encode since-time)))
-     (eprintf "[C] Read reply\n")
+     #;(eprintf "[C] Read reply\n")
      (match-define (bob (== REPLY) chain-bs) (bob-read))
-     (eprintf "[C] Decode\n")
+     #;(eprintf "[C] Decode\n")
      (chain-decode chain-bs)]
     [(req:post msg)
-     (eprintf "[C] Write post\n")
+     #;(eprintf "[C] Write post\n")
      (bob-write (bob POST msg))
-     (eprintf "[C] Read ok\n")
+     #;(eprintf "[C] Read ok\n")
      (match-define (bob (== OK) (== mt)) (bob-read))
      (void)]))
+
+
+(module+ test
+  (define test-port 60123)
+  (define test-history "test.chain")
+  (define m1 #"Hey! Listen!")
+  (define m2 #"Yo! Raps!")
+  (when (file-exists? test-history)
+    (delete-file test-history))
+  (eprintf "[T] Starting server...\n")
+  (define stop1! (make-simchain-server-t (+ 0 test-port) test-history))
+  (define cl1 (make-simchain-client "localhost" (+ 0 test-port)))
+  (define cl2 (make-simchain-client "localhost" (+ 0 test-port)))
+  (eprintf "[T] Posting test\n")
+  (chk (cl1 (req:post m1)) (void))
+  (eprintf "[T] Getting test\n")
+  (chk (map cdr (cl2 (req:get 0))) (list m1))
+  (eprintf "[T] Stopping server...\n")
+  (stop1!)
+  (define stop2! (make-simchain-server-t (+ 1 test-port) test-history))
+  (define cl3 (make-simchain-client "localhost" (+ 1 test-port)))
+  (chk (map cdr (cl3 (req:get 0))) (list m1))
+  (chk (cl3 (req:post m2)) (void))
+  (chk (map cdr (cl3 (req:get 0))) (list m2 m1))
+  (chk (map cdr (cl3 (req:get (car (second (cl3 (req:get 0))))))) (list m2))
+  (stop2!))
+
+(define (make-simchain-client/queue hostname port-no)
+  (local-require data/queue)
+  (define simc (make-simchain-client hostname port-no))
+  (define (send! m) (simc (req:post m)))
+  (define q (make-queue))
+  (define last-t 0)
+  (define (recv!)
+    (cond
+      [(queue-empty? q)
+       (eprintf "SIMCQ - Queue empty, polling.\n")
+       (for-each (λ (m) (enqueue-front! q m))
+                 (simc (req:get last-t)))
+       (recv!)]
+      [else
+       (match-define (cons new-t m) (dequeue! q))
+       (set! last-t new-t)
+       m]))
+  (values send! recv!))
+
+(module+ test
+  (define stop3! (make-simchain-server-t (+ 2 test-port) test-history))
+  (define-values (cl4-send! cl4-recv!)
+    (make-simchain-client/queue "localhost" (+ 2 test-port)))  
+  (chk (list (cl4-recv!)
+             (cl4-recv!)
+             (begin (cl4-send! #"A") (cl4-send! #"B") (cl4-send! #"C"))
+             (cl4-recv!)
+             (cl4-recv!)
+             (cl4-recv!))
+       (list m1 m2 (void) #"A" #"B" #"C"))
+  (stop3!))
 
 (provide
  (contract-out
@@ -172,32 +230,11 @@
                    (cond
                      [(req:get? req) chain/c]
                      [(req:post? req) (void)]
-                     [else none/c])]))]))
-
-(module+ test
-  (define test-port 60123)
-  (define test-history "test.chain")
-  (define m1 #"Hey! Listen!")
-  (define m2 #"Yo! Raps!")
-  (when (file-exists? test-history)
-    (delete-file test-history))
-  (eprintf "[T] Starting server...\n")
-  (define stop1! (make-simchain-server-t test-port test-history))
-  (define cl1 (make-simchain-client "localhost" test-port))
-  (define cl2 (make-simchain-client "localhost" test-port))
-  (eprintf "[T] Posting test\n")
-  (chk (cl1 (req:post m1)) (void))
-  (eprintf "[T] Getting test\n")
-  (chk (map cdr (cl2 (req:get 0))) (list m1))
-  (eprintf "[T] Stopping server...\n")
-  (stop1!)
-  (define stop2! (make-simchain-server-t (add1 test-port) test-history))
-  (define cl3 (make-simchain-client "localhost" (add1 test-port)))
-  (chk (map cdr (cl3 (req:get 0))) (list m1))
-  (chk (cl3 (req:post m2)) (void))
-  (chk (map cdr (cl3 (req:get 0))) (list m2 m1))
-  (chk (map cdr (cl3 (req:get (car (second (cl3 (req:get 0))))))) (list m2))
-  (stop2!))
+                     [else none/c])]))]
+  [make-simchain-client/queue
+   (-> string? port-number?
+       (values (-> bytes? void?)
+               (-> bytes?)))]))
 
 (module+ main
   (require racket/cmdline)

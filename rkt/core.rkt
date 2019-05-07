@@ -1,6 +1,7 @@
 #lang racket/base
 (require racket/match
          racket/format
+         racket/port
          racket/syntax
          racket/list
          racket/set)
@@ -47,13 +48,29 @@
 ;; XXX
 
 ;; Primitives
+(struct priminfo (rkt))
 (define primitive->info
-  ;; XXX fill this out
-  (hasheq 'rand #t
-          '+ #t
-          '- #t
-          '= #t
-          'msg-cat #t))
+  ;; XXX fill this out and make real
+  (hasheq 'random (priminfo random)
+          '+ (priminfo +)
+          '- (priminfo -)
+          '= (priminfo =)
+          'equal? (priminfo equal?)
+          'msg-cat? (priminfo cons?)
+          'msg-cat (priminfo cons)
+          'msg-left (priminfo car)
+          'msg-right (priminfo cdr)
+          'msg-enc (priminfo (λ (m k) (list 'enc m k)))
+          'msg-enc?
+          (priminfo (λ (x k)
+                      (and (list? x) (= (length x) 3) (eq? (first x) 'enc)
+                           (eq? (third x) k))))
+          'msg-dec
+          (priminfo
+           (λ (em k)
+             (match em
+               [(list 'enc im (== k)) im]
+               [x (error 'msg-dec "~v ~v" em k)])))))
 (define (primitive-op? x)
   (hash-has-key? primitive->info x))
 
@@ -146,6 +163,10 @@
      (we:let@ at x (rec xe) (rec `(begin ,@more)))]
     [`(begin [,(? participant? from)
               -> ,(? participant? to) : ,m] ,@more)
+     ;; Note: It may be inappropriate to assume that to/from is
+     ;; enforced with public keys. It would be possible to reify
+     ;; participants names into values, but almost all uses that don't
+     ;; do this seal/sign would be wrong.
      (define m0 (if to `(seal ,m ,to) m))
      (define m1 (if from `(sign ,m0 ,from) m0))
      (rec
@@ -170,7 +191,7 @@
 (define (wp-parse se)
   (match se
     [`(program
-       ([,(? participant? p) ,(? symbol? st) ...] ...)
+       (participant ,(? participant? p) ,(? symbol? st) ...) ...
        (define (,(? symbol? f) ,(? symbol? args) ...) ,@body)
        ...)
      (error-on-dupes 'wp-parse "Duplicate participant: ~e" p)
@@ -219,8 +240,8 @@
      (list `(?))]))
 (define (wp-emit wp)
   (match-define (wp:program part->st n->fun in) wp)
-  `(program ,(for/list ([p (in-list (sort-symbols (hash-keys part->st)))])
-               `[,p ,@(hash-ref part->st p)])
+  `(program ,@(for/list ([p (in-list (sort-symbols (hash-keys part->st)))])
+                `(participant ,p ,@(hash-ref part->st p)))
             ,@(for/list ([f (in-list (cons in (sort-symbols (remove in (hash-keys n->fun)))))])
                 (match-define (wf:fun args body) (hash-ref n->fun f))
                 `(define (,f ,@args) ,@(we-emit body)))))
@@ -228,10 +249,12 @@
 (module+ test
   (define wp:adds-se
     `(program
-      ([Adder x] [N1 x] [N2 x])
+      (participant Adder x)
+      (participant N1 x)
+      (participant N2 x)
       (define (main)
-        (define n1x @ N1 (rand 8))
-        (define n2x @ N2 (rand 10))
+        (define n1x @ N1 (random 8))
+        (define n2x @ N2 (random 10))
         [N1 -> Adder : (x n1x)]
         [N2 -> Adder : (x n2x)]
         (define z @ Adder (+ n1x n2x))
@@ -244,6 +267,8 @@
   (define wp:adds (wp-parse wp:adds-se))
   (chk (wp-parse (wp-emit wp:adds)) wp:adds))
 
+;; Note: In formalization, this will be defined not on the program,
+;; but on its type derivation.
 (define (wp-epp wp)
   ;; XXX generalize Γ to type environment
   (define (we-epp me Γ e)
@@ -287,19 +312,22 @@
        (define (wm-match Γ mv m k)
          (match m
            [(wm:var v)
-            ;; XXX insert coercion from bytes based on type
             (cond
               [(set-member? Γ v)
                (de:ignore-unless
+                ;; XXX insert coercion from bytes based on type, we know
                 (de:app 'equal? (list mv (de:var v)))
+                (~a mv " not equal to " v)
                 (k Γ))]
               [else
+               ;; XXX insert coercion from bytes based on type, in sender (if we know)
                (de:let v mv (k (set-add Γ v)))])]
            [(wm:cat lm rm)
             (define lv (freshen 'wm-recv-catL))
             (define rv (freshen 'wm-recv-catR))
             (de:ignore-unless
              (de:app 'msg-cat? (list mv))
+             (~a mv " not concatenation")
              (de:let* (list (cons lv (de:app 'msg-left (list mv)))
                             (cons rv (de:app 'msg-right (list mv))))
                       (wm-match Γ (de:var lv) lm
@@ -307,20 +335,22 @@
                                   (wm-match Γ1 (de:var rv) rm k)))))]
            [(wm:enc im ek)
             (define inv-ek-v (mk->v (mk-inv ek)))
-            (de:ignore-unless
-             (de:app 'msg-enc? (list mv))
-             (cond
-               [(set-member? Γ inv-ek-v)
-                (define imv (freshen 'wm-recv-dec))
+            (cond
+              [(set-member? Γ inv-ek-v)
+               (define imv (freshen 'wm-recv-dec))
+               (define inv-ek-a (de:var inv-ek-v))
+               (de:ignore-unless
+                (de:app 'msg-enc? (list mv inv-ek-a))
+                (~a mv " not encrypted with " inv-ek-a)
                 (de:let* (list
-                          (cons imv (de:app 'msg-dec (list mv (de:var inv-ek-v)))))
-                         (wm-match Γ (de:var imv) im k))]
-               [(set-member? Γ (mk->v ek))
-                (define nv (freshen 'wm-recv-enc-chk))
-                (we:let@ me nv (we:msg m)
-                         (wm-match (set-add Γ nv) nv (wm:var mv) k))]
-               [else
-                (error 'wp-epp "~e does not know enough to receive message ~e: ~e or inv" me m ek)]))]))
+                          (cons imv (de:app 'msg-dec (list mv inv-ek-a))))
+                         (wm-match Γ (de:var imv) im k)))]
+              [(set-member? Γ (mk->v ek))
+               (define nv (freshen 'wm-recv-enc-chk))
+               (we:let@ me nv (we:msg m)
+                        (wm-match (set-add Γ nv) nv (wm:var mv) k))]
+              [else
+               (error 'wp-epp "~e does not know enough to receive message ~e: ~e or inv" me m ek)])]))
        (cond
          [(or (not @) (eq? @ me))
           (define mv (freshen 'wm-recv))
@@ -353,7 +383,8 @@
           (values n (wf-epp p args f))))
       (values p (dp:program n->fun1 in)))))
 (module+ test
-  (for ([(p dp) (in-hash (wp-epp wp:adds))])
+  (define epp:dp:adds (wp-epp wp:adds))
+  (for ([(p dp) (in-hash epp:dp:adds)])
     (define dp-se (dp-emit dp))
     (printf "\n~a =>\n" p)
     (pretty-print dp-se)))
@@ -374,7 +405,7 @@
 (struct de:app direct-expr (op args) #:transparent)
 (struct de:send direct-expr (e) #:transparent)
 (struct de:recv direct-expr () #:transparent)
-(struct de:ignore direct-expr () #:transparent)
+(struct de:ignore direct-expr (why) #:transparent)
 
 (define (de-parse operation? se)
   (define (rec se) (de-parse operation? se))
@@ -390,7 +421,7 @@
      (de:if (rec ce) (rec `(begin ,@te)) (rec `(begin ,@fe)))]
     [`(if ,ce ,te ,fe)
      (de:if (rec ce) (rec te) (rec fe))]
-    [`(ignore!) (de:ignore)]
+    [`(ignore! ,(? string? why)) (de:ignore why)]
     [`(?) (de:recv)]
     [`(! ,e) (de:send (rec e))]
     [(? number? n) (de:con n)]
@@ -440,21 +471,21 @@
         (list `(cond [,ces ,@tes] [else ,@fes]))])]
     [(de:send e) (list `(! ,@(de-emit e)))]
     [(de:recv) (list `(?))]
-    [(de:ignore) (list `(ignore!))]))
+    [(de:ignore why) (list `(ignore! ,why))]))
 (define (dp-emit dp)
   (match-define (dp:program n->fun in) dp)
   `(program ,@(for/list ([f (in-list (cons in (sort-symbols (remove in (hash-keys n->fun)))))])
                 (match-define (df:fun args body) (hash-ref n->fun f))
                 `(define (,f ,@args) ,@(de-emit body)))))
 
-;; XXX checker for direct-style
+;; XXX checker for direct-style: type correct, no recursion
 
 (define de:unit (de:con (void)))
 (define (de:seq f s)
   (if (equal? f de:unit) s
       (de:let _seq_ f s)))
-(define (de:ignore-unless c be)
-  (de:seq (de:if c de:unit (de:ignore)) be))
+(define (de:ignore-unless c why be)
+  (de:seq (de:if c de:unit (de:ignore why)) be))
 (define (de:let* x*xes be)
   (for/fold ([be be]) ([x*xe (in-list (reverse x*xes))])
     (de:let (car x*xe) (cdr x*xe) be)))
@@ -481,7 +512,7 @@
     [(de:app op args) (andmap da-anf? args)]
     [(de:send e) (da-anf? e)]
     [(de:recv) #t]
-    [(de:ignore) #t]))
+    [(de:ignore why) #t]))
 (define (dt-anf? dt)
   (match dt
     [(? da-anf? a) #t]
@@ -553,8 +584,8 @@
          [else
           (define nv (freshen 'anf-recv))
           (anf-res (list (cons nv (de:recv))) (de:var nv))])]
-      [(de:ignore)
-       (anf-res (list (cons (freshen 'anf-ignore) (de:ignore)))
+      [(de:ignore why)
+       (anf-res (list (cons (freshen 'anf-ignore) (de:ignore why)))
                 de:unit)]))
   (define (de-anf n->fun ρ tail? e)
     (match-define (anf-res nvs e1) (da-anf n->fun ρ tail? e))
@@ -604,7 +635,7 @@
 (struct ht:jump handle-tail (ns st msgs) #:transparent)
 (struct ht:wait handle-tail (ns st msgs) #:transparent)
 (struct ht:stop handle-tail (ans msgs) #:transparent)
-(struct ht:ignore handle-tail () #:transparent)
+(struct ht:ignore handle-tail (why) #:transparent)
 
 (struct handle-arg () #:transparent)
 (struct ha:var handle-arg (v) #:transparent)
@@ -642,8 +673,8 @@
      (ht:stop (ha-parse ans) (map ha-parse msgs))]
     [`(begin (stop! ,ans))
      (ht:stop (ha-parse ans) '())]
-    [`(begin (ignore!))
-     (ht:ignore)]))
+    [`(begin (ignore! ,(? string? why)))
+     (ht:ignore why)]))
 (define (hp-parse se)
   (match se
     [`(program
@@ -690,15 +721,15 @@
     [(ht:stop ans msgs)
      (append (sends-emit msgs)
              (list `(stop! ,(ha-emit ans))))]
-    [(ht:ignore)
-     (list `(ignore!))]))
+    [(ht:ignore why)
+     (list `(ignore! ,why))]))
 (define (hp-emit hp)
   (match-define (hp:program n->han in) hp)
   `(program ,@(for/list ([f (in-list (cons in (sort-symbols (remove in (hash-keys n->han)))))])
                 (match-define (hh:handler st msg ht) (hash-ref n->han f))
                 `(define ((,f ,@st) ,msg) ,@(ht-emit ht)))))
 
-;; XXX checker for handler-style
+;; XXX checker for handler-style: type correct, no recursion
 
 ;; The compiler transforms a direct program into a handler program
 (define (dp-state dp)
@@ -771,8 +802,8 @@
         (hash-set n->h1 nh (hh:handler st v ht))
         fvs1
         (ht:wait nh st pre-sends))]
-      [(de:let v (de:ignore) b)
-       (st-res (hasheq) (seteq) (ht:ignore))]))
+      [(de:let v (de:ignore why) b)
+       (st-res (hasheq) (seteq) (ht:ignore why))]))
   (with-fresh
     (match-define (dp:program (hash-table ('main df)) 'main) dp)
     (match-define (df:fun args body) df)
@@ -843,9 +874,136 @@
      (define ((recv3 anf-recv0 anf-recv2) anf-recv5)
        (define anf-app7 (msg-cat anf-recv0 anf-recv2 anf-recv5))
        (send! anf-app7)
-       (stop! (void))))))
+       (stop! (void)))))
 
-;; XXX eval connected to simulator
+  (define epp:hp:adds
+    (for/hasheq ([(r dp) (in-hash epp:dp:adds)])
+      (values r (direct->handle dp)))))
+
+;; Evaluation in simulator
+(define ((hv-eval Σ) v)
+  (hash-ref Σ v))
+(define ((ha-eval Σ) ha)
+  (match ha
+    [(ha:con b) b]
+    [(ha:var v) (hash-ref Σ v)]))
+(define (he-eval Σ he)
+  (match he
+    [(he:app op args)
+     (match (hash-ref primitive->info op #f)
+       [(? priminfo? p)
+        (apply (priminfo-rkt p)
+               (map (ha-eval Σ) args))]
+       [_
+        (error 'he-eval "op ~e not implemented" op)])]
+    [_ ((ha-eval Σ) he)]))
+(define (hp-eval who send! recv! hp arg-vs)
+  (define (send*! msgs)
+    (for-each send! msgs))
+  (define (ht-eval ignore-t ignore-vs Σ ht)
+    (match ht
+      [(ht:let x xe ht)
+       (ht-eval ignore-t ignore-vs (hash-set Σ x (he-eval Σ xe)) ht)]
+      [(ht:if ce tt ft)
+       (ht-eval ignore-t ignore-vs Σ (if (he-eval Σ ce) tt ft))]
+      [(ht:jump ns st msgs)
+       (send*! (map (ha-eval Σ) msgs))
+       (hhn-eval ignore-t ignore-vs ns (map (hv-eval Σ) st) #f)]
+      [(ht:wait ns st msgs)
+       (send*! (map (ha-eval Σ) msgs))
+       (define these-vs (map (hv-eval Σ) st))
+       (hhn-eval ns these-vs ns these-vs (recv!))]
+      [(ht:stop ans msgs)
+       (send*! (map (ha-eval Σ) msgs))
+       (ha-eval ans)]
+      [(ht:ignore why)
+       (eprintf "[~a] Ignoring ~a\n" who why)
+       (hhn-eval ignore-t ignore-vs ignore-t ignore-vs (recv!))]))
+  (define (hhn-eval ignore-t ignore-vs n st-vs msg-v)
+    (eprintf "[~a] HHN-EVAL ~a w/ ~a and ~a\n" who n st-vs msg-v)
+    (match-define (hh:handler st-ns msg-n ht)
+      (hash-ref n->h n))
+    (define Σ
+      (for/hasheq ([n (in-list (cons msg-n st-ns))]
+                   [v (in-list (cons msg-v st-vs))]
+                   #:when n)
+        (values n v)))
+    (ht-eval ignore-t ignore-vs Σ ht))
+  (match-define (hp:program n->h top) hp)
+
+  (hhn-eval #f #f top arg-vs #f))
+
+(module+ test
+  (require alacrity/simchain)
+
+  (define (start-in-simulation epp-hp-ht r->args)
+    (define hostname "localhost")
+    (define port-no (+ 65000 (random 32)))
+    (define history-p "epp-sim.chain")
+    (when (file-exists? history-p)
+      (delete-file history-p))
+    (define stop-server! (make-simchain-server-t port-no history-p))
+    (define role-ts
+      (for/list ([(r hp) (in-hash epp-hp-ht)])
+        (define arg-vs (hash-ref r->args r))
+        (thread
+         (λ ()
+           (with-handlers ([exn:fail?
+                            (λ (x)
+                              ((error-display-handler) (exn-message x) x)
+                              (kill-all!))])
+             (define-values (send-bs! recv-bs!)
+               (make-simchain-client/queue hostname port-no))
+             (define (send! v) (send-bs! (with-output-to-bytes (λ () (write v)))))
+             (define (recv!) (with-input-from-bytes (recv-bs!) read))
+             (hp-eval r send! recv! hp arg-vs))))))
+    (define (kill-all!)
+      (for-each kill-thread role-ts))
+    (for-each thread-wait role-ts)
+    (stop-server!))
+
+  (define (start-in-simulation2 epp-hp-ht r->args)
+    (define (send! v) (thread-send server-t v))
+    (define server-t
+      (thread
+       (λ ()
+         (let loop ()
+           (define m (thread-receive))
+           (eprintf "Got ~v, broadcasting\n" m)
+           (for ([r (in-list role-ts)]
+                 #:when (thread-running? r))
+             (thread-send r m))
+           (loop)))))
+    (define role-ts
+      (for/list ([(r hp) (in-hash epp-hp-ht)])
+        (define arg-vs (hash-ref r->args r))
+        (thread
+         (λ ()
+           (with-handlers ([exn:fail?
+                            (λ (x)
+                              ((error-display-handler) (exn-message x) x)
+                              (kill-all!))])
+             (define (recv!) (thread-receive))
+             (hp-eval r send! recv! hp arg-vs))))))
+    (define (kill-all!)
+      (for-each kill-thread role-ts))
+    (for-each thread-wait role-ts)
+    (kill-thread server-t))
+
+  (let ()
+    (define x (random 1024))
+    ;; XXX Do this for real
+    (define (make-fake-key-pair who) (define x who) (values x x))
+    (define-values (Adder-sk Adder-pk) (make-fake-key-pair 'Adder))
+    (define-values (N1-sk N1-pk) (make-fake-key-pair 'N1))
+    (define-values (N2-sk N2-pk) (make-fake-key-pair 'N2))
+    (define HASH (gensym 'hash))
+    (start-in-simulation2
+     epp:hp:adds
+     (hasheq
+      'Adder (list Adder-sk HASH Adder-pk N2-pk N1-pk x)
+      'N2 (list N2-sk HASH Adder-pk N2-pk N1-pk x)
+      'N1 (list N1-sk HASH Adder-pk N2-pk N1-pk x)))))
 
 ;; XXX compile to other formats (i.e. contract vms)
 
