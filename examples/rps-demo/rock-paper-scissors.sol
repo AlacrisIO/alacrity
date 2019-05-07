@@ -59,6 +59,8 @@ contract RockPaperScissors
         uint wager_amount;
         uint escrow_amount;
 
+        bytes32 salt;
+        uint8 hand0;
         uint8 hand1;
 
         enum Outcome {
@@ -170,13 +172,13 @@ contract RockPaperScissors
         }
 
         // State 3, called by player0 after player1 played, reveals the committed hand.
-        function player0_reveal (bytes32 salt, uint8 hand0) external payable {
+        function player0_reveal (bytes32 _salt, uint8 _hand0) external payable {
                 require(state == State.Waiting_for_player0_reveal);
                 require_player0();
-                require(hand0 < 3 && player0_commitment == keccak256(abi.encodePacked(salt, hand0)));
+                require(_hand0 < 3 && player0_commitment == keccak256(abi.encodePacked(_salt, _hand0)));
 
                 // compute difference modulo 3 without underflowing
-                uint8 diff = (hand1 + 3 - hand0) % 3;
+                uint8 diff = (hand1 + 3 - _hand0) % 3;
 
                 if (diff == 1) {
                         // The reveal is in favor of player0
@@ -193,6 +195,8 @@ contract RockPaperScissors
                         player1_gets(wager_amount);
                         player0_gets(wager_amount+escrow_amount);
                 }
+                salt = _salt;
+                hand0 = _hand0;
                 state = State.Completed;
         }
 
@@ -221,9 +225,10 @@ contract RockPaperScissors
                          uint _timeout_in_blocks, uint _previous_block,
                          address _player0, address _player1,
                          bytes32 _player0_commitment,
-                         uint _wager_amount, uint _escrow_amount, uint8 _hand1) {
+                         uint _wager_amount, uint _escrow_amount,
+                         bytes32 _salt, uint8 _hand0, uint8 _hand1) {
                 return (state, outcome, timeout_in_blocks, previous_block, player[0], player[1],
-                        player0_commitment, wager_amount, escrow_amount, hand1);
+                        player0_commitment, wager_amount, escrow_amount, salt, hand0, hand1);
         }
 }
 
@@ -245,24 +250,5 @@ contract RockPaperScissorsFactory
                 emit Created(address(rpsContract), msg.sender, _player1, _timeout_in_blocks,
                              _commitment, _wager_amount, msg.value - _wager_amount);
                 return rpsContract;
-        }
-
-        // The debugging functions below were used to ascertain how to commitments are computed
-        function compute_commitment_message (bytes32 _salt, uint8 _hand0)
-                public pure returns (bytes memory _message) {
-                return abi.encodePacked(_salt, _hand0);
-        }
-        function compute_commitment_digest (bytes32 _salt, uint8 _hand0)
-                public pure returns (bytes32 _digest) {
-                return keccak256(compute_commitment_message(_salt, _hand0));
-        }
-        event Commitment(bytes32 _hash, bytes _message);
-
-        function compute_commitment (bytes32 _salt, uint8 _hand0)
-                external returns (bytes32 _digest, bytes memory _message) {
-                bytes memory message = compute_commitment_message(_salt, _hand0);
-                bytes32 hash = keccak256(message);
-                emit Commitment(hash, message);
-                return (hash, message);
         }
 }

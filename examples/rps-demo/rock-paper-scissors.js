@@ -133,17 +133,17 @@ const confirmEtherTransaction = (txHash, confirmations = config.confirmations_wa
     setTimeout((() => confirmEtherTransaction(txHash, confirmations)(k)),
               config.block_polling_period_in_seconds * 1000));
 
+// This web3 1.0 function is NOT AVAILABLE IN METAMASK! web3.utils.soliditySha3({t: 'bytes32', value: salt}, {t: 'uint8', value: hand});
+const makeCommitment = (salt, hand) => digest_hex(salt + byteToHex(hand));
+
 // (bytes32_0x_string, Uint8, address, BN, BN) => ((address) => `a) => `a
-const player0StartGame = (salt, hand, player1_address, wagerAmount, escrowAmount) => (k) => {
-    const commitment =
-          // This web3 1.0 function is NOT AVAILABLE IN METAMASK! web3.utils.soliditySha3({t: 'bytes32', value: salt}, {t: 'uint8', value: hand});
-          digest_hex(salt + byteToHex(hand));
+const player0StartGame =
+      (salt, hand, player1_address, timeout_in_blocks, wagerAmount, escrowAmount) => (k) => {
+    const commitment = makeCommitment(salt, hand);
     const totalAmount = wagerAmount.add(escrowAmount);
     return ethQuery(rockPaperScissorsFactory.player0_start_game)
-    (player1_address, commitment, wagerAmount, {value: totalAmount})((txHash) =>
-    confirmEtherTransaction(txHash)(() =>
-    ethQuery(web3.eth.getTransactionReceipt)(txHash)((receipt) =>
-    k(receipt.contractAddress)))) };
+    (player1_address, timeout_in_blocks, commitment, wagerAmount, {value: totalAmount})(k);
+}
 
 // (address, BN, Uint8) => (() => `a) => `a
 const player1ShowHand = (contractAddress, wagerAmount, hand) => (k) => {
@@ -194,24 +194,24 @@ const hexToBigNumber = (hex) => web3.toBigNumber(hexTo0x(hex));
 
 // contractAddress, player0_address, player0_address, commitment, wager_amount, escrow_amount
 // string => address, address, address, bytes32, BN, BN
-const decodeRpsCreationData = (data) => {
+const decodeGameCreationData = (data) => {
     let x = (i) => data.slice(2+i*64,66+i*64);
     return [hexToAddress(x(0)), hexToAddress(x(1)), hexToAddress(x(2)),
             hexTo0x(x(3)), hexToBigNumber(x(4)), hexToBigNumber(x(5))];};
 
 // contractAddress, player0_address, player1_address, timeout_in_blocks, commitment, wager_amount, escrow_amount
 // (txHash) => [address, address, address, BN, bytes32, BN, BN]
-const getRockPaperScissorsCreationData = (txHash) => (k) => {
+const getGameCreationData = (txHash) => (k) => {
     ethQuery(web3.eth.getTransactionReceipt)(txHash)((receipt) => {
-    let result = decodeRpsCreationData(receipt.logs[0].data);
-    let [contractAddress, player0_address, player1_address,
-         timeout_in_blocks, commitment, wager_amount, escrow_amount] = result;
+    let result = decodeGameCreationData(receipt.logs[0].data);
+    let [contract, player0, player1, timeout, commitment, wager, escrow] = result;
     if(receipt.transactionHash == txHash
        && receipt.status == "0x1"
        && receipt.from == player0_address
        && receipt.to == rockPaperScissorsFactoryAddress
        && receipt.logs.length == 1) {
-        return k(result);
+        let blockNumber = receipt.blockNumber;
+        return k({contract, player0, player1, timeout, commitment, wager, escrow, blockNumber});
     } else {
         console.log("bad rps creation data receipt", txHash, receipt, result)
         return k(false);
@@ -226,10 +226,6 @@ const computeCommitment = (salt, hand) => (k) => {
 const computeCommitmentDigest = (salt, hand) => (k) => {
     return ethQuery(rockPaperScissorsFactory.compute_commitment_digest.call)
     (salt, hand, {})(k); }
-
-//    confirmEtherTransaction(txHash)(() =>
-//    ethQuery(web3.eth.getTransactionReceipt)(txHash)((receipt) =>
-//    k(receipt.contractAddress)))) };
 
 const initBackend = (k) => {
     const parameters = networkParameters[getNetworkID()];
@@ -286,7 +282,7 @@ var play0 = () => srf(player0StartGame(gsalt, 2, alice, meth(1000), meth(100)));
 var c0 = () => srf(computeCommitment(gsalt, 2));
 
 var g0tx = "0xbc75c759901430f54694ff2ae4888e9b772c15f6364320ccbcab5cfbc9f870c3";
-var g0v0 = () => srf(getRockPaperScissorsCreationData(g0tx));
+var g0v0 = () => srf(getGameCreationData(g0tx));
 var g0c = "0xd933e31efb452bfcc6f993e578946aafd6aa75d0"
 var g0p1 = () => srf(player1ShowHand(g0c, meth(1000), 0));
 var g0p2 = () => srf(player1WinByDefault(g0c));
