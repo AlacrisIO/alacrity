@@ -628,13 +628,17 @@
 ;; empty message, which is ignored.
 (struct hp:program (n->handler in) #:transparent)
 (struct hh:handler (st msg ht) #:transparent)
+(define HALT (gensym 'HALT))
+(define HALT-ANS (gensym 'HALT-ANS))
 
 (struct handle-tail () #:transparent)
 (struct ht:let handle-tail (x xe ht) #:transparent)
 (struct ht:if handle-tail (ce tt ft) #:transparent)
 (struct ht:jump handle-tail (ns st msgs) #:transparent)
 (struct ht:wait handle-tail (ns st msgs) #:transparent)
-(struct ht:stop handle-tail (ans msgs) #:transparent)
+(define (ht:stop ans msgs)  
+  (ht:let HALT-ANS ans
+          (ht:jump HALT (list HALT-ANS) msgs)))
 (struct ht:ignore handle-tail (why) #:transparent)
 
 (struct handle-arg () #:transparent)
@@ -669,10 +673,6 @@
      (ht:wait ns st (map ha-parse msgs))]
     [`(begin (wait! ,(? handler? ns) ,(? symbol? st) ...))
      (ht:wait ns st '())]
-    [`(begin (send! ,@msgs) (stop! ,ans))
-     (ht:stop (ha-parse ans) (map ha-parse msgs))]
-    [`(begin (stop! ,ans))
-     (ht:stop (ha-parse ans) '())]
     [`(begin (ignore! ,(? string? why)))
      (ht:ignore why)]))
 (define (hp-parse se)
@@ -683,7 +683,7 @@
        ...)
      (error-on-dupes 'hp-parse "Duplicate handler: ~e" h)
      (define hans (list->seteq h))
-     (define (handler? x) (set-member? hans x))
+     (define (handler? x) (or (eq? HALT x) (set-member? hans x)))
      (hp:program (for/hasheq ([h (in-list h)]
                               [st (in-list st)]
                               [msg (in-list msg)]
@@ -718,9 +718,6 @@
     [(ht:wait ns st msgs)
      (append (sends-emit msgs)
              (list `(wait! ,ns ,@st)))]
-    [(ht:stop ans msgs)
-     (append (sends-emit msgs)
-             (list `(stop! ,(ha-emit ans))))]
     [(ht:ignore why)
      (list `(ignore! ,why))]))
 (define (hp-emit hp)
@@ -833,7 +830,8 @@
      (define ((let-if-body4 anf-if6 anf-recv0 anf-recv2) #f)
        (define anf-app7 (+ anf-recv2 anf-if6))
        (define anf-app8 (+ anf-recv0 anf-app7))
-       (stop! anf-app8))
+       (define ,HALT-ANS anf-app8)
+       (jump! ,HALT ,HALT-ANS))
      (define ((recv1) anf-recv0)
        (send! 1)
        (wait! recv2 anf-recv0))
@@ -873,8 +871,9 @@
        (wait! recv3 anf-recv0 anf-recv2))
      (define ((recv3 anf-recv0 anf-recv2) anf-recv5)
        (define anf-app7 (msg-cat anf-recv0 anf-recv2 anf-recv5))
+       (define ,HALT-ANS (void))
        (send! anf-app7)
-       (stop! (void)))))
+       (jump! ,HALT ,HALT-ANS))))
 
   (define epp:hp:adds
     (for/hasheq ([(r dp) (in-hash epp:dp:adds)])
@@ -913,30 +912,31 @@
        (send*! (map (ha-eval Σ) msgs))
        (define these-vs (map (hv-eval Σ) st))
        (hhn-eval ns these-vs ns these-vs (recv!))]
-      [(ht:stop ans msgs)
-       (send*! (map (ha-eval Σ) msgs))
-       (ha-eval ans)]
       [(ht:ignore why)
        (eprintf "[~a] Ignoring ~a\n" who why)
        (hhn-eval ignore-t ignore-vs ignore-t ignore-vs (recv!))]))
   (define (hhn-eval ignore-t ignore-vs n st-vs msg-v)
-    (eprintf "[~a] HHN-EVAL ~a w/ ~a and ~a\n" who n st-vs msg-v)
-    (match-define (hh:handler st-ns msg-n ht)
-      (hash-ref n->h n))
-    (define Σ
-      (for/hasheq ([n (in-list (cons msg-n st-ns))]
-                   [v (in-list (cons msg-v st-vs))]
-                   #:when n)
-        (values n v)))
-    (ht-eval ignore-t ignore-vs Σ ht))
+    (cond
+      [(eq? n HALT)
+       (eprintf "[~a] HALT\n" who)
+       (first st-vs)]
+      [else
+       (eprintf "[~a] HHN-EVAL ~a w/ ~a and ~a\n" who n st-vs msg-v)
+       (match-define (hh:handler st-ns msg-n ht)
+         (hash-ref n->h n))
+       (define Σ
+         (for/hasheq ([n (in-list (cons msg-n st-ns))]
+                      [v (in-list (cons msg-v st-vs))]
+                      #:when n)
+           (values n v)))
+       (ht-eval ignore-t ignore-vs Σ ht)]))
   (match-define (hp:program n->h top) hp)
 
   (hhn-eval #f #f top arg-vs #f))
 
 (module+ test
-  (require alacrity/simchain)
-
-  (define (start-in-simulation epp-hp-ht r->args)
+  (define (simulate/simchain epp-hp-ht r->args)
+    (local-require alacrity/simchain)
     (define hostname "localhost")
     (define port-no (+ 65000 (random 32)))
     (define history-p "epp-sim.chain")
@@ -962,7 +962,7 @@
     (for-each thread-wait role-ts)
     (stop-server!))
 
-  (define (start-in-simulation2 epp-hp-ht r->args)
+  (define (simulate/rkt epp-hp-ht r->args)
     (define (send! v) (thread-send server-t v))
     (define server-t
       (thread
@@ -998,7 +998,7 @@
     (define-values (N1-sk N1-pk) (make-fake-key-pair 'N1))
     (define-values (N2-sk N2-pk) (make-fake-key-pair 'N2))
     (define HASH (gensym 'hash))
-    (start-in-simulation2
+    (simulate/rkt
      epp:hp:adds
      (hasheq
       'Adder (list Adder-sk HASH Adder-pk N2-pk N1-pk x)
