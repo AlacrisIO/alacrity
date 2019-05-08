@@ -636,10 +636,9 @@
 (struct ht:if handle-tail (ce tt ft) #:transparent)
 (struct ht:jump handle-tail (ns st msgs) #:transparent)
 (struct ht:wait handle-tail (ns st msgs) #:transparent)
-(define (ht:stop ans msgs)  
+(define (ht:stop ans msgs)
   (ht:let HALT-ANS ans
           (ht:jump HALT (list HALT-ANS) msgs)))
-(struct ht:ignore handle-tail (why) #:transparent)
 
 (struct handle-arg () #:transparent)
 (struct ha:var handle-arg (v) #:transparent)
@@ -672,9 +671,7 @@
     [`(begin (send! ,@msgs) (wait! ,(? handler? ns) ,(? symbol? st) ...))
      (ht:wait ns st (map ha-parse msgs))]
     [`(begin (wait! ,(? handler? ns) ,(? symbol? st) ...))
-     (ht:wait ns st '())]
-    [`(begin (ignore! ,(? string? why)))
-     (ht:ignore why)]))
+     (ht:wait ns st '())]))
 (define (hp-parse se)
   (match se
     [`(program
@@ -717,9 +714,7 @@
              (list `(jump! ,ns ,@st)))]
     [(ht:wait ns st msgs)
      (append (sends-emit msgs)
-             (list `(wait! ,ns ,@st)))]
-    [(ht:ignore why)
-     (list `(ignore! ,why))]))
+             (list `(wait! ,ns ,@st)))]))
 (define (hp-emit hp)
   (match-define (hp:program n->han in) hp)
   `(program ,@(for/list ([f (in-list (cons in (sort-symbols (remove in (hash-keys n->han)))))])
@@ -730,7 +725,8 @@
 
 ;; The compiler transforms a direct program into a handler program
 (define (dp-state dp)
-  (struct st-res (n->h fvs ht) #:transparent)
+  (define n->h (make-hasheq))
+  (struct st-res (fvs ht) #:transparent)
   (define (da-state e)
     (match e
       [(de:var v) (values (seteq v) (ha:var v))]
@@ -746,74 +742,79 @@
     (match e
       [(? da-anf? a)
        (define-values (a-fvs a1) (da-state a))
-       (match-define (st-res n->h1 k-fvs kt) (k a1 pre-sends))
-       (st-res n->h1 (set-union a-fvs k-fvs) kt)]
+       (match-define (st-res k-fvs mk-kt) (k a1 pre-sends))
+       (st-res (set-union a-fvs k-fvs) mk-kt)]
       [(de:if ca te fe)
        (define-values (ca-fvs ca1) (da-state ca))
-       (match-define (st-res n->h1 te-fvs te1)
+       (match-define (st-res te-fvs mk-te1)
          (de-state pre-sends te k))
-       (match-define (st-res n->h2 fe-fvs fe1)
+       (match-define (st-res fe-fvs mk-fe1)
          (de-state pre-sends fe k))
-       (st-res (merge-non-overlapping-hash n->h1 n->h2)
-               (set-union ca-fvs te-fvs fe-fvs)
-               (ht:if ca1 te1 fe1))]
+       (st-res (set-union ca-fvs te-fvs fe-fvs)
+               (λ (ignore-n ignore-st)
+                 (ht:if ca1 (mk-te1 ignore-n ignore-st)
+                        (mk-fe1 ignore-n ignore-st))))]
       [(de:let v (de:if ca te fe) b)
        (define-values (ca-fvs ca1) (da-state ca))
        (define bh (freshen 'let-if-body))
-       (match-define (st-res n->h1 b-fvs bt)
-         (de-state '() b k))
+       (match-define (st-res b-fvs mk-bt) (de-state '() b k))
        (define b-fvs1 (set-remove b-fvs v))
        (define b-st (cons v (set->sorted-list b-fvs1)))
        (define (bk a pre-sends)
-         (st-res (hasheq) b-fvs1
-                 (ht:let v a (ht:jump bh b-st pre-sends))))
-       (match-define (st-res n->h2 t-fvs tt)
+         (st-res b-fvs1 (λ (ignore-n ignore-st)
+                          (ht:let v a (ht:jump bh b-st pre-sends)))))
+       (match-define (st-res t-fvs mk-tt)
          (de-state pre-sends te bk))
-       (match-define (st-res n->h3 f-fvs ft)
+       (match-define (st-res f-fvs mk-ft)
          (de-state pre-sends fe bk))
-       (define n->h4
-         (merge-non-overlapping-hashes (list n->h1 n->h2 n->h3)))
-       (define n->h5
-         (hash-set n->h4 bh (hh:handler b-st #f bt)))
-       (st-res n->h5 (set-union ca-fvs t-fvs f-fvs b-fvs1)
-               (ht:if ca1 tt ft))]
+       (st-res (set-union ca-fvs t-fvs f-fvs b-fvs1)
+               (λ (ignore-n ignore-st)
+                 ;; XXX If b-st doesn't include ignore-st then something bad will happen
+                 (hash-set! n->h bh (hh:handler b-st #f (mk-bt ignore-n ignore-st)))
+                 (ht:if ca1 (mk-tt ignore-n ignore-st)
+                        (mk-ft ignore-n ignore-st))))]
       [(de:let v (de:app op args) b)
        (define-values (args-fvs args1) (das-state args))
-       (match-define (st-res n->h1 fvs ht)
-         (de-state pre-sends b k))
-       (st-res n->h1 (set-union args-fvs (set-remove fvs v))
-               (ht:let v (he:app op args1)
-                       ht))]
+       (match-define (st-res fvs mk-ht) (de-state pre-sends b k))
+       (st-res (set-union args-fvs (set-remove fvs v))
+               (λ (ignore-n ignore-st)
+                 (ht:let v (he:app op args1)
+                         (mk-ht ignore-n ignore-st))))]
       [(de:let v (de:send a) b)
        (define-values (a-fvs a1) (da-state a))
-       (match-define (st-res n->h1 fvs ht)
-         (de-state (snoc pre-sends a1) b k))
-       (st-res n->h1 (set-union a-fvs (set-remove fvs v)) ht)]
+       (match-define (st-res fvs mk-ht) (de-state (snoc pre-sends a1) b k))
+       (st-res (set-union a-fvs (set-remove fvs v)) mk-ht)]
       [(de:let v (de:recv) b)
        (define nh (freshen 'recv))
-       (match-define (st-res n->h1 fvs ht)
-         (de-state '() b k))
+       (match-define (st-res fvs mk-ht) (de-state '() b k))
        (define fvs1 (set-remove fvs v))
        (define st (set->sorted-list fvs1))
-       (st-res
-        (hash-set n->h1 nh (hh:handler st v ht))
-        fvs1
-        (ht:wait nh st pre-sends))]
+       (hash-set! n->h nh (hh:handler st v (mk-ht nh st)))
+       (st-res fvs1
+               (λ (ignore-n ignore-st)
+                 (ht:wait nh st pre-sends)))]
       [(de:let v (de:ignore why) b)
-       (st-res (hasheq) (seteq) (ht:ignore why))]))
+       (st-res (seteq)
+               ;; XXX share why in some way
+               (λ (ignore-n ignore-st)
+                 (ht:wait ignore-n ignore-st empty)))]))
   (with-fresh
     (match-define (dp:program (hash-table ('main df)) 'main) dp)
     (match-define (df:fun args body) df)
     (define nh (freshen 'top))
-    (match-define (st-res n->h body-fvs body1)
+    (match-define (st-res body-fvs mk-body1)
       (de-state '() body
                 (λ (a pre-sends)
-                  (st-res (hasheq) (seteq)
-                          (ht:stop a pre-sends)))))
+                  (st-res (seteq)
+                          (λ (ignore-n ignore-st)
+                            (ht:stop a pre-sends))))))
     (unless (subset? body-fvs (list->seteq args))
       (error 'dp-state "Body free variables(~e) beyond args(~e)" body-fvs args))
-    (hp:program (hash-set n->h nh (hh:handler args #f body1))
-                nh)))
+    (hash-set! n->h nh (hh:handler args #f (mk-body1 #f #f)))
+    (define imm-n->h
+      (for/hasheq ([(k v) (in-hash n->h)])
+        (values k v)))
+    (hp:program imm-n->h nh)))
 
 (define (direct->handle dp)
   (define ap (dp-anf dp))
@@ -899,23 +900,20 @@
 (define (hp-eval who send! recv! hp arg-vs)
   (define (send*! msgs)
     (for-each send! msgs))
-  (define (ht-eval ignore-t ignore-vs Σ ht)
+  (define (ht-eval Σ ht)
     (match ht
       [(ht:let x xe ht)
-       (ht-eval ignore-t ignore-vs (hash-set Σ x (he-eval Σ xe)) ht)]
+       (ht-eval (hash-set Σ x (he-eval Σ xe)) ht)]
       [(ht:if ce tt ft)
-       (ht-eval ignore-t ignore-vs Σ (if (he-eval Σ ce) tt ft))]
+       (ht-eval Σ (if (he-eval Σ ce) tt ft))]
       [(ht:jump ns st msgs)
        (send*! (map (ha-eval Σ) msgs))
-       (hhn-eval ignore-t ignore-vs ns (map (hv-eval Σ) st) #f)]
+       (hhn-eval ns (map (hv-eval Σ) st) #f)]
       [(ht:wait ns st msgs)
        (send*! (map (ha-eval Σ) msgs))
        (define these-vs (map (hv-eval Σ) st))
-       (hhn-eval ns these-vs ns these-vs (recv!))]
-      [(ht:ignore why)
-       (eprintf "[~a] Ignoring ~a\n" who why)
-       (hhn-eval ignore-t ignore-vs ignore-t ignore-vs (recv!))]))
-  (define (hhn-eval ignore-t ignore-vs n st-vs msg-v)
+       (hhn-eval ns these-vs (recv!))]))
+  (define (hhn-eval n st-vs msg-v)
     (cond
       [(eq? n HALT)
        (eprintf "[~a] HALT\n" who)
@@ -929,10 +927,10 @@
                       [v (in-list (cons msg-v st-vs))]
                       #:when n)
            (values n v)))
-       (ht-eval ignore-t ignore-vs Σ ht)]))
+       (ht-eval Σ ht)]))
   (match-define (hp:program n->h top) hp)
 
-  (hhn-eval #f #f top arg-vs #f))
+  (hhn-eval top arg-vs #f))
 
 (module+ test
   (define (simulate/simchain epp-hp-ht r->args)
