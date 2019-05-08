@@ -216,7 +216,6 @@ const unconfirmedHooks = {};
 /** : ('a => Kont()) => Array('a) => Kont() */
 const forEachK = (f) => (l) => (k) => {
     const loop = () => {
-            log(["forEachK.loop", l.length]);
         if (l.length == 0) {
             return k();
         } else if (l.length == 1) {
@@ -230,7 +229,7 @@ const forEachK = (f) => (l) => (k) => {
 // Have a parallel variant?
 /** : StringTable(Not(...'a)) => ...'a => Kont() */
 const runHooks = (hooks) => (...args) => (k) =>
-    forEachK((entry) => entry[1](...args))
+    forEachK((entry) => (k) => entry[1](...args)(k))
     (Object.entries(hooks).sort((a, b) => a[0].localeCompare(b[0])))
     (k);
 
@@ -241,7 +240,6 @@ const log = (result) => {console.log("logging: ", JSON.stringify(result)); retur
  */
 const processChainUpdate = (k) => {
     getConfirmedBlockNumber((confirmedBlock) => {
-    // log(confirmedBlock);
     const markDone = () => {
         nextUnprocessedBlock = currentBlock + 1;
         putUserStorage("nextUnprocessedBlock", nextUnprocessedBlock);
@@ -249,10 +247,7 @@ const processChainUpdate = (k) => {
     if (confirmedBlock >= nextUnprocessedBlock) {
         const firstConfirmed = nextUnprocessedBlock;
         const lastConfirmed = confirmedBlock;
-        // log({oldConfirmed, newConfirmed});
-        log(["blah", firstConfirmed, lastConfirmed]);
         return runHooks(confirmedHooks)(firstConfirmed, lastConfirmed)(() => {
-            log("foo");
         return runHooks(unconfirmedHooks)
           (lastConfirmed + 1, lastConfirmed + config.confirmationsWantedInBlocks)
           (markDone)});
@@ -267,7 +262,8 @@ const watchChain = () =>
 /** hook to synchronously watch all events of some kind as the chain keeps getting updated */
 const eventWatchHook = (filter, processK) => (fromBlock, toBlock) => (k) =>
     web3.eth.filter({...filter, fromBlock: fromBlock, toBlock: toBlock})
-        .get(handlerK(forEachK(processK)), logErrorK, k);
+        .get(handlerK(forEachK(processK), logErrorK, k));
+
 
 /** Given some code in 0x form (.bin output from solc), deploy a contract with that code
     and CPS-return its transactionHash
