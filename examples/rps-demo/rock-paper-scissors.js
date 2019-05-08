@@ -65,11 +65,20 @@ const player1WinByDefault = (contractAddress) => (k) => {
     return ethQuery(rps.player1_win_by_default().send)()((txHash) =>
     confirmEtherTransaction(txHash)(k)) };
 
-// state, outcome, timeoutInBlocks, previousBlock, player0Address, player1Address, player0Commitment, wagerInWei, escrowInWei, hand1
-// (address) => (Tuple(Uint8, Uint8, uint, uint, address, address, bytes32, BN, BN, uint8) => `a) => `a
+const decodeState = (x) => {
+    let [state, outcome, timeoutInBlocks, previousBlock, player0, player1, player0Commitment, wagerInWei, escrowInWei, salt, hand0, hand1] = x;
+    state = state.toNumber();
+    outcome = outcome.toNumber();
+    timeoutInBlocks = timeoutInBlocks.toNumber();
+    previousBlock = previousBlock.toNumber();
+    hand0 = hand0.toNumber();
+    hand1 = hand1.toNumber();
+    return {state, outcome, timeoutInBlocks, previousBlock, player0, player1, player0Commitment, wagerInWei, escrowInWei, salt, hand0, hand1};};
+
+// (address) => {state: Uint8, outcome: Uint8, timeoutInBlocks: int, previousBlock: int, player0: address, player1: address, player0Commitment: bytes32, wagerInWei: BN, escrowInWei: BN, salt: bytes32, hand0: Uint8, hand1: Uint8} => `a) => `a
 const queryState = (contractAddress, blockNumber) => (k) => {
     const rps = web3.eth.contract(rpsAbi).at(contractAddress);
-    return ethQuery(rps.query_state.call)({}, blockNumber)(k); };
+    return ethQuery(rps.query_state.call)({}, blockNumber)((x) => k(decodeState(x)))};
 
 // (int => `a) => `a
 const queryConfirmedState = (contractAddress) => (k) =>

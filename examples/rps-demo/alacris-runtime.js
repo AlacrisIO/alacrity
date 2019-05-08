@@ -1,25 +1,27 @@
 'use strict';
 
-// TODO: when using web3 1.0, use web3.eth.net.getId().then(k) or whatever is exported,
-// to also extract the chainID, which can notably distinguish between ETH and ETC
-// (both networkID 1, the latter chainID 61)
-// () => string
+/** Get an identifier for the current network.
+   TODO: when using web3 1.0, use web3.eth.net.getId().then(k) or whatever it exports,
+   to also extract the chainID, which can notably distinguish between ETH and ETC
+   (both networkID 1, the latter chainID 61)
+   : () => string */
 const getNetworkID = () => web3.currentProvider.networkVersion;
 
-// () => address
+/** Get the address of the current user.
+    : () => address */
 const getUserAddress = () => web3.currentProvider.selectedAddress;
-
 
 /** The networkConfig is an object that maps the networkID (TODO: in the future, plus chain ID?)
     to the config below. It is the responsibility of the DApp developers to define networkConfig
     as part of their DApp deployment, typically in a dapp-config.js file loaded from the HTML page.
+    : StringTable(config)
  */
-var networkConfig;
+let networkConfig;
 
 /** DApp initialization should instantiate the config configuration.
 
-    contract: data about the contract, an object with the fields address (an address as a 0xString),
-    creationHash (a digest as a 0xString), and creationBlock (a regular integer),
+    contract: data about the contract, an object with the fields address (an address as a String0x),
+    creationHash (a digest as a String0x), and creationBlock (a regular integer),
     so you can use the contract, check that it was indeed created from the expected input,
     and watch all the activity on that contract starting from the suitable block.
     If there are multiple contracts, each will have its own configuration variable,
@@ -42,8 +44,71 @@ var networkConfig;
     blockPollingPeriodInSeconds: How often to poll the chain for results.
     Suggested value: 5
 */
-var config;
+let config;
 
+// Combinators for regular functions
+/** : 'a => 'a */
+const identity = (x) => x;
+
+/** : 'a => ...'b => 'a */
+const konstant = (x) => (...y) => x;
+
+/** : (...'z => 'y => 'x) => (...'z => 'y) => ...'z => 'x */
+const smelt = (x) => (y) => (...z) => x(...z)(y(...z));
+
+/** : (...'z => ...'y => 'x) => ...'y => ...'z => 'x */
+const flip = (x) => (...y) => (...z) => x(...z)(...y);
+
+/** : ('y => 'z) => (...'x => 'y) => ...'x => 'z */
+const kompose = (f) => (g) => (...x) => f(g(...x));
+
+/** : (...'x => 'y) => ('y => 'z) => ...'x => 'z */
+const seq = (f) => (g) => (...x) => g(f(...x));
+
+const compose = (...fa) => {
+    const l = fa.length;
+    if (l == 0) { return identity; }
+    else if (l == 1) { return fa[0]; }
+    else if (l == 2) { return kompose(fa[0])(fa[1]); }
+    else { const f = l.pop(); return kompose(compose(...fa))(f);};}
+
+// UNTESTED! Combinators for CPS functions
+// type Not(...'a) = (...'a) => 'r
+// type Kont(...'a) = Not(Not(...'a))
+
+/** call a direct function from CPS
+    Kont.arrow
+    : (...'a => 'b) => ...'a => Kont('b) */
+const arrowK = (f) => (...x) => (k) => k(f(...x));
+
+/** Kont.pure
+    : ...'a => Kont(...'a) */
+const identityK = (...x) => (k) => k(...x);
+
+/** : ...'a => ...'b => Kont(...'a) */
+const konstantK = (...x) => (...y) => (k) => k(...x);
+
+/** : (...'z => 'y => Kont('x)) => (...'z => Kont('y)) => ...'z => Kont('x) */
+const smeltK = (x) => (y) => (...z) => (k) => x(...z)((xz) => y(...z)(seq(xz)(k)));
+
+/** : (...'z => ...'y => Kont('x)) => ...'y => ...'z => Kont('x) */
+const flipK = (x) => (...y) => (...z) => (k) => x(...z)((xz) => xz(...y)(k));
+
+/** : (...'y => Kont(...'z)) => (...'x => Kont(...'y)) => ...'x => Kont(...'z) */
+const komposeK = (f) => (g) => (...x) => (k) => g(...x)((...y) => f(...y)(k));
+
+/** : (...'x => Kont(...'y)) => (...'y => Kont(...'z)) => ...'x => Kont(...'z) */
+const seqK = (f) => (g) => komposeK(g)(f);
+
+const composeK = (...fa) => {
+    const l = fa.length;
+    if (l == 0) { return identityK; }
+    else if (l == 1) { return fa[0]; }
+    else if (l == 2) { return komposeK(fa[0])(fa[1]); }
+    else { const f = l.pop(); return komposeK(composeK(...fa))(f);};}
+
+
+// Unit conversion
 const weiPerEth = web3.toBigNumber(1e18);
 const ethToWei = (e) => web3.toBigNumber(e).mul(weiPerEth).floor();
 const weiToEth = (w) => web3.toBigNumber(w).div(weiPerEth);
@@ -51,51 +116,51 @@ const weiToEth = (w) => web3.toBigNumber(w).div(weiPerEth);
 const digest = web3.sha3;
 const digestHex = (x) => web3.sha3(x, {encoding: "hex"});
 
-// (Uint8) => string
+/** : Uint8 => string */
 const byteToHex = (byte) => ('0' + (byte & 0xFF).toString(16)).slice(-2);
 
-// (Uint8Array) => string
+/** : Uint8Array => string */
 const bytesToHex = (bytes) => Array.from(bytes, byteToHex).join('');
 
-// (string) => string
+/** : string => String0x */
 const hexTo0x = (hex) => "0x" + hex;
 
-// (Uint8Array) => string
+/** : Uint8Array => String0x */
 const bytesTo0x = (bytes) => hexTo0x(bytesToHex(bytes));
 
-// Strip the 0x prefix
-// string => string
+/** Strip the 0x prefix
+    : String0x => string */
 const un0x = (s) => {
     console.assert(s.slice(0,2) == "0x");
-    return s.slice(2);
-}
+    return s.slice(2);}
 
-// Prepend "0x" to a hex string
-// (string) => string
+/** Prepend "0x" to a hex string
+    : string => String0x */
 const hexToAddress = (hex) => hexTo0x(hex.slice(-40));
 
-// Convert a hex string to a BigNumber
-// (string) => BigNumber
+/** Convert a hex string to a BigNumber
+    : string => BigNumber */
 const hexToBigNumber = (hex) => web3.toBigNumber(hexTo0x(hex));
 
-// Return a random salt as a hex string in 0x format
-// () => string
+/** Return a random salt
+    : () => String0x */
 const randomSalt = () => {
     const array = new Uint8Array(32);
     window.crypto.getRandomValues(array);
-    return bytesTo0x(array);
-}
+    return bytesTo0x(array);}
 
-// (Array(`a), `a) => Array(`a)
-const snoc = (l, e) => l.concat([e]);
+/** : (Array('a), 'a) => Array('a) */
+const snoc = (l, e) => [...l, e];
 
-// (`...a, (error, `b) => `c)) => (`b => `c) => `c
+/** Run an ethereum query. Eat errors and stop.
+    TODO: handle error and/or have a combinator to invoke continuation after either error or success.
+    : (...'a => Kont(error, 'b)) => ...'a => Kont('b) */
 const ethQuery = (func) => (...args) => (k) =>
-      func.apply(null, snoc(args, ((error, result) => error ? console.log(error) : k(result))));
+      func(...args, (error, result) => error ? console.log("error: ", error) : k(result));
 
-// With inspiration from https://medium.com/pixelpoint/track-blockchain-transactions-like-a-boss-with-web3-js-c149045ca9bf
-// The string must be in "0x..." format.
-// (string) => int
+/** Count the number of confirmations for a transaction given by its hash.
+    Return -1 if the transaction is yet unconfirmed.
+    : String0x => Kont(int) */
 const getConfirmations = (txHash) => (k) =>
     ethQuery(web3.eth.getTransaction)(txHash)((txInfo) => // Get TxInfo
     ethQuery(web3.eth.getBlockNumber)()((currentBlock) => // Get current block number
@@ -103,18 +168,23 @@ const getConfirmations = (txHash) => (k) =>
     // In this case we return -1 as number of confirmations
     k(tx.blockNumber === null ? -1 : currentBlock - txInfo.blockNumber)));
 
+/** Wait for a transaction to be confirmed
+    : String0x => Kont() */
 const confirmEtherTransaction = (txHash, confirmations = config.confirmationsWantedInBlocks) => (k) =>
     ethQuery(getConfirmations)(txHash)((txConfirmations) =>
     (txConfirmations >= confirmations) ? k() :
     setTimeout((() => confirmEtherTransaction(txHash, confirmations)(k)),
               config.blockPollingPeriodInSeconds * 1000));
 
-// (int => `a) => `a
+/** Get the number of the latest confirmed block
+   : Kont(int) */
 const confirmedBlockNumber = (k) =>
     ethQuery(web3.eth.getBlockNumber)()((currentBlock) => // Get current block number
     k(currentBlock - config.confirmationsWantedInBlocks));
 
 // Local Storage for the DApp, localized to the current Ethereum user.
+// TODO: use remote storage and implement distributed transactions, for redundancy.
+/** : string */
 let userID;
 const keyValuePair = (key, value) => { let o = {}; o[key] = value; return o; }
 const getStorage = (key, default_ = null) => JSON.parse(window.localStorage.getItem(key)) || default_;
@@ -128,37 +198,60 @@ const putUserStorageField = (key, field, value) => updateUserStorage(key, keyVal
 
 
 // General Purpose Ethereum Blockchain Watcher
-var latestBlockProcessed;
+/** : int */
+let latestBlockProcessed;
+
+/** : StringTable(K(int)) */
 const confirmedHooks = {};
+
+/** : StringTable(K(int)) */
 const unconfirmedHooks = {};
 
 // Have a parallel variant?
-const runHooks = (hooks, args, k) => {
-    hookList = Object.entries(hooks).sort((a, b) => a[0].localeCompare(b[0]));
+/** : StringTable(Not(...'a)) => ...'a => Kont() */
+const runHooks = (hooks) => (...args) => (k) => {
+    let hookList = Object.entries(hooks).sort((a, b) => a[0].localeCompare(b[0]));
+    // log(["runHooks", hookList, args, k]);
     const loop = () => {
-        if (list.length == 0) {
+        if (hookList.length == 0) {
             k();
         } else {
-            return hookList.shift().apply(null, [...args, loop]);
+            return hookList.shift()[1](...args)(loop);
         };};
     return loop(); }
 
-const watchChain = () => {
-    ethQuery(web3.eth.getBlockNumber)()((currentBlock) => { // TODO: handle error, too
-    const again = () => {
-        lastBlockProcessed = currentBlock;
-        putUserStorage("lastBlockProcessed", lastBlockProcessed);
-        return setTimeout(watchChain, config.blockPollingPeriodInSeconds * 1000);
-    };
-    if (currentBlock > lastBlockProcessed) {
-        const oldConfirmed = lastBlockProcessed - config.confirmationsWantedInBlocks;
-        const newConfirmed = current - config.confirmationsWantedInBlocks;
-        return runHooks(confirmedHooks, [oldconfirmed, newConfirmed], () =>
-        runHooks(unconfirmedHooks, [lastBlockProcessed, currentBlock], again));
+const log = (result) => {console.log("logging: ", JSON.stringify(result)); return result;};
+
+/** Kont()
+ TODO: handle error, too
+ */
+const processChainUpdate = (k) => {
+    ethQuery(web3.eth.getBlockNumber)()((currentBlock) => {
+    // log(currentBlock);
+    const markDone = () => {
+        latestBlockProcessed = currentBlock;
+        putUserStorage("latestBlockProcessed", latestBlockProcessed);
+        return k()};
+    if (currentBlock > latestBlockProcessed) {
+        const oldConfirmed = latestBlockProcessed - config.confirmationsWantedInBlocks;
+        const newConfirmed = currentBlock - config.confirmationsWantedInBlocks;
+        // log({oldConfirmed, newConfirmed});
+        return runHooks(confirmedHooks)(oldConfirmed, newConfirmed)(() =>
+        runHooks(unconfirmedHooks)(latestBlockProcessed, currentBlock)(markDone));
     } else {
-        return again();
+        return markDone();
     }})};
 
+/** Kont() */
+const watchChain = () =>
+      processChainUpdate(() => setTimeout(watchChain, config.blockPollingPeriodInSeconds * 1000));
+
+/** Given some code in 0x form (.bin output from solc), deploy a contract with that code
+    and CPS-return its transactionHash
+    : String0x => Kont(digest) */
+const deployContract = (code) => (k) => ethQuery(web3.eth.sendTransaction)({data: code})(k);
+
+/** : Kont() */
 const initRuntime = (k) => {
     const networkID = getNetworkID();
     config = networkConfig[networkID];
@@ -167,11 +260,9 @@ const initRuntime = (k) => {
     return k();
 }
 
-
 /** Debugging stuff */
-var r;
-var setr = (result) => {r = result; console.log("result: ", r.toString()); return r;};
-var setrr = (...results) => {setr(results);};
-var srf = (func) => {r = undefined; return func(setr);}
-
-const deployContract = (code) => srf(ethQuery(web3.eth.sendTransaction)({data: code}));
+let r;
+const setr = (result) => {r = result; return log(r); };
+const setrr = seq(Array.of)(setr);
+const srf = (func) => {r = undefined; return func(setr);}
+const srrf = seqK(Array.of)(srf);

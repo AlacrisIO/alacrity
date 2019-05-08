@@ -8,8 +8,8 @@ const rps = window.RockPaperScissors;
 
 let nextID;
 let activeGamesById;
-let activeGamesByTxHash = {};
-let activeGamesByCommitment = {};
+const activeGamesByTxHash = {};
+const activeGamesByCommitment = {};
 
 const setNodeBySelector = (selector, content) => {
     const node = document.querySelector(selector);
