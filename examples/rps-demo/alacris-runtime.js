@@ -154,14 +154,17 @@ const snoc = (l, e) => [...l, e];
 
 const logErrorK = (error) => (k) => {console.log("error: ", error); return k();}
 
-const handlerK = (successK = identityK, errorK = logErrorK, k = identity) => (error, result) =>
-      error ? errorK(error)(k) : successK(result)(k);
+const handlerK = (successK = identityK, errorK = logErrorK) => (error, result) =>
+      error ? errorK(error) : successK(result);
+
+const handlerThenK = (successK = identityK, errorK = logErrorK) => (k) =>
+      handlerK(seqK(successK, k), seqK(errorK, k));
 
 /** Run an ethereum query. Eat errors and stop.
     TODO: handle error and/or have a combinator to invoke continuation after either error or success.
     : (...'a => Kont(error, 'b)) => ...'a => Kont('b) */
-const ethQuery = (func) => (...args) => (successK = identityK, errorK = logErrorK, k = identity) =>
-      func(...args, handlerK(successK, errorK, k));
+const ethQuery = (func) => (...args) => (successK = identityK, errorK = logErrorK) =>
+      func(...args, handlerK(successK, errorK));
 
 /** Count the number of confirmations for a transaction given by its hash.
     Return -1 if the transaction is yet unconfirmed.
@@ -225,45 +228,63 @@ const forEachK = (f) => (l) => (k) => {
         };};
     return loop(); }
 
+const compareFirst = (a, b) => a[0].localeCompare(b[0]);
 
 // Have a parallel variant?
 /** : StringTable(Not(...'a)) => ...'a => Kont() */
 const runHooks = (hooks) => (...args) => (k) =>
-    forEachK((entry) => (k) => entry[1](...args)(k))
-    (Object.entries(hooks).sort((a, b) => a[0].localeCompare(b[0])))
-    (k);
+    forEachK((entry) => entry[1](...args))(Object.entries(hooks).sort(compareFirst))(k);
 
 const log = (result) => {console.log("logging: ", JSON.stringify(result)); return result;};
 
 /** Kont()
- TODO: handle error, too
  */
-const processChainUpdate = (k) => {
-    getConfirmedBlockNumber((confirmedBlock) => {
-    const markDone = () => {
-        nextUnprocessedBlock = currentBlock + 1;
-        putUserStorage("nextUnprocessedBlock", nextUnprocessedBlock);
-        return k()};
-    if (confirmedBlock >= nextUnprocessedBlock) {
-        const firstConfirmed = nextUnprocessedBlock;
-        const lastConfirmed = confirmedBlock;
-        return runHooks(confirmedHooks)(firstConfirmed, lastConfirmed)(() => {
-        return runHooks(unconfirmedHooks)
-          (lastConfirmed + 1, lastConfirmed + config.confirmationsWantedInBlocks)
-          (markDone)});
-    } else {
-        return markDone();
-    }})};
+const newBlockHooks = {};
+const processNewBlocks = (k) =>
+    web3.eth.getBlockNumber(handlerK(
+        ((currentBlock) =>
+         (currentBlock >= nextUnprocessedBlock) ?
+         runHooks(newBlockHooks)(nextUnprocessedBlock, currentBlock)
+         (() => {
+             nextUnprocessedBlock = currentBlock + 1;
+             putUserStorage("nextUnprocessedBlock", nextUnprocessedBlock);
+             return k();}) :
+         k()),
+        seqK(logErrorK, k)));
 
 /** Kont() */
-const watchChain = () =>
-      processChainUpdate(() => setTimeout(watchChain, config.blockPollingPeriodInSeconds * 1000));
+const watchBlockchain = () =>
+      processNewBlocks(() => setTimeout(watchBlockchain, config.blockPollingPeriodInSeconds * 1000));
 
 /** hook to synchronously watch all events of some kind as the chain keeps getting updated */
-const eventWatchHook = (filter, processK) => (fromBlock, toBlock) => (k) =>
-    web3.eth.filter({...filter, fromBlock: fromBlock, toBlock: toBlock})
-        .get(handlerK(forEachK(processK), logErrorK, k));
+const processEvents = (filter, processK) => (fromBlock, toBlock) => (k) => {
+    fromBlock = Math.max(fromBlock,0);
+    (fromBlock <= toBlock) ?
+        web3.eth.filter({...filter, fromBlock, toBlock})
+        .get(handlerThenK(forEachK(processK), logErrorK)(k)) :
+    k(); }
 
+/** Register a confirmed event hook.
+   NB: *IF* some event has hooks for both confirmed and unconfirmed events, then
+   (1) the confirmed event hook must be registered *before*, and
+   (2) the name of the confirmed event hook must be lexicographically strictly less
+   than the name for the corresponding unconfirmed event hook.
+   */
+const registerConfirmedEventHook = (name, fromBlock, filter, processK, confirmations = config.confirmationsWantedInBlocks) => (k) => {
+    newBlockHooks[name] = (firstUnprocessedBlock, lastUnprocessedBlock) => (k) =>
+        processEvents(filter, processK)
+            (firstUnprocessedBlock - confirmations, lastUnprocessedBlock - confirmations)(k);
+    return processEvents(filter, processK)(fromBlock, nextUnprocessedBlock - 1)(k); }
+
+const registerUnconfirmedEventHook = (name, filter, processK, confirmations = config.confirmationsWantedInBlocks) => (k) => {
+    const hook = (firstUnprocessedBlock, lastUnprocessedBlock) => (k) =>
+        processEvents(filter, processK)
+            (Math.max(firstUnprocessedBlock, lastUnprocessedBlock - confirmations),
+             lastUnprocessedBlock)(k);
+    newBlockHooks[name] = hook;
+    const toBlock = nextUnprocessedBlock - 1;
+    const fromBlock = toBlock - confirmations;
+    hook(filter, processK)(fromBlock, toBlock)(k); }
 
 /** Given some code in 0x form (.bin output from solc), deploy a contract with that code
     and CPS-return its transactionHash
