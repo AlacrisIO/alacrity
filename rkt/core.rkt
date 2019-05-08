@@ -634,8 +634,11 @@
 (struct handle-tail () #:transparent)
 (struct ht:let handle-tail (x xe ht) #:transparent)
 (struct ht:if handle-tail (ce tt ft) #:transparent)
-(struct ht:jump handle-tail (ns st msgs) #:transparent)
-(struct ht:wait handle-tail (ns st msgs) #:transparent)
+(struct ht:wait* handle-tail (ns st msgs recv?) #:transparent)
+(define (ht:jump ns st msgs)
+  (ht:wait* ns st msgs #f))
+(define (ht:wait ns st msgs)
+  (ht:wait* ns st msgs #t))
 (define (ht:stop ans msgs)
   (ht:let HALT-ANS ans
           (ht:jump HALT (list HALT-ANS) msgs)))
@@ -709,17 +712,15 @@
     [(ht:if ce tt ft)
      (list `(cond [,(he-emit ce) ,@(ht-emit tt)]
                   [else ,@(ht-emit ft)]))]
-    [(ht:jump ns st msgs)
+    [(ht:wait* ns st msgs recv?)
      (append (sends-emit msgs)
-             (list `(jump! ,ns ,@st)))]
-    [(ht:wait ns st msgs)
-     (append (sends-emit msgs)
-             (list `(wait! ,ns ,@st)))]))
+             (list `(,(if recv? 'wait! 'jump!) ,ns ,@st)))]))
 (define (hp-emit hp)
   (match-define (hp:program n->han in) hp)
-  `(program ,@(for/list ([f (in-list (cons in (sort-symbols (remove in (hash-keys n->han)))))])
-                (match-define (hh:handler st msg ht) (hash-ref n->han f))
-                `(define ((,f ,@st) ,msg) ,@(ht-emit ht)))))
+  `(program
+    ,@(for/list ([f (in-list (cons in (sort-symbols (remove in (hash-keys n->han)))))])
+        (match-define (hh:handler st msg ht) (hash-ref n->han f))
+        `(define ((,f ,@st) ,msg) ,@(ht-emit ht)))))
 
 ;; XXX checker for handler-style: type correct, no recursion
 
@@ -906,13 +907,10 @@
        (ht-eval (hash-set Σ x (he-eval Σ xe)) ht)]
       [(ht:if ce tt ft)
        (ht-eval Σ (if (he-eval Σ ce) tt ft))]
-      [(ht:jump ns st msgs)
-       (send*! (map (ha-eval Σ) msgs))
-       (hhn-eval ns (map (hv-eval Σ) st) #f)]
-      [(ht:wait ns st msgs)
+      [(ht:wait* ns st msgs recv?)
        (send*! (map (ha-eval Σ) msgs))
        (define these-vs (map (hv-eval Σ) st))
-       (hhn-eval ns these-vs (recv!))]))
+       (hhn-eval ns these-vs (and recv? (recv!)))]))
   (define (hhn-eval n st-vs msg-v)
     (cond
       [(eq? n HALT)
