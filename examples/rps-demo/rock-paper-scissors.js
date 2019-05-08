@@ -84,11 +84,7 @@ const queryState = (contractAddress, blockNumber) => (k) => {
 const queryConfirmedState = (contractAddress) => (k) =>
     confirmedBlockNumber((blockNumber) => queryState(contractAddress, blockNumber)(k));
 
-// (txHash) => {contract: address, player0: address, player1: address, timeoutInBlocks: integer,
-// commitment: bytes32, wagerInWei: BN, escrowInWei: BN, blockNumber: integer}
-const getGameCreationData = (txHash) => (k) => {
-    ethQuery(web3.eth.getTransactionReceipt)(txHash)((receipt) => {
-    const data = receipt.logs[0].data;
+const decodeGameCreationData = (data, blockNumber) => {
     const x = (i) => data.slice(2+i*64,66+i*64);
     const contract = hexToAddress(x(0));
     const player0 = hexToAddress(x(1));
@@ -97,14 +93,22 @@ const getGameCreationData = (txHash) => (k) => {
     const commitment = hexTo0x(x(4));
     const wagerInWei = hexToBigNumber(x(5));
     const escrowInWei = hexToBigNumber(x(6));
+    return {contract, player0, player1, timeoutInBlocks,
+            commitment, wagerInWei, escrowInWei, blockNumber};}
+
+
+// TODO: better error handling
+// (txHash) => {contract: address, player0: address, player1: address, timeoutInBlocks: integer,
+// commitment: bytes32, wagerInWei: BN, escrowInWei: BN, blockNumber: integer}
+const getGameCreationData = (txHash) => (k) => {
+    ethQuery(web3.eth.getTransactionReceipt)(txHash)((receipt) => {
+    const result = decodeGameCreationData(receipt.logs[0].data, receipt.blockNumber);
     if(receipt.transactionHash == txHash
        && receipt.status == "0x1"
-       && receipt.from == player0
+       && receipt.from == result.player0
        && receipt.to == config.contract.address
        && receipt.logs.length == 1) {
-        const blockNumber = receipt.blockNumber;
-        return k({contract, player0, player1, timeoutInBlocks,
-                  commitment, wagerInWei, escrowInWei, blockNumber});
+        return k(result);
     } else {
         console.log("bad rps game creation data receipt", txHash, receipt, result)
         return k(false);

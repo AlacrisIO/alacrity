@@ -152,11 +152,16 @@ const randomSalt = () => {
 /** : (Array('a), 'a) => Array('a) */
 const snoc = (l, e) => [...l, e];
 
+const logErrorK = (error) => (k) => {console.log("error: ", error); return k();}
+
+const handlerK = (successK = identityK, errorK = logErrorK, k = identity) => (error, result) =>
+      error ? errorK(error)(k) : successK(result)(k);
+
 /** Run an ethereum query. Eat errors and stop.
     TODO: handle error and/or have a combinator to invoke continuation after either error or success.
     : (...'a => Kont(error, 'b)) => ...'a => Kont('b) */
-const ethQuery = (func) => (...args) => (k) =>
-      func(...args, (error, result) => error ? console.log("error: ", error) : k(result));
+const ethQuery = (func) => (...args) => (successK = identityK, errorK = logErrorK, k = identity) =>
+      func(...args, handlerK(successK, errorK, k));
 
 /** Count the number of confirmations for a transaction given by its hash.
     Return -1 if the transaction is yet unconfirmed.
@@ -177,8 +182,9 @@ const confirmEtherTransaction = (txHash, confirmations = config.confirmationsWan
               config.blockPollingPeriodInSeconds * 1000));
 
 /** Get the number of the latest confirmed block
+    TODO: use an error,continuation monad?
    : Kont(int) */
-const confirmedBlockNumber = (k) =>
+const getConfirmedBlockNumber = (k) =>
     ethQuery(web3.eth.getBlockNumber)()((currentBlock) => // Get current block number
     k(currentBlock - config.confirmationsWantedInBlocks));
 
@@ -199,7 +205,7 @@ const putUserStorageField = (key, field, value) => updateUserStorage(key, keyVal
 
 // General Purpose Ethereum Blockchain Watcher
 /** : int */
-let latestBlockProcessed;
+let nextUnprocessedBlock;
 
 /** : StringTable(K(int)) */
 const confirmedHooks = {};
@@ -207,18 +213,26 @@ const confirmedHooks = {};
 /** : StringTable(K(int)) */
 const unconfirmedHooks = {};
 
-// Have a parallel variant?
-/** : StringTable(Not(...'a)) => ...'a => Kont() */
-const runHooks = (hooks) => (...args) => (k) => {
-    let hookList = Object.entries(hooks).sort((a, b) => a[0].localeCompare(b[0]));
-    // log(["runHooks", hookList, args, k]);
+/** : ('a => Kont()) => Array('a) => Kont() */
+const forEachK = (f) => (l) => (k) => {
     const loop = () => {
-        if (hookList.length == 0) {
-            k();
+            log(["forEachK.loop", l.length]);
+        if (l.length == 0) {
+            return k();
+        } else if (l.length == 1) {
+            return f(l[0])(k);
         } else {
-            return hookList.shift()[1](...args)(loop);
+            return f(l.shift())(loop);
         };};
     return loop(); }
+
+
+// Have a parallel variant?
+/** : StringTable(Not(...'a)) => ...'a => Kont() */
+const runHooks = (hooks) => (...args) => (k) =>
+    forEachK((entry) => entry[1](...args))
+    (Object.entries(hooks).sort((a, b) => a[0].localeCompare(b[0])))
+    (k);
 
 const log = (result) => {console.log("logging: ", JSON.stringify(result)); return result;};
 
@@ -226,18 +240,22 @@ const log = (result) => {console.log("logging: ", JSON.stringify(result)); retur
  TODO: handle error, too
  */
 const processChainUpdate = (k) => {
-    ethQuery(web3.eth.getBlockNumber)()((currentBlock) => {
-    // log(currentBlock);
+    getConfirmedBlockNumber((confirmedBlock) => {
+    // log(confirmedBlock);
     const markDone = () => {
-        latestBlockProcessed = currentBlock;
-        putUserStorage("latestBlockProcessed", latestBlockProcessed);
+        nextUnprocessedBlock = currentBlock + 1;
+        putUserStorage("nextUnprocessedBlock", nextUnprocessedBlock);
         return k()};
-    if (currentBlock > latestBlockProcessed) {
-        const oldConfirmed = latestBlockProcessed - config.confirmationsWantedInBlocks;
-        const newConfirmed = currentBlock - config.confirmationsWantedInBlocks;
+    if (confirmedBlock >= nextUnprocessedBlock) {
+        const firstConfirmed = nextUnprocessedBlock;
+        const lastConfirmed = confirmedBlock;
         // log({oldConfirmed, newConfirmed});
-        return runHooks(confirmedHooks)(oldConfirmed, newConfirmed)(() =>
-        runHooks(unconfirmedHooks)(latestBlockProcessed, currentBlock)(markDone));
+        log(["blah", firstConfirmed, lastConfirmed]);
+        return runHooks(confirmedHooks)(firstConfirmed, lastConfirmed)(() => {
+            log("foo");
+        return runHooks(unconfirmedHooks)
+          (lastConfirmed + 1, lastConfirmed + config.confirmationsWantedInBlocks)
+          (markDone)});
     } else {
         return markDone();
     }})};
@@ -245,6 +263,11 @@ const processChainUpdate = (k) => {
 /** Kont() */
 const watchChain = () =>
       processChainUpdate(() => setTimeout(watchChain, config.blockPollingPeriodInSeconds * 1000));
+
+/** hook to synchronously watch all events of some kind as the chain keeps getting updated */
+const eventWatchHook = (filter, processK) => (fromBlock, toBlock) => (k) =>
+    web3.eth.filter({...filter, fromBlock: fromBlock, toBlock: toBlock})
+        .get(handlerK(forEachK(processK)), logErrorK, k);
 
 /** Given some code in 0x form (.bin output from solc), deploy a contract with that code
     and CPS-return its transactionHash
@@ -256,7 +279,7 @@ const initRuntime = (k) => {
     const networkID = getNetworkID();
     config = networkConfig[networkID];
     userID = `${networkID}.${getUserAddress()}`;
-    latestBlockProcessed = getUserStorage("latestBlockProcessed", 0);
+    nextUnprocessedBlock = getUserStorage("nextUnprocessedBlock", 0);
     return k();
 }
 
@@ -264,5 +287,7 @@ const initRuntime = (k) => {
 let r;
 const setr = (result) => {r = result; return log(r); };
 const setrr = seq(Array.of)(setr);
+const setrk = (result) => (k) => k(setr(result));
+const setrrk = seq(Array.of)(setrk);
 const srf = (func) => {r = undefined; return func(setr);}
 const srrf = seqK(Array.of)(srf);
