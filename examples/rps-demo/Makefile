@@ -25,7 +25,10 @@ build_all: contract
 
 CONTRACT_OUTPUTS=$(BUILD_DIR)/RockPaperScissors.abi $(BUILD_DIR)/RockPaperScissors.bin $(BUILD_DIR)/RockPaperScissorsFactory.abi $(BUILD_DIR)/RockPaperScissorsFactory.bin $(BUILD_DIR)/dapp-contract.js
 
-contract: $(CONTRACT_OUTPUTS)
+$(BUILD_DIR):
+	@mkdir -p $(BUILD_DIR)
+
+contract: $(BUILD_DIR) $(CONTRACT_OUTPUTS)
 $(CONTRACT_OUTPUTS): dapp-contract.sol
 	$(HIDE) solc --bin --abi -o $(BUILD_DIR) --overwrite $< > $(BUILD_DIR)/solc.out
 	$(HIDE) (echo "const rpsFactoryAbi = `cat $(BUILD_DIR)/RockPaperScissorsFactory.abi`;"; \
