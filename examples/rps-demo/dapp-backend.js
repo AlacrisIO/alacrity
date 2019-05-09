@@ -115,8 +115,7 @@ const getGameCreationData = (txHash) => (k) => {
     }})};
 
 const processNewGameK = (event) => (k) => {
-    console.log(event);
-    return k(); };
+    return loggingK("newEvent:")(event)(k); }
 
 const watchNewGames = (k) =>
     registerConfirmedEventHook(

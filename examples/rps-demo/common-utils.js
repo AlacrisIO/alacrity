@@ -28,7 +28,7 @@ const compose = (...fa) => {
     else { const f = l.pop(); return kompose(compose(...fa))(f);};}
 
 // UNTESTED! Combinators for CPS functions
-// type Not(...'a) = ...'a => 'bottom
+// type Not(...'a) = forall('result) ...'a => 'result
 // type Kont(...'a) = Not(Not(...'a))
 
 // See my relevant tweets at https://twitter.com/Ngnghm/status/1125831388996014080
@@ -111,7 +111,7 @@ const logErrorK = (error) => (k) => {console.log("error: ", error); return k();}
 const handlerK = (successK = identityK, errorK = logErrorK) => (error, result) =>
     error ? errorK(error) : successK(result);
 
-/** : (Not('result), Not('success)) => Not() => Not('error, 'result) */
+/** : ('result => Kont(...'a), 'success => Kont(...'a)) => Not(...'a) => Not('error, 'result) */
 const handlerThenK = (successK = identityK, errorK = logErrorK) => (k) =>
       handlerK((result) => successK(result)(k), (error) => errorK(error)(k));
 
@@ -129,7 +129,10 @@ const forEachK = (f) => (l) => (k) => {
 
 const compareFirst = (a, b) => a[0].localeCompare(b[0]);
 
-const log = (result) => {console.log("logging: ", JSON.stringify(result)); return result;};
+const logging = (...prefix) => (...result) =>
+      console.log(...prefix, ...result.map(JSON.stringify));
+const loggingK = (...prefix) => (...result) => (k) =>
+      {logging(...prefix)(...result); return k(...result);}
 
 // Local Storage for the DApp
 // TODO: use remote storage and implement distributed transactions, for redundancy.
@@ -150,9 +153,9 @@ const putUserStorageField = (key, field, value) => updateUserStorage(key, keyVal
 
 /** Debugging stuff */
 let r;
-const setr = (result) => {r = result; return log(r); };
+const setr = (result) => {r = result; logging("result:")(r); return r;};
 const setrr = seq(Array.of)(setr);
 const setrk = (result) => (k) => k(setr(result));
 const setrrk = seq(Array.of)(setrk);
 const srf = (func) => {r = undefined; return func(setr);}
-const srrf = seqK(Array.of)(srf);
+const srrf = (func) => {r = undefined; return func(setrr);}
