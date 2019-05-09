@@ -67,6 +67,7 @@ const ethQuery = (func) => (...args) => (successK = identityK, errorK = logError
     : String0x => Kont(int) */
 const getConfirmations = (txHash) => (k) =>
     ethQuery(web3.eth.getTransaction)(txHash)((txInfo) => // Get TxInfo
+    isNull(txInfo) ? k(-1) :
     ethQuery(web3.eth.getBlockNumber)()((currentBlock) => // Get current block number
     // When transaction is unconfirmed, its block number is null.
     // In this case we return -1 as number of confirmations
@@ -115,15 +116,20 @@ const processNewBlocks = (k) =>
 
 /** Kont() */
 const watchBlockchain = () =>
-      processNewBlocks(() => setTimeout(watchBlockchain, config.blockPollingPeriodInSeconds * 1000));
+    processNewBlocks(() => setTimeout(watchBlockchain, config.blockPollingPeriodInSeconds * 1000));
+
+var events; // XXX DEBUGGING
 
 /** hook to synchronously watch all events of some kind as the chain keeps getting updated */
 const processEvents = (filter, processK) => (fromBlock, toBlock) => (k) => {
     fromBlock = Math.max(fromBlock,0);
-    (fromBlock <= toBlock) ?
+    return (fromBlock <= toBlock) ?
         web3.eth.filter({...filter, fromBlock, toBlock})
-        .get(handlerThenK(forEachK(processK), logErrorK)(k)) :
-    k(); }
+        .get((error, result) =>
+             {console.log("filter", error, result); // XXX DEBUGGING
+              if (Array.isArray(result) && result.length > 0) { events = result; } // XXX DEBUGGING
+              return handlerThenK(forEachK(processK), logErrorK)(k)(error, result)}) :
+        k(); }
 
 /** Register a confirmed event hook.
    NB: *IF* some event has hooks for both confirmed and unconfirmed events, then
@@ -145,7 +151,7 @@ const registerUnconfirmedEventHook = (name, filter, processK, confirmations = co
     newBlockHooks[name] = hook;
     const toBlock = nextUnprocessedBlock - 1;
     const fromBlock = toBlock - confirmations;
-    hook(filter, processK)(fromBlock, toBlock)(k); }
+    return hook(filter, processK)(fromBlock, toBlock)(k); }
 
 /** Given some code in 0x form (.bin output from solc), deploy a contract with that code
     and CPS-return its transactionHash
@@ -160,4 +166,3 @@ const initRuntime = (k) => {
     nextUnprocessedBlock = getUserStorage("nextUnprocessedBlock", 0);
     return k();
 }
-

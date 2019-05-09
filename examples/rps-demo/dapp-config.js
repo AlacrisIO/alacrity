@@ -13,8 +13,8 @@ networkConfig =
     {contract:
      // with user-selectable timeout, from source at commit 2bb0e1977b57939e57b80a4d0aacc3cad8b4bc60
      {address: "0x73e900e2f6b69a62a78cea31736f536d4076532b",
-                creationHash: "0x2a37d19da8523b09ea507220874229f02c7d4ed20af9d977cf41b1239b0f6e2a",
-                creationBlock: 4331637},
+      creationHash: "0x2a37d19da8523b09ea507220874229f02c7d4ed20af9d977cf41b1239b0f6e2a",
+      creationBlock: 4331637},
      // Older contracts:
      // {address: "0xa526caaabf917554bb49756409759fb0101e2ccd", creationHash: "0xf43b8c50018ec9a819e1022d9b6a7c07218a1a24e19260b6ca375d1cd34f6ec3", with 10 block timeout (very short!), from source at commit 68ceb3cfd3dbacf88c1df4152307572a357bc80e}
      // {address: "0x07326e7ec3935b4ff8411c08fa94deb0ad1c7e98", creationHash: "0x61a83184580f8bc3d5bc077578c7533073dbf4eff7cde23fe30795e3c1ccd766", with 10 block timeout (very short!), from source at commit 68ceb3cfd3dbacf88c1df4152307572a357bc80e, except with reverse winner logic - oops}
@@ -22,5 +22,5 @@ networkConfig =
      timeoutInBlocks: 12,
      timeoutString: "about 3 minutes",
      confirmationsWantedInBlocks: 1,
-     blockPollingPeriodInSeconds: 5 }
+     blockPollingPeriodInSeconds: 1 }
   };

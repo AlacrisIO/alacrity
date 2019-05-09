@@ -10,5 +10,6 @@ if (typeof window.web3 == 'undefined' || typeof window.ethereum == 'undefined') 
         web3js = new Web3(web3.currentProvider);
         ethereum.enable().then((x) => {
             accounts = x;
+            // TODO: have a list of registered init functions, and forEachK(identity)(initFunctions)(k)
             initRuntime(() => initBackend(initFrontend));
         });});}

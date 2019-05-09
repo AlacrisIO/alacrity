@@ -28,7 +28,7 @@ const compose = (...fa) => {
     else { const f = l.pop(); return kompose(compose(...fa))(f);};}
 
 // UNTESTED! Combinators for CPS functions
-// type Not(...'a) = (...'a) => 'r
+// type Not(...'a) = ...'a => 'bottom
 // type Kont(...'a) = Not(Not(...'a))
 
 // See my relevant tweets at https://twitter.com/Ngnghm/status/1125831388996014080
@@ -104,13 +104,16 @@ const randomSalt = () => {
 /** : (Array('a), 'a) => Array('a) */
 const snoc = (l, e) => [...l, e];
 
+/** : 'error => Kont() */
 const logErrorK = (error) => (k) => {console.log("error: ", error); return k();}
 
+/** : (Not('result), Not('success)) => Not('error, 'result) */
 const handlerK = (successK = identityK, errorK = logErrorK) => (error, result) =>
-      error ? errorK(error) : successK(result);
+    error ? errorK(error) : successK(result);
 
+/** : (Not('result), Not('success)) => Not() => Not('error, 'result) */
 const handlerThenK = (successK = identityK, errorK = logErrorK) => (k) =>
-      handlerK(seqK(successK, k), seqK(errorK, k));
+      handlerK((result) => successK(result)(k), (error) => errorK(error)(k));
 
 /** : ('a => Kont()) => Array('a) => Kont() */
 const forEachK = (f) => (l) => (k) => {

@@ -114,6 +114,17 @@ const getGameCreationData = (txHash) => (k) => {
         return k(false);
     }})};
 
+const processNewGameK = (event) => (k) => {
+    console.log(event);
+    return k(); };
+
+const watchNewGames = (k) =>
+    registerConfirmedEventHook(
+        "confirmedNewGames",
+        fromBlock = config.contract.creationBlock, // TODO: only from 2 timeouts in the past(?)
+        filter = {address: config.contract.address},
+        processNewGameK)(k);
+
 const initBackend = (k) => {
     rpsFactory = web3.eth.contract(rpsFactoryAbi).at(config.contract.address);
     return k();
@@ -140,3 +151,8 @@ var g1c = "0x21a63393301aa265ea7fbde8a7d43ea96a40f08f";
 var g1p1 = () => srf(player1ShowHand(g1c, meth(1000), 0));
 var g1p2 = () => srf(player0Reveal(g1c, gsalt, 2));
 var g1s = () => srf(queryConfirmedState(g1c));
+
+var wb = () => {
+    newBlockHooks["newBlock"] = (from, to) => (k) => {
+        console.log("newBlock! from:", from, "to:", to); return k(); };
+    return watchBlockchain(); }
