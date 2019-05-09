@@ -760,18 +760,21 @@
        (ht:wait ignore-n empty)]))
   (define (collect-vars e)
     (match e
-      [(? da-anf?) (seteq)]
       [(de:if ca te fe)
        (set-union (collect-vars te) (collect-vars fe))]
-      [(de:let v (? de:if? ie) b)
-       (set-union (set-add (collect-vars ie) v) (collect-vars b))]
-      [(de:let v _ b)
-       (set-add (collect-vars b) v)]))
+      [(de:let v ve b)
+       (set-add (set-union (collect-vars ve) (collect-vars b)) v)]
+      [_
+       (seteq)]))
   (with-fresh
     (match-define (dp:program (hash-table ('main df)) 'main) dp)
     (match-define (df:fun args body) df)
     (define nh (freshen 'top))
-    ;; XXX Do register allocation
+    ;; Note: It would be possible to do register allocation in this
+    ;; step and rename the variables. It may make sense to do this to
+    ;; limit the number of global variables that are used in the
+    ;; program. However, I think the verification burden may be quite
+    ;; high, so I'm not including it for now.
     (define all-vs (set->sorted-list (collect-vars body)))
     (define body-t (de-state #f '() body (λ (a pre-sends) (ht:stop pre-sends))))
     (hash-set! n->h nh (hh:handler body-t))
@@ -847,35 +850,34 @@
       (values r (direct->handle dp)))))
 
 ;; Evaluation in simulator
-(define ((hv-eval Σ) v)
-  (hash-ref Σ v))
-(define ((ha-eval Σ) ha)
-  (match ha
-    [(ha:con b) b]
-    [(ha:var v) (hash-ref Σ v)]))
-(define (he-eval Σ he)
-  (match he
-    [(he:app op args)
-     (match (hash-ref primitive->info op #f)
-       [(? priminfo? p)
-        (apply (priminfo-rkt p)
-               (map (ha-eval Σ) args))]
-       [_
-        (error 'he-eval "op ~e not implemented" op)])]
-    [_ ((ha-eval Σ) he)]))
 (define (hp-eval who send! recv! hp init-vs)
+  (define (ha-eval ha)
+    (match ha
+      [(ha:con b) b]
+      [(ha:var v) (hash-ref Σ v)]))
+  (define (he-eval he)
+    (match he
+      [(he:app op args)
+       (match (hash-ref primitive->info op #f)
+         [(? priminfo? p)
+          (apply (priminfo-rkt p)
+                 (map ha-eval args))]
+         [_
+          (error 'he-eval "op ~e not implemented" op)])]
+      [_ (ha-eval he)]))
   (define (send*! msgs)
     (for-each send! msgs))
-  (define (ht-eval Σ ht)
+  (define (ht-eval ht)
     (match ht
       [(ht:set!& x xe ht)
-       (ht-eval (hash-set Σ x (he-eval Σ xe)) ht)]
+       (hash-set! Σ x (he-eval xe))
+       (ht-eval ht)]
       [(ht:if ce tt ft)
-       (ht-eval Σ (if (he-eval Σ ce) tt ft))]
+       (ht-eval (if (he-eval ce) tt ft))]
       [(ht:wait* ns msgs recv?)
-       (send*! (map (ha-eval Σ) msgs))
-       (hhn-eval Σ ns (and recv? (recv!)))]))
-  (define (hhn-eval Σ n msg-v)
+       (send*! (map ha-eval msgs))
+       (hhn-eval ns (and recv? (recv!)))]))
+  (define (hhn-eval n msg-v)
     (cond
       [(eq? n HALT)
        (eprintf "[~a] HALT\n" who)
@@ -883,14 +885,17 @@
       [else
        (eprintf "[~a] HHN-EVAL ~a w/ ~a\n" who n msg-v)
        (match-define (hh:handler ht) (hash-ref n->h n))
-       (define Σ1 (hash-set Σ MSG msg-v))
-       (ht-eval Σ1 ht)]))
+       (hash-set! Σ MSG msg-v)
+       (ht-eval ht)]))
   (match-define (hp:program args vs n->h top) hp)
+  (define Σ (make-hasheq))
   (for ([a (in-list args)])
-    (unless (hash-has-key? init-vs a)
-      (error 'hhn-eval "No value for argument ~e" a)))
+    (hash-set!
+     Σ a
+     (hash-ref init-vs a
+               (λ () (error 'hhn-eval "No value for argument ~e" a)))))
 
-  (hhn-eval init-vs top #f))
+  (hhn-eval top #f))
 
 (module+ test
   (define (simulate/simchain epp-hp-ht r->args)
