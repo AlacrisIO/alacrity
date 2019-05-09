@@ -92,20 +92,15 @@ const getConfirmedBlockNumber = (k) =>
 /** : int */
 let nextUnprocessedBlock;
 
-/** : StringTable(K(int)) */
-const confirmedHooks = {};
-
-/** : StringTable(K(int)) */
-const unconfirmedHooks = {};
-
 // Have a parallel variant?
 /** : StringTable(Not(...'a)) => ...'a => Kont() */
 const runHooks = (hooks) => (...args) => (k) =>
     forEachK((entry) => entry[1](...args))(Object.entries(hooks).sort(compareFirst))(k);
 
-/** Kont()
- */
+/** : StringTable(K(int)) */
 const newBlockHooks = {};
+
+/** : Kont() */
 const processNewBlocks = (k) =>
     web3.eth.getBlockNumber(handlerK(
         ((currentBlock) =>

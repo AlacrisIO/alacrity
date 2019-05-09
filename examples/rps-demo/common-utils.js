@@ -31,6 +31,12 @@ const compose = (...fa) => {
 // type Not(...'a) = (...'a) => 'r
 // type Kont(...'a) = Not(Not(...'a))
 
+// See my relevant tweets at https://twitter.com/Ngnghm/status/1125831388996014080
+// If you understand Continuation Passing Style, you're not in Callback Hell anymore, just in yet another Overly-Low-Level-Syntax Purgatorium—with a bit more scorn towards metaprogramming deniers—and your automatic indentation mode disabled.
+// OK, it *is* somewhat hellish when all the APIs in a programming language are in CPS, but the implementers purposefully refuse to support proper tail calls. Now you're going to leak stack space, and/or implement your own trampolining system and adapters. Damn Continuation deniers!
+// Interestingly, to reliably bridge CPS functions into the trampoline, you have the initial/final continuation register a trampoline function. But continuations are not linear and may return more than once, so your register is a deque and you get green threading for free.
+
+
 /** call a direct function from CPS
     Kont.arrow
     : (...'a => 'b) => ...'a => Kont('b) */
