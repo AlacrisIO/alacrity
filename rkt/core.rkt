@@ -626,22 +626,22 @@
 ;; a new state representation, and a block of messages to send. There
 ;; is a special initial handler that receives the initial state and an
 ;; empty message, which is ignored.
-(struct hp:program (n->handler in) #:transparent)
-(struct hh:handler (st msg ht) #:transparent)
+(struct hp:program (args vs n->handler in) #:transparent)
+(define MSG (gensym 'MSG))
 (define HALT (gensym 'HALT))
-(define HALT-ANS (gensym 'HALT-ANS))
+(struct hh:handler (ht) #:transparent)
 
 (struct handle-tail () #:transparent)
-(struct ht:let handle-tail (x xe ht) #:transparent)
+(struct ht:set!& handle-tail (x xe ht) #:transparent)
 (struct ht:if handle-tail (ce tt ft) #:transparent)
-(struct ht:wait* handle-tail (ns st msgs recv?) #:transparent)
-(define (ht:jump ns st msgs)
-  (ht:wait* ns st msgs #f))
-(define (ht:wait ns st msgs)
-  (ht:wait* ns st msgs #t))
-(define (ht:stop ans msgs)
-  (ht:let HALT-ANS ans
-          (ht:jump HALT (list HALT-ANS) msgs)))
+(struct ht:wait* handle-tail (ns msgs recv?) #:transparent)
+
+(define (ht:jump ns msgs)
+  (ht:wait* ns msgs #f))
+(define (ht:wait ns msgs)
+  (ht:wait* ns msgs #t))
+(define (ht:stop msgs)
+  (ht:jump HALT msgs))
 
 (struct handle-arg () #:transparent)
 (struct ha:var handle-arg (v) #:transparent)
@@ -663,33 +663,28 @@
 (define (ht-parse handler? se)
   (define (rec se) (ht-parse handler? se))
   (match se
-    [`(begin (define ,(? symbol? x) ,xe) ,@more)
-     (ht:let x (he-parse xe) (rec `(begin ,@more)))]
+    [`(begin (set! ,(? symbol? x) ,xe) ,@more)
+     (ht:set!& x (he-parse xe) (rec `(begin ,@more)))]
     [`(begin (cond [,ce ,@tes] [else ,@fes]))
      (ht:if (he-parse ce) (rec `(begin ,@tes)) (rec `(begin ,@fes)))]
-    [`(begin (send! ,@msgs) (jump! ,(? handler? ns) ,(? symbol? st) ...))
-     (ht:jump ns st (map ha-parse msgs))]
-    [`(begin (jump! ,(? handler? ns) ,(? symbol? st) ...))
-     (ht:jump ns st '())]
-    [`(begin (send! ,@msgs) (wait! ,(? handler? ns) ,(? symbol? st) ...))
-     (ht:wait ns st (map ha-parse msgs))]
-    [`(begin (wait! ,(? handler? ns) ,(? symbol? st) ...))
-     (ht:wait ns st '())]))
+    [`(begin (send! ,msgs) ... (,(and which (or 'jump! 'wait!)) ,(? handler? ns)))
+     (ht:wait* ns (map ha-parse msgs) (eq? which 'wait!))]))
 (define (hp-parse se)
   (match se
-    [`(program
-       (define ((,(? symbol? h) ,(? symbol? st) ...)
-                ,(and msg (or (? symbol?) #f))) ,@body)
-       ...)
+    [`(program (,(? symbol? a) ...)
+               (define-values (,(? symbol? vs) ...))
+               (define (,(and (? symbol? h) (not 'HALT)))
+                 ,@body)
+               ...)
      (error-on-dupes 'hp-parse "Duplicate handler: ~e" h)
+     (error-on-dupes 'hp-parse "Duplicate argument: ~e" a)
+     (error-on-dupes 'hp-parse "Duplicate variable: ~e" vs)
      (define hans (list->seteq h))
      (define (handler? x) (or (eq? HALT x) (set-member? hans x)))
-     (hp:program (for/hasheq ([h (in-list h)]
-                              [st (in-list st)]
-                              [msg (in-list msg)]
+     (hp:program a vs
+                 (for/hasheq ([h (in-list h)]
                               [body (in-list body)])
-                   (error-on-dupes 'hp-parse "Duplicate state or msg: ~e" (cons msg st))
-                   (values h (hh:handler st msg (ht-parse handler? `(begin ,@body)))))
+                   (values h (hh:handler (ht-parse handler? `(begin ,@body)))))
                  (first h))]))
 
 (define (ha-emit ha)
@@ -706,116 +701,84 @@
   (define (sends-emit msgs)
     (if (empty? msgs) '() (list `(send! ,@(map ha-emit msgs)))))
   (match ht
-    [(ht:let x xe ht)
-     (cons `(define ,x ,(he-emit xe))
+    [(ht:set!& x xe ht)
+     (cons `(set! ,x ,(he-emit xe))
            (ht-emit ht))]
     [(ht:if ce tt ft)
      (list `(cond [,(he-emit ce) ,@(ht-emit tt)]
                   [else ,@(ht-emit ft)]))]
-    [(ht:wait* ns st msgs recv?)
+    [(ht:wait* ns msgs recv?)
      (append (sends-emit msgs)
-             (list `(,(if recv? 'wait! 'jump!) ,ns ,@st)))]))
+             (list `(,(if recv? 'wait! 'jump!) ,ns)))]))
 (define (hp-emit hp)
-  (match-define (hp:program n->han in) hp)
-  `(program
-    ,@(for/list ([f (in-list (cons in (sort-symbols (remove in (hash-keys n->han)))))])
-        (match-define (hh:handler st msg ht) (hash-ref n->han f))
-        `(define ((,f ,@st) ,msg) ,@(ht-emit ht)))))
+  (match-define (hp:program args vs n->han in) hp)
+  `(program (,@args)
+            (define-values ,vs)
+            ,@(for/list ([f (in-list (cons in (sort-symbols (remove in (hash-keys n->han)))))])
+                (match-define (hh:handler ht) (hash-ref n->han f))
+                `(define (,f) ,@(ht-emit ht)))))
 
 ;; XXX checker for handler-style: type correct, no recursion
 
 ;; The compiler transforms a direct program into a handler program
 (define (dp-state dp)
   (define n->h (make-hasheq))
-  (struct st-res (fvs ht) #:transparent)
   (define (da-state e)
     (match e
-      [(de:var v) (values (seteq v) (ha:var v))]
-      [(de:con b) (values (seteq) (ha:con b))]))
+      [(de:var v) (ha:var v)]
+      [(de:con b) (ha:con b)]))
   (define (das-state es)
-    (match es
-      ['() (values (seteq) '())]
-      [(cons a d)
-       (define-values (fvs1 a1) (da-state a))
-       (define-values (fvs2 d1) (das-state d))
-       (values (set-union fvs1 fvs2) (cons a1 d1))]))
-  (define (de-state pre-sends e k)
+    (map da-state es))
+  (define (de-state ignore-n pre-sends e k)
     (match e
       [(? da-anf? a)
-       (define-values (a-fvs a1) (da-state a))
-       (match-define (st-res k-fvs mk-kt) (k a1 pre-sends))
-       (st-res (set-union a-fvs k-fvs) mk-kt)]
+       (k (da-state a) pre-sends)]
       [(de:if ca te fe)
-       (define-values (ca-fvs ca1) (da-state ca))
-       (match-define (st-res te-fvs mk-te1)
-         (de-state pre-sends te k))
-       (match-define (st-res fe-fvs mk-fe1)
-         (de-state pre-sends fe k))
-       (st-res (set-union ca-fvs te-fvs fe-fvs)
-               (λ (ignore-n ignore-st)
-                 (ht:if ca1 (mk-te1 ignore-n ignore-st)
-                        (mk-fe1 ignore-n ignore-st))))]
+       (ht:if (da-state ca)
+              (de-state ignore-n pre-sends te k)
+              (de-state ignore-n pre-sends fe k))]
       [(de:let v (de:if ca te fe) b)
-       (define-values (ca-fvs ca1) (da-state ca))
        (define bh (freshen 'let-if-body))
-       (match-define (st-res b-fvs mk-bt) (de-state '() b k))
-       (define b-fvs1 (set-remove b-fvs v))
-       (define b-st (cons v (set->sorted-list b-fvs1)))
+       (hash-set! n->h bh (hh:handler (de-state ignore-n '() b k)))
        (define (bk a pre-sends)
-         (st-res b-fvs1 (λ (ignore-n ignore-st)
-                          (ht:let v a (ht:jump bh b-st pre-sends)))))
-       (match-define (st-res t-fvs mk-tt)
-         (de-state pre-sends te bk))
-       (match-define (st-res f-fvs mk-ft)
-         (de-state pre-sends fe bk))
-       (st-res (set-union ca-fvs t-fvs f-fvs b-fvs1)
-               (λ (ignore-n ignore-st)
-                 ;; XXX If b-st doesn't include ignore-st then something bad will happen
-                 (hash-set! n->h bh (hh:handler b-st #f (mk-bt ignore-n ignore-st)))
-                 (ht:if ca1 (mk-tt ignore-n ignore-st)
-                        (mk-ft ignore-n ignore-st))))]
+         (ht:set!& v a (ht:jump bh pre-sends)))
+       (ht:if (da-state ca) (de-state ignore-n pre-sends te bk)
+              (de-state ignore-n pre-sends fe bk))]
       [(de:let v (de:app op args) b)
-       (define-values (args-fvs args1) (das-state args))
-       (match-define (st-res fvs mk-ht) (de-state pre-sends b k))
-       (st-res (set-union args-fvs (set-remove fvs v))
-               (λ (ignore-n ignore-st)
-                 (ht:let v (he:app op args1)
-                         (mk-ht ignore-n ignore-st))))]
+       (ht:set!& v (he:app op (das-state args))
+                 (de-state ignore-n pre-sends b k))]
       [(de:let v (de:send a) b)
-       (define-values (a-fvs a1) (da-state a))
-       (match-define (st-res fvs mk-ht) (de-state (snoc pre-sends a1) b k))
-       (st-res (set-union a-fvs (set-remove fvs v)) mk-ht)]
+       (de-state ignore-n (snoc pre-sends (da-state a)) b k)]
       [(de:let v (de:recv) b)
        (define nh (freshen 'recv))
-       (match-define (st-res fvs mk-ht) (de-state '() b k))
-       (define fvs1 (set-remove fvs v))
-       (define st (set->sorted-list fvs1))
-       (hash-set! n->h nh (hh:handler st v (mk-ht nh st)))
-       (st-res fvs1
-               (λ (ignore-n ignore-st)
-                 (ht:wait nh st pre-sends)))]
+       (define nh-t (ht:set!& v (ha:var MSG) (de-state nh '() b k)))
+       (hash-set! n->h nh (hh:handler nh-t))
+       (ht:wait nh pre-sends)]
       [(de:let v (de:ignore why) b)
-       (st-res (seteq)
-               ;; XXX share why in some way
-               (λ (ignore-n ignore-st)
-                 (ht:wait ignore-n ignore-st empty)))]))
+       (unless ignore-n
+         (error 'dp-state "Cannot ignore if no recv"))
+       (ht:wait ignore-n empty)]))
+  (define (collect-vars e)
+    (match e
+      [(? da-anf?) (seteq)]
+      [(de:if ca te fe)
+       (set-union (collect-vars te) (collect-vars fe))]
+      [(de:let v (? de:if? ie) b)
+       (set-union (set-add (collect-vars ie) v) (collect-vars b))]
+      [(de:let v _ b)
+       (set-add (collect-vars b) v)]))
   (with-fresh
     (match-define (dp:program (hash-table ('main df)) 'main) dp)
     (match-define (df:fun args body) df)
     (define nh (freshen 'top))
-    (match-define (st-res body-fvs mk-body1)
-      (de-state '() body
-                (λ (a pre-sends)
-                  (st-res (seteq)
-                          (λ (ignore-n ignore-st)
-                            (ht:stop a pre-sends))))))
-    (unless (subset? body-fvs (list->seteq args))
-      (error 'dp-state "Body free variables(~e) beyond args(~e)" body-fvs args))
-    (hash-set! n->h nh (hh:handler args #f (mk-body1 #f #f)))
+    ;; XXX Do register allocation
+    (define all-vs (set->sorted-list (collect-vars body)))
+    (define body-t (de-state #f '() body (λ (a pre-sends) (ht:stop pre-sends))))
+    (hash-set! n->h nh (hh:handler body-t))
     (define imm-n->h
       (for/hasheq ([(k v) (in-hash n->h)])
         (values k v)))
-    (hp:program imm-n->h nh)))
+    (hp:program args all-vs imm-n->h nh)))
 
 (define (direct->handle dp)
   (define ap (dp-anf dp))
@@ -828,27 +791,26 @@
   (chk
    hp:add-some-numbers-se
    `(program
-     (define ((top0) #f) (wait! recv1))
-     (define ((let-if-body4 anf-if6 anf-recv0 anf-recv2) #f)
-       (define anf-app7 (+ anf-recv2 anf-if6))
-       (define anf-app8 (+ anf-recv0 anf-app7))
-       (define ,HALT-ANS anf-app8)
-       (jump! ,HALT ,HALT-ANS))
-     (define ((recv1) anf-recv0)
-       (send! 1)
-       (wait! recv2 anf-recv0))
-     (define ((recv2 anf-recv0) anf-recv2)
-       (wait! recv3 anf-recv0 anf-recv2))
-     (define ((recv3 anf-recv0 anf-recv2) anf-recv3)
-       (define anf-app4 (= 0 anf-recv3))
+     ()
+     (define-values (anf-app4 anf-app7 anf-app8 anf-if6 anf-recv0 anf-recv2
+                              anf-recv3 anf-recv5 anf-send1))
+     (define (top0) (wait! recv1))
+     (define (let-if-body4)
+       (set! anf-app7 (+ anf-recv2 anf-if6))
+       (set! anf-app8 (+ anf-recv0 anf-app7))
+       (jump! ,HALT))
+     (define (recv1) (set! anf-recv0 ,MSG) (send! 1) (wait! recv2))
+     (define (recv2) (set! anf-recv2 ,MSG) (wait! recv3))
+     (define (recv3)
+       (set! anf-recv3 ,MSG)
+       (set! anf-app4 (= 0 anf-recv3))
        (cond
-         [anf-app4 (wait! recv5 anf-recv0 anf-recv2)]
-         [else
-          (define anf-if6 0)
-          (jump! let-if-body4 anf-if6 anf-recv0 anf-recv2)]))
-     (define ((recv5 anf-recv0 anf-recv2) anf-recv5)
-       (define anf-if6 anf-recv5)
-       (jump! let-if-body4 anf-if6 anf-recv0 anf-recv2))))
+         (anf-app4 (wait! recv5))
+         (else (set! anf-if6 0) (jump! let-if-body4))))
+     (define (recv5)
+       (set! anf-recv5 ,MSG)
+       (set! anf-if6 anf-recv5)
+       (jump! let-if-body4))))
   (chk (hp-parse hp:add-some-numbers-se) hp:add-some-numbers)
 
   (chk
@@ -864,18 +826,21 @@
           (define r2 (?))
           (! (msg-cat r0 r1 r2)))))))
    `(program
-     (define ((top0 x) #f) (wait! recv1 x))
-     (define ((recv1 x) anf-recv0)
-       (send! anf-recv0) (wait! recv2 anf-recv0 x))
-     (define ((recv2 anf-recv0 x) anf-recv2)
-       (define anf-app4 (msg-cat x anf-recv2))
+     (x)
+     (define-values (anf-app4 anf-app7 anf-recv0 anf-recv2 anf-recv5 anf-send1
+                              anf-send3 anf-send6))
+     (define (top0) (wait! recv1))
+     (define (recv1) (set! anf-recv0 ,MSG) (send! anf-recv0) (wait! recv2))
+     (define (recv2)
+       (set! anf-recv2 ,MSG)
+       (set! anf-app4 (msg-cat x anf-recv2))
        (send! anf-app4)
-       (wait! recv3 anf-recv0 anf-recv2))
-     (define ((recv3 anf-recv0 anf-recv2) anf-recv5)
-       (define anf-app7 (msg-cat anf-recv0 anf-recv2 anf-recv5))
-       (define ,HALT-ANS (void))
+       (wait! recv3))
+     (define (recv3)
+       (set! anf-recv5 ,MSG)
+       (set! anf-app7 (msg-cat anf-recv0 anf-recv2 anf-recv5))
        (send! anf-app7)
-       (jump! ,HALT ,HALT-ANS))))
+       (jump! ,HALT))))
 
   (define epp:hp:adds
     (for/hasheq ([(r dp) (in-hash epp:dp:adds)])
@@ -898,37 +863,34 @@
        [_
         (error 'he-eval "op ~e not implemented" op)])]
     [_ ((ha-eval Σ) he)]))
-(define (hp-eval who send! recv! hp arg-vs)
+(define (hp-eval who send! recv! hp init-vs)
   (define (send*! msgs)
     (for-each send! msgs))
   (define (ht-eval Σ ht)
     (match ht
-      [(ht:let x xe ht)
+      [(ht:set!& x xe ht)
        (ht-eval (hash-set Σ x (he-eval Σ xe)) ht)]
       [(ht:if ce tt ft)
        (ht-eval Σ (if (he-eval Σ ce) tt ft))]
-      [(ht:wait* ns st msgs recv?)
+      [(ht:wait* ns msgs recv?)
        (send*! (map (ha-eval Σ) msgs))
-       (define these-vs (map (hv-eval Σ) st))
-       (hhn-eval ns these-vs (and recv? (recv!)))]))
-  (define (hhn-eval n st-vs msg-v)
+       (hhn-eval Σ ns (and recv? (recv!)))]))
+  (define (hhn-eval Σ n msg-v)
     (cond
       [(eq? n HALT)
        (eprintf "[~a] HALT\n" who)
-       (first st-vs)]
+       (void)]
       [else
-       (eprintf "[~a] HHN-EVAL ~a w/ ~a and ~a\n" who n st-vs msg-v)
-       (match-define (hh:handler st-ns msg-n ht)
-         (hash-ref n->h n))
-       (define Σ
-         (for/hasheq ([n (in-list (cons msg-n st-ns))]
-                      [v (in-list (cons msg-v st-vs))]
-                      #:when n)
-           (values n v)))
-       (ht-eval Σ ht)]))
-  (match-define (hp:program n->h top) hp)
+       (eprintf "[~a] HHN-EVAL ~a w/ ~a\n" who n msg-v)
+       (match-define (hh:handler ht) (hash-ref n->h n))
+       (define Σ1 (hash-set Σ MSG msg-v))
+       (ht-eval Σ1 ht)]))
+  (match-define (hp:program args vs n->h top) hp)
+  (for ([a (in-list args)])
+    (unless (hash-has-key? init-vs a)
+      (error 'hhn-eval "No value for argument ~e" a)))
 
-  (hhn-eval top arg-vs #f))
+  (hhn-eval init-vs top #f))
 
 (module+ test
   (define (simulate/simchain epp-hp-ht r->args)
@@ -994,12 +956,14 @@
     (define-values (N1-sk N1-pk) (make-fake-key-pair 'N1))
     (define-values (N2-sk N2-pk) (make-fake-key-pair 'N2))
     (define HASH (gensym 'hash))
+    (define shared-args
+      (hasheq 'HASH HASH 'Adder-pk Adder-pk 'N2-pk N2-pk 'N1-pk N1-pk 'x x))
     (simulate/rkt
      epp:hp:adds
      (hasheq
-      'Adder (list Adder-sk HASH Adder-pk N2-pk N1-pk x)
-      'N2 (list N2-sk HASH Adder-pk N2-pk N1-pk x)
-      'N1 (list N1-sk HASH Adder-pk N2-pk N1-pk x)))))
+      'Adder (hash-set shared-args 'Adder-sk Adder-sk)
+      'N2 (hash-set shared-args 'N2-sk N2-sk)
+      'N1 (hash-set shared-args 'N1-sk N1-sk)))))
 
 ;; XXX compile to other formats (i.e. contract vms)
 
