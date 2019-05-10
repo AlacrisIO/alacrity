@@ -1,15 +1,28 @@
-'use strict';
+/** web3 client frontend for rock-paper-scissors. */
+/* TODO:
 
-const rps = window.RockPaperScissors;
+ * Display the unconfirmed if different from confirmed.
+
+ * Offer user to decide based on the unconfirmed, but only act when confirmed.
+*/
+'use strict';
 
 /** State is a list of games.
  * Each game has a state:
    */
 
-let nextID;
-let activeGamesById;
-const activeGamesByTxHash = {};
-const activeGamesByCommitment = {};
+const htmlToElement = (html) => {
+    const template = document.createElement('template');
+    html = html.trim(); // Never return a text node of whitespace as the result
+    template.innerHTML = html;
+    return template.content.firstChild;
+}
+
+const htmlToElements = (html) => {
+    const template = document.createElement('template');
+    template.innerHTML = html;
+    return template.content.childNodes;
+}
 
 const setNodeBySelector = (selector, content) => {
     const node = document.querySelector(selector);
@@ -24,18 +37,18 @@ const addressRegex = "0x[0-9A-Fa-f]{40}";
 // TODO: let the users negotiate the escrow.
 // TODO: determine a minimum acceptable escrow, and suggest that?
 // TODO: determine a minimum amount based on the minimum escrow?
-const minWager = .01;
-const defaultWager = 1;
+const minWagerInEth = .01;
+const defaultWagerInEth = 1;
 
-const renderWager = (amount) => {
+const renderWager = (amountInWei) => {
     const common = 'style="${font-size: 10pt}" name="wagerInEth"';
     return `
     <label style="text-align: center;">
-       Wager amount in ETH${amount ? "" : " (plus automatic 10% escrow)"}:
+       Wager amount in ETH${amountInWei ? "" : " (plus automatic 10% escrow)"}:
        <br>
-       ${amount ? `<output >${amount}</output>` :
+       ${amountInWei ? `<output >${weiToEth(amountInWei)}</output>` :
          `<input style="${common}" pattern="${simpleNumberRegex}"
-           type="number" min="${minWager}" step="${minWager}" value="${defaultWager}" required />`}
+           type="number" min="${minWagerInEth}" step="${minWagerInEth}" value="${defaultWagerInEth}" required />`}
     </label>`;};
 
 // TODO: have a greyed out message "default: anyone" in the input style
@@ -69,29 +82,34 @@ const renderHandChoice = () => `
 
 const gameParametersOfForm = (e) => {
     // TODO: validate input, instead of having a default values!
-    let wager = e.target.elements.wager.value;
+    const wagerInput = e.target.elements.wagerInEth.value;
+    let wagerInEth;
     try {
-        wager = web3.toBigNumber(wager);
-        if (wager < minWager) { throw "foo"; }
+        wagerInEth = web3.toBigNumber(wagerInput);
+        if (wagerInEth < minWagerInEth) { throw "foo"; }
     } catch (err) {
-        throw("Invalid wager amount " + e.target.elements.wager.value);
+        throw("Invalid wager amount " + wagerInput);
     }
-    let opponent = e.target.elements.opponent.value;
-    if (opponent == "" || web3.toBigNumber(opponent).isZero()) {
+    const opponentInput = e.target.elements.opponent.value;
+    let opponent;
+    if (opponentInput == "" || web3.toBigNumber(opponentInput).isZero()) {
         opponent = undefined;
-    } else if (!web3.isAddress(opponent)) {
-        throw("Invalid opponent " + e.target.elements.opponent.value);
+    } else if (!web3.isAddress(opponentInput)) {
+        throw("Invalid opponent " + opponentInput);
+    } else {
+        opponent = opponentInput;
     }
-    let hand = e.target.elements.hand.value;
-    if (hand == "") {
+    let handInput = e.target.elements.hand.value;
+    let hand;
+    if (handInput == "") {
         hand = undefined;
     } else {
-        hand = parseInt(hand, 10);
+        hand = parseInt(handInput, 10);
         if (! (hand >=0 && hand < 3)) {
-            throw("Invalid hand " + e.target.elements.hand.value);
+            throw("Invalid hand " + handInput);
         }
     }
-    return {wager, opponent, hand};};
+    return {wagerInEth, opponent, hand};};
 
 const randomHand = () => {
     const array = new Uint8Array(1);
@@ -108,7 +126,7 @@ const getGameID = () => {
     return gameID;
 }
 
-const createNewGame = (wager, escrow, _opponent, hand) => {
+const createNewGame = (wagerInWei, escrowInWei, _opponent, hand) => {
     const gameID = getGameID();
     const key = uint32ToHex(gameID);
     // TODO: let advanced users override the salt? Not without better transaction tracking.
@@ -136,7 +154,7 @@ const submitNewGame = (e) => {
             const {wagerInEth, opponent, hand} = gameParametersOfForm(e);
             const escrowInEth = wagerInEth.mul(0.1);
             const h = hand || randomHand();
-            const confirmation = `You are going to start a new game with ${opponent ? opponent : "anyone who will play"} for a wager of ${wager} ETH, with an escrow of ${escrow} ETH, and play ${labelOfHand(h)}.`;
+            const confirmation = `You are going to start a new game with ${opponent ? opponent : "anyone who will play"} for a wager of ${wagerInEth} ETH, with an escrow of ${escrowInEth} ETH, and play ${labelOfHand(h)}.`;
             const confirmed = window.confirm(confirmation);
             if (confirmed) {
                 const wagerInWei = ethToWei(wagerInEth);
@@ -150,15 +168,15 @@ const submitNewGame = (e) => {
     };
 
 // TODO: let you override the random salt (option hidden by default).
-const renderGameChoice = (id, wager, opponent) => `
-        ${renderWager(wager)}
+const renderGameChoice = (id, wagerInWei, opponent) => `
+        ${renderWager(wagerInWei)}
         <br>
         ${renderOpponent(opponent)}
         <br>
         ${renderHandChoice()}
         <br>
         <button style="width: 100%;">Shoot!</button>
-        NB: Using a ${config.timeoutInBlocks}-block timeout (${config.timeoutString}).
+        NB: Running on ${config.networkName} with a ${config.timeoutInBlocks}-block timeout (${config.timeoutString}).
     `;
 
 const renderNewGame = () => {
@@ -186,11 +204,18 @@ const renderActiveGames = () => {
 
 // TODO: way to download the localState
 // TODO: way to use a remote replicated backup service for encrypted state management.
-const initFrontend = () => {
+const initFrontend = (k) => {
     setNodeBySelector("#Prerequisites", document.createTextNode(""));
-    nextID = getUserStorage("nextID", 0);
-    activeGamesById = getUserStorage("activeGamesById");
-    renderNewGame();
-    renderOpenGames();
-    renderActiveGames();
+    if (config && config.contract) {
+        renderNewGame();
+        renderOpenGames();
+        renderActiveGames();
+    } else {
+        setNodeBySelector("#Play", htmlToElement(
+            "<b>No contract deployed on this network. <br/>" +
+            "Please reload this page after connecting to Rinkeby.</b>"));
+    };
+    return k();
 }
+
+registerInit(initFrontend);

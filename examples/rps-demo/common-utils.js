@@ -1,4 +1,4 @@
-// General-Purpose Utilities
+/** General-Purpose Utilities for JavaScript programs, by Alacris */
 'use strict';
 
 // Combinators for regular functions
@@ -27,15 +27,24 @@ const compose = (...fa) => {
     else if (l == 2) { return kompose(fa[0])(fa[1]); }
     else { const f = l.pop(); return kompose(compose(...fa))(f);};}
 
-// UNTESTED! Combinators for CPS functions
+// Combinators for CPS functions
 // type Not(...'a) = forall('result) ...'a => 'result
 // type Kont(...'a) = Not(Not(...'a))
+/* See my relevant tweets at https://twitter.com/Ngnghm/status/1125831388996014080
+If you understand Continuation Passing Style, you're not in Callback Hell anymore,
+just in yet another Overly-Low-Level-Syntax Purgatorium—with a bit more scorn towards
+metaprogramming deniers—and your automatic indentation mode disabled.
 
-// See my relevant tweets at https://twitter.com/Ngnghm/status/1125831388996014080
-// If you understand Continuation Passing Style, you're not in Callback Hell anymore, just in yet another Overly-Low-Level-Syntax Purgatorium—with a bit more scorn towards metaprogramming deniers—and your automatic indentation mode disabled.
-// OK, it *is* somewhat hellish when all the APIs in a programming language are in CPS, but the implementers purposefully refuse to support proper tail calls. Now you're going to leak stack space, and/or implement your own trampolining system and adapters. Damn Continuation deniers!
-// Interestingly, to reliably bridge CPS functions into the trampoline, you have the initial/final continuation register a trampoline function. But continuations are not linear and may return more than once, so your register is a deque and you get green threading for free.
+OK, it *is* somewhat hellish when all the APIs in a programming language are in CPS, but
+the implementers purposefully refuse to support proper tail calls. Now you're going to
+leak stack space, and/or implement your own trampolining system and adapters.
+Damn Continuation deniers!
 
+Interestingly, to reliably bridge CPS functions into the trampoline, you have
+the initial/final continuation register a trampoline function.
+But continuations are not linear and may return more than once,
+so your register is a deque and you get green threading for free.
+*/
 
 /** call a direct function from CPS
     Kont.arrow
@@ -101,11 +110,19 @@ const randomSalt = () => {
     window.crypto.getRandomValues(array);
     return bytesTo0x(array);}
 
-/** : (Array('a), 'a) => Array('a) */
+/** : (Array(...'a), 'b) => Array(...'a, 'b) */
 const snoc = (l, e) => [...l, e];
 
+/** : ...'a => ...'b => () */
+const logging = (...prefix) => (...result) =>
+      console.log(...prefix, ...result.map(JSON.stringify));
+
+/** : ...'a => ...'b => Kont(...'b) */
+const loggingK = (...prefix) => (...result) => (k) =>
+      {logging(...prefix)(...result); return k(...result);}
+
 /** : 'error => Kont() */
-const logErrorK = (error) => (k) => {console.log("error: ", error); return k();}
+const logErrorK = (error) => (k) => loggingK("error:", error)()(k);
 
 /** : (Not('result), Not('success)) => Not('error, 'result) */
 const handlerK = (successK = identityK, errorK = logErrorK) => (error, result) =>
@@ -114,6 +131,12 @@ const handlerK = (successK = identityK, errorK = logErrorK) => (error, result) =
 /** : ('result => Kont(...'a), 'success => Kont(...'a)) => Not(...'a) => Not('error, 'result) */
 const handlerThenK = (successK = identityK, errorK = logErrorK) => (k) =>
       handlerK((result) => successK(result)(k), (error) => errorK(error)(k));
+
+/** Run a node-style CPS function with an "error-first" callback
+    made from a success continuation and an error continuation.
+    : (...'a => Not('error, 'success)) => ...'a => Not(Not('success), Not('error)) */
+const errbacK = (func) => (...args) => (successK = identityK, errorK = logErrorK) =>
+      func(...args, handlerK(successK, errorK));
 
 /** : ('a => Kont()) => Array('a) => Kont() */
 const forEachK = (f) => (l) => (k) => {
@@ -129,13 +152,13 @@ const forEachK = (f) => (l) => (k) => {
 
 const compareFirst = (a, b) => a[0].localeCompare(b[0]);
 
-const logging = (...prefix) => (...result) =>
-      console.log(...prefix, ...result.map(JSON.stringify));
-const loggingK = (...prefix) => (...result) => (k) =>
-      {logging(...prefix)(...result); return k(...result);}
+// Initialization
+const initFunctions = [];
+const registerInit = (...f) => initFunctions.push(...f);
+const initialize = () => forEachK(identity)(initFunctions)(identity);
 
 // Local Storage for the DApp
-// TODO: use remote storage and implement distributed transactions, for redundancy.
+// TODO: use (encrypted) remote storage and implement distributed transactions, for redundancy.
 const keyValuePair = (key, value) => { let o = {}; o[key] = value; return o; }
 const getStorage = (key, default_ = null) => JSON.parse(window.localStorage.getItem(key)) || default_;
 const putStorage = (key, value) => window.localStorage.setItem(key, JSON.stringify(value));
@@ -149,7 +172,6 @@ const getUserStorage = (key, default_ = null) => getStorage(userKey(key), defaul
 const putUserStorage = (key, value) => putStorage(userKey(key), value);
 const updateUserStorage = (key, update) => updateStorage(userKey(key), update);
 const putUserStorageField = (key, field, value) => updateUserStorage(key, keyValuePair(field, value));
-
 
 /** Debugging stuff */
 let r;

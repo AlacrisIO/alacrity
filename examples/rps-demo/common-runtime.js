@@ -1,4 +1,15 @@
+/** Common runtime for Alacris DApps when targetting Ethereum using web3 */
 'use strict';
+
+/* TODO:
+
+ * We use web3 for posting transactions, even though it's unreliable.
+   In the future, we should post transactions only after persisting locally,
+   and carefully play the auction game so as to post transactions without paying too much in fees.
+   In other words, we should be using the legilogic_ethereum library,
+   compiled from OCaml to JS using bucklescript.
+
+  */
 
 /** Get an identifier for the current network.
    TODO: when using web3 1.0, use web3.eth.net.getId().then(k) or whatever it exports,
@@ -56,36 +67,32 @@ const hexToBigNumber = (hex) => web3.toBigNumber(hexTo0x(hex));
 const digest = web3.sha3;
 const digestHex = (x) => web3.sha3(x, {encoding: "hex"});
 
-/** Run an ethereum query. Eat errors and stop.
-    TODO: handle error and/or have a combinator to invoke continuation after either error or success.
-    : (...'a => Kont(error, 'b)) => ...'a => Kont('b) */
-const ethQuery = (func) => (...args) => (successK = identityK, errorK = logErrorK) =>
-      func(...args, handlerK(successK, errorK));
-
 /** Count the number of confirmations for a transaction given by its hash.
     Return -1 if the transaction is yet unconfirmed.
+    TODO: handle and propagate errors
     : String0x => Kont(int) */
 const getConfirmations = (txHash) => (k) =>
-    ethQuery(web3.eth.getTransaction)(txHash)((txInfo) => // Get TxInfo
+    errbacK(web3.eth.getTransaction)(txHash)((txInfo) => // Get TxInfo
     isNull(txInfo) ? k(-1) :
-    ethQuery(web3.eth.getBlockNumber)()((currentBlock) => // Get current block number
+    errbacK(web3.eth.getBlockNumber)()((currentBlock) => // Get current block number
     // When transaction is unconfirmed, its block number is null.
     // In this case we return -1 as number of confirmations
     k(tx.blockNumber === null ? -1 : currentBlock - txInfo.blockNumber)));
 
 /** Wait for a transaction to be confirmed
+    TODO: handle and propagate errors
     : String0x => Kont() */
 const confirmEtherTransaction = (txHash, confirmations = config.confirmationsWantedInBlocks) => (k) =>
-    ethQuery(getConfirmations)(txHash)((txConfirmations) =>
+    errbacK(getConfirmations)(txHash)((txConfirmations) =>
     (txConfirmations >= confirmations) ? k() :
     setTimeout((() => confirmEtherTransaction(txHash, confirmations)(k)),
               config.blockPollingPeriodInSeconds * 1000));
 
 /** Get the number of the latest confirmed block
-    TODO: use an error,continuation monad?
+    TODO: handle and propagate errors
    : Kont(int) */
 const getConfirmedBlockNumber = (k) =>
-    ethQuery(web3.eth.getBlockNumber)()((currentBlock) => // Get current block number
+    errbacK(web3.eth.getBlockNumber)()((currentBlock) => // Get current block number
     k(currentBlock - config.confirmationsWantedInBlocks));
 
 
@@ -123,12 +130,9 @@ var events; // XXX DEBUGGING
 /** hook to synchronously watch all events of some kind as the chain keeps getting updated */
 const processEvents = (filter, processK) => (fromBlock, toBlock) => (k) => {
     fromBlock = Math.max(fromBlock,0);
-    return (fromBlock <= toBlock) ?
+    return (typeof toBlock == "string" || fromBlock <= toBlock) ?
         web3.eth.filter({...filter, fromBlock, toBlock})
-        .get((error, result) =>
-             {console.log("filter", error, result); // XXX DEBUGGING
-              if (Array.isArray(result) && result.length > 0) { events = result; } // XXX DEBUGGING
-              return handlerThenK(forEachK(processK), logErrorK)(k)(error, result)}) :
+        .get(handlerThenK(forEachK(processK), logErrorK)(k)) :
         k(); }
 
 /** Register a confirmed event hook.
@@ -146,17 +150,16 @@ const registerConfirmedEventHook = (name, fromBlock, filter, processK, confirmat
 const registerUnconfirmedEventHook = (name, filter, processK, confirmations = config.confirmationsWantedInBlocks) => (k) => {
     const hook = (firstUnprocessedBlock, lastUnprocessedBlock) => (k) =>
         processEvents(filter, processK)
-            (Math.max(firstUnprocessedBlock, lastUnprocessedBlock - confirmations),
-             lastUnprocessedBlock)(k);
+            (Math.max(firstUnprocessedBlock, lastUnprocessedBlock - confirmations + 1),
+             "pending")(k);
     newBlockHooks[name] = hook;
-    const toBlock = nextUnprocessedBlock - 1;
-    const fromBlock = toBlock - confirmations;
-    return hook(filter, processK)(fromBlock, toBlock)(k); }
+    const fromBlock = nextUnprocessedBlock - 1 - confirmations;
+    return hook(filter, processK)(fromBlock, "pending")(k); }
 
 /** Given some code in 0x form (.bin output from solc), deploy a contract with that code
     and CPS-return its transactionHash
     : String0x => Kont(digest) */
-const deployContract = (code) => (k) => ethQuery(web3.eth.sendTransaction)({data: code})(k);
+const deployContract = (code) => errbacK(web3.eth.sendTransaction)({data: code});
 
 /** : Kont() */
 const initRuntime = (k) => {
@@ -166,3 +169,4 @@ const initRuntime = (k) => {
     nextUnprocessedBlock = getUserStorage("nextUnprocessedBlock", 0);
     return k();
 }
+registerInit(initRuntime);

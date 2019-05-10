@@ -1,33 +1,49 @@
-// web3 client for rock-paper-scissors.
+/** web3 client backend for rock-paper-scissors. */
 /*
-  TODO:
-  * Get the contract to work at all.
+  DONE:
 
-  * Track games:
-    * Always compute both player0 and player1 actions.
-    * Always compute both confirmed and unconfirmed status.
-    * Display the unconfirmed if different from confirmed.
-    * Offer user to decide based on the unconfirmed, but only act when confirmed.
+  * All the messaging TO the blockchain, including creating a new game.
 
-  * We should be using window.localStorage to persist the state of computations across reloads,
-    and in the future, maybe something similar but with remote replicas.
-    https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage
+  TODO FOR DEMO:
 
-  * We use web3 for posting transactions, even though it's unreliable.
-    In the future, we should post transactions only after persisting locally,
-    and carefully play the auction game so as to post transactions without paying too much in fees.
-    In other words, we should be using the legilogic_ethereum library,
-    compiled from OCaml to JS using bucklescript.
+  * Get the contract to work at all for confirmed games.
+    * Follow the factory contract and collect its events.
+    * Filter the events to only consider games where the user is either player0 or player1,
+      or where player1 is open (0)
+    * If the user is player0, try to match with games in our local storage,
+      by given details (the txHash may or may not be already known,
+      due to race condition with the browser crashing before localStorage was done)
+    * Now register the game, if not already registered.
+    * For every registered game that isn't complete,
+      have a loop that polls for changes in game confirmed state
+      (or, alternatively, also look at unconfirmed changes).
+      Let's look at state recomputation, or, alternatively, have the messages register events
+      and watch for them.
+    * Have a hook for (re)displaying a contract purely based on its localStorage state,
+      and have the frontend get into that hook (will skip the game if already dismissed).
+      Call the hook any time a change is detected in a game.
+
+  TODO LATER MAYBE:
+
+  * Add speculative information from unconfirmed transactions,
+    with clear distinction between what's confirmed,
+    and what's unconfirmed by which player.
 
   * Improve discoverability so users don't have to care too much about being player0 or player1.
 
   * On frontend, have a list of common playing partners, with short aliases.
 */
+'use strict';
 
 const rock = 0;
 const paper = 1;
 const scissors = 2;
 const validateHand = (x) => Number.isInteger(x) && (x == 0 || x == 1 || x == 2);
+
+// SENDING DATA TO THE BLOCKCHAIN
+
+// The contract object, to be fulfilled from config after initialization.
+let rpsFactory;
 
 // web3.utils.soliditySha3({t: 'bytes32', value: salt}, {t: 'uint8', value: hand}); // This web3 1.0 function is NOT AVAILABLE IN METAMASK! So we do things manually.
 const makeCommitment = (salt, hand) => digestHex(salt + byteToHex(hand));
@@ -37,32 +53,32 @@ const player0StartGame =
       (salt, hand, player1Address, timeoutInBlocks, wagerInWei, escrowInWei) => (k) => {
     const commitment = makeCommitment(salt, hand);
     const totalAmount = wagerInWei.add(escrowInWei);
-    return ethQuery(rpsFactory.player0_start_game)
+    return errbacK(rpsFactory.player0_start_game)
     (player1Address, timeoutInBlocks, commitment, wagerInWei, {value: totalAmount})(k);
 }
 
 // (address, BN, Uint8) => (() => `a) => `a
 const player1ShowHand = (contractAddress, wagerInWei, hand) => (k) => {
     const rps = web3.eth.contract(rpsAbi).at(contractAddress);
-    return ethQuery(rps.player1_show_hand)(hand, {value: wagerInWei})((txHash) =>
+    return errbacK(rps.player1_show_hand)(hand, {value: wagerInWei})((txHash) =>
     confirmEtherTransaction(txHash)(k)) };
 
 // (address, Uint8Array(32), Uint8) => (() => `a) => `a
 const player0Reveal = (contractAddress, salt, hand) => (k) => {
     const rps = web3.eth.contract(rpsAbi).at(contractAddress);
-    return ethQuery(rps.player0_reveal)(salt, hand, {})((txHash) =>
+    return errbacK(rps.player0_reveal)(salt, hand, {})((txHash) =>
     confirmEtherTransaction(txHash)(k)) };
 
 // (address) => (() => `a) => `a
 const player0Rescind = (contractAddress) => (k) => {
     const rps = web3.eth.contract(rpsAbi).at(contractAddress);
-    return ethQuery(rps.player0_rescind)()((txHash) =>
+    return errbacK(rps.player0_rescind)()((txHash) =>
     confirmEtherTransaction(txHash)(k)) };
 
 // (address) => (() => `a) => `a
 const player1WinByDefault = (contractAddress) => (k) => {
     const rps = web3.eth.contract(rpsAbi).at(contractAddress);
-    return ethQuery(rps.player1_win_by_default().send)()((txHash) =>
+    return errbacK(rps.player1_win_by_default().send)()((txHash) =>
     confirmEtherTransaction(txHash)(k)) };
 
 const decodeState = (x) => {
@@ -78,7 +94,7 @@ const decodeState = (x) => {
 // (address) => {state: Uint8, outcome: Uint8, timeoutInBlocks: int, previousBlock: int, player0: address, player1: address, player0Commitment: bytes32, wagerInWei: BN, escrowInWei: BN, salt: bytes32, hand0: Uint8, hand1: Uint8} => `a) => `a
 const queryState = (contractAddress, blockNumber) => (k) => {
     const rps = web3.eth.contract(rpsAbi).at(contractAddress);
-    return ethQuery(rps.query_state.call)({}, blockNumber)((x) => k(decodeState(x)))};
+    return errbacK(rps.query_state.call)({}, blockNumber)((x) => k(decodeState(x)))};
 
 // (int => `a) => `a
 const queryConfirmedState = (contractAddress) => (k) =>
@@ -96,12 +112,11 @@ const decodeGameCreationData = (data, blockNumber) => {
     return {contract, player0, player1, timeoutInBlocks,
             commitment, wagerInWei, escrowInWei, blockNumber};}
 
-
 // TODO: better error handling
 // (txHash) => {contract: address, player0: address, player1: address, timeoutInBlocks: integer,
 // commitment: bytes32, wagerInWei: BN, escrowInWei: BN, blockNumber: integer}
 const getGameCreationData = (txHash) => (k) => {
-    ethQuery(web3.eth.getTransactionReceipt)(txHash)((receipt) => {
+    errbacK(web3.eth.getTransactionReceipt)(txHash)((receipt) => {
     const result = decodeGameCreationData(receipt.logs[0].data, receipt.blockNumber);
     if(receipt.transactionHash == txHash
        && receipt.status == "0x1"
@@ -114,6 +129,13 @@ const getGameCreationData = (txHash) => (k) => {
         return k(false);
     }})};
 
+// RECEIVING DATA FROM THE BLOCKCHAIN
+
+let nextID;
+let activeGamesById;
+const activeGamesByTxHash = {};
+const activeGamesByCommitment = {};
+
 const processNewGameK = (event) => (k) => {
     return loggingK("newEvent:")(event)(k); }
 
@@ -125,10 +147,15 @@ const watchNewGames = (k) =>
         processNewGameK)(k);
 
 const initBackend = (k) => {
-    rpsFactory = web3.eth.contract(rpsFactoryAbi).at(config.contract.address);
+    if (config && config.contract) { // Avoid erroring on an unconfigured network
+        rpsFactory = web3.eth.contract(rpsFactoryAbi).at(config.contract.address);
+        activeGamesById = getUserStorage("activeGamesById");
+        nextID = getUserStorage("nextID", 0);
+    }
     return k();
 }
 
+registerInit(initBackend);
 
 /** Test games */
 var gsalt = "0x30f6cb71704ee3321c0bb552120a492ab2406098f5a89b0a765155f4f5dd9124";
