@@ -39,7 +39,7 @@
 const rock = 0;
 const paper = 1;
 const scissors = 2;
-const validateHand = (x) => Number.isInteger(x) && (x == 0 || x == 1 || x == 2);
+const validateHand = x => Number.isInteger(x) && (x == 0 || x == 1 || x == 2);
 
 // SENDING DATA TO THE BLOCKCHAIN
 
@@ -49,9 +49,9 @@ let rpsFactory;
 // web3.utils.soliditySha3({t: 'bytes32', value: salt}, {t: 'uint8', value: hand}); // This web3 1.0 function is NOT AVAILABLE IN METAMASK! So we do things manually.
 const makeCommitment = (salt, hand) => digestHex(salt + byteToHex(hand));
 
-// (bytes32_0xString, Uint8, address, BN, BN) => ((address) => `a) => `a
+// (bytes32_0xString, Uint8, address, BN, BN) => (address => `a) => `a
 const player0StartGame =
-      (salt, hand, player1Address, timeoutInBlocks, wagerInWei, escrowInWei) => (k) => {
+      (salt, hand, player1Address, timeoutInBlocks, wagerInWei, escrowInWei) => k => {
     const commitment = makeCommitment(salt, hand);
     const totalAmount = wagerInWei.add(escrowInWei);
     return errbacK(rpsFactory.player0_start_game)
@@ -59,30 +59,30 @@ const player0StartGame =
 }
 
 // (address, BN, Uint8) => (() => `a) => `a
-const player1ShowHand = (contractAddress, wagerInWei, hand) => (k) => {
+const player1ShowHand = (contractAddress, wagerInWei, hand) => k => {
     const rps = web3.eth.contract(rpsAbi).at(contractAddress);
-    return errbacK(rps.player1_show_hand)(hand, {value: wagerInWei})((txHash) =>
+    return errbacK(rps.player1_show_hand)(hand, {value: wagerInWei})(txHash =>
     confirmEtherTransaction(txHash)(k)) };
 
 // (address, Uint8Array(32), Uint8) => (() => `a) => `a
-const player0Reveal = (contractAddress, salt, hand) => (k) => {
+const player0Reveal = (contractAddress, salt, hand) => k => {
     const rps = web3.eth.contract(rpsAbi).at(contractAddress);
-    return errbacK(rps.player0_reveal)(salt, hand, {})((txHash) =>
+    return errbacK(rps.player0_reveal)(salt, hand, {})(txHash =>
     confirmEtherTransaction(txHash)(k)) };
 
-// (address) => (() => `a) => `a
-const player0Rescind = (contractAddress) => (k) => {
+// address => (() => `a) => `a
+const player0Rescind = contractAddress => k => {
     const rps = web3.eth.contract(rpsAbi).at(contractAddress);
-    return errbacK(rps.player0_rescind)()((txHash) =>
+    return errbacK(rps.player0_rescind)()(txHash =>
     confirmEtherTransaction(txHash)(k)) };
 
-// (address) => (() => `a) => `a
-const player1WinByDefault = (contractAddress) => (k) => {
+// address => (() => `a) => `a
+const player1WinByDefault = contractAddress => k => {
     const rps = web3.eth.contract(rpsAbi).at(contractAddress);
-    return errbacK(rps.player1_win_by_default().send)()((txHash) =>
+    return errbacK(rps.player1_win_by_default().send)()(txHash =>
     confirmEtherTransaction(txHash)(k)) };
 
-const decodeState = (x) => {
+const decodeState = x => {
     let [state, outcome, timeoutInBlocks, previousBlock, player0, player1, player0Commitment, wagerInWei, escrowInWei, salt, hand0, hand1] = x;
     state = state.toNumber();
     outcome = outcome.toNumber();
@@ -92,18 +92,18 @@ const decodeState = (x) => {
     hand1 = hand1.toNumber();
     return {state, outcome, timeoutInBlocks, previousBlock, player0, player1, player0Commitment, wagerInWei, escrowInWei, salt, hand0, hand1};};
 
-// (address) => {state: Uint8, outcome: Uint8, timeoutInBlocks: int, previousBlock: int, player0: address, player1: address, player0Commitment: bytes32, wagerInWei: BN, escrowInWei: BN, salt: bytes32, hand0: Uint8, hand1: Uint8} => `a) => `a
-const queryState = (contractAddress, blockNumber) => (k) => {
+// address => {state: Uint8, outcome: Uint8, timeoutInBlocks: int, previousBlock: int, player0: address, player1: address, player0Commitment: bytes32, wagerInWei: BN, escrowInWei: BN, salt: bytes32, hand0: Uint8, hand1: Uint8} => `a) => `a
+const queryState = (contractAddress, blockNumber) => k => {
     const rps = web3.eth.contract(rpsAbi).at(contractAddress);
-    return errbacK(rps.query_state.call)({}, blockNumber)((x) => k(decodeState(x)))};
+    return errbacK(rps.query_state.call)({}, blockNumber)(x => k(decodeState(x)))};
 
 // (int => `a) => `a
 // TODO: HANDLE ERRORS!
-const queryConfirmedState = (contractAddress) => (k) =>
-    confirmedBlockNumber((blockNumber) => queryState(contractAddress, blockNumber)(k));
+const queryConfirmedState = contractAddress => k =>
+    confirmedBlockNumber(blockNumber => queryState(contractAddress, blockNumber)(k));
 
 const decodeGameCreationData = (data, blockNumber, txHash) => {
-    const x = (i) => data.slice(2+i*64,66+i*64);
+    const x = i => data.slice(2+i*64,66+i*64);
     const contract = hexToAddress(x(0));
     const player0 = hexToAddress(x(1));
     const player1 = hexToAddress(x(2));
@@ -115,10 +115,10 @@ const decodeGameCreationData = (data, blockNumber, txHash) => {
             commitment, wagerInWei, escrowInWei, blockNumber, txHash};}
 
 // TODO: better error handling
-// (txHash) => {contract: address, player0: address, player1: address, timeoutInBlocks: integer,
+// txHash => {contract: address, player0: address, player1: address, timeoutInBlocks: integer,
 // commitment: bytes32, wagerInWei: BN, escrowInWei: BN, blockNumber: integer}
-const getGameCreationData = (txHash) => (k) => {
-    errbacK(web3.eth.getTransactionReceipt)(txHash)((receipt) => {
+const getGameCreationData = txHash => k => {
+    errbacK(web3.eth.getTransactionReceipt)(txHash)(receipt => {
     const result = decodeGameCreationData(receipt.logs[0].data, receipt.blockNumber, txHash);
     if(receipt.transactionHash == txHash
        && receipt.status == "0x1"
@@ -136,14 +136,15 @@ const getGameCreationData = (txHash) => (k) => {
 let nextID;
 let activeGames = [];
 const gamesByTxHash = {};
-const activeGamesByCommitment = {};
+const activeGamesByCommitment = {}; // To search an active game by commitment...
 
 const zeroAddress = "0x0000000000000000000000000000000000000000";
 
-const uint32ToHex = (u) => web3.toHex(u + 0x100000000).slice(3);
+const uint32ToHex = u => web3.toHex(u + 0x100000000).slice(3);
 const idToString = uint32ToHex;
 
-let renderGameHook = (x) => (k) => k();
+// Default hook (until replaced by the UI frontend), just log the updated game.
+let renderGameHook = loggingK("render:");
 
 const getGameID = () => {
     const gameID = nextID;
@@ -152,29 +153,37 @@ const getGameID = () => {
     return gameID;
 }
 
-const registerGameK = (game) => (k) => {
+const registerGameK = game => k => {
     const id = getGameID();
     putUserStorage(idToString(id), game);
     activeGames.push(id);
+    if (game.txHash) {
+        gamesByTxHash[game.txHash] = id;
+    }
     renderGameHook(id, game)(k);
 }
 
-const processNewGameK = (event) => (k) => {
+const processNewGameK = event => k => {
     const game = decodeGameCreationData(event.data, event.blockNumber, event.transactionHash);
+    // logging("newGame")(game);
     if (!(game.player0 == userAddress || game.player1 == userAddress || game.player1 == zeroAddress)) {
+        // logging("not for us!")();
         return k();
     }
     let id = gamesByTxHash[event.transactionHash];
     if (id) {
         if (id.contract) { // Known game. Assume blockNumber is also known.
+            // logging("old stuff!")();
             // TODO: should we ensure it's active, or is activation atomic enough?
             return k();
         } else {
+            // logging("yay contract!")(game.contract);
             // TODO: double-check that everything matches, or issue warning?
             updateUserStorage(idToString(id), {blockNumber: game.blockNumber, contract: game.contract});
             return renderGameHook(id, game)(k);
         }
     } else {
+        // logging("Just register a new game!")();
         // TODO: handle the case where we're player0 but we crashed between the time the transaction was
         // published and the time we could save the txHash to localStorage.
         // TODO: also handle when we're player0 but that was started on another browser.
@@ -182,30 +191,31 @@ const processNewGameK = (event) => (k) => {
     }
 }
 
-const watchNewGames = (k) =>
+const watchNewGames = k =>
     registerConfirmedEventHook(
         "confirmedNewGames",
         config.contract.creationBlock, // TODO: only from 2 timeouts in the past(?)
         {address: config.contract.address},
         processNewGameK)(k);
 
-const processActiveGame = (id) => (k) => {
+const processActiveGame = id => k => {
     const idString = idToString(id);
     const game = getUserStorage(idString);
-    if (!game.contract) {
+    if (!game.contract) { // Nothing to watch (yet)
         return k();
     }
     return k(); // TODO     queryConfirmedState(game.contract)(XXX
 }
 
-const processActiveGames = (k) => forEachK(processActiveGame)(activeGames)(k);
+const processActiveGames = (_firstUnprocessedBlock, _lastUnprocessedBlock) => k =>
+      forEachK(processActiveGame)(activeGames)(k);
 
-const watchActiveGames = (k) => {
+const watchActiveGames = k => {
     newBlockHooks["confirmedActiveGames"] = processActiveGames;
     return processActiveGames(k);
 }
 
-const initBackend = (k) => {
+const initBackend = k => {
     if (config && config.contract) { // Avoid erroring on an unconfigured network
         rpsFactory = web3.eth.contract(rpsFactoryAbi).at(config.contract.address);
         nextID = getUserStorage("nextID", 0);
@@ -248,6 +258,6 @@ var g1p2 = () => srf(player0Reveal(g1c, gsalt, 2));
 var g1s = () => srf(queryConfirmedState(g1c));
 
 var wb = () => {
-    newBlockHooks["newBlock"] = (from, to) => (k) => {
+    newBlockHooks["newBlock"] = (from, to) => k => {
         console.log("newBlock! from:", from, "to:", to); return k(); };
     return watchBlockchain(); }

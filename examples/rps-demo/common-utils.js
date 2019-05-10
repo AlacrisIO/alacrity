@@ -3,22 +3,22 @@
 
 // Combinators for regular functions
 /** : 'a => 'a */
-const identity = (x) => x;
+const identity = x => x;
 
 /** : 'a => ...'b => 'a */
-const konstant = (x) => (...y) => x;
+const konstant = x => (...y) => x;
 
 /** : (...'z => 'y => 'x) => (...'z => 'y) => ...'z => 'x */
-const smelt = (x) => (y) => (...z) => x(...z)(y(...z));
+const smelt = x => y => (...z) => x(...z)(y(...z));
 
 /** : (...'z => ...'y => 'x) => ...'y => ...'z => 'x */
-const flip = (x) => (...y) => (...z) => x(...z)(...y);
+const flip = x => (...y) => (...z) => x(...z)(...y);
 
 /** : ('y => 'z) => (...'x => 'y) => ...'x => 'z */
-const kompose = (f) => (g) => (...x) => f(g(...x));
+const kompose = f => g => (...x) => f(g(...x));
 
 /** : (...'x => 'y) => ('y => 'z) => ...'x => 'z */
-const seq = (f) => (g) => (...x) => g(f(...x));
+const seq = f => g => (...x) => g(f(...x));
 
 const compose = (...fa) => {
     const l = fa.length;
@@ -49,26 +49,26 @@ so your register is a deque and you get green threading for free.
 /** call a direct function from CPS
     Kont.arrow
     : (...'a => 'b) => ...'a => Kont('b) */
-const arrowK = (f) => (...x) => (k) => k(f(...x));
+const arrowK = f => (...x) => k => k(f(...x));
 
 /** Kont.pure
     : ...'a => Kont(...'a) */
-const identityK = (...x) => (k) => k(...x);
+const identityK = (...x) => k => k(...x);
 
 /** : ...'a => ...'b => Kont(...'a) */
-const konstantK = (...x) => (...y) => (k) => k(...x);
+const konstantK = (...x) => (...y) => k => k(...x);
 
 /** : (...'z => 'y => Kont('x)) => (...'z => Kont('y)) => ...'z => Kont('x) */
-const smeltK = (x) => (y) => (...z) => (k) => x(...z)((xz) => y(...z)(seq(xz)(k)));
+const smeltK = x => y => (...z) => k => x(...z)(xz => y(...z)(seq(xz)(k)));
 
 /** : (...'z => ...'y => Kont('x)) => ...'y => ...'z => Kont('x) */
-const flipK = (x) => (...y) => (...z) => (k) => x(...z)((xz) => xz(...y)(k));
+const flipK = x => (...y) => (...z) => k => x(...z)(xz => xz(...y)(k));
 
 /** : (...'y => Kont(...'z)) => (...'x => Kont(...'y)) => ...'x => Kont(...'z) */
-const komposeK = (f) => (g) => (...x) => (k) => g(...x)((...y) => f(...y)(k));
+const komposeK = f => g => (...x) => k => g(...x)((...y) => f(...y)(k));
 
 /** : (...'x => Kont(...'y)) => (...'y => Kont(...'z)) => ...'x => Kont(...'z) */
-const seqK = (f) => (g) => komposeK(g)(f);
+const seqK = f => g => komposeK(g)(f);
 
 const composeK = (...fa) => {
     const l = fa.length;
@@ -77,31 +77,27 @@ const composeK = (...fa) => {
     else if (l == 2) { return komposeK(fa[0])(fa[1]); }
     else { const f = l.pop(); return komposeK(composeK(...fa))(f);};}
 
-
 /** : Uint8 => string */
-const byteToHex = (byte) => ('0' + (byte & 0xFF).toString(16)).slice(-2);
+const byteToHex = byte => ('0' + (byte & 0xFF).toString(16)).slice(-2);
 
 /** : Uint8Array => string */
-const bytesToHex = (bytes) => Array.from(bytes, byteToHex).join('');
+const bytesToHex = bytes => Array.from(bytes, byteToHex).join('');
 
 /** : string => String0x */
-const hexTo0x = (hex) => "0x" + hex;
+const hexTo0x = hex => "0x" + hex;
 
 /** : Uint8Array => String0x */
-const bytesTo0x = (bytes) => hexTo0x(bytesToHex(bytes));
+const bytesTo0x = bytes => hexTo0x(bytesToHex(bytes));
 
 /** Strip the 0x prefix
     : String0x => string */
-const un0x = (s) => {
+const un0x = s => {
     console.assert(s.slice(0,2) == "0x");
     return s.slice(2);}
 
 /** Prepend "0x" to a hex string
     : string => String0x */
-const hexToAddress = (hex) => hexTo0x(hex.slice(-40));
-
-/** Convert a hex string to a BigNumber
-    : string => BigNumber */
+const hexToAddress = hex => hexTo0x(hex.slice(-40));
 
 /** Return a random salt
     : () => String0x */
@@ -118,28 +114,35 @@ const logging = (...prefix) => (...result) =>
       console.log(...prefix, ...result.map(JSON.stringify));
 
 /** : ...'a => ...'b => Kont(...'b) */
-const loggingK = (...prefix) => (...result) => (k) =>
+const loggingK = (...prefix) => (...result) => k =>
       {logging(...prefix)(...result); return k(...result);}
 
 /** : 'error => Kont() */
-const logErrorK = (error) => (k) => loggingK("error:", error)()(k);
+const logErrorK = error => k => loggingK("error:", error)()(k);
 
-/** : (Not('result), Not('success)) => Not('error, 'result) */
-const handlerK = (successK = identityK, errorK = logErrorK) => (error, result) =>
-    error ? errorK(error) : successK(result);
+/** : Not('result) */
+const kLogResult = result => loggingK("result:", error)()(identity);
+
+/** : Not('error) */
+const kLogError = error => logErrorK(error)(identity);
+
+// type KontE('a) = (Not('a), Not('error)) => 'bottom
+/** : (Not('result), Not('error)) => Not('error, 'result) */
+const handlerK = (kSuccess = kLogResult, kError = kLogError) => (error, result) =>
+    error ? kError(error) : kSuccess(result);
 
 /** : ('result => Kont(...'a), 'success => Kont(...'a)) => Not(...'a) => Not('error, 'result) */
-const handlerThenK = (successK = identityK, errorK = logErrorK) => (k) =>
-      handlerK((result) => successK(result)(k), (error) => errorK(error)(k));
+const handlerThenK = (successK = identityK, errorK = logErrorK) => k =>
+      handlerK(result => successK(result)(k), error => errorK(error)(k));
 
 /** Run a node-style CPS function with an "error-first" callback
     made from a success continuation and an error continuation.
     : (...'a => Not('error, 'success)) => ...'a => Not(Not('success), Not('error)) */
-const errbacK = (func) => (...args) => (successK = identityK, errorK = logErrorK) =>
-      func(...args, handlerK(successK, errorK));
+const errbacK = func => (...args) => (kSuccess = kLogResult, kError = kLogError) =>
+      func(...args, handlerK(kSuccess, kError));
 
 /** : ('a => Kont()) => Array('a) => Kont() */
-const forEachK = (f) => (l) => (k) => {
+const forEachK = f => l => k => {
     const loop = () => {
         if (l.length == 0) {
             return k();
@@ -150,7 +153,12 @@ const forEachK = (f) => (l) => (k) => {
         };};
     return loop(); }
 
+/** : ((string, ...'a), (string, ...'b) ) => int */
 const compareFirst = (a, b) => a[0].localeCompare(b[0]);
+
+/** : StringTable(Not(...'a)) => ...'a => Kont() */
+const runHooks = hooks => (...args) => k =>
+    forEachK(entry => entry[1](...args))(Object.entries(hooks).sort(compareFirst))(k);
 
 // Initialization
 const initFunctions = [];
@@ -167,7 +175,7 @@ const updateStorage = (key, update) => putStorage(key, {...getStorage(key), ...u
 // For Apps with a "current user" that may change, making keys relative to a userID.
 /** : string */
 let userID;
-const userKey = (key) => `${userID}.${key}`;
+const userKey = key => `${userID}.${key}`;
 const getUserStorage = (key, default_ = null) => getStorage(userKey(key), default_);
 const putUserStorage = (key, value) => putStorage(userKey(key), value);
 const updateUserStorage = (key, update) => updateStorage(userKey(key), update);
@@ -175,9 +183,9 @@ const putUserStorageField = (key, field, value) => updateUserStorage(key, keyVal
 
 /** Debugging stuff */
 let r;
-const setr = (result) => {r = result; logging("result:")(r); return r;};
+const setr = result => {r = result; logging("result:")(r); return r;};
 const setrr = seq(Array.of)(setr);
-const setrk = (result) => (k) => k(setr(result));
+const setrk = result => k => k(setr(result));
 const setrrk = seq(Array.of)(setrk);
-const srf = (func) => {r = undefined; return func(setr);}
-const srrf = (func) => {r = undefined; return func(setrr);}
+const srf = func => {r = undefined; return func(setr);}
+const srrf = func => {r = undefined; return func(setrr);}

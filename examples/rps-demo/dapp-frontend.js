@@ -17,14 +17,14 @@
  * Each game has a state:
    */
 
-const htmlToElement = (html) => {
+const htmlToElement = html => {
     const template = document.createElement('template');
     html = html.trim(); // Never return a text node of whitespace as the result
     template.innerHTML = html;
     return template.content.firstChild;
 }
 
-const htmlToElements = (html) => {
+const htmlToElements = html => {
     const template = document.createElement('template');
     template.innerHTML = html;
     return template.content.childNodes;
@@ -46,7 +46,7 @@ const addressRegex = "0x[0-9A-Fa-f]{40}";
 const minWagerInEth = .01;
 const defaultWagerInEth = 1;
 
-const renderWager = (amountInWei) => {
+const renderWager = amountInWei => {
     const common = 'style="${font-size: 10pt}" name="wagerInEth"';
     return `
     <label style="text-align: center;">
@@ -60,7 +60,7 @@ const renderWager = (amountInWei) => {
 // TODO: have a greyed out message "default: anyone" in the input style
 // TODO: support a list of known opponents, and giving nicknames to known opponents
 // TODO: add known-partner and nickname support to MetaMask (?)
-const renderOpponent = (opponent) => {
+const renderOpponent = opponent => {
     const common='style="font-size: 10pt;" name="opponent"';
     return `
     <label style="text-align: center;">
@@ -70,9 +70,9 @@ const renderOpponent = (opponent) => {
             `<input ${common}" pattern="${addressRegex}" size="50">`}</label>`;};
 
 // TODO: use nice icons.
-const iconOfHand = (hand) => ['✊', '✋', '✌'][hand] || '';
-const labelOfHand = (hand) => ['Rock', 'Paper', 'Scissors'][hand] || '';
-const renderHandOption = (hand) => `
+const iconOfHand = hand => ['✊', '✋', '✌'][hand] || '';
+const labelOfHand = hand => ['Rock', 'Paper', 'Scissors'][hand] || '';
+const renderHandOption = hand => `
     <label style="display: inline-block; margin: .5em; text-align: center;">
         <input type="radio" value="${hand}" name="hand">
         <div class="symbol">${iconOfHand(hand)}</div>
@@ -86,7 +86,7 @@ const renderHandChoice = () => `
         ${renderHandOption(2)}
     </fieldset>`;
 
-const gameParametersOfForm = (e) => {
+const gameParametersOfForm = e => {
     // TODO: validate input, instead of having a default values!
     const wagerInput = e.target.elements.wagerInEth.value;
     let wagerInEth;
@@ -123,13 +123,15 @@ const randomHand = () => {
     return array[0] % 3;
 };
 
-const createNewGame = (wagerInWei, escrowInWei, _opponent, hand) => {
+const createNewGame = (wagerInWei, escrowInWei, opponent, hand) => {
     const gameID = getGameID();
-    const key = idToString(gameID);
+    const id = idToString(gameID);
     // TODO: let advanced users override the salt? Not without better transaction tracking.
     // Right now we rely on robust randomness to track the transactions by commitment.
     const salt = randomSalt();
-    const opponent = _opponent || "0x0000000000000000000000000000000000000000";
+    const commitment = makeCommitment(salt, hand);
+    const player0 = userAddress;
+    const player1 = opponent || "0x0000000000000000000000000000000000000000";
     const timeoutInBlocks = config.timeoutInBlocks;
     // TODO: add the ID to the contract call for tracking purpose? Use the low bits of the escrow?
     // Or the high bits of the hand? No, use the commitment:
@@ -138,15 +140,15 @@ const createNewGame = (wagerInWei, escrowInWei, _opponent, hand) => {
     // We could use the nonce for the transaction, but there's no atomic access to it.
     // Could we save the TxHash locally *before* sending it online? Unhappily web3 doesn't allow that:
     // < https://github.com/MetaMask/metamask-extension/issues/3475 >.
-    putUserStorage(key, {role: 0, status: "Creating the game…",
-                         salt, hand, opponent, timeoutInBlocks, wagerInWei, escrowInWei});
-    const commitment = makeCommitment(salt, hand);
+    putUserStorage(id, {role: 0, status: "Creating the game…",
+                        salt, hand, commitment, player0, player1, timeoutInBlocks, wagerInWei, escrowInWei});
     activeGamesByCommitment[commitment] = key;
-    return player0StartGame(salt, hand, opponent, timeoutInBlocks, wagerInWei, escrowInWei)((txHash) => {
-        activeGamesByTxHash[txHash] = key;
+    return player0StartGame(salt, hand, opponent, timeoutInBlocks, wagerInWei, escrowInWei)(txHash => {
+        gamesByTxHash[txHash] = key;
         updateUserStorage(key, {status: "Posted the game-creation transaction…", txHash})});}
 
-const submitNewGame = (e) => {
+const submitNewGame = e =>
+ {
         e.preventDefault();
         try {
             const {wagerInEth, opponent, hand} = gameParametersOfForm(e);
@@ -202,7 +204,7 @@ const renderActiveGames = () => {
 
 // TODO: way to download the localState
 // TODO: way to use a remote replicated backup service for encrypted state management.
-const initFrontend = (k) => {
+const initFrontend = k => {
     setNodeBySelector("#Prerequisites", document.createTextNode(""));
     if (config && config.contract) {
         renderNewGame();
