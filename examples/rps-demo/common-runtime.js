@@ -17,10 +17,12 @@
    (both networkID 1, the latter chainID 61)
    : () => string */
 const getNetworkID = () => web3.currentProvider.networkVersion;
+let networkID;
 
 /** Get the address of the current user.
     : () => address */
 const getUserAddress = () => web3.currentProvider.selectedAddress;
+let userAddress;
 
 /** The networkConfig is an object that maps the networkID (TODO: in the future, plus chain ID?)
     to the config below. It is the responsibility of the DApp developers to define networkConfig
@@ -163,9 +165,10 @@ const deployContract = (code) => errbacK(web3.eth.sendTransaction)({data: code})
 
 /** : Kont() */
 const initRuntime = (k) => {
-    const networkID = getNetworkID();
+    networkID = getNetworkID();
+    userAddress = getUserAddress();
     config = networkConfig[networkID];
-    userID = `${networkID}.${getUserAddress()}`;
+    userID = `${networkID}.${userAddress}`;
     nextUnprocessedBlock = getUserStorage("nextUnprocessedBlock", 0);
     return k();
 }

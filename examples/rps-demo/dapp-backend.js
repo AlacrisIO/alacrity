@@ -3,27 +3,28 @@
   DONE:
 
   * All the messaging TO the blockchain, including creating a new game.
+  * Follow the factory contract and collect its events.
+  * Filter the events to only consider games where the user is either player0 or player1,
+    or where player1 is open (0)
+  * If the user is player0, try to match with games in our local storage,
+    by given details.
+  * Now register the game, if not already registered.
+  * Have a hook for (re)displaying a contract purely based on its localStorage state,
+    and have the frontend get into that hook (will skip the game if already dismissed).
+    Call the hook any time a change is detected in a game.
 
   TODO FOR DEMO:
 
-  * Get the contract to work at all for confirmed games.
-    * Follow the factory contract and collect its events.
-    * Filter the events to only consider games where the user is either player0 or player1,
-      or where player1 is open (0)
-    * If the user is player0, try to match with games in our local storage,
-      by given details (the txHash may or may not be already known,
-      due to race condition with the browser crashing before localStorage was done)
-    * Now register the game, if not already registered.
-    * For every registered game that isn't complete,
-      have a loop that polls for changes in game confirmed state
-      (or, alternatively, also look at unconfirmed changes).
-      Let's look at state recomputation, or, alternatively, have the messages register events
-      and watch for them.
-    * Have a hook for (re)displaying a contract purely based on its localStorage state,
-      and have the frontend get into that hook (will skip the game if already dismissed).
-      Call the hook any time a change is detected in a game.
+  * For every registered game that isn't complete,
+    have a loop that polls for changes in game confirmed state
+    (or, alternatively, also look at unconfirmed changes).
+    Let's look at state recomputation, or, alternatively, have the messages register events
+    and watch for them.
 
   TODO LATER MAYBE:
+
+  * If the user is player0 and the txHash is not be already known, do something useful
+    (due to race condition with the browser crashing before localStorage was done, or use in another browser)
 
   * Add speculative information from unconfirmed transactions,
     with clear distinction between what's confirmed,
@@ -97,10 +98,11 @@ const queryState = (contractAddress, blockNumber) => (k) => {
     return errbacK(rps.query_state.call)({}, blockNumber)((x) => k(decodeState(x)))};
 
 // (int => `a) => `a
+// TODO: HANDLE ERRORS!
 const queryConfirmedState = (contractAddress) => (k) =>
     confirmedBlockNumber((blockNumber) => queryState(contractAddress, blockNumber)(k));
 
-const decodeGameCreationData = (data, blockNumber) => {
+const decodeGameCreationData = (data, blockNumber, txHash) => {
     const x = (i) => data.slice(2+i*64,66+i*64);
     const contract = hexToAddress(x(0));
     const player0 = hexToAddress(x(1));
@@ -110,14 +112,14 @@ const decodeGameCreationData = (data, blockNumber) => {
     const wagerInWei = hexToBigNumber(x(5));
     const escrowInWei = hexToBigNumber(x(6));
     return {contract, player0, player1, timeoutInBlocks,
-            commitment, wagerInWei, escrowInWei, blockNumber};}
+            commitment, wagerInWei, escrowInWei, blockNumber, txHash};}
 
 // TODO: better error handling
 // (txHash) => {contract: address, player0: address, player1: address, timeoutInBlocks: integer,
 // commitment: bytes32, wagerInWei: BN, escrowInWei: BN, blockNumber: integer}
 const getGameCreationData = (txHash) => (k) => {
     errbacK(web3.eth.getTransactionReceipt)(txHash)((receipt) => {
-    const result = decodeGameCreationData(receipt.logs[0].data, receipt.blockNumber);
+    const result = decodeGameCreationData(receipt.logs[0].data, receipt.blockNumber, txHash);
     if(receipt.transactionHash == txHash
        && receipt.status == "0x1"
        && receipt.from == result.player0
@@ -132,27 +134,94 @@ const getGameCreationData = (txHash) => (k) => {
 // RECEIVING DATA FROM THE BLOCKCHAIN
 
 let nextID;
-let activeGamesById;
-const activeGamesByTxHash = {};
+let activeGames = [];
+const gamesByTxHash = {};
 const activeGamesByCommitment = {};
 
+const zeroAddress = "0x0000000000000000000000000000000000000000";
+
+const uint32ToHex = (u) => web3.toHex(u + 0x100000000).slice(3);
+const idToString = uint32ToHex;
+
+let renderGameHook = (x) => (k) => k();
+
+const getGameID = () => {
+    const gameID = nextID;
+    nextID = nextID + 1;
+    putUserStorage("nextID", nextID);
+    return gameID;
+}
+
+const registerGameK = (game) => (k) => {
+    const id = getGameID();
+    putUserStorage(idToString(id), game);
+    activeGames.push(id);
+    renderGameHook(id, game)(k);
+}
+
 const processNewGameK = (event) => (k) => {
-    return loggingK("newEvent:")(event)(k); }
+    const game = decodeGameCreationData(event.data, event.blockNumber, event.transactionHash);
+    if (!(game.player0 == userAddress || game.player1 == userAddress || game.player1 == zeroAddress)) {
+        return k();
+    }
+    let id = gamesByTxHash[event.transactionHash];
+    if (id) {
+        if (id.contract) { // Known game. Assume blockNumber is also known.
+            // TODO: should we ensure it's active, or is activation atomic enough?
+            return k();
+        } else {
+            // TODO: double-check that everything matches, or issue warning?
+            updateUserStorage(idToString(id), {blockNumber: game.blockNumber, contract: game.contract});
+            return renderGameHook(id, game)(k);
+        }
+    } else {
+        // TODO: handle the case where we're player0 but we crashed between the time the transaction was
+        // published and the time we could save the txHash to localStorage.
+        // TODO: also handle when we're player0 but that was started on another browser.
+        return registerGameK(game)(k);
+    }
+}
 
 const watchNewGames = (k) =>
     registerConfirmedEventHook(
         "confirmedNewGames",
-        fromBlock = config.contract.creationBlock, // TODO: only from 2 timeouts in the past(?)
-        filter = {address: config.contract.address},
+        config.contract.creationBlock, // TODO: only from 2 timeouts in the past(?)
+        {address: config.contract.address},
         processNewGameK)(k);
+
+const processActiveGame = (id) => (k) => {
+    const idString = idToString(id);
+    const game = getUserStorage(idString);
+    if (!game.contract) {
+        return k();
+    }
+    return k(); // TODO     queryConfirmedState(game.contract)(XXX
+}
+
+const processActiveGames = (k) => forEachK(processActiveGame)(activeGames)(k);
+
+const watchActiveGames = (k) => {
+    newBlockHooks["confirmedActiveGames"] = processActiveGames;
+    return processActiveGames(k);
+}
 
 const initBackend = (k) => {
     if (config && config.contract) { // Avoid erroring on an unconfigured network
         rpsFactory = web3.eth.contract(rpsFactoryAbi).at(config.contract.address);
-        activeGamesById = getUserStorage("activeGamesById");
         nextID = getUserStorage("nextID", 0);
+        for (let id = 0; id < nextID; id++) {
+            let game = getUserStorage(idToString(id));
+            if (game) {
+                if (!game.isComplete) {
+                    activeGames.push(id);
+                }
+                if (game.txHash) {
+                    gamesByTxHash[game.txHash] = id;
+                }
+            }
+        }
     }
-    return k();
+    return watchNewGames(() => watchActiveGames(k));
 }
 
 registerInit(initBackend);

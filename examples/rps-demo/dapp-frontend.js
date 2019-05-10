@@ -1,6 +1,12 @@
 /** web3 client frontend for rock-paper-scissors. */
 /* TODO:
 
+ * Display the game in each of its possible states
+
+ * Have a flag to dismiss completed games
+
+ * TODO LATER
+
  * Display the unconfirmed if different from confirmed.
 
  * Offer user to decide based on the unconfirmed, but only act when confirmed.
@@ -117,22 +123,14 @@ const randomHand = () => {
     return array[0] % 3;
 };
 
-const uint32ToHex = (u) => web3.toHex(u + 0x100000000).slice(3);
-
-const getGameID = () => {
-    const gameID = nextID;
-    nextID = nextID + 1;
-    putUserStorage("nextID", nextID);
-    return gameID;
-}
-
 const createNewGame = (wagerInWei, escrowInWei, _opponent, hand) => {
     const gameID = getGameID();
-    const key = uint32ToHex(gameID);
+    const key = idToString(gameID);
     // TODO: let advanced users override the salt? Not without better transaction tracking.
     // Right now we rely on robust randomness to track the transactions by commitment.
     const salt = randomSalt();
     const opponent = _opponent || "0x0000000000000000000000000000000000000000";
+    const timeoutInBlocks = config.timeoutInBlocks;
     // TODO: add the ID to the contract call for tracking purpose? Use the low bits of the escrow?
     // Or the high bits of the hand? No, use the commitment:
     // const commitment = makeCommitment(salt, hand);
@@ -181,7 +179,7 @@ const renderGameChoice = (id, wagerInWei, opponent) => `
 
 const renderNewGame = () => {
     const el = document.createElement('form');
-    el.innerHTML = renderGameChoice (nextID, null, null);
+    el.innerHTML = renderGameChoice (nextID, null, null); // TODO: only allocate ID after game is started
     el.addEventListener('submit', submitNewGame);
     setNodeBySelector("#NewGame", el);
 };
@@ -194,8 +192,8 @@ const renderOpenGames = () => {
 }
 const renderActiveGames = () => {
     const node = document.createElement('div');
-    if (activeGamesById) {
-        for(id in activeGamesById) { restartGame(node, id); }
+    if (activeGames.length > 0) {
+        for(let id in activeGames) { restartGame(node, id); }
     } else {
         node.innerHTML = "<p>(No currently active game)</p>";
     }
