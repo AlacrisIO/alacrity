@@ -90,10 +90,9 @@ const getConfirmations = txHash => (k = kLogResult, kError = kLogError) =>
 /** Wait for a transaction to be confirmed
     : String0x => KontE() */
 const confirmEtherTransaction =
-      (txHash, confirmations = config.confirmationsWantedInBlocks) =>
-      (k = kLogResult, kError = kLogError) => {
+      (txHash, confirmations = config.confirmationsWantedInBlocks) => (k = kLogResult) => {
     const kRetry = () =>
-          setTimeout((() => confirmEtherTransaction(txHash, confirmations)(k, kError)),
+          setTimeout((() => confirmEtherTransaction(txHash, confirmations)(k)),
                      config.blockPollingPeriodInSeconds * 1000);
     return errbacK(getConfirmations)(txHash)(
         txConfirmations => (txConfirmations >= confirmations) ? k() : kRetry(),

@@ -118,13 +118,13 @@ const loggingK = (...prefix) => (...result) => k =>
       {logging(...prefix)(...result); return k(...result);}
 
 /** : 'error => Kont() */
-const logErrorK = error => k => loggingK("error:", error)()(k);
+const logErrorK = (...error) => k => loggingK("error:", ...error)()(k);
 
 /** : Not('result) */
-const kLogResult = result => loggingK("result:", error)()(identity);
+const kLogResult = (...result) => loggingK("result:", ...result)()(identity);
 
 /** : Not('error) */
-const kLogError = error => logErrorK(error)(identity);
+const kLogError = (...error) => logErrorK(...error)(identity);
 
 // type KontE('a) = (Not('a), Not('error)) => 'bottom
 /** : (Not('result), Not('error)) => Not('error, 'result) */
@@ -143,14 +143,15 @@ const errbacK = func => (...args) => (kSuccess = kLogResult, kError = kLogError)
 
 /** : ('a => Kont()) => Array('a) => Kont() */
 const forEachK = f => l => k => {
+    let ll = [...l]; // copy it
     const loop = () => {
-        if (l.length == 0) {
+        if (ll.length == 0) {
             return k();
-        } else if (l.length == 1) {
-            return f(l[0])(k);
+        } else if (ll.length == 1) {
+            return f(ll[0])(k);
         } else {
-            return f(l.shift())(loop);
-        };};
+            return f(ll.shift())(loop);
+        }}
     return loop(); }
 
 /** : ((string, ...'a), (string, ...'b) ) => int */
@@ -180,6 +181,8 @@ const getUserStorage = (key, default_ = null) => getStorage(userKey(key), defaul
 const putUserStorage = (key, value) => putStorage(userKey(key), value);
 const updateUserStorage = (key, update) => updateStorage(userKey(key), update);
 const putUserStorageField = (key, field, value) => updateUserStorage(key, keyValuePair(field, value));
+const deleteUserStorageField = (key, field) => {
+    const record = getUserStorage(key); delete record[field]; putUserStorage(key, record); }
 
 /** Debugging stuff */
 let r;
