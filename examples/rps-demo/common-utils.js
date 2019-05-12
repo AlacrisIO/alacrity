@@ -106,12 +106,25 @@ const randomSalt = () => {
     window.crypto.getRandomValues(array);
     return bytesTo0x(array);}
 
+/** Create an array containing the integers from start to start + length - 1 (included).
+   : (int, int) => Array */
+const range = (start, length) => Array.from({length}, (_, i) => start + i);
+
 /** : (Array(...'a), 'b) => Array(...'a, 'b) */
 const snoc = (l, e) => [...l, e];
+
+/** : Object => bool */
+const isEmpty = obj => {
+    for(var key in obj) { return false; }
+    return true;
+}
 
 /** : ...'a => ...'b => () */
 const logging = (...prefix) => (...result) =>
       console.log(...prefix, ...result.map(JSON.stringify));
+
+const loggedAlert = (...message) => {
+    console.log(...message); alert(message.pop()); }
 
 /** : ...'a => ...'b => Kont(...'b) */
 const loggingK = (...prefix) => (...result) => k =>

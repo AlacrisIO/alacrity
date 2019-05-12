@@ -64,6 +64,7 @@ let config;
 const weiPerEth = web3.toBigNumber(1e18);
 const ethToWei = e => web3.toBigNumber(e).mul(weiPerEth).floor();
 const weiToEth = w => web3.toBigNumber(w).div(weiPerEth);
+const meth = web3.toBigNumber(1e15).mul;
 
 /** Convert a hex string to a BigNumber
     : string => BigNumber */

@@ -1,21 +1,21 @@
 /** web3 client frontend for rock-paper-scissors. */
-/* TODO:
+/*
+  TODO:
 
- * Display the game in each of its possible states
+  * Display the game in each of its possible states
 
- * Have a flag to dismiss completed games
+  * Have a flag to dismiss completed games
 
- * TODO LATER
+  TODO LATER MAYBE
 
- * Display the unconfirmed if different from confirmed.
+  * Display the unconfirmed if different from confirmed.
 
- * Offer user to decide based on the unconfirmed, but only act when confirmed.
+  * Offer user to decide based on the unconfirmed, but only publicly act when confirmed
+    (allow to take back what wasn't done publicly yet?)
+
+  * On frontend, have a list of common playing partners, with short aliases.
 */
 'use strict';
-
-/** State is a list of games.
- * Each game has a state:
-   */
 
 const htmlToElement = html => {
     const template = document.createElement('template');
