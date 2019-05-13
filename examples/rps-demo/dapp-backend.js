@@ -166,7 +166,7 @@ const uint32ToHex = u => web3.toHex(u + 0x100000000).slice(3);
 const idToString = uint32ToHex;
 const stringToId = x => parseInt(x, 16);
 
-let logGame = id => logging("render:", id, getUserStorage(idToString(id)))();
+let logGame = id => logging("render game:", id, getUserStorage(idToString(id)))();
 
 // Default hook (until replaced by the UI frontend), just log the updated game.
 let renderGameHook = logGame;
@@ -195,25 +195,20 @@ const registerGameK = game => k => {
 
 const processNewGameK = event => k => {
     const game = decodeGameCreationData(event.data, event.blockNumber, event.transactionHash);
-    // logging("newGame")(game);
     if (!(game.player0 == userAddress || game.player1 == userAddress || game.player1 == zeroAddress)) {
-        // logging("not for us!")();
         return k();
     }
     let id = gamesByTxHash[event.transactionHash];
     if (id) {
         if (id.contract) { // Known game. Assume blockNumber is also known.
-            // logging("old stuff!")();
             return k();
         } else {
-            // logging("yay contract!")(game.contract);
             // TODO: triple-check that everything matches, or issue warning?
             updateGame(id, {blockNumber: game.blockNumber, contract: game.contract});
             renderGameHook(id);
             return k();
         }
     } else {
-        // logging("Just register a new game!")();
         // TODO: handle the case where we're player0 but we crashed between
         // the time the transaction was published and
         // the time we could save the txHash to localStorage,
@@ -262,7 +257,6 @@ const queueGame = (id, timeoutBlock) => {
 }
 
 const handleGameTimeoutAt = confirmedBlock => id => k => {
-    logging("hGT")();
     const game = getGame(id);
     if (!game // No game, it's been skipped due to non-atomicity of localStorage, or Garbage-Collected
         || !game.confirmedState // Game issued, but no confirmed state yet.
@@ -333,7 +327,7 @@ const processActiveGame = id => k => {
                     }
                     updateGame(id, {confirmedState, unconfirmedState});
                     renderGameHook(id);
-                    return getConfirmedBlockNumber(block => handleGameTimeout(block)(id)(k));
+                    return getConfirmedBlockNumber(block => handleGameTimeoutAt(block)(id)(k));
                 },
                 kError),
         kError)}
@@ -363,7 +357,6 @@ const resumeGame = id => k => {
         return k();
     }
     addActiveGame(id);
-    logging("rG9")();
     return handleGameTimeout(id)(k);}
 
 const resumeGames = k => {
@@ -376,8 +369,8 @@ const initBackend = k => {
     }
     rpsFactory = web3.eth.contract(rpsFactoryAbi).at(config.contract.address);
     return resumeGames(
-        () => {logging("wNG")();watchNewGames(
-        () => {logging("wAG")();watchActiveGames(k)})});}
+        () => watchNewGames(
+        () => watchActiveGames(k)))}
 
 registerInit(initBackend);
 
