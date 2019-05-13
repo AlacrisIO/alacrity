@@ -4,6 +4,7 @@
          @
          @may
          @signed
+         @payment
          @assert
          @log
          synchronous
@@ -72,6 +73,15 @@
      ;       send message on blockchain forcing them to send
      [else              #'(p.cur-receive-from 'p)])])
 
+(define-syntax-parser @payment
+  #:literals [define]
+  [(_ p:participant-id expr:expr)
+   (cond
+     [(attribute p.me?) #'(p.cur-send-and-return expr)]
+     ; TODO: if don't receive within timeout,
+     ;       send message on blockchain forcing them to send
+     [else              #'(p.cur-receive-from 'p)])])
+
 (define-syntax-parser @may
   #:literals [define]
   [(_ p:participant-id expr:expr)
@@ -83,9 +93,7 @@
 (define-simple-macro
   (@assert p:participant-id expr:expr msg-fmt:expr arg:expr ...)
   (unless expr
-    (raise-participant-failure
-     'p
-     (format (string-append "~a: " msg-fmt) 'p arg ...))))
+    (raise-participant-failure 'p msg-fmt arg ...)))
 
 (define-simple-macro
   (@log expr:expr)

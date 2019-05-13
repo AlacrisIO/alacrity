@@ -7,6 +7,7 @@
          sign
          signed-valid?
          signed-signers
+         (struct-out payment)
          empty-table table-has-key? table-empty? table-ref table-set! table-add!
          random-element
          (struct-out salted) random-salt random-salted
@@ -20,14 +21,16 @@
                   [hash-ref table-ref]
                   [hash-set! table-set!])
          racket/bool
-         syntax/parse/define)
+         syntax/parse/define
+         "expand-util/and-or.rkt")
 
 (struct exn:fail:participant-failure exn:fail [participant])
 
-(define (raise-participant-failure participant msg)
-  (raise (exn:fail:participant-failure msg
-                                       (current-continuation-marks)
-                                       participant)))
+(define (raise-participant-failure participant fmt . args)
+  (raise (exn:fail:participant-failure
+          (apply format (string-append "~a: " fmt) participant args)
+          (current-continuation-marks)
+          participant)))
 
 (define-simple-macro (implies guard:expr body:expr)
   (if guard body #true))
@@ -61,6 +64,8 @@
 (define (signature-valid? sig #:digest d)
   ;; TODO
   #true)
+
+(struct payment [amount value] #:transparent)
 
 (define (random-element list)
   (list-ref list (random (length list))))
