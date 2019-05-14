@@ -117,7 +117,9 @@
 (struct wm:cat whole-msg (l r) #:transparent)
 (struct wm:var whole-msg (v) #:transparent)
 (struct wm:enc whole-msg (x k) #:transparent)
+;; XXX Maybe not make these macros
 (define (wm:sign m p)
+  ;; XXX Maybe do digest-signing
   (wm:enc m (mk:pri-key p)))
 (define (wm:seal m p)
   (wm:enc m (mk:pub-key p)))
