@@ -16,10 +16,12 @@
     have a loop that polls for changes in game confirmed state
     (or, alternatively, also look at unconfirmed changes).
     We're polling for recomputed state at every block.
+  * Handle timeouts
 
   TODO FOR DEMO:
 
-  * Handle timeouts
+  * Use a post-frontend-initialization hook to only start expensive computations
+    after the frontend is initialized.
 
   TODO LATER MAYBE:
 
@@ -41,9 +43,8 @@
 */
 'use strict';
 
-const rock = 0;
-const paper = 1;
-const scissors = 2;
+const Hand = Object.freeze({Rock: 0, Paper: 1, Scissors: 2});
+const handName = hand => ["rock", "paper", "scissors"][hand];
 const validateHand = x => Number.isInteger(x) && (x == 0 || x == 1 || x == 2);
 
 
@@ -66,25 +67,21 @@ const player0StartGame =
 
 const rps = (contractAddress) => web3.eth.contract(rpsAbi).at(contractAddress);
 
-// (address, BN, Uint8) => (() => `a) => `a
+// (address, BN, Uint8) => KontE(TxHash)
 const player1ShowHand = (contractAddress, wagerInWei, hand) => (k, kError = kLogError) =>
-    errbacK(rps(contractAddress).player1_show_hand)(hand, {value: wagerInWei})(
-        txHash => confirmEtherTransaction(txHash)(k), kError);
+    errbacK(rps(contractAddress).player1_show_hand)(hand, {value: wagerInWei})(k, kError);
 
-// (address, Uint8Array(32), Uint8) => (() => `a) => `a
+// (address, Uint8Array(32), Uint8) => KontE(TxHash)
 const player0Reveal = (contractAddress, salt, hand) => (k, kError = kLogError) =>
-    errbacK(rps(contractAddress).player0_reveal)(salt, hand, {})(
-        txHash => confirmEtherTransaction(txHash)(k), kError)
+    errbacK(rps(contractAddress).player0_reveal)(salt, hand, {})(k, kError);
 
-// address => (() => `a) => `a
+// address => KontE(TxHash)
 const player0Rescind = contractAddress => (k, kError = kLogError) =>
-    errbacK(rps(contractAddress).player0_rescind)()(
-        txHash => confirmEtherTransaction(txHash)(k), kError);
+    errbacK(rps(contractAddress).player0_rescind)()(k, kError);
 
-// address => (() => `a) => `a
+// address => KontE(TxHash)
 const player1WinByDefault = contractAddress => (k, kError = kLogError) =>
-    errbacK(rps(contractAddress).player1_win_by_default().send)()(
-        txHash => confirmEtherTransaction(txHash)(k), kError);
+    errbacK(rps(contractAddress).player1_win_by_default().send)()(k, kError);
 
 const decodeState = x => {
     let [state, outcome, timeoutInBlocks, previousBlock, player0, player1, player0Commitment, wagerInWei, escrowInWei, salt, hand0, hand1] = x;
@@ -92,6 +89,8 @@ const decodeState = x => {
     outcome = outcome.toNumber();
     timeoutInBlocks = timeoutInBlocks.toNumber();
     previousBlock = previousBlock.toNumber();
+    wagerInWei = toBN(wagerInWei);
+    escrowInWei = toBN(escrowInWei);
     hand0 = hand0.toNumber();
     hand1 = hand1.toNumber();
     return {state, outcome, timeoutInBlocks, previousBlock, player0, player1, player0Commitment, wagerInWei, escrowInWei, salt, hand0, hand1};};
@@ -193,6 +192,8 @@ const registerGameK = game => k => {
     return k();
 }
 
+// const findUnconfirmedGames = game => k => XXX
+
 const processNewGameK = event => k => {
     const game = decodeGameCreationData(event.data, event.blockNumber, event.transactionHash);
     if (!(game.player0 == userAddress || game.player1 == userAddress || game.player1 == zeroAddress)) {
@@ -256,12 +257,61 @@ const queueGame = (id, timeoutBlock) => {
     queuedBlocks[idToString(id)] = true;
 }
 
-const handleGameTimeoutAt = confirmedBlock => id => k => {
+const GameResult = Object.freeze({Draw: 0, YouWin: 1, TheyWin: 2});
+const gameResult = (yourHand, theirHand) => (yourHand + 3 - theirHand) % 3;
+const player0GameResultSummary = (hand0, hand1, wagerInWei, escrowInWei) => {
+    switch(gameResult(hand0, hand1)) {
+    case GameResult.Draw: return `have a draw and recover your ${weiToEth(toBN(wagerInWei).add(escrowInWei))} ETH stake.`;
+    case GameResult.YouWin: return `win ${weiToEth(wagerInWei)} ETH
+and recover your ${weiToEth(wagerInWei.add(escrowInWei))} ETH stake.`;
+    case GameResult.TheyWin: return `lose your ${weiToEth(wagerInWei)} ETH wager
+but recover your ${weiToEth(escrowInWei)} ETH escrow.`;}}
+
+const player1GameResultSummary = (hand0, hand1, wagerInWei, escrowInWei) => {
+    switch(gameResult(hand1, hand9)) {
+    case GameResult.Draw: return `have a draw and recover your ${weiToEth(wagerInWei)} ETH stake.`;
+    case GameResult.YouWin: return `win ${weiToEth(wagerInWei)} ETH
+and recover your ${weiToEth(wagerInWei)} ETH stake.`;
+    case GameResult.TheyWin: return `lose your ${weiToEth(wagerInWei)} ETH wager.`;}}
+
+
+/** Process a game, making all automated responses that do not require user input.
+    This is perhaps the heart of the algorithm.
+ */
+// TODO: are we triggering a renderGame here when something changes, or somewhere else?
+const processGame = confirmedBlock => id => k => {
     const game = getGame(id);
-    if (!game // No game, it's been skipped due to non-atomicity of localStorage, or Garbage-Collected
-        || !game.confirmedState // Game issued, but no confirmed state yet.
-        || game.isCompleted) { // Game already completed
+    if (!game // No game: It was skipped due to non-atomicity of localStorage, or Garbage-Collected.
+        || !game.confirmedState // Game issued, but no confirmed state yet. Wait for confirmation.
+        || game.isCompleted) { // Game already completed, nothing to do.
         return k();
+    }
+    if (game.confirmedState.state == State.Completed) {
+        updateGame(id, {isCompleted: true});
+        return k();
+    }
+    if (game.player0 == userAddress &&
+        game.confirmedState.state == State.WaitingForPlayer0Reveal) {
+        if (!game.revealTxHash) {
+            const salt = game.salt;
+            const hand0 = game.hand;
+            const hand1 = game.confirmedState.hand1;
+            const context = `In game ${id}, player1 showed his hand ${handName(hand1)}.
+You must show our hand ${handName(hand0)} to
+${player0GameResultSummary(hand0, hand1, game.wagerInWei, game.escrowInWei)}.`
+            if (game.salt && hand0) {
+                loggedAlert(`${context} Please sign the following transaction.`);
+                return player0Reveal(game.contract, salt, hand)(
+                    txHash => {
+                        updateGame(id, {revealTxHash: txHash})
+                        // Register txHash for confirmation? Nah, we're just polling for state change!
+                        // But if we switch to event-tracking, that's where it would happen.
+                        return k();})
+            } else {
+                loggedAlert(`${context} However, you do not have the salt and hand data in this client.
+Be sure to start a client that has this data before the deadline.`); // TODO: print the deadline!
+            }
+        }
     }
     const timeoutBlock = game.previousBlock + game.timeoutInBlocks;
     if (confirmedBlock < timeoutBlock) {
@@ -291,7 +341,7 @@ and their ${stakeInEth} ETH stake`);
 }
 
 const handleGameTimeout = id => k =>
-    getConfirmedBlockNumber(block => handleGameTimeoutAt(block)(id)(k));
+    getConfirmedBlockNumber(block => processGame(block)(id)(k));
 
 const handleTimeoutQueueBefore = confirmedBlock => k => {
     if (timeoutBlocks.length == 0 || timeoutBlocks.peek() > confirmedBlock) {
@@ -300,7 +350,7 @@ const handleTimeoutQueueBefore = confirmedBlock => k => {
         const block = timeoutBlocks.pop();
         const gameSet = popEntry(blockTimeouts, block);
         const gameList = Object.keys(gameSet).map(stringToId);
-        forEachK(handleGameTimeoutAt(confirmedBlock))(gameList)(
+        forEachK(processGame(confirmedBlock))(gameList)(
             () => handleTimeoutQueueBefore(confirmedBlock)(k)); }}
 
 const handleTimeoutQueue = (_oldBlock, currentBlock) => k =>
@@ -308,6 +358,7 @@ const handleTimeoutQueue = (_oldBlock, currentBlock) => k =>
 
 const processActiveGame = id => k => {
     const game = getGame(id);
+    logging("processActiveGame", id, game)();
     if (game.isComplete) {
         removeActiveGame(id);
         return k();
@@ -327,7 +378,7 @@ const processActiveGame = id => k => {
                     }
                     updateGame(id, {confirmedState, unconfirmedState});
                     renderGameHook(id);
-                    return getConfirmedBlockNumber(block => handleGameTimeoutAt(block)(id)(k));
+                    return getConfirmedBlockNumber(block => processGame(block)(id)(k));
                 },
                 kError),
         kError)}
@@ -336,8 +387,9 @@ const processActiveGames = (_firstUnprocessedBlock, _lastUnprocessedBlock) => k 
       forEachK(processActiveGame)(activeGamesList())(k);
 
 const watchActiveGames = k => {
+    console.log("watchActiveGames", activeGamesList());
     newBlockHooks["confirmedActiveGames"] = processActiveGames;
-    return processActiveGames(k);
+    return processActiveGames()(k);
 }
 
 const resumeGame = id => k => {

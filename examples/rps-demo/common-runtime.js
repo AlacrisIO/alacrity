@@ -61,10 +61,11 @@ let networkConfig;
 let config;
 
 // Unit conversion
-const weiPerEth = web3.toBigNumber(1e18);
-const ethToWei = e => web3.toBigNumber(e).mul(weiPerEth).floor();
-const weiToEth = w => web3.toBigNumber(w).div(weiPerEth);
-const meth = web3.toBigNumber(1e15).mul;
+const toBN = web3.toBigNumber;
+const weiPerEth = toBN(1e18);
+const ethToWei = e => toBN(e).mul(weiPerEth).floor();
+const weiToEth = w => toBN(w).div(weiPerEth);
+const meth = x => toBN(1e15).mul(x);
 
 /** Convert a hex string to a BigNumber
     : string => BigNumber */
