@@ -1,1 +1,5 @@
 /test.chain
+/*.dot
+/*.dot.png
+/actual.rktd
+/expected.rktd

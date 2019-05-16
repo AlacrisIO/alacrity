@@ -3,7 +3,10 @@
          racket/format
          racket/port
          racket/syntax
+         racket/string
          racket/list
+         racket/file
+         racket/system
          racket/set)
 (module+ test
   (require racket/pretty
@@ -972,6 +975,65 @@
       'N2 (hash-set shared-args 'N2-sk N2-sk)
       'N1 (hash-set shared-args 'N1-sk N1-sk)))))
 
-;; XXX compile to other formats (i.e. contract vms)
+;; XXX extract to solidity
 
-;; XXX extract verification models (including simple dot graph)
+;; XXX extract to strand space (cpsa)
+
+(define (hp->dot! hp fp)
+  (define (add-for-handler! in)
+    (match (hash-ref n->handler in #f)
+      [#f (void)]
+      [(hh:handler ht)
+       (hash-remove! n->handler in)
+       (add-for-tail! empty empty in ht)]))
+  (define (add-for-tail! effs ces from ht)
+    (match ht
+      [(ht:set!& x xe ht)
+       (add-for-tail! (cons (cons x xe) effs) ces from ht)]
+      [(ht:if ce tt ft)
+       (add-for-tail! effs (cons ce ces) from tt)
+       (add-for-tail! effs (cons (list '! ce) ces) from ft)]
+      [(ht:wait* ns msgs recv?)
+       (add-directed-edge!
+        from ns
+        (string-join
+         (append
+          (for/list ([up (in-list (reverse effs))])
+            (match-define (cons x xe) up)
+            (~a x " := " (render-he xe)))
+          (for/list ([ce (in-list (reverse ces))])
+            (~a "IF " (match ce
+                        [(list '! ce) (~a "!" (render-ha ce))]
+                        [_ (render-ha ce)])))
+          (for/list ([m (in-list msgs)])
+            (~a "+" (render-ha m))))
+         "\n"))
+       (add-for-handler! ns)]))
+  (define (render-he e)
+    (match e
+      [(he:app op args) (~a "(" op (if (empty? args) "" " ") (string-join (map render-ha args)) ")")]
+      [a (render-ha a)]))
+  (define (render-ha a)
+    (match a
+      [(ha:var v) (~a v)]
+      [(ha:con c) (~a c)]))
+  (define (add-directed-edge! from to label)
+    (printf "\"~a\" -> \"~a\" [label = \"~a\"];\n" from to label))
+  (match-define (hp:program args vs n->handler-imm in) hp)
+  (define n->handler (hash-copy n->handler-imm))
+  (with-output-to-file fp #:exists 'replace
+    (λ ()
+      (printf "digraph {\n")
+      (printf "\tnode [shape = doublecircle, label=\"HALT\"] \"~a\";\n" HALT)
+      (printf "\tnode [shape = point, label = \"START\" ] \"START\";\n")
+      (for ([in (in-hash-keys n->handler-imm)])
+        (printf "\tnode [ shape = circle, label = \"~a\" ] \"~a\";\n" in in))
+      (add-directed-edge! 'START in "")
+      (add-for-handler! in)
+      (printf "}\n")))
+  (system* (find-executable-path "dot") "-O" "-Tpng" fp))
+(module+ test
+  (for ([(r hp) (in-hash epp:hp:adds)])
+    (hp->dot! hp (~a r ".dot"))))
+
+;; XXX extract to Z3
