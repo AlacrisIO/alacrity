@@ -180,7 +180,7 @@ const renderGameChoice = (wagerInWei, opponent) => `
         <br>
         ${renderHandChoice()}
         <br>
-        <button>Shoot!</button>
+        <button style='width: 100%;'>Shoot!</button>
         NB: Running on ${config.networkName} with a ${config.timeoutInBlocks}-block timeout (${config.timeoutString}).
     `;
 
@@ -360,6 +360,7 @@ const initFrontend = k => {
         setNodeBySelector("#NoNewGames", emptyNode());
         // setNodeBySelector("#NoOpenGames", emptyNode());
         setNodeBySelector("#NoActiveGames", emptyNode());
+        renderNewGame();
     } else {
         setNodeBySelector("#Play", htmlToElement(
             "<b>No contract deployed on this network. <br/>" +
