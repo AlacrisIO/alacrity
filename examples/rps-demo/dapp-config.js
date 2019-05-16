@@ -9,7 +9,9 @@ networkConfig =
      timeoutInBlocks: 11520,
      timeoutString: "about 48 hours",
      confirmationsWantedInBlocks: 100, // Play it safe: 25 minutes
-     blockPollingPeriodInSeconds: 5 },
+     blockPollingPeriodInSeconds: 5,
+     txExplorerUrl: "https://etherscan.io/tx/", // + ${tx} including 0x
+     addressExplorerUrl: "https://etherscan.io/address/"  }, // + ${tx} including 0x
     "4": /* Rinkeby, the public Geth-only PoA testnet */
     {networkName: "Rinkeby",
      contract:
@@ -24,5 +26,8 @@ networkConfig =
      timeoutInBlocks: 12,
      timeoutString: "about 3 minutes",
      confirmationsWantedInBlocks: 1,
-     blockPollingPeriodInSeconds: 1 }
+     blockPollingPeriodInSeconds: 1,
+     txExplorerUrl: "https://rinkeby.etherscan.io/tx/", // + ${tx} including 0x
+     addressExplorerUrl: "https://rinkeby.etherscan.io/address/" // + ${tx} including 0x
+    }
   };

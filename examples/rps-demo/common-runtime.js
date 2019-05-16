@@ -168,6 +168,7 @@ const deployContract = code => errbacK(web3.eth.sendTransaction)({data: code});
 
 /** : Kont() */
 const initRuntime = k => {
+    logging("initRuntime")();
     networkID = getNetworkID();
     userAddress = getUserAddress();
     config = networkConfig[networkID];

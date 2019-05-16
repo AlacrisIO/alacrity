@@ -7,6 +7,7 @@ if (typeof window.web3 == 'undefined' || typeof window.ethereum == 'undefined') 
     // Initialize Web3 object as injected by Ethereum compatible browser such as MetaMask/Mist
     // Some people put the below inside a
     window.addEventListener('load', () => {
+        console.log("Page loaded. Initializing...");
         web3js = new Web3(web3.currentProvider);
         ethereum.enable().then(x => {
             accounts = x;

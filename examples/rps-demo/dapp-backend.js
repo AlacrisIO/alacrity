@@ -20,6 +20,11 @@
 
   TODO FOR DEMO:
 
+  * Figure out how the interface between frontend and backend for user input.
+
+  * Move to the .ala file the things from which that are in this file
+    that should be provided by the high-level programmer, such as the human-readable descriptions.
+
   * Use a post-frontend-initialization hook to only start expensive computations
     after the frontend is initialized.
 
@@ -35,17 +40,13 @@
   * If the user is player0 and the txHash is not be already known, do something useful
     (due to race condition with the browser crashing before localStorage was done, or use in another browser)
 
-  * Add speculative information from unconfirmed transactions,
-    with clear distinction between what's confirmed,
-    and what's unconfirmed by which player.
-
   * Improve discoverability so users don't have to care too much about being player0 or player1.
 */
 'use strict';
 
 const Hand = Object.freeze({Rock: 0, Paper: 1, Scissors: 2});
 const handName = hand => ["rock", "paper", "scissors"][hand];
-const validateHand = x => Number.isInteger(x) && (x == 0 || x == 1 || x == 2);
+const isValidHand = x => Number.isInteger(x) && (x == 0 || x == 1 || x == 2);
 
 
 // SENDING DATA TO THE BLOCKCHAIN
@@ -56,13 +57,13 @@ let rpsFactory;
 // web3.utils.soliditySha3({t: 'bytes32', value: salt}, {t: 'uint8', value: hand}); // This web3 1.0 function is NOT AVAILABLE IN METAMASK! So we do things manually.
 const makeCommitment = (salt, hand) => digestHex(salt + byteToHex(hand));
 
-// (bytes32_0xString, Uint8, address, BN, BN) => (address => `a) => `a
+// (bytes32_0xString, Uint8, address, BN, BN) => KontE(TxHash)
 const player0StartGame =
-      (salt, hand, player1, timeoutInBlocks, wagerInWei, escrowInWei) => k => {
+      (salt, hand, player1, timeoutInBlocks, wagerInWei, escrowInWei) => (k, kError = kLogError) => {
     const commitment = makeCommitment(salt, hand);
     const totalAmount = wagerInWei.add(escrowInWei);
-    return errbacK(rpsFactory.player0_start_game)
-    (player1, timeoutInBlocks, commitment, wagerInWei, {value: totalAmount})(k);
+    return errbacK(rpsFactory.player0_start_game)(
+        player1, timeoutInBlocks, commitment, wagerInWei, {value: totalAmount})(k, kError);
 }
 
 const rps = (contractAddress) => web3.eth.contract(rpsAbi).at(contractAddress);
@@ -156,7 +157,6 @@ const getGameCreationData = txHash => (k, kError = kLogError) =>
 let nextID;
 const activeGames = {};
 const gamesByTxHash = {};
-const activeGamesByCommitment = {}; // To search an active game by commitment...
 const unconfirmedGames = {};
 
 const zeroAddress = "0x0000000000000000000000000000000000000000";
@@ -165,7 +165,7 @@ const uint32ToHex = u => web3.toHex(u + 0x100000000).slice(3);
 const idToString = uint32ToHex;
 const stringToId = x => parseInt(x, 16);
 
-let logGame = id => logging("render game:", id, getUserStorage(idToString(id)))();
+let logGame = (id, tag = "render game:") => logging(tag, id, getUserStorage(idToString(id)))();
 
 // Default hook (until replaced by the UI frontend), just log the updated game.
 let renderGameHook = logGame;
@@ -279,7 +279,7 @@ and recover your ${weiToEth(wagerInWei)} ETH stake.`;
     This is perhaps the heart of the algorithm.
  */
 // TODO: are we triggering a renderGame here when something changes, or somewhere else?
-const processGame = confirmedBlock => id => k => {
+const processGameAt = confirmedBlock => id => k => {
     const game = getGame(id);
     if (!game // No game: It was skipped due to non-atomicity of localStorage, or Garbage-Collected.
         || !game.confirmedState // Game issued, but no confirmed state yet. Wait for confirmation.
@@ -303,10 +303,11 @@ ${player0GameResultSummary(hand0, hand1, game.wagerInWei, game.escrowInWei)}.`
                 loggedAlert(`${context} Please sign the following transaction.`);
                 return player0Reveal(game.contract, salt, hand)(
                     txHash => {
-                        updateGame(id, {revealTxHash: txHash})
+                        updateGame(id, {player0RevealTxHash: txHash})
                         // Register txHash for confirmation? Nah, we're just polling for state change!
                         // But if we switch to event-tracking, that's where it would happen.
-                        return k();})
+                        return k();},
+                    error => {loggedAlert(error); return k();})
             } else {
                 loggedAlert(`${context} However, you do not have the salt and hand data in this client.
 Be sure to start a client that has this data before the deadline.`); // TODO: print the deadline!
@@ -322,16 +323,18 @@ Be sure to start a client that has this data before the deadline.`); // TODO: pr
     }
     if (game.player0 == userAddress &&
         game.confirmedState.state == State.WaitingForPlayer1) {
-        const stakeInEth = weiToEth(web3.toBigNumber(game.wagerInWei).add(game.escrowInWei));
+        const stakeInEth = weiToEth(toBN(game.wagerInWei).add(game.escrowInWei));
         loggedAlert(`Player1 timed out in game ${id},
 sending a transaction to recover your stake of ${stakeInEth} ETH`);
         // TODO register the event, don't send twice.
-        return player0Rescind(game.contract)(k, flip(logErrorK)(k));
+        return player0Rescind(game.contract)(
+            txHash => { updateGame(id, { player0RescindTxHash: txHash }); return k(); },
+            error => { loggedAlert(error); return k(); });
     }
     if (game.player1 == userAddress &&
         game.confirmedState.state == State.WaitingForPlayer0Reveal) {
         const wagerInEth = weiToEth(game.wagerInWei);
-        const stakeInEth = weiToEth(web3.toBigNumber(game.wagerInWei).mul(2).add(game.escrowInWei));
+        const stakeInEth = weiToEth(toBN(game.wagerInWei).mul(2).add(game.escrowInWei));
         loggedAlert(`Player0 timed out in game ${id},
 sending a transaction to recover your ${wagerInEth} ETH wager
 and their ${stakeInEth} ETH stake`);
@@ -340,8 +343,8 @@ and their ${stakeInEth} ETH stake`);
     return k();
 }
 
-const handleGameTimeout = id => k =>
-    getConfirmedBlockNumber(block => processGame(block)(id)(k));
+const processGame = id => k =>
+    getConfirmedBlockNumber(block => processGameAt(block)(id)(k));
 
 const handleTimeoutQueueBefore = confirmedBlock => k => {
     if (timeoutBlocks.length == 0 || timeoutBlocks.peek() > confirmedBlock) {
@@ -350,11 +353,11 @@ const handleTimeoutQueueBefore = confirmedBlock => k => {
         const block = timeoutBlocks.pop();
         const gameSet = popEntry(blockTimeouts, block);
         const gameList = Object.keys(gameSet).map(stringToId);
-        forEachK(processGame(confirmedBlock))(gameList)(
+        forEachK(processGameAt(confirmedBlock))(gameList)(
             () => handleTimeoutQueueBefore(confirmedBlock)(k)); }}
 
-const handleTimeoutQueue = (_oldBlock, currentBlock) => k =>
-    handleTimeoutQueueBefore(currentBlock - config.confirmationsWantedInBlocks)(k);
+const handleTimeoutQueue = (_oldBlock, currentBlock) =>
+    handleTimeoutQueueBefore(currentBlock - config.confirmationsWantedInBlocks);
 
 const processActiveGame = id => k => {
     const game = getGame(id);
@@ -378,7 +381,7 @@ const processActiveGame = id => k => {
                     }
                     updateGame(id, {confirmedState, unconfirmedState});
                     renderGameHook(id);
-                    return getConfirmedBlockNumber(block => processGame(block)(id)(k));
+                    return getConfirmedBlockNumber(block => processGameAt(block)(id)(k));
                 },
                 kError),
         kError)}
@@ -392,39 +395,35 @@ const watchActiveGames = k => {
     return processActiveGames()(k);
 }
 
-const resumeGame = id => k => {
+const initGame = id => {
     let game = getGame(id);
-    if (!game) {
-        return k();
-    }
+    if (!game) { return; }
     if (game.txHash) {
         gamesByTxHash[game.txHash] = id;
     } else {
         unconfirmedGames[idToString(id)] = true;
     }
-    if (!game.isDismissed) {
-        renderGameHook(id);
-    }
-    if (game.isComplete) {
-        return k();
-    }
+    if (!game.isDismissed) { renderGameHook(id); }
+    if (game.isComplete) { return; }
     addActiveGame(id);
-    return handleGameTimeout(id)(k);}
+}
 
-const resumeGames = k => {
-    nextID = getUserStorage("nextID", 0);
-    return forEachK(resumeGame)(range(0, nextID))(k);}
+const initGames = k => { for(let i=0;i<nextID;i++) {initGame(i)}; return k(); }
+
+const resumeGames = k => forEachK(processGame)(range(0, nextID))(k);
 
 const initBackend = k => {
+    logging("initBackend")();
     if (!config || !config.contract) { // Avoid erroring on an unconfigured network
         return k();
     }
     rpsFactory = web3.eth.contract(rpsFactoryAbi).at(config.contract.address);
-    return resumeGames(
-        () => watchNewGames(
-        () => watchActiveGames(k)))}
+    nextID = getUserStorage("nextID", 0);
+    return k();
+}
 
 registerInit(initBackend);
+registerPostInit(initGames);//, resumeGames, watchNewGames, watchActiveGames);
 
 /** Test games */
 var gsalt = "0x30f6cb71704ee3321c0bb552120a492ab2406098f5a89b0a765155f4f5dd9124";
@@ -446,8 +445,7 @@ var g1p1 = () => srf(player1ShowHand(g1c, meth(1000), 0));
 var g1p2 = () => srf(player0Reveal(g1c, gsalt, 2));
 var g1s = () => srf(queryConfirmedState(g1c));
 
-var wb = () => {
-    newBlockHooks["newBlock"] = (from, to) => k => {
-        console.log("newBlock! from:", from, "to:", to); return k(); }};
+var wb = () =>
+    newBlockHooks["newBlock"] = (from, to) => loggingK("newBlock! from:", from, "to:", to)();
 var g2c = g => g.salt && g.hand && makeCommitment(g.salt, g.hand);
 var i2c = seq(getGame)(g2c)

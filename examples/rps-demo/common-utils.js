@@ -174,10 +174,13 @@ const compareFirst = (a, b) => a[0].localeCompare(b[0]);
 const runHooks = hooks => (...args) => k =>
     forEachK(entry => entry[1](...args))(Object.entries(hooks).sort(compareFirst))(k);
 
-// Initialization
+// Initialization. TODO: maybe have a dependency graph instead?
 const initFunctions = [];
 const registerInit = (...f) => initFunctions.push(...f);
-const initialize = () => forEachK(identity)(initFunctions)(identity);
+const postInitFunctions = [];
+const registerPostInit = (...f) => postInitFunctions.unshift(...f);
+const initialize = () => forEachK(identity)([...initFunctions, ...postInitFunctions])(identity);
+
 
 // Local Storage for the DApp
 // TODO: use (encrypted) remote storage and implement distributed transactions, for redundancy.
