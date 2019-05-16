@@ -282,12 +282,12 @@ and recover your ${weiToEth(wagerInWei)} ETH stake.`;
 const processGameAt = confirmedBlock => id => k => {
     const game = getGame(id);
     if (!game // No game: It was skipped due to non-atomicity of localStorage, or Garbage-Collected.
-        || !game.confirmedState // Game issued, but no confirmed state yet. Wait for confirmation.
-        || game.isCompleted) { // Game already completed, nothing to do.
+        || !game.confirmedState) { // Game issued, but no confirmed state yet. Wait for confirmation.
         return k();
     }
-    if (game.confirmedState.state == State.Completed) {
+    if (game.confirmedState.state == State.Completed) { // Game already completed, nothing to do.
         updateGame(id, {isCompleted: true});
+        removeActiveGame(id);
         return k();
     }
     if (game.player0 == userAddress &&
@@ -314,7 +314,7 @@ Be sure to start a client that has this data before the deadline.`); // TODO: pr
             }
         }
     }
-    const timeoutBlock = game.previousBlock + game.timeoutInBlocks;
+    const timeoutBlock = game.confirmedState.previousBlock + game.confirmedState.timeoutInBlocks;
     if (confirmedBlock < timeoutBlock) {
         // We haven't yet confirmed that future blocks will be > previous + timeout
         // So add the current game to the queue, if it wasn't added yet.
@@ -323,6 +323,9 @@ Be sure to start a client that has this data before the deadline.`); // TODO: pr
     }
     if (game.player0 == userAddress &&
         game.confirmedState.state == State.WaitingForPlayer1) {
+        if (game.player0RescindTxHash) {
+            return k();
+        }
         const stakeInEth = weiToEth(toBN(game.wagerInWei).add(game.escrowInWei));
         loggedAlert(`Player1 timed out in game ${id},
 sending a transaction to recover your stake of ${stakeInEth} ETH`);
@@ -423,7 +426,7 @@ const initBackend = k => {
 }
 
 registerInit(initBackend);
-registerPostInit(initGames);//, resumeGames, watchNewGames, watchActiveGames);
+registerPostInit(initGames, resumeGames, watchNewGames, watchActiveGames);
 
 /** Test games */
 var gsalt = "0x30f6cb71704ee3321c0bb552120a492ab2406098f5a89b0a765155f4f5dd9124";
