@@ -349,6 +349,66 @@ and their ${stakeInEth} ETH stake`);
 const processGame = id => k =>
     getConfirmedBlockNumber(block => processGameAt(block)(id)(k));
 
+const createNewGame = (wagerInWei, escrowInWei, opponent, hand) => {
+    const gameID = getGameID();
+    const id = idToString(gameID);
+    // TODO: let advanced users override the salt? Not without better transaction tracking.
+    // Right now we rely on robust randomness to track the transactions by commitment.
+    const salt = randomSalt();
+    const player0Commitment = makeCommitment(salt, hand);
+    const player0 = userAddress;
+    const player1 = opponent || zeroAddress;
+    const timeoutInBlocks = config.timeoutInBlocks;
+    // TODO: add the ID to the contract call for tracking purpose? Use the low bits of the escrow?
+    // Or the high bits of the hand? No, use the commitment:
+    // const commitment = makeCommitment(salt, hand);
+    // Somehow when we restart transactions, we must match them that way.
+    // We could use the nonce for the transaction, but there's no atomic access to it.
+    // Could we save the TxHash locally *before* sending it online? Unhappily web3 doesn't allow that:
+    // < https://github.com/MetaMask/metamask-extension/issues/3475 >.
+    putUserStorage(id, {role: 0, status: "Creating the game…",
+                        salt, hand, player0Commitment, player0, player1,
+                        timeoutInBlocks, wagerInWei, escrowInWei});
+    unconfirmedGames[idToString(id)] = true;
+    return player0StartGame(salt, hand, opponent, timeoutInBlocks, wagerInWei, escrowInWei)(txHash => {
+        gamesByTxHash[txHash] = id;
+        updateUserStorage(key, {status: "Posted the game-creation transaction…", txHash})});}
+
+const dismissGame = (id, game) => {
+    if (!game.isCompleted) {
+        loggedAlert(`Game ${id} isn't completed yet`);
+    }
+    if (!game.isDismissed) {
+        updateGame(id, {isDismissed: true});
+    }
+    renderGameHook(id);
+}
+
+const acceptGame = (id, hand) => {
+    if (!game.confirmedState) {
+        // If that's the case, make a transaction that we only send later? No, we can't with web3.
+        loggedAlert(`Game ${id} isn't confirmed yet`);
+        return;
+    }
+    if (game.confirmedState.state != WaitingForPlayer1) {
+        loggedAlert(`Game ${id} isn't open to a wager`);
+        return;
+    }
+    if (!(game.player1 == userAddress || game.player1 == zeroAddress)) {
+        loggedAlert(`Game ${id} isn't open to you`);
+        return;
+    }
+    if (game.player1ShowHandTxHash) {
+        loggedAlert(`You already played ${game.hand1} on game ${id} in tx ${game.player1ShowHandTxHash}`);
+        return;
+    }
+    updateGame(id, {hand1: hand});
+    player1ShowHand(game.contract, game.wagerInWei, hand)(txHash => {
+        updateGame(id, {player1ShowHandTxHash: txHash});
+        renderGameHook(id);
+    }, loggedAlert);
+}
+
 const handleTimeoutQueueBefore = confirmedBlock => k => {
     if (timeoutBlocks.length == 0 || timeoutBlocks.peek() > confirmedBlock) {
         return k();

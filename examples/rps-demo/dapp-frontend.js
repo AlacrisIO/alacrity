@@ -92,92 +92,73 @@ const renderHandChoice = () => `
         ${renderHandOption(2)}
     </fieldset>`;
 
-const gameParametersOfForm = e => {
-    // TODO: validate input, instead of having a default values!
+const inputWager = e => (k, kError = kLogError) => {
     const wagerInput = e.target.elements.wagerInEth.value;
-    let wagerInEth;
+    let wagerInEth, error;
     try {
         wagerInEth = toBN(wagerInput);
         if (wagerInEth < minWagerInEth) { throw "foo"; }
     } catch (err) {
-        throw("Invalid wager amount " + wagerInput);
+        error = err;
     }
+    if (error) {
+        return kError(`invalid game id ${wagerInput} ${error}`);
+    } else {
+        return k(ethToWei(wagerInEth));
+    }
+}
+
+const inputOpponent = e => (k, kError = kLogError) => {
     const opponentInput = e.target.elements.opponent.value;
-    let opponent;
     if (opponentInput == "" || toBN(opponentInput).isZero()) {
-        opponent = undefined;
-    } else if (!web3.isAddress(opponentInput)) {
-        throw("Invalid opponent " + opponentInput);
+        return k(undefined);
+    } else if (web3.isAddress(opponentInput)) {
+        return k(opponentInput);
     } else {
-        opponent = opponentInput;
+        return kError(`Invalid opponent ${opponentInput}`);
     }
-    let handInput = e.target.elements.hand.value;
-    let hand;
+}
+
+const inputHand = e => (k, kError = kLogError) => {
+    const handInput = e.target.elements.hand.value;
     if (handInput == "") {
-        hand = undefined;
-    } else {
-        hand = parseInt(handInput, 10);
-        if (! (hand >=0 && hand < 3)) {
-            throw("Invalid hand " + handInput);
-        }
+        return k(undefined);
     }
-    return {wagerInEth, opponent, hand};};
+    try {
+        const hand = parseInt(handInput, 10);
+        if (isValidHand(hand)) {
+            return k(hand);
+        }
+    } catch (_) { }
+    return kError(`Invalid hand ${handInput}`);
+}
 
 const randomHand = () => {
-    const array = new Uint8Array(1);
+    const array = new Uint8Array(6);
     window.crypto.getRandomValues(array);
-    return array[0] % 3;
+    return (array[0]+array[1]+array[2]+array[3]+array[4]+array[5]) % 3;
 };
 
-const createNewGame = (wagerInWei, escrowInWei, opponent, hand) => {
-    const gameID = getGameID();
-    const id = idToString(gameID);
-    // TODO: let advanced users override the salt? Not without better transaction tracking.
-    // Right now we rely on robust randomness to track the transactions by commitment.
-    const salt = randomSalt();
-    const player0Commitment = makeCommitment(salt, hand);
-    const player0 = userAddress;
-    const player1 = opponent || zeroAddress;
-    const timeoutInBlocks = config.timeoutInBlocks;
-    // TODO: add the ID to the contract call for tracking purpose? Use the low bits of the escrow?
-    // Or the high bits of the hand? No, use the commitment:
-    // const commitment = makeCommitment(salt, hand);
-    // Somehow when we restart transactions, we must match them that way.
-    // We could use the nonce for the transaction, but there's no atomic access to it.
-    // Could we save the TxHash locally *before* sending it online? Unhappily web3 doesn't allow that:
-    // < https://github.com/MetaMask/metamask-extension/issues/3475 >.
-    putUserStorage(id, {role: 0, status: "Creating the game…",
-                        salt, hand, player0Commitment, player0, player1,
-                        timeoutInBlocks, wagerInWei, escrowInWei});
-    activeGamesByCommitment[player0Commitment] = key;
-    return player0StartGame(salt, hand, opponent, timeoutInBlocks, wagerInWei, escrowInWei)(txHash => {
-        gamesByTxHash[txHash] = key;
-        updateUserStorage(key, {status: "Posted the game-creation transaction…", txHash})});}
-
-const submitNewGame = e => {
+const submitNewGameClick = e => {
     e.preventDefault();
-    try {
-        const {wagerInEth, opponent, hand} = gameParametersOfForm(e);
-        const wagerInWei = ethToWei(wagerInEth);
-        const escrowInWei = wagerToEscrow(wagerInWei);
-        const h = hand || randomHand();
-        const confirmation = `You are going to start a new game with ${opponent ? opponent : "anyone who will play"} for a wager of ${wagerInEth} ETH, with an escrow of ${escrowInEth} ETH, and play ${labelOfHand(h)}.`;
-        const confirmed = window.confirm(confirmation);
-        if (confirmed) {
-            createNewGame(wagerInWei, escrowInWei, opponent, h);
-            renderNewGame();
-        }
-    } catch (exn) {
-        loggedAlert(exn);
-    }
-};
+    inputWager(e)(
+    wagerInWei =>
+    inputOpponent(e)(
+    opponent =>
+    inputHand(e)(
+    hand_ => {
+    const escrowInWei = wagerToEscrow(wagerInWei);
+    const hand = hand_ || randomHand();
+    const confirmation = `You are going to start a new game with ${opponent ? opponent : "anyone who will play"} for a wager of ${renderWei(wagerInWei)}, with an escrow of ${renderWei(escrowInWei)}, and play ${labelOfHand(hand)}.`;
+    const confirmed = window.confirm(confirmation);
+    if (confirmed) {
+        createNewGame(wagerInWei, escrowInWei, opponent, hand);
+        renderNewGame();
+    }},
+    loggedAlert), loggedAlert), loggedAlert)}
 
 // TODO: let you override the random salt (option hidden by default).
-const renderGameChoice = (wagerInWei, opponent) => `
-        ${renderWager(wagerInWei)}
-        <br>
-        ${renderOpponent(opponent)}
-        <br>
+const renderGameChoice = () => `
         ${renderHandChoice()}
         <br>
         <button style='width: 100%;'>Shoot!</button>
@@ -186,8 +167,13 @@ const renderGameChoice = (wagerInWei, opponent) => `
 
 const renderNewGame = () => {
     const form = document.createElement('form');
-    form.innerHTML = renderGameChoice (null, null); // TODO: only allocate ID after game is started
-    form.addEventListener('submit', submitNewGame);
+    form.innerHTML = `
+        ${renderWager()}
+        <br>
+        ${renderOpponent()}
+        <br>
+        ${renderGameChoice()}`;
+    form.addEventListener('submit', submitNewGameClick);
     setNodeBySelector("#NewGame", form);
 };
 
@@ -241,26 +227,34 @@ const renderGameState = (state, outcome) =>
       state == State.Completed ? `Completed, ${renderGameOutcome(outcome)}` :
       "unknown";
 
-const dismissGame = e => {
-    e.preventDefault();
-    let idInput, id, game;
+const inputId = e => (k, kError = kLogError) => {
+    const idInput = e.target.elements.id.value;
+    let id, game, error;
     try {
-        idInput = e.target.elements.id.value;
         id = parseInt(idInput, 10);
-        if (!Number.isInteger(id)) { throw `foo "${idInput}" "${id}" "${game}"`; }
+        if (!Number.isInteger(id)) { throw "bad game id"; }
         game = getGame(id);
-        if (game === null) { throw `bar "${idInput}" "${id}" "${game}"`; }
+        if (game === null) { throw "no such game"; }
     } catch (err) {
-        loggedAlert(`Invalid game id ${idInput}: ${err}`);
+        error = err;
     }
-    if (!game.isCompleted) {
-        loggedAlert(`Game ${id} isn't completed yet`);
+    if (error) {
+        return kError(`invalid game id ${idInput} ${error}`);
+    } else {
+        return k(id, game);
     }
-    if (!game.isDismissed) {
-        updateGame(id, {isDismissed: true});
-    }
-    renderGame(id);
-};
+}
+
+const dismissGameClick = e => {
+    e.preventDefault();
+    inputId(e)(dismissGame, loggedAlert);
+}
+
+const acceptGameClick = e => {
+    e.preventDefault();
+    inputId(e)((id, _game) =>
+    inputHand(e)(hand => acceptGame(id, hand),
+    loggedAlert), loggedAlert);}
 
 const renderGame = id => {
     logGame(id, "Render Game:");
@@ -270,11 +264,11 @@ const renderGame = id => {
         return;
     }
     const form = findOrCreateGameForm(id);
-    const player0 = g.unconfirmedState.player0 || g.player0;
-    const player1 = g.unconfirmedState.player1 || g.player1;
-    const player0Commitment = g.unconfirmedState.player0Commitment || g.player0Commitment;
-    const state = g.confirmedState.state || State.uninitialized;
-    const outcome = g.confirmedState.outcome;
+    const player0 = (g.unconfirmedState && g.unconfirmedState.player0) || g.player0;
+    const player1 = (g.unconfirmedState && g.unconfirmedState.player1) || g.player1;
+    const player0Commitment = (g.unconfirmedState && g.unconfirmedState.player0Commitment) || g.player0Commitment;
+    const state = (g.unconfirmedState && g.confirmedState.state) || State.uninitialized;
+    const outcome = g.unconfirmedState && g.confirmedState.outcome;
     // TODO: link to suitable network-dependent block viewer for txHash, contract, etc.
     const setup = `${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0
 wagered ${renderWei(g.wagerInWei)} (plus a ${renderWei(g.escrowInWei)} escrow)
@@ -284,7 +278,7 @@ with commitment ${renderCommitment(player0Commitment, g.txHash)}.<br />`;
     // display both an estimated time and a countdown timer.
     // Also display when the deadline is past.
 
-    switch (g.confirmedState.state) {
+    switch (g.confirmedState && g.confirmedState.state) {
 
         case State.WaitingForPlayer1:
         if (player1 != userAddress && (player0 == userAddress || player1 != zeroAddress)) {
@@ -296,15 +290,16 @@ haven't accepted the wager and chose a hand yet.`;
             // TODO: deal with non-atomicity of hand1 and player1TxHash
             current = `You played ${handName(g.hand1)}.
 Waiting for your transaction ${renderTransaction(g.player1TxHash)} to be confirmed.` ;
-        } else if (g.confirmedTransaction.wagerInWei < EthToWei(minWagerInEth)) {
+        } else if (g.confirmedState.wagerInWei < ethToWei(minWagerInEth)) {
             current = `The proposed wager ${renderWei(g.confirmedTransaction.wagerInWei)} is too low.
 DO NOT PLAY THIS GAME.`;
-        } else if (g.confirmedTransaction.escrowInWei < wagerToEscrow()) {
+        } else if (g.confirmedState.escrowInWei < wagerToEscrow()) {
             current = `The proposed escrow ${renderWei(g.confirmedTransaction.escrowInWei)} is too low.
 DO NOT PLAY THIS GAME.`;
         } else {
             current = `To accept the wager and play the game, choose a hand:<br />
-${renderGameChoice(wagerInWei, player0)}`;
+${renderGameChoice()}`;
+            form.addEventListener('submit', acceptGameClick);
         }
         break;
 
@@ -321,9 +316,11 @@ haven't publicly revealed their hand yet.`;
         break;
 
         case State.Completed:
+        // TODO: show the outcome, etc.
         current = `<button>Dismiss</button>`;
-        form.addEventListener('submit', dismissGame);
+        form.addEventListener('submit', dismissGameClick);
         break;
+
         default: current = "???";
     }
 
