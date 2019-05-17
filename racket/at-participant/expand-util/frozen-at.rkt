@@ -1,8 +1,8 @@
 #lang racket/base
 
-(provide (for-syntax add-frozen-at-expression
+(provide (for-syntax add-frozen-at-expression frozen-at-expression
                      add-frozen-at-definition
-                     add-frozen-receive-expression
+                     add-frozen-receive-expression frozen-receive-expression
                      add-frozen-at-static-tags
                      project-at-participant))
 
@@ -76,20 +76,23 @@
       #:attr participant v
       #:attr static-tag (syntax-property #'exp frozen-at-static-tag-prop)])
 
+  ;; add-frozen-at-static-tags : Stx -> [List Natural Stx]
   ;; Static tags only go on expressions, not definitions
   ;; The i variable is a number such that the integers from
   ;; i and up are unused so far for tags
   (define (add-frozen-at-static-tags stx)
     (define i 0)
-    (let loop ([stx stx])
-      (syntax-parse stx
-        [fa:frozen-at-expression
-         (add-frozen-at-expression
-          #'fa.inner
-          (attribute fa.participant)
-          #:static-tag (begin0 i (set! i (add1 i))))]
-        [_
-         (stx-traverse/recur stx loop)])))
+    (define stx*
+      (let loop ([stx stx])
+        (syntax-parse stx
+          [fa:frozen-at-expression
+           (add-frozen-at-expression
+            #'fa.inner
+            (attribute fa.participant)
+            #:static-tag (begin0 i (set! i (add1 i))))]
+          [_
+           (stx-traverse/recur stx loop)])))
+    (list i stx*))
 
   ;; Projecting to a participant includes:
   ;;  * deleting at-definitions (marked ids within `let-values`) that belong to
@@ -189,18 +192,19 @@
   (define-syntax-parser program
     [(_ [p:id ...] e:expr ...)
      #:with expr1 (expand-let-definitions (attribute e))
-     #:with expr2 (add-frozen-at-static-tags #'expr1)
+     #:with [n expr2] (add-frozen-at-static-tags #'expr1)
      #:with [expr3p ...]
      (for/list ([p (in-list (attribute p))])
        (project-at-participant #'expr2 (syntax-e p) #'send #'receive))
      #:with expr3C (project-at-participant #'expr2 #f #f #'receive)
      #:with expr3C-anf (expand-expr->anf #'expr3C (intdef-ctx-with #'(receive)))
      #:with expr3C-flat:anf-expr->flatten-scope #'expr3C-anf
+     #:with expr3C-flat-stmt-expr #'(begin expr3C-flat.stmt ... expr3C-flat.expr)
      #'(begin
          (displayln "consensus expr")
          (pretty-write 'expr3C)
          (displayln "consensus flat")
-         (pretty-write '(begin expr3C-flat.stmt ... expr3C-flat.expr))
+         (pretty-write 'expr3C-flat-stmt-expr)
          (begin
            (displayln 'p)
            (pretty-write 'expr3p))
