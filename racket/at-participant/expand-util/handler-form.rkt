@@ -88,7 +88,7 @@
       #`(#%plain-app assert-equal state 'i)
       #:with check-p
       #`(#%plain-app assert-equal msg.sender '#,(attribute e.participant))
-      #:with initial #'(begin)
+      #:with initial #'(set! state 'i)
       #:with (handler:handler-entry ...)
       (cond [k #`([i
                    param
