@@ -17,18 +17,19 @@
     (or, alternatively, also look at unconfirmed changes).
     We're polling for recomputed state at every block.
   * Handle timeouts
+  * If the user is player0 and the txHash is not be already known, do something useful
+    (due to race condition with the browser crashing before localStorage was done, or use in another browser)
+  * Use a post-frontend-initialization hook to only start expensive computations
+    after the frontend is initialized.
 
   TODO FOR DEMO:
-
-  * Figure out how the interface between frontend and backend for user input.
 
   * Move to the .ala file the things from which that are in this file
     that should be provided by the high-level programmer, such as the human-readable descriptions.
 
-  * Use a post-frontend-initialization hook to only start expensive computations
-    after the frontend is initialized.
-
   TODO LATER MAYBE:
+
+  * Refactor to extract a clean systematic interface between frontend and backend for user input.
 
   * Instead of polling for contract state all the time, we could have the contract emit
     events at state transitions, and recompute the state from them.
@@ -37,16 +38,20 @@
     since emitting events and requiring users to resubmit relevant state as arguments
     might be cheaper than storing state.
 
-  * If the user is player0 and the txHash is not be already known, do something useful
-    (due to race condition with the browser crashing before localStorage was done, or use in another browser)
-
   * Improve discoverability so users don't have to care too much about being player0 or player1.
+
+  * Survive spamming of the chain by games to DoS clients that would run out of memory:
+    Only check for new games in recent blocks; cap the number of open games;
+    require a small fee for opening a game?
 */
 'use strict';
 
 const Hand = Object.freeze({Rock: 0, Paper: 1, Scissors: 2});
 const handName = hand => ["rock", "paper", "scissors"][hand];
 const isValidHand = x => Number.isInteger(x) && (x == 0 || x == 1 || x == 2);
+const handToHex = byteToHex;
+// web3.utils.soliditySha3({t: 'bytes32', value: salt}, {t: 'uint8', value: hand}); // This web3 1.0 function is NOT AVAILABLE IN METAMASK! So we do things manually.
+const makeCommitment = saltedDigest(handToHex);
 
 
 // SENDING DATA TO THE BLOCKCHAIN
@@ -54,19 +59,17 @@ const isValidHand = x => Number.isInteger(x) && (x == 0 || x == 1 || x == 2);
 // The contract object, to be fulfilled from config after initialization.
 let rpsFactory;
 
-// web3.utils.soliditySha3({t: 'bytes32', value: salt}, {t: 'uint8', value: hand}); // This web3 1.0 function is NOT AVAILABLE IN METAMASK! So we do things manually.
-const makeCommitment = (salt, hand) => digestHex(salt + byteToHex(hand));
-
 // (bytes32_0xString, Uint8, address, BN, BN) => KontE(TxHash)
 const player0StartGame =
       (salt, hand, player1, timeoutInBlocks, wagerInWei, escrowInWei) => (k, kError = kLogError) => {
     const commitment = makeCommitment(salt, hand);
-    const totalAmount = wagerInWei.add(escrowInWei);
+    const totalAmount = toBN(wagerInWei).add(escrowInWei);
     return errbacK(rpsFactory.player0_start_game)(
         player1, timeoutInBlocks, commitment, wagerInWei, {value: totalAmount})(k, kError);
 }
 
-const rps = (contractAddress) => web3.eth.contract(rpsAbi).at(contractAddress);
+const rpsContract = web3.eth.contract(rpsAbi);
+const rps = contractAddress => rpsContract.at(contractAddress);
 
 // (address, BN, Uint8) => KontE(TxHash)
 const player1ShowHand = (contractAddress, wagerInWei, hand) => (k, kError = kLogError) =>
@@ -113,12 +116,12 @@ const isEqualState = (x, y) =>
      x.hand0 == y.hand0 &&
      x.hand1 == y.hand1);
 
-// address => {state: Uint8, outcome: Uint8, timeoutInBlocks: int, previousBlock: int, player0: address, player1: address, player0Commitment: bytes32, wagerInWei: BN, escrowInWei: BN, salt: bytes32, hand0: Uint8, hand1: Uint8} => `a) => `a
+// address => KontE({state: Uint8, outcome: Uint8, timeoutInBlocks: int, previousBlock: int, player0: address, player1: address, player0Commitment: bytes32, wagerInWei: BN, escrowInWei: BN, salt: bytes32, hand0: Uint8, hand1: Uint8})
 const queryState = (contractAddress, blockNumber) => (k, kError = kLogError) => {
     const rps = web3.eth.contract(rpsAbi).at(contractAddress);
     return errbacK(rps.query_state.call)({}, blockNumber)(x => k(decodeState(x)))};
 
-// (int => `a) => `a
+// address => KontE(int)
 const queryConfirmedState = contractAddress => (k, kError = kLogError) =>
     getConfirmedBlockNumber(
         blockNumber => queryState(contractAddress, blockNumber)(k, kError), kError);
@@ -165,59 +168,93 @@ const uint32ToHex = u => web3.toHex(u + 0x100000000).slice(3);
 const idToString = uint32ToHex;
 const stringToId = x => parseInt(x, 16);
 
-let logGame = (id, tag = "render game:") => logging(tag, id, getUserStorage(idToString(id)))();
+let logGame = (id, tag = "Render Game:") => logging(tag, id, getUserStorage(idToString(id)))();
 
-// Default hook (until replaced by the UI frontend), just log the updated game.
+// Hook for rendering a game, to be replaced later by the UI frontend.
+// Default behavior: just log the updated game.
 let renderGameHook = logGame;
 
 const getGame = id => getUserStorage(idToString(id));
 const putGame = (id, game) => putUserStorage(idToString(id), game);
 const updateGame = (id, gameUpdate) => updateUserStorage(idToString(id), gameUpdate);
+const deleteGame = id => removeUserStorage(idToString(id));
+const deleteGameField = (id, field) => deleteUserStorageField(idToString(id), field);
 
 const getGameID = () => {
-    const gameID = nextID;
-    nextID = nextID + 1;
+    const gameID = nextID++;
     putUserStorage("nextID", nextID);
     return gameID;
 }
 
-const registerGameK = game => k => {
+// : game => ()
+const registerGame = game => {
     const id = getGameID();
     putGame(id, game);
     activeGames[id] = true;
     if (game.txHash) {
         gamesByTxHash[game.txHash] = id;
     }
-    renderGameHook(id);
-    return k();
+    renderGameHook(id, "Register Game:");
 }
 
-// const findUnconfirmedGames = game => k => XXX
+// Given game data (from a decoded game creation event) and game (from local user storage),
+// determine if the data matches the game.
+const gameMatches = (d, g) =>
+    g &&
+    d.player0 == g.player0 &&
+    d.player1 == g.player1 &&
+    d.timeoutInBlocks == g.timeoutInBlocks &&
+    d.player0Commitment == g.player0Commitment &&
+    d.wagerInWei == g.wagerInWei &&
+    d.escrowInWei == g.escrowInWei;
 
-const processNewGameK = event => k => {
+// : gameCreationEvent => Kont()
+const processNewGame = event => k => {
     const game = decodeGameCreationData(event.data, event.blockNumber, event.transactionHash);
     if (!(game.player0 == userAddress || game.player1 == userAddress || game.player1 == zeroAddress)) {
         return k();
     }
     let id = gamesByTxHash[event.transactionHash];
     if (id) {
-        if (id.contract) { // Known game. Assume blockNumber is also known.
-            return k();
-        } else {
-            // TODO: triple-check that everything matches, or issue warning?
-            updateGame(id, {blockNumber: game.blockNumber, contract: game.contract});
-            renderGameHook(id);
+        if (id.contract) {
+            // Known game. Assume blockNumber is also known and the game is rendered already.
             return k();
         }
+        // TODO: triple-check that everything matches, or issue warning?
+        updateGame(id, {blockNumber: game.blockNumber, contract: game.contract});
+        renderGameHook(id, "Process New Game:");
+        return k();
+    } else if (game.player0 != userAddress) {
+        // A game proposed by someone else.
+        registerGame(game);
+        return k();
     } else {
-        // TODO: handle the case where we're player0 but we crashed between
+        // Handle the case where we're player0 but we crashed between
         // the time the transaction was published and
         // the time we could save the txHash to localStorage,
         // by keeping the set of interrupted games in unconfirmedGames.
-        // TODO: also handle when we're player0 but that was started on another browser,
+        for (let key in unconfirmedGames) {
+            const id = stringToId(key);
+            console.log(id, game, gameMatches(game, getGame(id)));
+            if (gameMatches(game, getGame(id))) {
+                updateGame(id, {blockNumber: game.blockNumber,
+                                contract: game.contract,
+                                txHash: game.txHash});
+                gamesByTxHash[event.transactionHash] = id;
+                return k();
+            }
+        }
+        // Handle the case when we're player0 but that was started on another browser,
         // by warning the user that they better reactivate the client with the data
         // before they timeout.
-        return registerGameK(game)(k);
+        if (game.player1 == userAddress || game.player1 == zeroAddress) {
+            registerGame(game);
+            loggedAlert(`Game ${id} can only be played as player1 on this client.
+You need the client that created this game to play it as player0.`);
+        } else {
+            loggedAlert(`Detected a game that you started, but cannot play on this client because the salt and hand are not available (hopefully they are stored on another client): ${JSON.stringify(game)}`);
+        }
+        return k();
     }
 }
 
@@ -227,7 +264,7 @@ const watchNewGames = k =>
         // TODO: only track starting from 2 timeout periods in the past(?)
         config.contract.creationBlock,
         {address: config.contract.address},
-        processNewGameK)(k);
+        processNewGame)(k);
 
 const addActiveGame = id => activeGames[id] = true;
 const removeActiveGame = id => delete activeGames[id];
@@ -239,8 +276,8 @@ const blockTimeouts = {}; // for each block (by number, stringified), a set of g
 const State = Object.freeze({
     Uninitialized: 0,
     WaitingForPlayer1: 1,        // player0 funded wager+escrow and published a commitment
-    WaitingForPlayer0Reveal: 2, // player1 showed his hand
-    Completed: 3                   // end of game (in the future, have a way to reset the contract to state Uninitialized?)
+    WaitingForPlayer0Reveal: 2,  // player1 showed his hand
+    Completed: 3                 // end of game (in the future, have a way to reset the contract to state Uninitialized?)
 });
 
 const popEntry = (table, key) => {
@@ -259,20 +296,23 @@ const queueGame = (id, timeoutBlock) => {
 
 const GameResult = Object.freeze({Draw: 0, YouWin: 1, TheyWin: 2});
 const gameResult = (yourHand, theirHand) => (yourHand + 3 - theirHand) % 3;
+
+// TODO: move these two functions to the front end?
+// Or can it be reasonably generated from annotations in the Alacrity source code?
 const player0GameResultSummary = (hand0, hand1, wagerInWei, escrowInWei) => {
     switch(gameResult(hand0, hand1)) {
-    case GameResult.Draw: return `have a draw and recover your ${weiToEth(toBN(wagerInWei).add(escrowInWei))} ETH stake.`;
-    case GameResult.YouWin: return `win ${weiToEth(wagerInWei)} ETH
-and recover your ${weiToEth(wagerInWei.add(escrowInWei))} ETH stake.`;
-    case GameResult.TheyWin: return `lose your ${weiToEth(wagerInWei)} ETH wager
-but recover your ${weiToEth(escrowInWei)} ETH escrow.`;}}
+    case GameResult.Draw: return `have a draw and recover your ${renderWei(toBN(wagerInWei).add(escrowInWei))} stake.`;
+    case GameResult.YouWin: return `win ${renderWei(wagerInWei)} \
+and recover your ${renderWei(toBN(wagerInWei).add(escrowInWei))} stake.`;
+    case GameResult.TheyWin: return `lose your ${renderWei(wagerInWei)} wager \
+but recover your ${renderWei(escrowInWei)} escrow.`;}}
 
 const player1GameResultSummary = (hand0, hand1, wagerInWei, escrowInWei) => {
     switch(gameResult(hand1, hand9)) {
-    case GameResult.Draw: return `have a draw and recover your ${weiToEth(wagerInWei)} ETH stake.`;
-    case GameResult.YouWin: return `win ${weiToEth(wagerInWei)} ETH
-and recover your ${weiToEth(wagerInWei)} ETH stake.`;
-    case GameResult.TheyWin: return `lose your ${weiToEth(wagerInWei)} ETH wager.`;}}
+    case GameResult.Draw: return `have a draw and recover your ${renderWei(wagerInWei)} stake.`;
+    case GameResult.YouWin: return `win ${renderWei(wagerInWei)}
+and recover your ${renderWei(wagerInWei)} stake.`;
+    case GameResult.TheyWin: return `lose your ${renderWei(wagerInWei)} wager.`;}}
 
 
 /** Process a game, making all automated responses that do not require user input.
@@ -296,12 +336,12 @@ const processGameAt = confirmedBlock => id => k => {
             const salt = game.salt;
             const hand0 = game.hand;
             const hand1 = game.confirmedState.hand1;
-            const context = `In game ${id}, player1 showed his hand ${handName(hand1)}.
-You must show our hand ${handName(hand0)} to
-${player0GameResultSummary(hand0, hand1, game.wagerInWei, game.escrowInWei)}.`
-            if (game.salt && hand0) {
+            const context = `In game ${id}, player1 showed his hand ${handName(hand1)}. \
+You must show our hand ${handName(hand0)} to \
+${player0GameResultSummary(hand0, hand1, game.wagerInWei, game.escrowInWei)}`
+            if (salt && hand0) {
                 loggedAlert(`${context} Please sign the following transaction.`);
-                return player0Reveal(game.contract, salt, hand)(
+                return player0Reveal(game.contract, salt, hand0)(
                     txHash => {
                         updateGame(id, {player0RevealTxHash: txHash})
                         // Register txHash for confirmation? Nah, we're just polling for state change!
@@ -326,9 +366,9 @@ Be sure to start a client that has this data before the deadline.`); // TODO: pr
         if (game.player0RescindTxHash) {
             return k();
         }
-        const stakeInEth = weiToEth(toBN(game.wagerInWei).add(game.escrowInWei));
+        const stakeInWei = toBN(game.wagerInWei).add(game.escrowInWei);
         loggedAlert(`Player1 timed out in game ${id},
-sending a transaction to recover your stake of ${stakeInEth} ETH`);
+sending a transaction to recover your stake of ${renderWei(stakeInWei)}`);
         // TODO register the event, don't send twice.
         return player0Rescind(game.contract)(
             txHash => { updateGame(id, { player0RescindTxHash: txHash }); return k(); },
@@ -336,11 +376,10 @@ sending a transaction to recover your stake of ${stakeInEth} ETH`);
     }
     if (game.player1 == userAddress &&
         game.confirmedState.state == State.WaitingForPlayer0Reveal) {
-        const wagerInEth = weiToEth(game.wagerInWei);
-        const stakeInEth = weiToEth(toBN(game.wagerInWei).mul(2).add(game.escrowInWei));
+        const stakeInWei = toBN(game.wagerInWei).mul(2).add(game.escrowInWei);
         loggedAlert(`Player0 timed out in game ${id},
-sending a transaction to recover your ${wagerInEth} ETH wager
-and their ${stakeInEth} ETH stake`);
+sending a transaction to recover your ${renderWei(wagerInWei)} wager
+and their ${renderWei(stakeInWei)} stake`);
         return WinByDefault(game.contract)(k, flip(logErrorK)(k));
     }
     return k();
@@ -366,8 +405,7 @@ const createNewGame = (wagerInWei, escrowInWei, opponent, hand) => {
     // We could use the nonce for the transaction, but there's no atomic access to it.
     // Could we save the TxHash locally *before* sending it online? Unhappily web3 doesn't allow that:
     // < https://github.com/MetaMask/metamask-extension/issues/3475 >.
-    putUserStorage(id, {role: 0, status: "Creating the game…",
-                        salt, hand, player0Commitment, player0, player1,
+    putUserStorage(id, {salt, hand, player0Commitment, player0, player1,
                         timeoutInBlocks, wagerInWei, escrowInWei});
     unconfirmedGames[idToString(id)] = true;
     return player0StartGame(salt, hand, opponent, timeoutInBlocks, wagerInWei, escrowInWei)(txHash => {
@@ -381,16 +419,17 @@ const dismissGame = (id, game) => {
     if (!game.isDismissed) {
         updateGame(id, {isDismissed: true});
     }
-    renderGameHook(id);
+    renderGameHook(id, "Dismiss Game:");
 }
 
 const acceptGame = (id, hand) => {
+    const game = getGame(id);
     if (!game.confirmedState) {
         // If that's the case, make a transaction that we only send later? No, we can't with web3.
         loggedAlert(`Game ${id} isn't confirmed yet`);
         return;
     }
-    if (game.confirmedState.state != WaitingForPlayer1) {
+    if (game.confirmedState.state != State.WaitingForPlayer1) {
         loggedAlert(`Game ${id} isn't open to a wager`);
         return;
     }
@@ -405,7 +444,7 @@ const acceptGame = (id, hand) => {
     updateGame(id, {hand1: hand});
     player1ShowHand(game.contract, game.wagerInWei, hand)(txHash => {
         updateGame(id, {player1ShowHandTxHash: txHash});
-        renderGameHook(id);
+        renderGameHook(id, "Accept Game:");
     }, loggedAlert);
 }
 
@@ -425,7 +464,7 @@ const handleTimeoutQueue = (_oldBlock, currentBlock) =>
 const processActiveGame = id => k => {
     const game = getGame(id);
     logging("processActiveGame", id, game)();
-    if (game.isComplete) {
+    if (game.isCompleted) {
         removeActiveGame(id);
         return k();
     }
@@ -443,7 +482,7 @@ const processActiveGame = id => k => {
                         return k();
                     }
                     updateGame(id, {confirmedState, unconfirmedState});
-                    renderGameHook(id);
+                    renderGameHook(id, "Process Active Game:");
                     return getConfirmedBlockNumber(block => processGameAt(block)(id)(k));
                 },
                 kError),
@@ -466,9 +505,8 @@ const initGame = id => {
     } else {
         unconfirmedGames[idToString(id)] = true;
     }
-    if (!game.isDismissed) { renderGameHook(id); }
-    if (game.isComplete) { return; }
-    addActiveGame(id);
+    if (!game.isCompleted) { addActiveGame(id); }
+    renderGameHook(id, "Init Game:");
 }
 
 const initGames = k => { for(let i=0;i<nextID;i++) {initGame(i)}; return k(); }
@@ -482,6 +520,7 @@ const initBackend = k => {
     }
     rpsFactory = web3.eth.contract(rpsFactoryAbi).at(config.contract.address);
     nextID = getUserStorage("nextID", 0);
+    newBlockHooks["newBlock"] = (from, to) => loggingK("newBlock! from:", from, "to:", to)();//XXX
     return k();
 }
 

@@ -69,10 +69,11 @@ const meth = x => toBN(1e15).mul(x);
 
 /** Convert a hex string to a BigNumber
     : string => BigNumber */
-const hexToBigNumber = hex => web3.toBigNumber(hexTo0x(hex));
+const hexToBigNumber = hex => toBN(hexTo0x(hex));
 
 const digest = web3.sha3;
 const digestHex = x => web3.sha3(x, {encoding: "hex"});
+const saltedDigest = toHex => (salt, ...data) => digestHex(salt + toHex(...data));
 
 /** Count the number of confirmations for a transaction given by its hash.
     Return -1 if the transaction is yet unconfirmed.

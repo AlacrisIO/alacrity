@@ -1,12 +1,16 @@
 /** web3 client frontend for rock-paper-scissors. */
 /*
+  DONE:
+
+  * Have a flag to dismiss completed games
+
   TODO:
 
   * Display the game in each of its possible states
 
-  * Have a flag to dismiss completed games
-
   TODO LATER MAYBE
+
+  * When the list of active games drops to zero, add a message; remove it when it become non-empty.
 
   * Add speculative information from unconfirmed transactions,
     with clear distinction between what's confirmed,
@@ -124,13 +128,16 @@ const inputHand = e => (k, kError = kLogError) => {
     if (handInput == "") {
         return k(undefined);
     }
+    let hand, error;
     try {
-        const hand = parseInt(handInput, 10);
-        if (isValidHand(hand)) {
-            return k(hand);
-        }
-    } catch (_) { }
-    return kError(`Invalid hand ${handInput}`);
+        hand = parseInt(handInput, 10);
+        error = !isValidHand(hand);
+    } catch (e) { error = e; }
+    if (error) {
+        return kError(`Invalid hand ${handInput}`);
+    } else {
+        return k(hand);
+    }
 }
 
 const randomHand = () => {
@@ -161,7 +168,7 @@ const submitNewGameClick = e => {
 const renderGameChoice = () => `
         ${renderHandChoice()}
         <br>
-        <button style='width: 100%;'>Shoot!</button>
+        <div align='center'><button style='width: 50%;'>Shoot!</button></div><br />
         NB: Running on ${config.networkName} with a ${config.timeoutInBlocks}-block timeout (${config.timeoutString}).
     `;
 
@@ -209,22 +216,24 @@ const renderWei = amountInWei =>
 const renderCommitment = (commitment, txHash) =>
       commitment ?
       txHash ? `<a href="${config.txExplorerUrl}${txHash}#eventlog">${shorten0x(commitment)}</a>`
-      : commitment : "unknown";
+      : shorten0x(commitment) : "unknown";
 
-const renderGameOutcome = outcome =>
-      outcome == 0 ? "unknown" :
-      outcome == 1 ? "draw" :
-      outcome == 2 ? "player0 won" :
-      outcome == 3 ? "player1 won" :
-      outcome == 4 ? "player0 timed out, player1 won by default" :
-      outcome == 5 ? "player1 timed out, player0 rescinded wager" :
-      "unknown";
+const renderGameOutcome = (outcome, player0, player1) =>
+      outcome == 0 ? "The game isn't complete yet" :
+      outcome == 1 ? "The game is a draw" :
+      outcome == 2 ? `${pronoun(player0, userAddress)} ${renderAddress(player0)} won as player0` :
+      outcome == 3 ? `${pronoun(player1, userAddress)} ${renderAddress(player1)} won as player1` :
+      outcome == 4 ? `${pronoun(player0, userAddress)} ${renderAddress(player0)} timed out as player0. \
+${pronoun(player1, userAddress)} ${renderAddress(player1)} won by default as player1` :
+      outcome == 5 ? `${pronoun(player1, userAddress)} ${renderAddress(player1)} timed out as player1. \
+${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0 rescinded the offer to play the game` :
+      "invalid outcome";
 
-const renderGameState = (state, outcome) =>
+const renderGameState = (state, outcome, player0, player1) =>
       state == State.uninitialized ? "Wager unconfirmed" :
       state == State.WaitingForPlayer1 ? "Waiting for player1" :
       state == State.WaitingForPlayer0Reveal ? "Waiting for player0 reveal" :
-      state == State.Completed ? `Completed, ${renderGameOutcome(outcome)}` :
+      state == State.Completed ? `Completed. ${renderGameOutcome(outcome, player0, player1)}` :
       "unknown";
 
 const inputId = e => (k, kError = kLogError) => {
@@ -256,23 +265,35 @@ const acceptGameClick = e => {
     inputHand(e)(hand => acceptGame(id, hand),
     loggedAlert), loggedAlert);}
 
-const renderGame = id => {
-    logGame(id, "Render Game:");
+const displayedGames = {};
+
+const renderActiveGameHook = () => {
+    setNodeBySelector("#NoActiveGames", document.createTextNode(
+        isEmpty(displayedGames) ? "(No currently active game)" : ""));
+}
+
+const unrenderGame = id => {
+    setNodeBySelector(`#${gameFormId(id)}`, emptyNode());
+    delete displayedGames[id];
+    renderActiveGameHook();
+}
+
+const renderGame = (id, tag) => {
+    logGame(id, "(Frontend) " + tag);
     const g = getGame(id);
-    if (g.isDismissed) {
-        setNodeBySelector(`#${gameFormId(id)}`, emptyNode());
-        return;
-    }
+    if (!g || g.isDismissed) { return unrenderGame(id); }
     const form = findOrCreateGameForm(id);
     const player0 = (g.unconfirmedState && g.unconfirmedState.player0) || g.player0;
     const player1 = (g.unconfirmedState && g.unconfirmedState.player1) || g.player1;
     const player0Commitment = (g.unconfirmedState && g.unconfirmedState.player0Commitment) || g.player0Commitment;
     const state = (g.unconfirmedState && g.confirmedState.state) || State.uninitialized;
     const outcome = g.unconfirmedState && g.confirmedState.outcome;
-    // TODO: link to suitable network-dependent block viewer for txHash, contract, etc.
+    const hand0 = (g.unconfirmedState && g.unconfirmedState.hand0) || g.hand;
+    const hand1 = (g.unconfirmedState && g.unconfirmedState.hand1) || g.hand1;
     const setup = `${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0
 wagered ${renderWei(g.wagerInWei)} (plus a ${renderWei(g.escrowInWei)} escrow)
-with commitment ${renderCommitment(player0Commitment, g.txHash)}.<br />`;
+with commitment ${renderCommitment(player0Commitment, g.txHash)}\
+${hand0 ? ` (secretly playing ${handName(hand0)})` : ""}.<br />`;
     let current = "";
     // TODO: somehow estimate how much time there is before deadline, and
     // display both an estimated time and a countdown timer.
@@ -288,14 +309,15 @@ with commitment ${renderCommitment(player0Commitment, g.txHash)}.<br />`;
 haven't accepted the wager and chose a hand yet.`;
         } else if (g.hand1) {
             // TODO: deal with non-atomicity of hand1 and player1TxHash
-            current = `You played ${handName(g.hand1)}.
-Waiting for your transaction ${renderTransaction(g.player1TxHash)} to be confirmed.` ;
+            current = `You played ${handName(g.hand1)}. Waiting for your transaction ${renderTransaction(g.player1ShowHandTxHash)} to be confirmed.` ;
         } else if (g.confirmedState.wagerInWei < ethToWei(minWagerInEth)) {
             current = `The proposed wager ${renderWei(g.confirmedTransaction.wagerInWei)} is too low.
 DO NOT PLAY THIS GAME.`;
+            g.isCompleted = true;
         } else if (g.confirmedState.escrowInWei < wagerToEscrow()) {
             current = `The proposed escrow ${renderWei(g.confirmedTransaction.escrowInWei)} is too low.
 DO NOT PLAY THIS GAME.`;
+            g.isCompleted = true;
         } else {
             current = `To accept the wager and play the game, choose a hand:<br />
 ${renderGameChoice()}`;
@@ -305,7 +327,9 @@ ${renderGameChoice()}`;
 
         case State.WaitingForPlayer0Reveal:
         if (player0 != userAddress) {
-            current = `${pronoun(player1, userAddress)} ${renderAddress(player1)} as player0
+            current = `${pronoun(player1, userAddress)} ${renderAddress(player1)} as player1 \
+played ${handName(hand1)}. \
+${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0 \
 haven't publicly revealed their hand yet.`;
         } else if (g.player0RevealTxHash) {
             // TODO: deal with non-atomicity of hand1 and player1TxHash
@@ -317,33 +341,27 @@ haven't publicly revealed their hand yet.`;
 
         case State.Completed:
         // TODO: show the outcome, etc.
-        current = `<button>Dismiss</button>`;
-        form.addEventListener('submit', dismissGameClick);
+        g.isCompleted = true
         break;
 
         default: current = "???";
     }
 
+    if (g.isCompleted) {
+        removeActiveGame(id);
+        current += `<button>Dismiss</button>`;
+        form.addEventListener('submit', dismissGameClick);
+    }
+
     form.innerHTML = `<p><b>Game <output name="id">${id}</output></b>${
 g.txHash ? `, tx ${renderTransaction(g.txHash)}` : ""}${
 g.contract ? `, contract ${renderAddress(g.contract)}` : ""}:<br />
-<em>${renderGameState(state, outcome)}.</em><br />
+<em>${renderGameState(state, outcome, player0, player1)}.</em><br />
 ${setup}${current}</p>`;
+    displayedGames[id] = true;
+    renderActiveGameHook();
 }
 renderGameHook = renderGame;
-
-const renderOpenGames = () => {
-    // XXX TODO
-}
-const renderActiveGames = () => {
-    const node = document.createElement('div');
-    if (activeGames.length > 0) {
-        for(let id in activeGames) { renderGame(node, id); }
-    } else {
-        node.innerHTML = '<p id="NoActiveGames">(No currently active game)</p>';
-    }
-    setNodeBySelector("#ActiveGames", node);
-}
 
 const emptyNode = () => document.createTextNode("");
 
@@ -358,9 +376,10 @@ const initFrontend = k => {
         // setNodeBySelector("#NoOpenGames", emptyNode());
         setNodeBySelector("#NoActiveGames", emptyNode());
         renderNewGame();
+        renderActiveGameHook();
     } else {
         setNodeBySelector("#Play", htmlToElement(
-            "<b>No contract deployed on this network. <br/>" +
+            "<b>No contract deployed on this network. <br />" +
             "Please reload this page after connecting to Rinkeby.</b>"));
     };
     return k();

@@ -188,6 +188,7 @@ const keyValuePair = (key, value) => { let o = {}; o[key] = value; return o; }
 const getStorage = (key, default_ = null) => JSON.parse(window.localStorage.getItem(key)) || default_;
 const putStorage = (key, value) => window.localStorage.setItem(key, JSON.stringify(value));
 const updateStorage = (key, update) => putStorage(key, {...getStorage(key), ...update});
+const removeStorage = (key, update) => window.localStorage.removeItem(key);
 
 // For Apps with a "current user" that may change, making keys relative to a userID.
 /** : string */
@@ -197,6 +198,7 @@ const getUserStorage = (key, default_ = null) => getStorage(userKey(key), defaul
 const putUserStorage = (key, value) => putStorage(userKey(key), value);
 const updateUserStorage = (key, update) => updateStorage(userKey(key), update);
 const putUserStorageField = (key, field, value) => updateUserStorage(key, keyValuePair(field, value));
+const removeUserStorage = key => removeStorage(userKey(key));
 const deleteUserStorageField = (key, field) => {
     const record = getUserStorage(key); delete record[field]; putUserStorage(key, record); }
 
