@@ -52,7 +52,7 @@ const addressRegex = "0x[0-9A-Fa-f]{40}";
 // TODO: determine a minimum acceptable escrow, and suggest that?
 // TODO: determine a minimum amount based on the minimum escrow?
 const minWagerInEth = .01;
-const defaultWagerInEth = 1;
+const defaultWagerInEth = .1;
 
 const wagerToEscrow = wager => toBN(wager).div(10);
 
@@ -353,7 +353,6 @@ haven't publicly revealed their hand yet.`;
         case Outcome.Draw:
         case Outcome.Player0Wins:
         case Outcome.Player1Wins:
-            console.log("foo", {state, hand0, gu: g.unconfirmedState, gus: g.unconfirmedState.state, gguh0: g.unconfirmedState.hand0});
         current += `${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0 revealed ${handName(hand0)}. `;
         }
         switch (outcome) {

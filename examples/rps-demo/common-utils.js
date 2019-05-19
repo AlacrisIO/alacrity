@@ -99,6 +99,9 @@ const un0x = s => {
     : string => String0x */
 const hexToAddress = hex => hexTo0x(hex.slice(-40));
 
+/** Parse a decimal number */
+const parseDecimal = x => parseInt(x, 10);
+
 /** Return a random salt
     : () => String0x */
 const randomSalt = () => {

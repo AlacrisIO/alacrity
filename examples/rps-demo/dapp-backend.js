@@ -64,6 +64,8 @@ const player0StartGame =
       (salt, hand, player1, timeoutInBlocks, wagerInWei, escrowInWei) => (k, kError = kLogError) => {
     const commitment = makeCommitment(salt, hand);
     const totalAmount = toBN(wagerInWei).add(escrowInWei);
+    console.log(rpsFactory.player0_start_game,
+        player1, timeoutInBlocks, commitment, wagerInWei, {value: totalAmount}, k, kError);
     return errbacK(rpsFactory.player0_start_game)(
         player1, timeoutInBlocks, commitment, wagerInWei, {value: totalAmount})(k, kError);
 }
@@ -196,6 +198,22 @@ const registerGame = game => {
     renderGameHook(id, "Register Game:");
 }
 
+const removeGame = id => {
+    const g = getGame(id);
+    if (g.txHash) {
+        delete gamesByTxHash[g.txHash];
+    }
+    deleteGame(id);
+    const idString = idToString(id);
+    delete unconfirmedGames[idToString(id)];
+    removeActiveGame(id);
+    renderGameHook(id);
+    if (id == nextID - 1) {
+        nextID = id;
+        putUserStorage("nextID", nextID);
+    }
+}
+
 // Given game data (from a decoded game creation event) and game (from local user storage),
 // determine if the data matches the game.
 const gameMatches = (d, g) =>
@@ -267,7 +285,7 @@ const watchNewGames = k =>
 
 const addActiveGame = id => activeGames[id] = true;
 const removeActiveGame = id => delete activeGames[id];
-const activeGamesList = () => Object.keys(activeGames).map(stringToId);
+const activeGamesList = () => Object.keys(activeGames).map(parseDecimal);
 
 const timeoutBlocks = new TinyQueue; // blocks (by number) that include a timeout.
 const blockTimeouts = {}; // for each block (by number, stringified), a set of game ids to mind.
@@ -345,7 +363,7 @@ const processGameAt = confirmedBlock => id => k => {
             const hand0 = game.hand;
             const hand1 = game.confirmedState.hand1;
             const context = `In game ${id}, player1 showed his hand ${handName(hand1)}. \
-You must show our hand ${handName(hand0)} to \
+You must show your hand ${handName(hand0)} to \
 ${player0GameResultSummary(hand0, hand1, game.wagerInWei, game.escrowInWei)}`
             if (salt && hand0) {
                 loggedAlert(`${context} Please sign the following transaction.`);
@@ -397,8 +415,7 @@ const processGame = id => k =>
     getConfirmedBlockNumber(block => processGameAt(block)(id)(k));
 
 const createNewGame = (wagerInWei, escrowInWei, opponent, hand) => {
-    const gameID = getGameID();
-    const id = idToString(gameID);
+    const id = getGameID();
     // TODO: let advanced users override the salt? Not without better transaction tracking.
     // Right now we rely on robust randomness to track the transactions by commitment.
     const salt = randomSalt();
@@ -413,12 +430,19 @@ const createNewGame = (wagerInWei, escrowInWei, opponent, hand) => {
     // We could use the nonce for the transaction, but there's no atomic access to it.
     // Could we save the TxHash locally *before* sending it online? Unhappily web3 doesn't allow that:
     // < https://github.com/MetaMask/metamask-extension/issues/3475 >.
-    putUserStorage(id, {salt, hand, player0Commitment, player0, player1,
+    putGame(id, {salt, hand, player0Commitment, player0, player1,
                         timeoutInBlocks, wagerInWei, escrowInWei});
+    renderGameHook(id);
     unconfirmedGames[idToString(id)] = true;
-    return player0StartGame(salt, hand, opponent, timeoutInBlocks, wagerInWei, escrowInWei)(txHash => {
-        gamesByTxHash[txHash] = id;
-        updateUserStorage(key, {status: "Posted the game-creation transaction…", txHash})});}
+    return player0StartGame(salt, hand, player1, timeoutInBlocks, wagerInWei, escrowInWei)(
+        txHash => {
+            gamesByTxHash[txHash] = id;
+            addActiveGame(id);
+            updateGame(id, {txHash});
+            renderGameHook(id);},
+        error => {
+            removeGame(id);
+            loggedAlert(error);});}
 
 const dismissGame = (id, game) => {
     if (!game.isCompleted) {
@@ -472,7 +496,7 @@ const handleTimeoutQueue = (_oldBlock, currentBlock) =>
 const processActiveGame = id => k => {
     const game = getGame(id);
     logging("processActiveGame", id, game)();
-    if (game.isCompleted) {
+    if (!game || game.isCompleted) {
         removeActiveGame(id);
         return k();
     }
