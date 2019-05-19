@@ -219,14 +219,14 @@ const renderCommitment = (commitment, txHash) =>
       : shorten0x(commitment) : "unknown";
 
 const renderGameOutcome = (outcome, player0, player1) =>
-      outcome == 0 ? "The game isn't complete yet" :
-      outcome == 1 ? "The game is a draw" :
-      outcome == 2 ? `${pronoun(player0, userAddress)} ${renderAddress(player0)} won as player0` :
-      outcome == 3 ? `${pronoun(player1, userAddress)} ${renderAddress(player1)} won as player1` :
-      outcome == 4 ? `${pronoun(player0, userAddress)} ${renderAddress(player0)} timed out as player0. \
+      outcome == Outcome.Unknown ? "The game isn't complete yet" :
+      outcome == Outcome.Draw ? "The game is a draw" :
+      outcome == Outcome.Player0Wins ? `${pronoun(player0, userAddress)} ${renderAddress(player0)} won as player0` :
+      outcome == Outcome.Player1Wins ? `${pronoun(player1, userAddress)} ${renderAddress(player1)} won as player1` :
+      outcome == Outcome.Player1WinsByDefault ? `${pronoun(player0, userAddress)} ${renderAddress(player0)} timed out as player0. \
 ${pronoun(player1, userAddress)} ${renderAddress(player1)} won by default as player1` :
-      outcome == 5 ? `${pronoun(player1, userAddress)} ${renderAddress(player1)} timed out as player1. \
-${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0 rescinded the offer to play the game` :
+      outcome == Outcome.Player0Rescinds ? (player1 ? `${pronoun(player1, userAddress)} ${renderAddress(player1)} timed out as player1` : "No one chose to accept the game as player1") +
+`. ${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0 rescinded the offer to play the game` :
       "invalid outcome";
 
 const renderGameState = (state, outcome, player0, player1) =>
@@ -284,12 +284,12 @@ const renderGame = (id, tag) => {
     if (!g || g.isDismissed) { return unrenderGame(id); }
     const form = findOrCreateGameForm(id);
     const player0 = (g.unconfirmedState && g.unconfirmedState.player0) || g.player0;
-    const player1 = (g.unconfirmedState && g.unconfirmedState.player1) || g.player1;
+    const player1 = (g.unconfirmedState && g.unconfirmedState.player1 != zeroAddress && g.unconfirmedState.player1) || (g.player1 != zeroAddress && g.player1);
     const player0Commitment = (g.unconfirmedState && g.unconfirmedState.player0Commitment) || g.player0Commitment;
     const state = (g.unconfirmedState && g.confirmedState.state) || State.uninitialized;
     const outcome = g.unconfirmedState && g.confirmedState.outcome;
-    const hand0 = (g.unconfirmedState && g.unconfirmedState.hand0) || g.hand;
-    const hand1 = (g.unconfirmedState && g.unconfirmedState.hand1) || g.hand1;
+    const hand0 = g.hand || (g.unconfirmedState && g.unconfirmedState.state == State.Completed && g.unconfirmedState.hand0);
+    const hand1 = g.hand1 || (g.unconfirmedState && (g.unconfirmedState.state == State.Completed || g.unconfirmedState.state == State.WaitingForPlayer0Reveal) && g.unconfirmedState.hand1);
     const setup = `${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0
 wagered ${renderWei(g.wagerInWei)} (plus a ${renderWei(g.escrowInWei)} escrow)
 with commitment ${renderCommitment(player0Commitment, g.txHash)}\
@@ -298,18 +298,19 @@ ${hand0 ? ` (secretly playing ${handName(hand0)})` : ""}.<br />`;
     // TODO: somehow estimate how much time there is before deadline, and
     // display both an estimated time and a countdown timer.
     // Also display when the deadline is past.
-
+    // TODO: show a history of what happened as messages and the events emitted as their consequences.
     switch (g.confirmedState && g.confirmedState.state) {
 
         case State.WaitingForPlayer1:
-        if (player1 != userAddress && (player0 == userAddress || player1 != zeroAddress)) {
-            current = player1 == zeroAddress ?
-                "Nobody accepted the wager and chose a hand as player1 yet." :
-                `${pronoun(player1, userAddress)} ${renderAddress(player1)} as player1
-haven't accepted the wager and chose a hand yet.`;
-        } else if (g.hand1) {
+        if (hand1) {
             // TODO: deal with non-atomicity of hand1 and player1TxHash
-            current = `You played ${handName(g.hand1)}. Waiting for your transaction ${renderTransaction(g.player1ShowHandTxHash)} to be confirmed.` ;
+            current = `You ${renderAddress(player1)} as player1 played ${handName(hand1)}. \
+Waiting for your transaction ${renderTransaction(g.player1ShowHandTxHash)} to be confirmed.` ;
+        } else if (player0 == userAddress && (!player1 || player1 == userAddress)) {
+            current = player1 ?
+            `${pronoun(player1, userAddress)} ${renderAddress(player1)} as player1
+haven't accepted the wager and chosen a hand yet.` :
+            "Nobody accepted the wager and chose a hand as player1 yet.";
         } else if (g.confirmedState.wagerInWei < ethToWei(minWagerInEth)) {
             current = `The proposed wager ${renderWei(g.confirmedTransaction.wagerInWei)} is too low.
 DO NOT PLAY THIS GAME.`;
@@ -326,30 +327,51 @@ ${renderGameChoice()}`;
         break;
 
         case State.WaitingForPlayer0Reveal:
-        if (player0 != userAddress) {
-            current = `${pronoun(player1, userAddress)} ${renderAddress(player1)} as player1 \
-played ${handName(hand1)}. \
-${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0 \
-haven't publicly revealed their hand yet.`;
-        } else if (g.player0RevealTxHash) {
+        current = `${pronoun(player1, userAddress)} ${renderAddress(player1)} as player1 played ${handName(hand1)}. `;
+        if (g.player0RevealTxHash) {
             // TODO: deal with non-atomicity of hand1 and player1TxHash
-            current = `Waiting for your reveal transaction ${renderTransaction(g.player0RevealTxHash)} to be confirmed.` ;
+            current += `You ${renderAddress(userAddress)} as player0 posted transaction ${renderTransaction(g.player0RevealTxHash)} to reveal your hand ${handName(hand0)}. Waiting for it to be confirmed.` ;
+        } if (player0 == userAddress) {
+            current += `You ${renderAddress(userAddress)} as player0 should send a reveal transaction ASAP.`;
         } else {
-            current = `You should send a reveal transaction ASAP.`
+            current += `${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0 \
+haven't publicly revealed their hand yet.`;
         }
         break;
 
         case State.Completed:
-        // TODO: show the outcome, etc.
-        g.isCompleted = true
+        // TODO: show what outcome, etc.
+        g.isCompleted = true;
+        switch (outcome) {
+        case Outcome.Draw:
+        case Outcome.Player0Wins:
+        case Outcome.Player1Wins:
+        case Outcome.Player1WinsByDefault:
+        current = `${pronoun(player1, userAddress)} ${renderAddress(player1)} as player1 played ${handName(hand1)}. `;
+        }
+        switch (outcome) {
+        case Outcome.Draw:
+        case Outcome.Player0Wins:
+        case Outcome.Player1Wins:
+            console.log("foo", {state, hand0, gu: g.unconfirmedState, gus: g.unconfirmedState.state, gguh0: g.unconfirmedState.hand0});
+        current += `${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0 revealed ${handName(hand0)}. `;
+        }
+        switch (outcome) {
+        case Outcome.Player1WinsByDefault:
+        current += `${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0 timed out. `;
+        }
+        switch (outcome) {
+        case Outcome.Player0Rescinds:
+            current += player1 ?
+                `${pronoun(player1, userAddress)} ${renderAddress(player1)} as player1 timed out. ` :
+                `No one chose to accept the game. `;
+        }
         break;
-
-        default: current = "???";
     }
 
     if (g.isCompleted) {
         removeActiveGame(id);
-        current += `<button>Dismiss</button>`;
+        current += `<br /><button style='width: 50%;'>Dismiss</button>`;
         form.addEventListener('submit', dismissGameClick);
     }
 

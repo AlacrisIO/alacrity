@@ -68,8 +68,8 @@ contract RockPaperScissors
             Draw,
             Player0_wins,
             Player1_wins,
-            Player0_defaults,
-            Player1_defaults
+            Player1_wins_by_default,
+            Player0_rescinds
         }
         Outcome outcome;
 
@@ -205,7 +205,7 @@ contract RockPaperScissors
                 require(state == State.Waiting_for_player1);
                 require_player0();
                 require_timeout();
-                outcome = Outcome.Player1_defaults;
+                outcome = Outcome.Player0_rescinds;
                 player0_gets(wager_amount+escrow_amount);
                 state = State.Completed;
         }
@@ -215,7 +215,7 @@ contract RockPaperScissors
                 require(state == State.Waiting_for_player0_reveal);
                 require_player1();
                 require_timeout();
-                outcome = Outcome.Player0_defaults;
+                outcome = Outcome.Player1_wins_by_default;
                 player1_gets(2*wager_amount+escrow_amount);
                 state = State.Completed;
         }

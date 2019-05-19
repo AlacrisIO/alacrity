@@ -118,8 +118,7 @@ const isEqualState = (x, y) =>
 
 // address => KontE({state: Uint8, outcome: Uint8, timeoutInBlocks: int, previousBlock: int, player0: address, player1: address, player0Commitment: bytes32, wagerInWei: BN, escrowInWei: BN, salt: bytes32, hand0: Uint8, hand1: Uint8})
 const queryState = (contractAddress, blockNumber) => (k, kError = kLogError) => {
-    const rps = web3.eth.contract(rpsAbi).at(contractAddress);
-    return errbacK(rps.query_state.call)({}, blockNumber)(x => k(decodeState(x)))};
+    return errbacK(rps(contractAddress).query_state.call)({}, blockNumber)(x => k(decodeState(x)))};
 
 // address => KontE(int)
 const queryConfirmedState = contractAddress => (k, kError = kLogError) =>
@@ -293,6 +292,15 @@ const queueGame = (id, timeoutBlock) => {
     }
     queuedBlocks[idToString(id)] = true;
 }
+
+const Outcome = Object.freeze({
+    Unknown: 0,
+    Draw: 1,
+    Player0Wins: 2,
+    Player1Wins: 3,
+    Player1WinsByDefault: 4,
+    Player0Rescinds: 5
+    });
 
 const GameResult = Object.freeze({Draw: 0, YouWin: 1, TheyWin: 2});
 const gameResult = (yourHand, theirHand) => (yourHand + 3 - theirHand) % 3;
