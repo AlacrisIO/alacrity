@@ -1,4 +1,22 @@
 #lang racket/base
+
+(provide wp-parse
+         wp-emit
+         wp-epp
+         ;---
+         dp-parse
+         dp-emit
+         direct->handle
+         ;---
+         hp-parse
+         hp-emit
+         ht-emit
+         hp:program hp:program?
+         hh:handler hh:handler?
+         handle-tail? ht:set!& ht:if ht:wait* ht:jump ht:wait ht:stop
+         handle-arg? ha:con ha:var
+         handle-expr? he:app)
+
 (require racket/match
          racket/format
          racket/port
