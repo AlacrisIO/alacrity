@@ -290,6 +290,8 @@
   (define wp:adds (wp-parse wp:adds-se))
   (chk (wp-parse (wp-emit wp:adds)) wp:adds))
 
+;; XXX add consensus function
+
 ;; Note: In formalization, this will be defined not on the program,
 ;; but on its type derivation.
 (define (wp-epp wp)
@@ -405,6 +407,9 @@
           (define args (append args-b args-a))
           (values n (wf-epp p args f))))
       (values p (dp:program n->fun1 in)))))
+
+;; XXX add a public (intersection of knowledge) party
+
 (module+ test
   (define epp:dp:adds (wp-epp wp:adds))
   (for ([(p dp) (in-hash epp:dp:adds)])
@@ -540,7 +545,9 @@
   (match dt
     [(? da-anf? a) #t]
     [(de:let x xe be)
-     (and (de-anf? xe) (dt-anf? be))]))
+     (and (de-anf? xe) (dt-anf? be))]
+    [(de:if ce te fe)
+     (and (da-anf? ce) (dt-anf? te) (dt-anf? fe))]))
 (define (df-anf? df)
   (match-define (df:fun args e) df)
   (dt-anf? e))
@@ -780,6 +787,7 @@
       [(de:let v (de:ignore why) b)
        (unless ignore-n
          (error 'dp-state "Cannot ignore if no recv"))
+       ;; XXX Undo state changes
        (ht:wait ignore-n empty)]))
   (define (collect-vars e)
     (match e
@@ -1053,5 +1061,7 @@
 (module+ test
   (for ([(r hp) (in-hash epp:hp:adds)])
     (hp->dot! hp (~a r ".dot"))))
+
+;; XXX change de:ignore to assume? / guard / rely
 
 ;; XXX extract to Z3
