@@ -11,7 +11,7 @@ networkConfig =
      confirmationsWantedInBlocks: 100, // Play it safe: 25 minutes
      blockPollingPeriodInSeconds: 5,
      txExplorerUrl: "https://etherscan.io/tx/", // + ${tx} including 0x
-     addressExplorerUrl: "https://etherscan.io/address/"  }, // + ${tx} including 0x
+     addressExplorerUrl: "https://etherscan.io/address/" }, // + ${tx} including 0x
     "4": /* Rinkeby, the public Geth-only PoA testnet */
     {networkName: "Rinkeby",
      contract:

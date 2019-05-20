@@ -1,4 +1,8 @@
 # Makefile for Alacrity Rock-Paper-Scissors demo
+#
+# Requirements: you need to install the solidity compiler, version 0.5.2 or later
+# (see dapp-contract.sol for the authoritative version we need).
+#
 
 # make VERBOSE nonempty to see raw commands (or provide on command line)
 ifndef VERBOSE

@@ -1,13 +1,13 @@
 /** Common runtime for Alacris DApps when targetting Ethereum using web3 */
 'use strict';
 
-/* TODO:
+/* TODO LATER:
 
  * We use web3 for posting transactions, even though it's unreliable.
    In the future, we should post transactions only after persisting locally,
    and carefully play the auction game so as to post transactions without paying too much in fees.
-   In other words, we should be using the legilogic_ethereum library,
-   compiled from OCaml to JS using bucklescript.
+   In other words, we should be using our legilogic_ethereum library,
+   as compiled from OCaml to JS using bucklescript.
 
  * Handle "query returned more than 1000 results" when too many contracts created in interval!!!
  */
@@ -15,7 +15,7 @@
 /** Get an identifier for the current network.
    TODO: when using web3 1.0, use web3.eth.net.getId().then(k) or whatever it exports,
    to also extract the chainID, which can notably distinguish between ETH and ETC
-   (both networkID 1, the latter chainID 61)
+   (both claim to be networkID 1, but the latter uses chainID 61)
    : () => string */
 const getNetworkID = () => web3.currentProvider.networkVersion;
 let networkID;
@@ -77,8 +77,7 @@ const saltedDigest = toHex => (salt, ...data) => digestHex(salt + toHex(...data)
 
 /** Count the number of confirmations for a transaction given by its hash.
     Return -1 if the transaction is yet unconfirmed.
-    TODO: handle and propagate errors
-    : String0x => Kont(int) */
+    : String0x => KontE(int) */
 const getConfirmations = txHash => (k = kLogResult, kError = kLogError) =>
     errbacK(web3.eth.getTransaction)(txHash)(
         txInfo => // Get TxInfo
@@ -102,7 +101,7 @@ const confirmEtherTransaction =
         error => logErrorK(error)(kRetry))}
 
 /** Get the number of the latest confirmed block
-   : Kont(int) */
+   : KontE(int) */
 const getConfirmedBlockNumber = (k = kLogResult, kError = kLogError) =>
     errbacK(web3.eth.getBlockNumber)()(
         currentBlock => k(currentBlock - config.confirmationsWantedInBlocks),
@@ -116,7 +115,11 @@ let nextUnprocessedBlock;
 /** : StringTable(K(int)) */
 const newBlockHooks = {};
 
-/** : Kont() */
+/** Process new blocks.
+    After processing, continue with continuation k.
+    Invoke k whether or not any new blocks were processed, and
+    whether or not the processing was successful.
+    : Kont() */
 const processNewBlocks = k =>
     web3.eth.getBlockNumber(
         handlerK(
@@ -129,7 +132,7 @@ const processNewBlocks = k =>
                 k(),
             error => logErrorK(error)(k)))
 
-/** Kont() */
+/** : Kont() */
 const watchBlockchain = () =>
     processNewBlocks(() => setTimeout(watchBlockchain, config.blockPollingPeriodInSeconds * 1000));
 

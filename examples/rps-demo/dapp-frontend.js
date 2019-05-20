@@ -23,30 +23,6 @@
 */
 'use strict';
 
-const htmlToElement = html => {
-    const template = document.createElement('template');
-    html = html.trim(); // Never return a text node of whitespace as the result
-    template.innerHTML = html;
-    return template.content.firstChild;
-}
-
-const htmlToElements = html => {
-    const template = document.createElement('template');
-    template.innerHTML = html;
-    return template.content.childNodes;
-}
-
-const setNodeBySelector = (selector, content) => {
-    const node = document.querySelector(selector);
-    if (node) {
-        node.innerHTML = '';
-        node.appendChild(content);
-    }
-}
-
-const simpleNumberRegex = "[0-9]+([.][0-9]+)?|[.][0-9]+";
-const addressRegex = "0x[0-9A-Fa-f]{40}";
-
 // TODO: offer easy standard amounts for the amount
 // TODO: let the users negotiate the escrow.
 // TODO: determine a minimum acceptable escrow, and suggest that?
@@ -140,12 +116,6 @@ const inputHand = e => (k, kError = kLogError) => {
     }
 }
 
-const randomHand = () => {
-    const array = new Uint8Array(6);
-    window.crypto.getRandomValues(array);
-    return (array[0]+array[1]+array[2]+array[3]+array[4]+array[5]) % 3;
-};
-
 const submitNewGameClick = e => {
     e.preventDefault();
     inputWager(e)(
@@ -198,21 +168,7 @@ const findOrCreateGameForm = id => {
     return form;
 }
 
-const pronoun = (who, you, lowercase) => {
-    const capitalized = who == you ? "You" : "They";
-    return lowercase ? capitalized.toLowerCase() : capitalized; }
-
-const shorten0x = string0x =>
-    string0x.length < 11 ? string0x : `${string0x.slice(0, 6)}…${string0x.slice(-4)}`;
-
 // TODO: replace the middle letters by "…" ?
-const renderTransaction = txHash =>
-      txHash ? `<a href="${config.txExplorerUrl}${txHash}">${shorten0x(txHash)}</a>` : "unknown";
-const renderAddress = address =>
-      address ? address == zeroAddress ? "anyone" :
-      `<a href="${config.addressExplorerUrl}${address}">${shorten0x(address)}</a>` : "unknown";
-const renderWei = amountInWei =>
-      `${weiToEth(amountInWei)} ETH`;
 const renderCommitment = (commitment, txHash) =>
       commitment ?
       txHash ? `<a href="${config.txExplorerUrl}${txHash}#eventlog">${shorten0x(commitment)}</a>`
@@ -383,8 +339,6 @@ ${setup}${current}</p>`;
     renderActiveGameHook();
 }
 renderGameHook = renderGame;
-
-const emptyNode = () => document.createTextNode("");
 
 // TODO: way to download the localState
 // TODO: way to use a remote replicated backup service for encrypted state management.

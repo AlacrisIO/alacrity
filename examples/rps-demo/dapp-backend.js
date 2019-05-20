@@ -52,6 +52,11 @@ const isValidHand = x => Number.isInteger(x) && (x == 0 || x == 1 || x == 2);
 const handToHex = byteToHex;
 // web3.utils.soliditySha3({t: 'bytes32', value: salt}, {t: 'uint8', value: hand}); // This web3 1.0 function is NOT AVAILABLE IN METAMASK! So we do things manually.
 const makeCommitment = saltedDigest(handToHex);
+const randomHand = () => {
+    const array = new Uint8Array(6);
+    window.crypto.getRandomValues(array);
+    return (array[0]+array[1]+array[2]+array[3]+array[4]+array[5]) % 3;
+};
 
 
 // SENDING DATA TO THE BLOCKCHAIN
@@ -237,7 +242,7 @@ const processNewGame = event => k => {
             // Known game. Assume blockNumber is also known and the game is rendered already.
             return k();
         }
-        // TODO: triple-check that everything matches, or issue warning?
+        // TODO LATER: triple-check that everything matches, or issue warning?
         updateGame(id, {blockNumber: game.blockNumber, contract: game.contract});
         renderGameHook(id, "Process New Game:");
         return k();
@@ -417,16 +422,15 @@ const processGame = id => k =>
 const createNewGame = (wagerInWei, escrowInWei, opponent, hand) => {
     const id = getGameID();
     // TODO: let advanced users override the salt? Not without better transaction tracking.
-    // Right now we rely on robust randomness to track the transactions by commitment.
     const salt = randomSalt();
     const player0Commitment = makeCommitment(salt, hand);
     const player0 = userAddress;
     const player1 = opponent || zeroAddress;
     const timeoutInBlocks = config.timeoutInBlocks;
     // TODO: add the ID to the contract call for tracking purpose? Use the low bits of the escrow?
-    // Or the high bits of the hand? No, use the commitment:
-    // const commitment = makeCommitment(salt, hand);
-    // Somehow when we restart transactions, we must match them that way.
+    // Or the high bits of the hand? No, use the commitment and the rest of the data.
+    // Somehow when we restart transactions, we match them by content
+    // and the salted commitment ought to provide enough unicity.
     // We could use the nonce for the transaction, but there's no atomic access to it.
     // Could we save the TxHash locally *before* sending it online? Unhappily web3 doesn't allow that:
     // < https://github.com/MetaMask/metamask-extension/issues/3475 >.
