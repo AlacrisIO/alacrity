@@ -29,6 +29,9 @@
 
   TODO LATER MAYBE:
 
+  * Handle the case where an open game was accepted by someone else already...
+    special display, and make it dismissable.
+
   * Refactor to extract a clean systematic interface between frontend and backend for user input.
 
   * Instead of polling for contract state all the time, we could have the contract emit
@@ -255,6 +258,7 @@ and recover your ${renderWei(wagerInWei)} stake.`;
 // TODO: are we triggering a renderGame here when something changes, or somewhere else?
 const processGameAt = confirmedBlock => id => k => {
     const game = getGame(id);
+    // logging("processGameAt", id, game)();
     if (!game // No game: It was skipped due to non-atomicity of localStorage, or Garbage-Collected.
         || !game.confirmedState) { // Game issued, but no confirmed state yet. Wait for confirmation.
         return k();
@@ -265,27 +269,26 @@ const processGameAt = confirmedBlock => id => k => {
         return k();
     }
     if (game.player0 == userAddress &&
-        game.confirmedState.state == State.WaitingForPlayer0Reveal) {
-        if (!game.revealTxHash) {
-            const salt = game.salt;
-            const hand0 = game.hand0;
-            const hand1 = game.confirmedState.hand1;
-            const context = `In game ${id}, player1 showed his hand ${handName(hand1)}. \
+        game.confirmedState.state == State.WaitingForPlayer0Reveal &&
+        !game.player0RevealTxHash) {
+        const salt = game.salt;
+        const hand0 = game.hand0;
+        const hand1 = game.confirmedState.hand1;
+        const context = `In game ${id}, player1 showed his hand ${handName(hand1)}. \
 You must show your hand ${handName(hand0)} to \
 ${player0GameResultSummary(hand0, hand1, game.wagerInWei, game.escrowInWei)}`
-            if (salt && hand0) {
-                loggedAlert(`${context} Please sign the following transaction.`);
-                return errbacK(rps(game.contract).player0_reveal)(salt, hand0, {})(
-                    txHash => {
-                        updateGame(id, {player0RevealTxHash: txHash})
-                        // Register txHash for confirmation? Nah, we're just polling for state change!
-                        // But if we switch to event-tracking, that's where it would happen.
-                        return k();},
-                    error => {loggedAlert(error); return k();})
-            } else {
-                loggedAlert(`${context} However, you do not have the salt and hand data in this client.
+        if (salt && hand0) {
+            loggedAlert(`${context} Please sign the following transaction.`);
+            return errbacK(rps(game.contract).player0_reveal)(salt, hand0, {})(
+                txHash => {
+                    updateGame(id, {player0RevealTxHash: txHash})
+                    // Register txHash for confirmation? Nah, we're just polling for state change!
+                    // But if we switch to event-tracking, that's where it would happen.
+                    return k();},
+                error => {loggedAlert(error); return k();})
+        } else {
+            loggedAlert(`${context} However, you do not have the salt and hand data in this client.
 Be sure to start a client that has this data before the deadline.`); // TODO: print the deadline!
-            }
         }
     }
     const timeoutBlock = game.confirmedState.previousBlock + game.confirmedState.timeoutInBlocks;
@@ -308,13 +311,19 @@ sending a transaction to recover your stake of ${renderWei(game.stakeInWei)}`);
             txHash => { updateGame(id, { player0RescindTxHash: txHash }); return k(); },
             error => { loggedAlert(error); return k(); });
     }
-    if (game.player1 == userAddress &&
-        game.confirmedState.state == State.WaitingForPlayer0Reveal) {
-        const stakeInWei = toBN(game.wagerInWei).mul(2).add(game.escrowInWei);
+    if (game.confirmedState.player1 == userAddress &&
+        game.confirmedState.state == State.WaitingForPlayer0Reveal &&
+        !game.player1WinByDefaultTxHash) {
+        const stakeInWei = toBN(game.wagerInWei).add(game.escrowInWei);
         loggedAlert(`Player0 timed out in game ${id},
 sending a transaction to recover your ${renderWei(game.wagerInWei)} wager
 and their ${renderWei(stakeInWei)} stake`);
-        return errbacK(rps(game.contract).player1_win_by_default().send)({})(k, flip(logErrorK)(k));
+        return errbacK(rps(game.contract).player1_win_by_default)({})(
+            txHash => {
+                updateGame(id, {player1WinByDefaultTxHash: txHash});
+                return k();
+            },
+            flip(logErrorK)(k));
     }
     return k();
 }

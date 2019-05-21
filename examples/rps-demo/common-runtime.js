@@ -242,6 +242,7 @@ const queueGame = (id, timeoutBlock) => {
     if (!queuedBlocks) {
         queuedBlocks = {};
         timeoutBlocks.push(timeoutBlock);
+        blockTimeouts[timeoutBlock] = queuedBlocks;
     }
     queuedBlocks[idToString(id)] = true;
 }
