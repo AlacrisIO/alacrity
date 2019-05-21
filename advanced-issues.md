@@ -121,3 +121,9 @@ notation used in CS articles for action on vectors of data.
 
 Apparently, someone has a type system for Nix that might handle prototype OO correctly.
 Ask m@tweag.io.
+
+Alex remarks that for a must send, synchronous sending of a unit is a nop.
+But for a may send, or an asynchronous send, it is not.
+
+When doing end-point projection, contract is a special actor who only uses consensual data,
+and controls the actual resources.
