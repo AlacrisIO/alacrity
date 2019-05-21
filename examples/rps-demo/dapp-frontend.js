@@ -123,6 +123,7 @@ const submitNewGameClick = e => {
     opponent =>
     inputHand(e)(
     hand_ => {
+    console.log("hand:", hand_);
     const escrowInWei = wagerToEscrow(wagerInWei);
     const hand = hand_ || randomHand();
     const confirmation = `You are going to start a new game with ${opponent ? opponent : "anyone who will play"} for a wager of ${renderWei(wagerInWei)}, with an escrow of ${renderWei(escrowInWei)}, and play ${handName(hand)}.`;
@@ -216,7 +217,7 @@ const dismissGameClick = e => {
 const acceptGameClick = e => {
     e.preventDefault();
     inputId(e)((id, _game) =>
-    inputHand(e)(hand => acceptGame(id, hand),
+    inputHand(e)(hand => acceptGame(id, hand || randomHand()),
     loggedAlert), loggedAlert);}
 
 const displayedGames = {};
@@ -343,7 +344,8 @@ renderGameHook = renderGame;
 const initFrontend = k => {
     setNodeBySelector("#Prerequisites", document.createTextNode(
         `Running on ${config.networkName} \
-with a ${config.timeoutInBlocks}-block timeout (${config.timeoutString}).`));
+with a ${config.timeoutInBlocks}-block timeout (${config.timeoutString}). \
+Your address is: ${userAddress}`));
     gamesNode = document.getElementById("ActiveGames");
     if (config && config.contract) {
         setNodeBySelector("#NoNewGames", emptyNode());

@@ -199,10 +199,6 @@ const processNewGame = event => k => {
         // before they timeout.
         if (game.player1 == userAddress || game.player1 == zeroAddress) {
             registerGame(game);
-            loggedAlert(`Game ${id} can only be played as player1 on this client.
-You need the client that created this game to play it as player0.`);
-        } else {
-            loggedAlert(`Detected a game that you started, but cannot play on this client because the salt and hand are not available (hopefully they are stored on another client): ${JSON.stringify(game)}`);
         }
         return k();
     }
@@ -306,7 +302,7 @@ Be sure to start a client that has this data before the deadline.`); // TODO: pr
         }
         const stakeInWei = toBN(game.wagerInWei).add(game.escrowInWei);
         loggedAlert(`Player1 timed out in game ${id},
-sending a transaction to recover your stake of ${renderWei(stakeInWei)}`);
+sending a transaction to recover your stake of ${renderWei(game.stakeInWei)}`);
         // TODO register the event, don't send twice.
         return errbacK(rps(game.contract).player0_rescind)()(
             txHash => { updateGame(id, { player0RescindTxHash: txHash }); return k(); },
@@ -474,4 +470,3 @@ registerInit({
     WatchNewGames: {fun: watchNewGames, dependsOn: ["ResumeGames"]},
     WatchActiveGames: {fun: watchActiveGames, dependsOn: ["WatchNewGames"]},
 });
-
