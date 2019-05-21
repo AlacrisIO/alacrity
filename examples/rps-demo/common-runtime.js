@@ -252,6 +252,10 @@ const queueGame = (id, timeoutBlock) => {
 const initRuntime = k => {
     networkID = getNetworkID();
     userAddress = getUserAddress(); // NB: assuming a call to .toLowercase() is redundant
+    if (!userAddress) {
+        loggedAlert(`Your user address is undefined. \
+Please reload this page with metamask enabled and an account selected.`)
+    }
     config = networkConfig[networkID];
     userID = `${networkID}.${userAddress}`;
     nextUnprocessedBlock = getUserStorage("nextUnprocessedBlock", 0);

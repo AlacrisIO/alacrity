@@ -275,9 +275,9 @@ const processGameAt = confirmedBlock => id => k => {
         const hand0 = game.hand0;
         const hand1 = game.confirmedState.hand1;
         const context = `In game ${id}, player1 showed his hand ${handName(hand1)}. \
-You must show your hand ${handName(hand0)} to \
-${player0GameResultSummary(hand0, hand1, game.wagerInWei, game.escrowInWei)}`
-        if (salt && hand0) {
+You must show your hand${hand0 ? ` ${handName(hand0)} to \
+${player0GameResultSummary(hand0, hand1, game.wagerInWei, game.escrowInWei)}` : "."}`;
+        if (salt && isValidHand(hand0)) {
             loggedAlert(`${context} Please sign the following transaction.`);
             return errbacK(rps(game.contract).player0_reveal)(salt, hand0, {})(
                 txHash => {
@@ -457,7 +457,7 @@ const initGame = id => {
     } else {
         unconfirmedGames[idToString(id)] = true;
     }
-    if (!game.isCompleted) { addActiveGame(id); }
+    if (!game.isCompleted && !game.isDismissed) { addActiveGame(id); }
     renderGameHook(id, "Init Game:");
 }
 

@@ -344,7 +344,8 @@ renderGameHook = renderGame;
 const initFrontend = k => {
     setNodeBySelector("#Prerequisites", document.createTextNode(
         `Running on ${config.networkName} \
-with a ${config.timeoutInBlocks}-block timeout (${config.timeoutString}). \
+with ${config.confirmationsWantedInBlocks}-block confirmations (${config.confirmationsString})
+and ${config.timeoutInBlocks}-block timeouts (${config.timeoutString}). \
 Your address is: ${userAddress}`));
     gamesNode = document.getElementById("ActiveGames");
     if (config && config.contract) {
