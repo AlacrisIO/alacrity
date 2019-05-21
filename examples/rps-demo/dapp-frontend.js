@@ -56,13 +56,12 @@ const renderOpponent = opponent => {
             `<input ${common}" pattern="${addressRegex}" size="50">`}</label>`;};
 
 // TODO: use nice icons.
-const iconOfHand = hand => ['✊', '✋', '✌'][hand] || '';
-const labelOfHand = hand => ['Rock', 'Paper', 'Scissors'][hand] || '';
+const handIcon = hand => ['✊', '✋', '✌'][hand] || '';
 const renderHandOption = hand => `
     <label style="display: inline-block; margin: .5em; text-align: center;">
         <input type="radio" value="${hand}" name="hand">
-        <div class="symbol">${iconOfHand(hand)}</div>
-        ${labelOfHand(hand)}
+        <div class="symbol">${handIcon(hand)}</div>
+        ${handName(hand)}
     </label>`;
 const renderHandChoice = () => `
     <fieldset style="margin-top: .25em; text-align: center;">
@@ -126,7 +125,7 @@ const submitNewGameClick = e => {
     hand_ => {
     const escrowInWei = wagerToEscrow(wagerInWei);
     const hand = hand_ || randomHand();
-    const confirmation = `You are going to start a new game with ${opponent ? opponent : "anyone who will play"} for a wager of ${renderWei(wagerInWei)}, with an escrow of ${renderWei(escrowInWei)}, and play ${labelOfHand(hand)}.`;
+    const confirmation = `You are going to start a new game with ${opponent ? opponent : "anyone who will play"} for a wager of ${renderWei(wagerInWei)}, with an escrow of ${renderWei(escrowInWei)}, and play ${handName(hand)}.`;
     const confirmed = window.confirm(confirmation);
     if (confirmed) {
         createNewGame(wagerInWei, escrowInWei, opponent, hand);
@@ -139,7 +138,6 @@ const renderGameChoice = () => `
         ${renderHandChoice()}
         <br>
         <div align='center'><button style='width: 50%;'>Shoot!</button></div><br />
-        NB: Running on ${config.networkName} with a ${config.timeoutInBlocks}-block timeout (${config.timeoutString}).
     `;
 
 const renderNewGame = () => {
@@ -343,8 +341,9 @@ renderGameHook = renderGame;
 // TODO: way to download the localState
 // TODO: way to use a remote replicated backup service for encrypted state management.
 const initFrontend = k => {
-    logging("initFrontend")();
-    setNodeBySelector("#Prerequisites", document.createTextNode(""));
+    setNodeBySelector("#Prerequisites", document.createTextNode(
+        `Running on ${config.networkName} \
+with a ${config.timeoutInBlocks}-block timeout (${config.timeoutString}).`));
     gamesNode = document.getElementById("ActiveGames");
     if (config && config.contract) {
         setNodeBySelector("#NoNewGames", emptyNode());
@@ -360,4 +359,6 @@ const initFrontend = k => {
     return k();
 }
 
-registerInit(initFrontend);
+registerInit({
+    Frontend: {fun: initFrontend, dependsOn: ["Backend"]},
+});

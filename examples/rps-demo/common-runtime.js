@@ -25,6 +25,9 @@ let networkID;
 const getUserAddress = () => web3.currentProvider.selectedAddress;
 let userAddress;
 
+const zeroAddress = "0x0000000000000000000000000000000000000000";
+
+
 /** The networkConfig is an object that maps the networkID (TODO: in the future, plus chain ID?)
     to the config below. It is the responsibility of the DApp developers to define networkConfig
     as part of their DApp deployment, typically in a dapp-config.js file loaded from the HTML page.
@@ -70,6 +73,8 @@ const meth = x => toBN(1e15).mul(x);
 /** Convert a hex string to a BigNumber
     : string => BigNumber */
 const hexToBigNumber = hex => toBN(hexTo0x(hex));
+const uint32ToHex = u => web3.toHex(u + 0x100000000).slice(3);
+const hexToInt = x => parseInt(x, 16);
 
 const digest = web3.sha3;
 const digestHex = x => web3.sha3(x, {encoding: "hex"});
@@ -106,7 +111,6 @@ const getConfirmedBlockNumber = (k = kLogResult, kError = kLogError) =>
     errbacK(web3.eth.getBlockNumber)()(
         currentBlock => k(currentBlock - config.confirmationsWantedInBlocks),
         kError);
-
 
 // General Purpose Ethereum Blockchain Watcher
 /** : int */
@@ -170,15 +174,90 @@ const registerUnconfirmedEventHook = (name, filter, processK, confirmations = co
     : String0x => Kont(digest) */
 const deployContract = code => errbacK(web3.eth.sendTransaction)({data: code});
 
+
+// The code in the section below might belong to some library to manage multiple interactions.
+// Managing interactions
+let nextID;
+const activeGames = {};
+const gamesByTxHash = {};
+const unconfirmedGames = {};
+
+const idToString = uint32ToHex;
+const stringToId = hexToInt;
+
+let logGame = (id, tag = "Game:") => logging(tag, id, getUserStorage(idToString(id)))();
+
+// Hook for rendering a game, to be replaced later by the UI frontend.
+// Default behavior: just log the updated game.
+let renderGameHook = logGame;
+
+const getGame = id => getUserStorage(idToString(id));
+const putGame = (id, game) => putUserStorage(idToString(id), game);
+const updateGame = (id, gameUpdate) => updateUserStorage(idToString(id), gameUpdate);
+const deleteGame = id => removeUserStorage(idToString(id));
+const deleteGameField = (id, field) => deleteUserStorageField(idToString(id), field);
+
+const getGameID = () => {
+    const gameID = nextID++;
+    putUserStorage("nextID", nextID);
+    return gameID;
+}
+
+// : game => ()
+const registerGame = game => {
+    const id = getGameID();
+    putGame(id, game);
+    activeGames[id] = true;
+    if (game.txHash) {
+        gamesByTxHash[game.txHash] = id;
+    }
+    renderGameHook(id, "Register Game:");
+}
+
+const removeGame = id => {
+    const g = getGame(id);
+    if (g.txHash) {
+        delete gamesByTxHash[g.txHash];
+    }
+    deleteGame(id);
+    const idString = idToString(id);
+    delete unconfirmedGames[idToString(id)];
+    removeActiveGame(id);
+    renderGameHook(id);
+    if (id == nextID - 1) {
+        nextID = id;
+        putUserStorage("nextID", nextID);
+    }
+}
+
+const addActiveGame = id => activeGames[id] = true;
+const removeActiveGame = id => delete activeGames[id];
+const activeGamesList = () => Object.keys(activeGames).map(parseDecimal);
+
+const timeoutBlocks = new TinyQueue; // blocks (by number) that include a timeout.
+const blockTimeouts = {}; // for each block (by number, stringified), a set of game ids to mind.
+
+const queueGame = (id, timeoutBlock) => {
+    let queuedBlocks = blockTimeouts[timeoutBlock];
+    if (!queuedBlocks) {
+        queuedBlocks = {};
+        timeoutBlocks.push(timeoutBlock);
+    }
+    queuedBlocks[idToString(id)] = true;
+}
+
+
 /** : Kont() */
 const initRuntime = k => {
-    logging("initRuntime")();
     networkID = getNetworkID();
     userAddress = getUserAddress();
     config = networkConfig[networkID];
     userID = `${networkID}.${userAddress}`;
     nextUnprocessedBlock = getUserStorage("nextUnprocessedBlock", 0);
     watchBlockchain();
+    nextID = getUserStorage("nextID", 0);
+    // For debugging purposes only:
+    newBlockHooks["newBlock"] = (from, to) => loggingK("newBlock! from:", from, "to:", to)();
     return k();
 }
-registerInit(initRuntime);
+registerInit({Runtime: {fun: initRuntime}});

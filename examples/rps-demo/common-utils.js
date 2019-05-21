@@ -32,16 +32,17 @@ const compose = (...fa) => {
 // type Kont(...'a) = Not(Not(...'a))
 /* See my relevant tweets at https://twitter.com/Ngnghm/status/1125831388996014080
 If you understand Continuation Passing Style, you're not in Callback Hell anymore,
-just in yet another Overly-Low-Level-Syntax Purgatorium—with a bit more scorn towards
-metaprogramming deniers—and your automatic indentation mode disabled.
+just in yet another Overly-Low-Level-Syntax Purgatorium
+— with a bit more scorn towards metaprogramming deniers
+— and your automatic indentation mode disabled.
 
-OK, it *is* somewhat hellish when all the APIs in a programming language are in CPS, but
-the implementers purposefully refuse to support proper tail calls. Now you're going to
-leak stack space, and/or implement your own trampolining system and adapters.
-Damn Continuation deniers!
+OK, it *is* somewhat hellish when all the APIs in a programming language are
+in CPS, but the implementers purposefully refuse to support proper tail calls.
+Now you're going to leak stack space, and/or implement your own trampolining
+system and adapters. Damn Continuation deniers!
 
-Interestingly, to reliably bridge CPS functions into the trampoline, you have
-the initial/final continuation register a trampoline function.
+Interestingly, to reliably bridge CPS functions into the trampoline,
+you have the initial/final continuation register a trampoline function.
 But continuations are not linear and may return more than once,
 so your register is a deque and you get green threading for free.
 */
@@ -122,6 +123,11 @@ const isEmpty = obj => {
     return true;
 }
 
+const popEntry = (table, key) => {
+    const value = table[key];
+    delete table[key];
+    return value; }
+
 /** : ...'a => ...'b => () */
 const logging = (...prefix) => (...result) =>
       console.log(...prefix, ...result.map(JSON.stringify));
@@ -177,12 +183,29 @@ const compareFirst = (a, b) => a[0].localeCompare(b[0]);
 const runHooks = hooks => (...args) => k =>
     forEachK(entry => entry[1](...args))(Object.entries(hooks).sort(compareFirst))(k);
 
+const inDependencyOrder = (act, dependencyOrder, activityName) => k => {
+    const issued = {};
+    const current = {};
+    const handleFun = name => k => {
+        if (current[name]) {
+            throw ["Circular dependency during", activityName, Object.keys(current)];
+        } else if (issued[name]) {
+            return k();
+        } else {
+            issued[name] = true;
+            current[name] = true;
+            const rec = dependencyOrder[name];
+            const kk =
+                () => {logging(activityName, name)(); return act(name)(
+                () => { delete current[name]; return k(); })};
+            if (rec.dependsOn) { return handleFuns(rec.dependsOn)(kk) } else { return kk(); };}};
+    const handleFuns = funs => forEachK(handleFun)(funs);
+    return handleFuns(Object.keys(dependencyOrder))(k);}
+
 // Initialization. TODO: maybe have a dependency graph instead?
-const initFunctions = [];
-const registerInit = (...f) => initFunctions.push(...f);
-const postInitFunctions = [];
-const registerPostInit = (...f) => postInitFunctions.unshift(...f);
-const initialize = () => forEachK(identity)([...initFunctions, ...postInitFunctions])(identity);
+var initFunctions = {}; // maps names to an object { dependsOn: [list of dependencies], fun: actual fun }
+const registerInit = (init) => initFunctions = {...initFunctions, ...init};
+const initialize = () => inDependencyOrder(name => initFunctions[name].fun, initFunctions, "init:")(identity);
 
 
 // Local Storage for the DApp
@@ -194,6 +217,7 @@ const updateStorage = (key, update) => putStorage(key, {...getStorage(key), ...u
 const removeStorage = (key, update) => window.localStorage.removeItem(key);
 
 // For Apps with a "current user" that may change, making keys relative to a userID.
+// TODO: decide a good naming policy wrt delete and remove.
 /** : string */
 let userID;
 const userKey = key => `${userID}.${key}`;
