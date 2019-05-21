@@ -314,7 +314,7 @@ sending a transaction to recover your stake of ${renderWei(game.stakeInWei)}`);
         loggedAlert(`Player0 timed out in game ${id},
 sending a transaction to recover your ${renderWei(game.wagerInWei)} wager
 and their ${renderWei(stakeInWei)} stake`);
-        return errbacK(rps(game.contract).player1_win_by_default().send)()(k, flip(logErrorK)(k));
+        return errbacK(rps(game.contract).player1_win_by_default().send)({})(k, flip(logErrorK)(k));
     }
     return k();
 }
