@@ -92,7 +92,7 @@ const inputOpponent = e => (k, kError = kLogError) => {
     if (opponentInput == "" || toBN(opponentInput).isZero()) {
         return k(undefined);
     } else if (web3.isAddress(opponentInput)) {
-        return k(opponentInput);
+        return k(opponentInput.toLowerCase());
     } else {
         return kError(`Invalid opponent ${opponentInput}`);
     }
@@ -257,7 +257,7 @@ ${hand0 ? ` (secretly playing ${handName(hand0)})` : ""}.<br />`;
     switch (g.confirmedState && g.confirmedState.state) {
 
         case State.WaitingForPlayer1:
-        if (hand1) {
+        if (hand1 && player1 == userAddress) {
             // TODO: deal with non-atomicity of hand1 and player1TxHash
             current = `You ${renderAddress(player1)} as player1 played ${handName(hand1)}. \
 Waiting for your transaction ${renderTransaction(g.player1ShowHandTxHash)} to be confirmed.` ;

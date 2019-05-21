@@ -250,7 +250,7 @@ const queueGame = (id, timeoutBlock) => {
 /** : Kont() */
 const initRuntime = k => {
     networkID = getNetworkID();
-    userAddress = getUserAddress();
+    userAddress = getUserAddress(); // NB: assuming a call to .toLowercase() is redundant
     config = networkConfig[networkID];
     userID = `${networkID}.${userAddress}`;
     nextUnprocessedBlock = getUserStorage("nextUnprocessedBlock", 0);

@@ -312,7 +312,7 @@ sending a transaction to recover your stake of ${renderWei(game.stakeInWei)}`);
         game.confirmedState.state == State.WaitingForPlayer0Reveal) {
         const stakeInWei = toBN(game.wagerInWei).mul(2).add(game.escrowInWei);
         loggedAlert(`Player0 timed out in game ${id},
-sending a transaction to recover your ${renderWei(wagerInWei)} wager
+sending a transaction to recover your ${renderWei(game.wagerInWei)} wager
 and their ${renderWei(stakeInWei)} stake`);
         return errbacK(rps(game.contract).player1_win_by_default().send)()(k, flip(logErrorK)(k));
     }
