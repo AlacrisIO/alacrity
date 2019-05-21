@@ -27,16 +27,16 @@ all: build_all
 
 build_all: contract
 
-CONTRACT_OUTPUTS=$(BUILD_DIR)/RockPaperScissors.abi $(BUILD_DIR)/RockPaperScissors.bin $(BUILD_DIR)/RockPaperScissorsFactory.abi $(BUILD_DIR)/RockPaperScissorsFactory.bin $(BUILD_DIR)/dapp-contract.js
+CONTRACT_OUTPUTS:=build/dapp-contract.js $(BUILD_DIR)/RockPaperScissors.abi $(BUILD_DIR)/RockPaperScissors.bin $(BUILD_DIR)/RockPaperScissorsFactory.abi $(BUILD_DIR)/RockPaperScissorsFactory.bin
 
 contract: $(CONTRACT_OUTPUTS)
 $(CONTRACT_OUTPUTS): dapp-contract.sol
-	$(HIDE) mkdir -p $(BUILD_DIR)
+	$(HIDE) mkdir -p build $(BUILD_DIR)
 	$(HIDE) solc --bin --abi -o $(BUILD_DIR) --overwrite $< > $(BUILD_DIR)/solc.out
 	$(HIDE) (echo "const rpsFactoryAbi = `cat $(BUILD_DIR)/RockPaperScissorsFactory.abi`;"; \
 	echo; echo "const rpsAbi = `cat $(BUILD_DIR)/RockPaperScissors.abi`;"; \
 	echo; echo "const rpsFactoryCode = \"0x`cat $(BUILD_DIR)/RockPaperScissorsFactory.bin`\";"; \
-	) > $(BUILD_DIR)/dapp-contract.js
+	) > $@
 
 start_nginx:
 	$(HIDE) ../nginx/start.sh
