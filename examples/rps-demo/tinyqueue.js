@@ -1,4 +1,4 @@
-// From https://github.com/mourner/tinyqueue/blob/master/index.js @ 3a212a4f73ad9c39caeb27922c86ff4115e59c66
+/** Small Priority Queue library from https://github.com/mourner/tinyqueue/blob/master/index.js @ 3a212a4f73ad9c39caeb27922c86ff4115e59c66 */
 
 class TinyQueue {
     constructor(data = [], compare = defaultCompare) {

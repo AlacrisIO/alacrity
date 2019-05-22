@@ -257,7 +257,7 @@ ${isValidHand(hand0) ? ` (secretly playing ${handName(hand0)} ${handIcon(hand0)}
     switch (g.confirmedState && g.confirmedState.state) {
 
         case State.WaitingForPlayer1:
-        if (hand1 && player1 == userAddress) {
+        if (isValidHand(hand1) && player1 == userAddress) {
             // TODO: deal with non-atomicity of hand1 and player1TxHash
             current = `You ${renderAddress(player1)} as player1 played ${handName(hand1)} ${handIcon(hand1)}. \
 Waiting for your transaction ${renderTransaction(g.player1ShowHandTxHash)} to be confirmed.` ;
