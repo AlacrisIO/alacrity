@@ -374,15 +374,10 @@ player0RevealContext = player0RevealContext_;
 // TODO: way to download the localState
 // TODO: way to use a remote replicated backup service for encrypted state management.
 const initFrontend = k => {
-    setNodeBySelector("#Prerequisites", htmlToElement(
-        `<p>Running on <a href="${config.networkUrl}">${config.networkName}</a> \
-with ${config.confirmationsWantedInBlocks}-block confirmations (${config.confirmationsString})
-and ${config.timeoutInBlocks}-block timeouts (${config.timeoutString}). \
-Your address is: <a href="${config.addressExplorerUrl}${userAddress}">${userAddress}</a></p>`));
+    setNodeBySelector("#Configuration", htmlToElement(`<p>${renderConfig()}</p>`));
     gamesNode = document.getElementById("ActiveGames");
     if (config && config.contract) {
         setNodeBySelector("#NoNewGames", emptyNode());
-        // setNodeBySelector("#NoOpenGames", emptyNode());
         setNodeBySelector("#NoActiveGames", emptyNode());
         renderNewGame();
         renderActiveGameHook();

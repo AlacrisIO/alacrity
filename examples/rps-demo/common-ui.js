@@ -37,6 +37,11 @@ const renderAddress = address =>
 const renderWei = amountInWei =>
       `${weiToEth(amountInWei)} ETH`;
 
+const renderConfig = () => `Running on <a href="${config.networkUrl}">${config.networkName}</a> \
+with ${config.confirmationsWantedInBlocks}-block confirmations (${config.confirmationsString})
+and ${config.timeoutInBlocks}-block timeouts (${config.timeoutString}). \
+Your address is: <a href="${config.addressExplorerUrl}${userAddress}">${userAddress}</a>`;
+
 // TODO: add cases for I/me/my/mine, you/you/your/yours, we/us/our/ours, they/them/their/theirs ?
 // Have keyword parameters for that?
 const pronoun = (who, you, lowercase) => {

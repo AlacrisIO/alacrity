@@ -41,9 +41,7 @@ const atomicallyMutualize : Players ==> @each 'data => @consensual PerPlayer('da
 }
 
 function trusted_randomness () : Players ==> @consensual uint256 {
-  @for_each {
-    @consensual return reduce(logxor, atomically_mutualize(@for_each salt ()));
-  }
+  @consensual return reduce(logxor, atomically_mutualize(@for_each salt ()));
 }
 
 type hand = Rock | Paper | Scissors
@@ -58,7 +56,7 @@ function hands_beat(hand0, hand1) : hand => hand => bool {
 // Player0 and Player1. The vector returned by atomically_mutualize will be of size 2.
 function rock_paper_scissors (amount) : TwoPlayers ==> amount => @consensual game_result {
   @consensual {
-    let [(_, hand0), (_, hand1)] = atomically_mutualize(@for_each (salt (), input hand));
+    let [(_, hand0), (_, hand1)] = mutualize(@each (salt (), input hand));
     if (hand0 = hand1) {
       game_is_draw();
     } else if (beats_hand (hand0, hand1)) {
@@ -73,9 +71,9 @@ function rock_paper_scissors (amount) : TwoPlayers ==> amount => @consensual gam
 In the above example, `Players` is some kind of typeclass
 that provides the notion of there being many players,
 as well as the primitives
-`@for_each` `@verifiable` `@public` `sync` `publish` `verify` and `consensual`.
+`@each` `@verifiable` `@public` `sync` `publish` `verify` and `consensual`.
 
-The `@for_each` block marks some part of the algorithm as working similarly
+The `@each` block marks some part of the algorithm as working similarly
 on each of the players in the `Players` pool.
 
 The `@public` attribute works as if `publish h` was called after the definition of `h`
@@ -127,3 +125,9 @@ But for a may send, or an asynchronous send, it is not.
 
 When doing end-point projection, contract is a special actor who only uses consensual data,
 and controls the actual resources.
+
+For UI purposes, we need to be able to represent each interaction as some HTML entity and/or a string
+that represents the interaction as a whole, or the list of messages --- that could be organized as a table
+(to be spliced into a larger table) that shows who sent what message when,
+reading left to right top to bottom with skipped cells if needed,
+and merged cells for common interactions.
