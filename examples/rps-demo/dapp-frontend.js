@@ -57,11 +57,11 @@ const renderOpponent = opponent => {
 
 // TODO: use nice icons.
 const handIcon = hand => ['✊', '✋', '✌'][hand] || '';
+const renderHand = hand => handIcon(hand); // `<div class="symbol">${handIcon(hand)}</div>`;
 const renderHandOption = hand => `
     <label style="display: inline-block; margin: .5em; text-align: center;">
-        <input type="radio" value="${hand}" name="hand">
-        <div class="symbol">${handIcon(hand)}</div>
-        ${handName(hand)}
+        <input type="radio" value="${hand}" name="hand" />
+        <div class="symbol">${renderHand(hand)}</div> ${handName(hand)}
     </label>`;
 const renderHandChoice = () => `
     <fieldset style="margin-top: .25em; text-align: center;">
@@ -126,7 +126,7 @@ const submitNewGameClick = e => {
     console.log("hand:", hand_);
     const escrowInWei = wagerToEscrow(wagerInWei);
     const hand = hand_ || randomHand();
-    const confirmation = `You are going to start a new game with ${opponent ? opponent : "anyone who will play"} for a wager of ${renderWei(wagerInWei)}, with an escrow of ${renderWei(escrowInWei)}, and play ${handName(hand)} ${handIcon(hand)}.`;
+    const confirmation = `You are going to start a new game with ${opponent ? opponent : "anyone who will play"} for a wager of ${renderWei(wagerInWei)}, with an escrow of ${renderWei(escrowInWei)}, and play ${handName(hand)} ${renderHand(hand)}.`;
     const confirmed = window.confirm(confirmation);
     if (confirmed) {
         createNewGame(wagerInWei, escrowInWei, opponent, hand);
@@ -168,10 +168,9 @@ const findOrCreateGameForm = id => {
 }
 
 // TODO: replace the middle letters by "…" ?
-const renderCommitment = (commitment, txHash) =>
+const renderCommitment = commitment =>
       commitment ?
-      txHash ? `<a href="${config.txExplorerUrl}${txHash}#eventlog">${shorten0x(commitment)}</a>`
-      : shorten0x(commitment) : "unknown";
+      `<a href="data:text/plain,${commitment}">${shorten0x(commitment)}</a>` : "unknown";
 
 const renderGameOutcome = (outcome, player0, player1) =>
       outcome == Outcome.Unknown ? "The game isn't complete yet" :
@@ -247,8 +246,9 @@ const renderGame = (id, tag) => {
     const hand1 = g.hand1 || (g.unconfirmedState && (g.unconfirmedState.state == State.Completed || g.unconfirmedState.state == State.WaitingForPlayer0Reveal) && g.unconfirmedState.hand1);
     const setup = `${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0
 wagered ${renderWei(g.wagerInWei)} (plus a ${renderWei(g.escrowInWei)} escrow)
-with commitment ${renderCommitment(player0Commitment, g.txHash)}\
-${isValidHand(hand0) ? ` (secretly playing ${handName(hand0)} ${handIcon(hand0)})` : ""}.<br />`;
+with commitment ${renderCommitment(player0Commitment)}
+challenging ${player1 == zeroAddress ? "anyone" : renderAddress(player1)}
+${isValidHand(hand0) ? ` and secretly playing ${handName(hand0)} ${renderHand(hand0)}` : ""}.<br />`;
     let current = "";
     // TODO: somehow estimate how much time there is before deadline, and
     // display both an estimated time and a countdown timer.
@@ -259,7 +259,7 @@ ${isValidHand(hand0) ? ` (secretly playing ${handName(hand0)} ${handIcon(hand0)}
         case State.WaitingForPlayer1:
         if (isValidHand(hand1) && player1 == userAddress) {
             // TODO: deal with non-atomicity of hand1 and player1TxHash
-            current = `You ${renderAddress(player1)} as player1 played ${handName(hand1)} ${handIcon(hand1)}. \
+            current = `You ${renderAddress(player1)} as player1 played ${handName(hand1)} ${renderHand(hand1)}. \
 Waiting for your transaction ${renderTransaction(g.player1ShowHandTxHash)} to be confirmed.` ;
         } else if (player0 == userAddress) {
             current = player1 ?
@@ -287,11 +287,11 @@ ${renderGameChoice()}`;
         break;
 
         case State.WaitingForPlayer0Reveal:
-        current = `${pronoun(player1, userAddress)} ${renderAddress(player1)} as player1 played ${handName(hand1)} ${handIcon(hand1)}. `;
+        current = `${pronoun(player1, userAddress)} ${renderAddress(player1)} as player1 played ${handName(hand1)} ${renderHand(hand1)}. `;
         if (g.player0RevealTxHash) {
             // TODO: deal with non-atomicity of hand1 and player1TxHash
-            current += `You ${renderAddress(userAddress)} as player0 posted transaction ${renderTransaction(g.player0RevealTxHash)} to reveal your hand ${handName(hand0)} ${handIcon(hand0)}. Waiting for it to be confirmed.` ;
-        } if (player0 == userAddress) {
+            current += `You ${renderAddress(userAddress)} as player0 posted transaction ${renderTransaction(g.player0RevealTxHash)} to reveal your hand ${handName(hand0)} ${renderHand(hand0)}. Waiting for it to be confirmed.` ;
+        } else if (player0 == userAddress) {
             current += `You ${renderAddress(userAddress)} as player0 should send a reveal transaction ASAP.`;
         } else {
             current += `${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0 \
@@ -307,13 +307,13 @@ haven't publicly revealed their hand yet.`;
         case Outcome.Player0Wins:
         case Outcome.Player1Wins:
         case Outcome.Player1WinsByDefault:
-        current = `${pronoun(player1, userAddress)} ${renderAddress(player1)} as player1 played ${handName(hand1)} ${handIcon(hand1)}. `;
+        current = `${pronoun(player1, userAddress)} ${renderAddress(player1)} as player1 played ${handName(hand1)} ${renderHand(hand1)}. `;
         }
         switch (outcome) {
         case Outcome.Draw:
         case Outcome.Player0Wins:
         case Outcome.Player1Wins:
-        current += `${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0 revealed ${handName(hand0)} ${handIcon(hand0)}. `;
+        current += `${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0 revealed ${handName(hand0)} ${renderHand(hand0)}. `;
         }
         switch (outcome) {
         case Outcome.Player1WinsByDefault:

@@ -4,17 +4,24 @@ pragma solidity ^0.5.2;
 // or rely on people watching the chain transactions and/or running the query function?
 
 /*
-  From the DSL to the solidity contract, many optimizations were manually done,
-  that could be realistically done automatically, including:
-  - merging consecutive actions by the same participant (the initial actions by player 0):
+  From the DSL to the solidity contract, many transformations and optimizations were manually done,
+  that could be realistically done automatically.
+
+  Necessary transformations include:
+  - Transforming "musts" into "may post or may be timed out".
+  - Adding a notion of timeout. The timeout applies to anyone who currently has a "must".
+  - Adding a notion of escrow. The escrow applies to anyone who has a "must" in the future.
+
+  Optimizations include:
+  - Merging consecutive actions by the same participant (the initial actions by player 0):
     - creation of contract/context
     - sending money
     - initializing with a message
-  - in the message exchange, specialize to the case of two people
+  - In the message exchange, specialize to the case of two people
     - the first one is merged as above.
     - only one is left, the second and last, that doesn't have to publish a commitment, just a hand
     - the salt of the second is not used, therefore can be omitted (can be automated)
-  - flattening the state
+  - Flattening the state
     - state is defined as plenty of global variables, sometimes undefined.
     - continuation closures were transformed into ADTs, closure conversion happened,
       linear analysis proved they could all be global in that contract.

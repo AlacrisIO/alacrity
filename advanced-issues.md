@@ -131,3 +131,10 @@ that represents the interaction as a whole, or the list of messages --- that cou
 (to be spliced into a larger table) that shows who sent what message when,
 reading left to right top to bottom with skipped cells if needed,
 and merged cells for common interactions.
+Open and close interactions?
+To output either HTML and/or string, we may need a presentation framework -- a la CLIM?
+For a nice English-language explanation of the events, we may even want a framework
+to conjugate verbs and decline pronouns, count, etc.
+Or a conceptual framework plus "natural language" generators for each target language.
+That's way out of the scope of the DSL as such, though.
+
