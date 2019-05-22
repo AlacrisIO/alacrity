@@ -348,6 +348,29 @@ ${setup}${current}</p>`;
 }
 renderGameHook = renderGame;
 
+const player0GameResultSummary = (hand0, hand1, wagerInWei, escrowInWei) => {
+    switch(gameResult(hand0, hand1)) {
+    case GameResult.Draw: return `have a draw and recover your ${renderWei(toBN(wagerInWei).add(escrowInWei))} stake.`;
+    case GameResult.YouWin: return `win ${renderWei(wagerInWei)} \
+and recover your ${renderWei(toBN(wagerInWei).add(escrowInWei))} stake.`;
+    case GameResult.TheyWin: return `lose your ${renderWei(wagerInWei)} wager \
+but recover your ${renderWei(escrowInWei)} escrow.`;}}
+
+const player0RevealContext_ = (id, hand0, hand1, wagerInWei, escrowInWei) =>
+        `In game ${id}, player1 showed his hand ${handName(hand1)}. \
+You must show your hand${hand0 ? ` ${handName(hand0)} to \
+${player0GameResultSummary(hand0, hand1, wagerInWei, escrowInWei)}` : "."}`;
+
+const player1GameResultSummary_ = (hand0, hand1, wagerInWei, escrowInWei) => {
+    switch(gameResult(hand1, hand9)) {
+    case GameResult.Draw: return `have a draw and recover your ${renderWei(wagerInWei)} stake.`;
+    case GameResult.YouWin: return `win ${renderWei(wagerInWei)}
+and recover your ${renderWei(wagerInWei)} stake.`;
+    case GameResult.TheyWin: return `lose your ${renderWei(wagerInWei)} wager.`;}}
+
+player0RevealContext = player0RevealContext_;
+
+
 // TODO: way to download the localState
 // TODO: way to use a remote replicated backup service for encrypted state management.
 const initFrontend = k => {

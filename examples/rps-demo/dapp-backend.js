@@ -234,22 +234,8 @@ const Outcome = Object.freeze({
 const GameResult = Object.freeze({Draw: 0, YouWin: 1, TheyWin: 2});
 const gameResult = (yourHand, theirHand) => (yourHand + 3 - theirHand) % 3;
 
-// TODO: move these two functions to the front end?
-// Or can it be reasonably generated from annotations in the Alacrity source code?
-const player0GameResultSummary = (hand0, hand1, wagerInWei, escrowInWei) => {
-    switch(gameResult(hand0, hand1)) {
-    case GameResult.Draw: return `have a draw and recover your ${renderWei(toBN(wagerInWei).add(escrowInWei))} stake.`;
-    case GameResult.YouWin: return `win ${renderWei(wagerInWei)} \
-and recover your ${renderWei(toBN(wagerInWei).add(escrowInWei))} stake.`;
-    case GameResult.TheyWin: return `lose your ${renderWei(wagerInWei)} wager \
-but recover your ${renderWei(escrowInWei)} escrow.`;}}
-
-const player1GameResultSummary = (hand0, hand1, wagerInWei, escrowInWei) => {
-    switch(gameResult(hand1, hand9)) {
-    case GameResult.Draw: return `have a draw and recover your ${renderWei(wagerInWei)} stake.`;
-    case GameResult.YouWin: return `win ${renderWei(wagerInWei)}
-and recover your ${renderWei(wagerInWei)} stake.`;
-    case GameResult.TheyWin: return `lose your ${renderWei(wagerInWei)} wager.`;}}
+// Frontend functions
+var player0RevealContext;
 
 
 /** Process a game, making all automated responses that do not require user input.
@@ -275,9 +261,7 @@ const processGameAt = confirmedBlock => id => k => {
         const salt = game.salt;
         const hand0 = game.hand0;
         const hand1 = game.confirmedState.hand1;
-        const context = `In game ${id}, player1 showed his hand ${handName(hand1)}. \
-You must show your hand${hand0 ? ` ${handName(hand0)} to \
-${player0GameResultSummary(hand0, hand1, game.wagerInWei, game.escrowInWei)}` : "."}`;
+        const context = player0RevealContext(id, hand0, hand1, wagerInWei, escrowInWei);
         if (salt && isValidHand(hand0)) {
             loggedAlert(`${context} Please sign the following transaction.`);
             return errbacK(rps(game.contract).player0_reveal)(salt, hand0, {})(
@@ -350,6 +334,9 @@ const createNewGame = (wagerInWei, escrowInWei, opponent, hand0) => {
             (rpsFactory.player0_start_game)
             (player1, timeoutInBlocks, player0Commitment, wagerInWei, {value: totalAmount}));}
 
+/** Accept a game of given id, playing given hand.
+    Assumes the game is waiting for player1 and we're authorized.
+ */
 const acceptGame = (id, hand1) => {
     const game = getGame(id);
     if (!game.confirmedState) {
@@ -375,19 +362,6 @@ const acceptGame = (id, hand1) => {
             updateGame(id, {player1ShowHandTxHash: txHash});
             renderGameHook(id, "Accept Game:"); },
         loggedAlert);}
-
-const handleTimeoutQueueBefore = confirmedBlock => k => {
-    if (timeoutBlocks.length == 0 || timeoutBlocks.peek() > confirmedBlock) {
-        return k();
-    } else {
-        const block = timeoutBlocks.pop();
-        const gameSet = popEntry(blockTimeouts, block);
-        const gameList = Object.keys(gameSet).map(stringToId);
-        forEachK(processGameAt(confirmedBlock))(gameList)(
-            () => handleTimeoutQueueBefore(confirmedBlock)(k)); }}
-
-const handleTimeoutQueue = (_oldBlock, currentBlock) =>
-    handleTimeoutQueueBefore(currentBlock - config.confirmationsWantedInBlocks);
 
 const processActiveGame = id => k => {
     const game = getGame(id);
@@ -425,22 +399,6 @@ const watchActiveGames = k => {
     return processActiveGames()(k);
 }
 
-const initGame = id => {
-    let game = getGame(id);
-    if (!game) { return; }
-    if (game.txHash) {
-        gamesByTxHash[game.txHash] = id;
-    } else {
-        unconfirmedGames[idToString(id)] = true;
-    }
-    if (!game.isCompleted && !game.isDismissed) { addActiveGame(id); }
-    renderGameHook(id, "Init Game:");
-}
-
-const initGames = k => { for(let i=0;i<nextID;i++) {initGame(i)}; return k(); }
-
-const resumeGames = k => forEachK(processGame)(range(0, nextID))(k);
-
 const initBackend = k => {
     if (config && config.contract) { // Avoid erroring on an unconfigured network
         rpsFactory = web3.eth.contract(rpsFactoryAbi).at(config.contract.address);
@@ -450,8 +408,6 @@ const initBackend = k => {
 
 registerInit({
     Backend: {fun: initBackend, dependsOn: ["Runtime"]},
-    Games: {fun: initGames, dependsOn: ["Frontend"]},
-    ResumeGames: {fun: resumeGames, dependsOn: ["Games"]},
     WatchNewGames: {fun: watchNewGames, dependsOn: ["ResumeGames"]},
     WatchActiveGames: {fun: watchActiveGames, dependsOn: ["WatchNewGames"]},
 });

@@ -290,6 +290,35 @@ const attemptGameCreation = game => func => (...args) => {
             removeGame(id);
             loggedAlert(error);});}
 
+const handleTimeoutQueueBefore = confirmedBlock => k => {
+    if (timeoutBlocks.length == 0 || timeoutBlocks.peek() > confirmedBlock) {
+        return k();
+    } else {
+        const block = timeoutBlocks.pop();
+        const gameSet = popEntry(blockTimeouts, block);
+        const gameList = Object.keys(gameSet).map(stringToId);
+        forEachK(processGameAtHook(confirmedBlock))(gameList)(
+            () => handleTimeoutQueueBefore(confirmedBlock)(k)); }}
+
+const handleTimeoutQueue = (_oldBlock, currentBlock) =>
+    handleTimeoutQueueBefore(currentBlock - config.confirmationsWantedInBlocks);
+
+const initGame = id => {
+    let game = getGame(id);
+    if (!game) { return; }
+    if (game.txHash) {
+        gamesByTxHash[game.txHash] = id;
+    } else {
+        unconfirmedGames[idToString(id)] = true;
+    }
+    if (!game.isCompleted && !game.isDismissed) { addActiveGame(id); }
+    renderGameHook(id, "Init Game:");
+}
+
+const initGames = k => { for(let i=0;i<nextID;i++) {initGame(i)}; return k(); }
+
+const resumeGames = k => forEachK(processGame)(range(0, nextID))(k);
+
 
 
 /** : Kont() */
@@ -309,4 +338,8 @@ Please reload this page with metamask enabled and an account selected.`)
     newBlockHooks["newBlock"] = (from, to) => loggingK("newBlock! from:", from, "to:", to)();
     return k();
 }
-registerInit({Runtime: {fun: initRuntime}});
+registerInit({
+    Runtime: {fun: initRuntime},
+    Games: {fun: initGames, dependsOn: ["Frontend"]},
+    ResumeGames: {fun: resumeGames, dependsOn: ["Games"]},
+})
