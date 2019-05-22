@@ -220,7 +220,6 @@ const removeGame = id => {
         delete gamesByTxHash[g.txHash];
     }
     deleteGame(id);
-    const idString = idToString(id);
     delete unconfirmedGames[idToString(id)];
     removeActiveGame(id);
     renderGameHook(id);
@@ -248,12 +247,11 @@ const queueGame = (id, timeoutBlock) => {
 }
 
 const dismissGame = (id, game) => {
-    if (!game.isCompleted) {
-        loggedAlert(`Game ${id} isn't completed yet`);
-    }
     if (!game.isDismissed) {
         updateGame(id, {isDismissed: true});
     }
+    delete unconfirmedGames[idToString(id)];
+    removeActiveGame(id);
     renderGameHook(id, "Dismiss Game:");
 }
 

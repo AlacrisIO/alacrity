@@ -243,12 +243,12 @@ const renderGame = (id, tag) => {
     const player0Commitment = (g.unconfirmedState && g.unconfirmedState.player0Commitment) || g.player0Commitment;
     const state = (g.unconfirmedState && g.confirmedState.state) || State.uninitialized;
     const outcome = g.unconfirmedState && g.confirmedState.outcome;
-    const hand0 = g.hand || (g.unconfirmedState && g.unconfirmedState.state == State.Completed && g.unconfirmedState.hand0);
+    const hand0 = g.hand0 || (g.unconfirmedState && g.unconfirmedState.state == State.Completed && g.unconfirmedState.hand0);
     const hand1 = g.hand1 || (g.unconfirmedState && (g.unconfirmedState.state == State.Completed || g.unconfirmedState.state == State.WaitingForPlayer0Reveal) && g.unconfirmedState.hand1);
     const setup = `${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0
 wagered ${renderWei(g.wagerInWei)} (plus a ${renderWei(g.escrowInWei)} escrow)
 with commitment ${renderCommitment(player0Commitment, g.txHash)}\
-${hand0 ? ` (secretly playing ${handName(hand0)} ${handIcon(hand0)})` : ""}.<br />`;
+${isValidHand(hand0) ? ` (secretly playing ${handName(hand0)} ${handIcon(hand0)})` : ""}.<br />`;
     let current = "";
     // TODO: somehow estimate how much time there is before deadline, and
     // display both an estimated time and a countdown timer.
@@ -358,7 +358,7 @@ but recover your ${renderWei(escrowInWei)} escrow.`;}}
 
 const player0RevealContext_ = (id, hand0, hand1, wagerInWei, escrowInWei) =>
         `In game ${id}, player1 showed his hand ${handName(hand1)}. \
-You must show your hand${hand0 ? ` ${handName(hand0)} to \
+You must show your hand${isValidHand(hand0) ? ` ${handName(hand0)} to \
 ${player0GameResultSummary(hand0, hand1, wagerInWei, escrowInWei)}` : "."}`;
 
 const player1GameResultSummary_ = (hand0, hand1, wagerInWei, escrowInWei) => {

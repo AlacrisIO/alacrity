@@ -261,7 +261,7 @@ const processGameAt = confirmedBlock => id => k => {
         const salt = game.salt;
         const hand0 = game.hand0;
         const hand1 = game.confirmedState.hand1;
-        const context = player0RevealContext(id, hand0, hand1, wagerInWei, escrowInWei);
+        const context = player0RevealContext(id, hand0, hand1, game.wagerInWei, game.escrowInWei);
         if (salt && isValidHand(hand0)) {
             loggedAlert(`${context} Please sign the following transaction.`);
             return errbacK(rps(game.contract).player0_reveal)(salt, hand0, {})(
