@@ -126,7 +126,7 @@ const submitNewGameClick = e => {
     console.log("hand:", hand_);
     const escrowInWei = wagerToEscrow(wagerInWei);
     const hand = hand_ || randomHand();
-    const confirmation = `You are going to start a new game with ${opponent ? opponent : "anyone who will play"} for a wager of ${renderWei(wagerInWei)}, with an escrow of ${renderWei(escrowInWei)}, and play ${handName(hand)}.`;
+    const confirmation = `You are going to start a new game with ${opponent ? opponent : "anyone who will play"} for a wager of ${renderWei(wagerInWei)}, with an escrow of ${renderWei(escrowInWei)}, and play ${handName(hand)} ${handIcon(hand)}.`;
     const confirmed = window.confirm(confirmation);
     if (confirmed) {
         createNewGame(wagerInWei, escrowInWei, opponent, hand);
@@ -248,7 +248,7 @@ const renderGame = (id, tag) => {
     const setup = `${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0
 wagered ${renderWei(g.wagerInWei)} (plus a ${renderWei(g.escrowInWei)} escrow)
 with commitment ${renderCommitment(player0Commitment, g.txHash)}\
-${hand0 ? ` (secretly playing ${handName(hand0)})` : ""}.<br />`;
+${hand0 ? ` (secretly playing ${handName(hand0)} ${handIcon(hand0)})` : ""}.<br />`;
     let current = "";
     // TODO: somehow estimate how much time there is before deadline, and
     // display both an estimated time and a countdown timer.
@@ -259,9 +259,9 @@ ${hand0 ? ` (secretly playing ${handName(hand0)})` : ""}.<br />`;
         case State.WaitingForPlayer1:
         if (hand1 && player1 == userAddress) {
             // TODO: deal with non-atomicity of hand1 and player1TxHash
-            current = `You ${renderAddress(player1)} as player1 played ${handName(hand1)}. \
+            current = `You ${renderAddress(player1)} as player1 played ${handName(hand1)} ${handIcon(hand1)}. \
 Waiting for your transaction ${renderTransaction(g.player1ShowHandTxHash)} to be confirmed.` ;
-        } else if (player0 == userAddress && (!player1 || player1 == userAddress)) {
+        } else if (player0 == userAddress) {
             current = player1 ?
             `${pronoun(player1, userAddress)} ${renderAddress(player1)} as player1
 haven't accepted the wager and chosen a hand yet.` :
@@ -270,11 +270,16 @@ haven't accepted the wager and chosen a hand yet.` :
             current = `The proposed wager ${renderWei(g.confirmedTransaction.wagerInWei)} is too low.
 DO NOT PLAY THIS GAME.`;
             g.isCompleted = true;
-        } else if (g.confirmedState.escrowInWei < wagerToEscrow()) {
+        } else if (g.confirmedState.escrowInWei < wagerToEscrow(g.confirmedState.wagerInWei)) {
             current = `The proposed escrow ${renderWei(g.confirmedTransaction.escrowInWei)} is too low.
 DO NOT PLAY THIS GAME.`;
             g.isCompleted = true;
-        } else {
+        } else if (g.confirmedState.timeoutInBlocks != config.timeoutInBlocks) {
+            current = `The proposed timeout in blocks ${g.confirmedTransaction.timeoutInBlocks} isn't as expected.
+DO NOT PLAY THIS GAME.`;
+            g.isCompleted = true;
+        }
+        if (!g.isCompleted && (!player1 || player1 == userAddress)) {
             current = `To accept the wager and play the game, choose a hand:<br />
 ${renderGameChoice()}`;
             form.addEventListener('submit', acceptGameClick);
@@ -282,10 +287,10 @@ ${renderGameChoice()}`;
         break;
 
         case State.WaitingForPlayer0Reveal:
-        current = `${pronoun(player1, userAddress)} ${renderAddress(player1)} as player1 played ${handName(hand1)}. `;
+        current = `${pronoun(player1, userAddress)} ${renderAddress(player1)} as player1 played ${handName(hand1)} ${handIcon(hand1)}. `;
         if (g.player0RevealTxHash) {
             // TODO: deal with non-atomicity of hand1 and player1TxHash
-            current += `You ${renderAddress(userAddress)} as player0 posted transaction ${renderTransaction(g.player0RevealTxHash)} to reveal your hand ${handName(hand0)}. Waiting for it to be confirmed.` ;
+            current += `You ${renderAddress(userAddress)} as player0 posted transaction ${renderTransaction(g.player0RevealTxHash)} to reveal your hand ${handName(hand0)} ${handIcon(hand0)}. Waiting for it to be confirmed.` ;
         } if (player0 == userAddress) {
             current += `You ${renderAddress(userAddress)} as player0 should send a reveal transaction ASAP.`;
         } else {
@@ -302,13 +307,13 @@ haven't publicly revealed their hand yet.`;
         case Outcome.Player0Wins:
         case Outcome.Player1Wins:
         case Outcome.Player1WinsByDefault:
-        current = `${pronoun(player1, userAddress)} ${renderAddress(player1)} as player1 played ${handName(hand1)}. `;
+        current = `${pronoun(player1, userAddress)} ${renderAddress(player1)} as player1 played ${handName(hand1)} ${handIcon(hand1)}. `;
         }
         switch (outcome) {
         case Outcome.Draw:
         case Outcome.Player0Wins:
         case Outcome.Player1Wins:
-        current += `${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0 revealed ${handName(hand0)}. `;
+        current += `${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0 revealed ${handName(hand0)} ${handIcon(hand0)}. `;
         }
         switch (outcome) {
         case Outcome.Player1WinsByDefault:
@@ -325,6 +330,10 @@ haven't publicly revealed their hand yet.`;
 
     if (g.isCompleted) {
         removeActiveGame(id);
+    }
+
+    if (g.isCompleted ||
+        (g.player0 != userAddress && g.confirmedState && g.confirmedState.player1 != userAddress)) {
         current += `<br /><button style='width: 50%;'>Dismiss</button>`;
         form.addEventListener('submit', dismissGameClick);
     }
@@ -342,11 +351,11 @@ renderGameHook = renderGame;
 // TODO: way to download the localState
 // TODO: way to use a remote replicated backup service for encrypted state management.
 const initFrontend = k => {
-    setNodeBySelector("#Prerequisites", document.createTextNode(
-        `Running on ${config.networkName} \
+    setNodeBySelector("#Prerequisites", htmlToElement(
+        `<p>Running on <a href="${config.networkUrl}">${config.networkName}</a> \
 with ${config.confirmationsWantedInBlocks}-block confirmations (${config.confirmationsString})
 and ${config.timeoutInBlocks}-block timeouts (${config.timeoutString}). \
-Your address is: ${userAddress}`));
+Your address is: <a href="${config.addressExplorerUrl}${userAddress}">${userAddress}</a></p>`));
     gamesNode = document.getElementById("ActiveGames");
     if (config && config.contract) {
         setNodeBySelector("#NoNewGames", emptyNode());

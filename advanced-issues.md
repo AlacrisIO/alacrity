@@ -10,7 +10,7 @@ Let's consider a simple game of coin flipping.
 We might want to write it as follows:
 
 ```
-function salt () : unit =[random]=> uint256 {
+const salt : unit =[random]=> uint256 = () => {
     return random_uint256();
 }
 
@@ -22,8 +22,8 @@ function salt () : unit =[random]=> uint256 {
 // (Note that when compiling to a lower-level language, the typeclass is typically translated to
 // an additional parameter that remains implicit in the higher-level language, being filled in
 // by the type system.)
-function atomically_mutualize (data) : Players ==> @for_each 'data => @consensual per_player<'data> {
-  @for_each {
+const atomicallyMutualize : Players ==> @each 'data => @consensual PerPlayer('data) = data => {
+  @each {
     let @verifiable @public commitment = digest(data);
     sync (); // wait for everyone to publish their commitment.
     publish data; // As part of publish, others verify that the data fits its declared type.

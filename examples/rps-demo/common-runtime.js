@@ -247,6 +247,50 @@ const queueGame = (id, timeoutBlock) => {
     queuedBlocks[idToString(id)] = true;
 }
 
+const dismissGame = (id, game) => {
+    if (!game.isCompleted) {
+        loggedAlert(`Game ${id} isn't completed yet`);
+    }
+    if (!game.isDismissed) {
+        updateGame(id, {isDismissed: true});
+    }
+    renderGameHook(id, "Dismiss Game:");
+}
+
+/** Process a game, making all automated responses that do not require user input.
+    This is perhaps the heart of the algorithm.
+    Takes the confirmedBlock number, the game id, a continuation,
+    computes and continues with unit.
+    : int => GameId => Kont()
+ */
+var processGameAtHook;
+
+const processGame = id => k =>
+    getConfirmedBlockNumber(block => processGameAtHook(block)(id)(k));
+
+const attemptGameCreation = game => func => (...args) => {
+    const id = getGameID();
+    // TODO: add the ID to the contract call for tracking purpose? Use the low bits of the escrow?
+    // Or the high bits of the hand? No, use the commitment and the rest of the data.
+    // Somehow when we restart transactions, we match them by content
+    // and the salted commitment ought to provide enough unicity.
+    // We could use the nonce for the transaction, but there's no atomic access to it.
+    // Could we save the TxHash locally *before* sending it online? Unhappily web3 doesn't allow that:
+    // < https://github.com/MetaMask/metamask-extension/issues/3475 >.
+    putGame(id, game);
+    renderGameHook(id);
+    unconfirmedGames[idToString(id)] = true;
+    return errbacK(func)(...args)(
+        txHash => {
+            gamesByTxHash[txHash] = id;
+            addActiveGame(id);
+            updateGame(id, {txHash});
+            renderGameHook(id);},
+        error => {
+            removeGame(id);
+            loggedAlert(error);});}
+
+
 
 /** : Kont() */
 const initRuntime = k => {

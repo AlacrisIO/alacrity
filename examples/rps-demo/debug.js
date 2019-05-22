@@ -21,3 +21,14 @@ var wb = () =>
     newBlockHooks["newBlock"] = (from, to) => loggingK("newBlock! from:", from, "to:", to)();
 var g2c = g => g.salt && g.hand0 && makeCommitment(g.salt, g.hand0);
 var i2c = seq(getGame)(g2c)
+
+var o = (hand0, hand1) => {
+    const diff = (hand1 + 3 - hand0) % 3;
+    if (diff == 1) {
+        return "Player0Wins";
+    } else if (diff == 2) {
+        return "Player1Wins";
+    } else if (diff == 0) {
+        return "Draw";
+    }}
+

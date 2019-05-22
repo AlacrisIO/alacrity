@@ -66,3 +66,7 @@ class Sequence(element: type) {
   get_opt: nat => t => option(element);
   get: nat => t =[Fail]=> element;
 }
+
+// Local Variables:
+// mode: JavaScript
+// End:

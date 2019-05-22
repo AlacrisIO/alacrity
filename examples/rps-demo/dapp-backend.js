@@ -260,7 +260,8 @@ const processGameAt = confirmedBlock => id => k => {
     const game = getGame(id);
     // logging("processGameAt", id, game)();
     if (!game // No game: It was skipped due to non-atomicity of localStorage, or Garbage-Collected.
-        || !game.confirmedState) { // Game issued, but no confirmed state yet. Wait for confirmation.
+        || !game.confirmedState // Game issued, but no confirmed state yet. Wait for confirmation.
+        || game.isDismissed) { // Game already dismissed
         return k();
     }
     if (game.confirmedState.state == State.Completed) { // Game already completed, nothing to do.
@@ -328,17 +329,15 @@ and their ${renderWei(stakeInWei)} stake`);
     return k();
 }
 
-const processGame = id => k =>
-    getConfirmedBlockNumber(block => processGameAt(block)(id)(k));
+processGameAtHook = processGameAt;
 
-const createNewGame = (wagerInWei, escrowInWei, opponent, hand) => {
-    const id = getGameID();
-    // TODO: let advanced users override the salt? Not without better transaction tracking.
+const createNewGame = (wagerInWei, escrowInWei, opponent, hand0) => {
     const salt = randomSalt();
-    const player0Commitment = makeCommitment(salt, hand);
+    const player0Commitment = makeCommitment(salt, hand0);
     const player0 = userAddress;
     const player1 = opponent || zeroAddress;
     const timeoutInBlocks = config.timeoutInBlocks;
+    const totalAmount = toBN(wagerInWei).add(escrowInWei);
     // TODO: add the ID to the contract call for tracking purpose? Use the low bits of the escrow?
     // Or the high bits of the hand? No, use the commitment and the rest of the data.
     // Somehow when we restart transactions, we match them by content
@@ -346,32 +345,10 @@ const createNewGame = (wagerInWei, escrowInWei, opponent, hand) => {
     // We could use the nonce for the transaction, but there's no atomic access to it.
     // Could we save the TxHash locally *before* sending it online? Unhappily web3 doesn't allow that:
     // < https://github.com/MetaMask/metamask-extension/issues/3475 >.
-    putGame(id, {salt, hand0: hand, player0Commitment, player0, player1,
-                 timeoutInBlocks, wagerInWei, escrowInWei});
-    renderGameHook(id);
-    unconfirmedGames[idToString(id)] = true;
-    const commitment = makeCommitment(salt, hand);
-    const totalAmount = toBN(wagerInWei).add(escrowInWei);
-    return errbacK(rpsFactory.player0_start_game)(
-        player1, timeoutInBlocks, commitment, wagerInWei, {value: totalAmount})(
-        txHash => {
-            gamesByTxHash[txHash] = id;
-            addActiveGame(id);
-            updateGame(id, {txHash});
-            renderGameHook(id);},
-        error => {
-            removeGame(id);
-            loggedAlert(error);});}
-
-const dismissGame = (id, game) => {
-    if (!game.isCompleted) {
-        loggedAlert(`Game ${id} isn't completed yet`);
-    }
-    if (!game.isDismissed) {
-        updateGame(id, {isDismissed: true});
-    }
-    renderGameHook(id, "Dismiss Game:");
-}
+    return (attemptGameCreation
+            ({salt, hand0, player0Commitment, player0, player1, timeoutInBlocks, wagerInWei, escrowInWei})
+            (rpsFactory.player0_start_game)
+            (player1, timeoutInBlocks, player0Commitment, wagerInWei, {value: totalAmount}));}
 
 const acceptGame = (id, hand1) => {
     const game = getGame(id);
@@ -397,8 +374,7 @@ const acceptGame = (id, hand1) => {
         txHash => {
             updateGame(id, {player1ShowHandTxHash: txHash});
             renderGameHook(id, "Accept Game:"); },
-        loggedAlert);
-}
+        loggedAlert);}
 
 const handleTimeoutQueueBefore = confirmedBlock => k => {
     if (timeoutBlocks.length == 0 || timeoutBlocks.peek() > confirmedBlock) {

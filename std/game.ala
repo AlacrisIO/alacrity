@@ -11,8 +11,8 @@ import base;
 import stdlib;
 
 class Game extends ClosedInteraction {
-  class game_result {
-    enact : game_result =[IO]=> unit;
+  class GameResult {
+    enact : GameResult =[IO]=> unit;
   }
 }
 
@@ -30,9 +30,9 @@ class WinnerTakesAll extends Game {
   }
 }
 
-function domination_game_result(domination_compare) :
-    TwoPlayers ==> ((hand, hand) => int) => (hand, hand) => game_result {
-  function (hand0, hand1) {
+const dominationGameResult :
+    TwoPlayers ==> ((hand, hand) => int) => (hand, hand) => game_result =
+    dominationCompare => (hand0, hand1) => {
     let cmp = domination_compare(hand0, hand1);
     if (cmp > 0) {
       wins(Player0);
@@ -43,3 +43,7 @@ function domination_game_result(domination_compare) :
     }
   }
 }
+
+// Local Variables:
+// mode: JavaScript
+// End:

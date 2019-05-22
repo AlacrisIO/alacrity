@@ -1,10 +1,10 @@
 import Game;
 
-type hand = Rock | Paper | Scissors;
+type Hand = Rock | Paper | Scissors;
 
 // obtain this function automatically via a macro annotation,
 // e.g. @enum type hand = Rock | Paper | Scissors;
-function int_of_hand (hand) : hand => int {
+const intOfHand : Hand => int = hand => {
   match hand with
   | Rock => 0
   | Paper => 1
@@ -12,15 +12,19 @@ function int_of_hand (hand) : hand => int {
 }
 
 // strcmp style comparison
-function hand_compare (hand0, hand1) : hand => int {
-  return (int_of_hand(hand1)-int_of_hand(hand0)+4) mod 3 - 1;
-}
+const handCompare : (Hand, Hand) => int = (hand0, hand1) =>
+    (intOfHand(hand0)+4-intOfHand(hand1)) mod 3 - 1;
 
 // TwoPlayers is a typeclass that specializes Players in the case there are only two players,
 // Player0 and Player1. The vector returned by mutualize_salted will be of size 2.
-function rock_paper_scissors (amount) : TwoPlayers ==> amount => @consensual game_result {
+const rockPaperScissors : TwoPlayers ==> Amount => @consensual GameResult = amount => {
   @consensual {
-    let [hand0, hand1] = mutualize_salted(@for_each (input hand));
-    return domination_game_result(hand_compare)(hand0, hand1);
+    const [hand0, hand1] = mutualizeSalted(@each (input hand));
+    return dominationGameResult(handCompare)(hand0, hand1);
   }
 }
+
+
+// Local Variables:
+// mode: JavaScript ;; ... until we have an Alacrity mode
+// End:

@@ -99,7 +99,7 @@ function salt () : unit =[CCNonDet]=> uint256 {
 // an additional parameter that remains implicit in the higher-level language, being filled in
 // by the type system.)
 
-atomically_mutualize (interaction, data) : Interaction ==> @for_each 'data => @consensual per_player<'data> {
+mutualize : Interaction ==> @Each('data) => Consensual(PerPlayer('data)) {
   @for_each {
     let @verifiable @public commitment = digest(data);
     sync (); // wait for everyone to publish their commitment.
@@ -117,8 +117,9 @@ atomically_mutualize (interaction, data) : Interaction ==> @for_each 'data => @c
   }
 }
 
-function trusted_randomness (Interaction ==> @consensual uint256 {
-  @for_each {
-    @consensual return reduce(logxor, atomically_mutualize(@for_each salt ()));
-  }
-}
+const ConsensualRandomness : Interaction ==> @consensual uint256 =
+  @consensual reduce(logxor, mutualize(@each salt ()));
+
+// Local Variables:
+// mode: JavaScript
+// End:

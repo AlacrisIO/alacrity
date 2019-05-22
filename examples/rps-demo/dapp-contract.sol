@@ -177,14 +177,14 @@ contract RockPaperScissors
                 require_player0();
                 require(_hand0 < 3 && player0_commitment == keccak256(abi.encodePacked(_salt, _hand0)));
 
-                // compute difference modulo 3 without underflowing
-                uint8 diff = (hand1 + 3 - _hand0) % 3;
+                // compute result. 0: player1 wins, 1: draw, 2: player0 wins.
+                uint8 diff = (_hand0 + 4 - hand1) % 3;
 
-                if (diff == 1) {
+                if (diff == 2) {
                         // The reveal is in favor of player0
                         outcome = Outcome.Player0_wins;
                         player0_gets(2*wager_amount+escrow_amount);
-                } else if (diff == 2) {
+                } else if (diff == 0) {
                         // The reveal is in favor of player1
                         outcome = Outcome.Player1_wins;
                         player1_gets(2*wager_amount);
