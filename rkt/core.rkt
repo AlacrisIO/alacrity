@@ -73,9 +73,12 @@
 (define primitive->info
   ;; XXX fill this out and make real
   (hasheq 'random (priminfo random)
+          'digest (priminfo equal-hash-code)
+          'require (priminfo (λ (b [msg "failure"]) (unless b (error msg))))
           '+ (priminfo +)
           '- (priminfo -)
           '= (priminfo =)
+          'modulo (priminfo modulo)
           'equal? (priminfo equal?)
           'msg-cat? (priminfo cons?)
           'msg-cat (priminfo cons)
