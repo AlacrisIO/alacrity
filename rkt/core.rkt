@@ -208,6 +208,7 @@
     [`(! ,e) (we:send (rec e))]
     [`(?) (we:recv)]
     [(? number? n) (we:con n)]
+    [(? boolean? b) (we:con b)]
     [(? symbol? v) (we:var v)]
     [(cons (? operation? op) args)
      (we:app op (map rec args))]))
@@ -242,6 +243,7 @@
     [(we:var v) (list v)]
     [(we:con (? void?)) (list)]
     [(we:con (? number? n)) (list n)]
+    [(we:con (? boolean? b)) (list b)]
     [(we:app op args) (list (cons op (map we-emit1 args)))]
     [(we:if ce te fe)
      (list `(cond
@@ -453,6 +455,7 @@
     [`(?) (de:recv)]
     [`(! ,e) (de:send (rec e))]
     [(? number? n) (de:con n)]
+    [(? boolean? b) (de:con b)]
     [(? symbol? v) (de:var v)]
     [(cons (? operation? op) args)
      (de:app op (map rec args))]))
@@ -478,6 +481,7 @@
     [(de:var v) (list v)]
     [(de:con (? void?)) (list)]
     [(de:con (? number? n)) (list n)]
+    [(de:con (? boolean? b)) (list b)]
     [(de:app op args) (list (cons op (map de-emit1 args)))]
     [(de:let (== _seq_) xe be)
      (append (de-emit xe) (de-emit be))]
@@ -684,6 +688,7 @@
   (match se
     [(? symbol? v) (ha:var v)]
     [(? number? n) (ha:con n)]
+    [(? boolean? b) (ha:con b)]
     [`(void) (ha:con (void))]))
 (define (he-parse se)
   (match se
@@ -721,6 +726,7 @@
   (match ha
     [(ha:var v) v]
     [(ha:con (? number? n)) n]
+    [(ha:con (? boolean? b)) b]
     [(ha:con (? void?)) `(void)]))
 (define (he-emit he)
   (match he
