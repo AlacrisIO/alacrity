@@ -200,8 +200,13 @@
      (we:match@ at (rec e) (wm-parse m)
                 (rec `(begin ,@more)))]
     [`(begin ,e) (rec e)]
-    [`(cond [,ce ,@te] [else ,@fe])
-     (we:if (rec ce) (rec `(begin ,@te)) (rec `(begin ,@fe)))]
+    [`(begin ,(cons (? operation? op) args) ,@more)
+     (rec
+      `(begin (define ,_seq_ ,(cons op args)) ,@more))]
+    [`(cond [else ,@fe])
+     (rec `(begin ,@fe))]
+    [`(cond [,ce ,@te] ,more ..1)
+     (we:if (rec ce) (rec `(begin ,@te)) (rec `(cond ,@more)))]
     [`(if ,ce ,te ,fe)
      (we:if (rec ce) (rec te) (rec fe))]
     [`(msg ,m) (we:msg (wm-parse m))]
@@ -447,8 +452,10 @@
      (de:let x (rec xe) (rec `(begin ,@more)))]
     [`(begin ,e) (rec e)]
     [`(begin ,e ,@more) (de:seq (rec e) (rec `(begin ,@more)))]
-    [`(cond [,ce ,@te] [else ,@fe])
-     (de:if (rec ce) (rec `(begin ,@te)) (rec `(begin ,@fe)))]
+    [`(cond [else ,@fe])
+     (rec `(begin ,@fe))]
+    [`(cond [,ce ,@te] ,more ..1)
+     (de:if (rec ce) (rec `(begin ,@te)) (rec `(cond ,@more)))]
     [`(if ,ce ,te ,fe)
      (de:if (rec ce) (rec te) (rec fe))]
     [`(ignore! ,(? string? why)) (de:ignore why)]
