@@ -877,3 +877,8 @@ See the [examples](examples/index.md) directory.
 * [Corda](https://docs.corda.net/tutorial-contract.html) is for permissioned blockchains only.
   Its contracts are written in Kotlin (or Java, or any other JVM language).
   This is just not applicable.
+
+* [Smart Contracts History](https://infominer.id/bitcoin-history/smart-contracts/#smart-contract-history)
+  is a resource with lots of information about the design of languages to specify "smart contracts",
+  not all of them backed by a blockchain (indeed, going back to the 1960s).
+

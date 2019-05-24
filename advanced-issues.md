@@ -138,3 +138,17 @@ to conjugate verbs and decline pronouns, count, etc.
 Or a conceptual framework plus "natural language" generators for each target language.
 That's way out of the scope of the DSL as such, though.
 
+
+```
+(program ;; <- In direct style, this will create a new contract with its own identity,
+  ;; to be initialized by A and B.
+  ;; `consensus` is the name of the surrounding contract for this particular interaction
+  (participant A) ;; the first one to partake becomes
+  (participant B)
+  ;; (@ A timeoutInBlocks) ;; maybe that's implicit
+  (define wagerInWei (@deposit A wagerInWei))
+  (define escrowInWei (@deposit A escrowInWei)) ;; <=== magically added because A promises future actions
+  (require (> value wagerInWei))
+  const escrowInWei = value - wagerInWei;
+
+```

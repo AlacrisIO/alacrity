@@ -26,7 +26,9 @@ const getUserAddress = () => web3.currentProvider.selectedAddress;
 let userAddress;
 
 const zeroAddress = "0x0000000000000000000000000000000000000000";
-
+const optionalAddressOf0x = x => x == zeroAddress ? undefined : x;
+const optionalAddressTo0x = x => x || zeroAddress;
+const optionalAddressMatches = (pattern, address) => !pattern || pattern == address;
 
 /** The networkConfig is an object that maps the networkID (TODO: in the future, plus chain ID?)
     to the config below. It is the responsibility of the DApp developers to define networkConfig
@@ -255,16 +257,68 @@ const dismissGame = (id, game) => {
     renderGameHook(id, "Dismiss Game:");
 }
 
+// HOOKS TO BE PROVIDED BY THE APPLICATION
+// TODO: in a future version, have a higher-order function that takes
+// these "hook" functions as parameters,
+// in a way such that we can compose sub-activities together.
 /** Process a game, making all automated responses that do not require user input.
     This is perhaps the heart of the algorithm.
     Takes the confirmedBlock number, the game id, a continuation,
     computes and continues with unit.
     : int => GameId => Kont()
  */
-var processGameAtHook;
+let processGameAtHook;
+
+/** Given the data string from event from the factory contract's logs,
+    as well as the blockNumber and txHash for the event, decode the data into a game object.
+    The object can be compared to an existing game object with gameMatches() below
+    to check whether their initial parameters match.
+    : (string, int, txHash) => game
+*/
+let decodeGameCreationEvent;
+
+/** Given a game as extracted by decodeGameCreationEvent, extract the blockchain data:
+    creation txHash, creation blockNumber, any session identifier or contract address, etc.
+   : Game => BlockData
+*/
+let gameBlockData;
+
+/** Given game data from a game creation event, and a previously-registered game (possibly undefined),
+    determine if the two match.
+   : (game, game) => bool
+*/
+let gameMatches;
+
+/** Given a game and a user's address, determine whether the game is relevant to the user.
+   : (game, address) => bool
+*/
+let isGameRelevantToUser;
+
+/** Given a game and a user's address, determine whether the user initiated the game.
+   : (game, address) => bool
+*/
+let isGameInitiator;
+
+/** Process a game, making all automated responses that do not require user input.
+    This is perhaps the heart of the algorithm.
+ */
+// TODO: are we triggering a renderGame here when something changes, or somewhere else?
+const processGameAt = confirmedBlock => id => k => {
+    // TODO: move the beginning of this function to a common file...
+    const game = getGame(id);
+    // logging("processGameAt", id, game)();
+    if (!game // No game: It was skipped due to non-atomicity of localStorage, or Garbage-Collected.
+        || !game.confirmedState // Game issued, but no confirmed state yet. Wait for confirmation.
+        || game.isDismissed) { // Game already dismissed
+        return k();}
+    if (game.confirmedState.state == State.Completed) { // Game already completed, nothing to do.
+        updateGame(id, {isCompleted: true});
+        removeActiveGame(id);
+        return k();}
+    return processGameAtHook(confirmedBlock)(id)(k);}
 
 const processGame = id => k =>
-    getConfirmedBlockNumber(block => processGameAtHook(block)(id)(k));
+    getConfirmedBlockNumber(block => processGameAt(block)(id)(k));
 
 const attemptGameCreation = game => func => (...args) => {
     const id = getGameID();
@@ -295,11 +349,68 @@ const handleTimeoutQueueBefore = confirmedBlock => k => {
         const block = timeoutBlocks.pop();
         const gameSet = popEntry(blockTimeouts, block);
         const gameList = Object.keys(gameSet).map(stringToId);
-        forEachK(processGameAtHook(confirmedBlock))(gameList)(
+        forEachK(processGameAt(confirmedBlock))(gameList)(
             () => handleTimeoutQueueBefore(confirmedBlock)(k)); }}
 
 const handleTimeoutQueue = (_oldBlock, currentBlock) =>
     handleTimeoutQueueBefore(currentBlock - config.confirmationsWantedInBlocks);
+
+/** Decode an event into a game, associate this game to an existing game, or register a new one.
+   : GameCreationEvent => Kont()
+ */
+const processNewGame = event => k => {
+    const game = decodeGameCreationEvent(event.data, event.blockNumber, event.transactionHash);
+    if (!isGameRelevantToUser(game, userAddress)) {
+        return k();
+    }
+    let id = gamesByTxHash[event.transactionHash];
+    if (id) {
+        if (id.contract) {
+            // Known game. Assume blockNumber is also known and the game is rendered already.
+            return k();
+        }
+        // TODO LATER: triple-check that everything matches, or issue warning?
+        updateGame(id, gameBlockData(game));
+        renderGameHook(id, "Process New Game:");
+        return k();
+    } else if (!isGameInitiator(game, userAddress)) {
+        // A game proposed by someone else, that is relevant and not yet registered. Register it!
+        registerGame(game); // or should we keep the blockdata separate?
+        return k();
+    } else {
+        // Handle the case where we're player0 but we crashed between
+        // the time the transaction was published and
+        // the time we could save the txHash to localStorage,
+        // by keeping the set of interrupted games in unconfirmedGames.
+        for (let key in unconfirmedGames) {
+            const id = stringToId(key);
+            if (gameMatches(game, getGame(id))) {
+                updateGame(id, gameBlockData(game));
+                gamesByTxHash[event.transactionHash] = id;
+                renderGameHook(id, "New Game Matches:");
+                return k();
+            }
+        }
+        // This is a relevant game of which we're the initiator,
+        // but the game does not match any of those locally stored.
+        // That's a big problem when the game was started with private data (i.e. salt and hand0).
+        // Hopefully, the game was started on another browser
+        // (the bad case is when the state was lost because localStorage isn't atomic).
+        // The frontend needs to warn the user somehow that they better reactivate
+        // the client that has the data before they timeout, or tell them about their lost.
+        registerGame(game);
+        return k();
+    }
+}
+
+// TODO: this only works for single-factory-contract hooks.
+const watchNewGames = k =>
+    registerConfirmedEventHook(
+        "confirmedNewGames",
+        // TODO: only track starting from 2 timeout periods in the past(?)
+        config.contract.creationBlock,
+        {address: config.contract.address},
+        processNewGame)(k);
 
 const initGame = id => {
     let game = getGame(id);

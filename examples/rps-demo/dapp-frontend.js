@@ -238,7 +238,7 @@ const renderGame = (id, tag) => {
     if (!g || g.isDismissed) { return unrenderGame(id); }
     const form = findOrCreateGameForm(id);
     const player0 = (g.unconfirmedState && g.unconfirmedState.player0) || g.player0;
-    const player1 = (g.unconfirmedState && g.unconfirmedState.player1 != zeroAddress && g.unconfirmedState.player1) || (g.player1 != zeroAddress && g.player1);
+    const player1 = (g.unconfirmedState && g.unconfirmedState.player1) || g.player1;
     const player0Commitment = (g.unconfirmedState && g.unconfirmedState.player0Commitment) || g.player0Commitment;
     const state = (g.unconfirmedState && g.confirmedState.state) || State.uninitialized;
     const outcome = g.unconfirmedState && g.confirmedState.outcome;
@@ -247,7 +247,7 @@ const renderGame = (id, tag) => {
     const setup = `${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0
 wagered ${renderWei(g.wagerInWei)} (plus a ${renderWei(g.escrowInWei)} escrow)
 with commitment ${renderCommitment(player0Commitment)}
-challenging ${player1 == zeroAddress ? "anyone" : renderAddress(player1)}
+challenging ${renderAddress(player1)}
 ${isValidHand(hand0) ? ` and secretly playing ${handName(hand0)} ${renderHand(hand0)}` : ""}.<br />`;
     let current = "";
     // TODO: somehow estimate how much time there is before deadline, and
@@ -279,7 +279,7 @@ DO NOT PLAY THIS GAME.`;
 DO NOT PLAY THIS GAME.`;
             g.isCompleted = true;
         }
-        if (!g.isCompleted && (!player1 || player1 == userAddress)) {
+        if (!g.isCompleted && optionalAddressMatches(player1, userAddress)) {
             current = `To accept the wager and play the game, choose a hand:<br />
 ${renderGameChoice()}`;
             form.addEventListener('submit', acceptGameClick);

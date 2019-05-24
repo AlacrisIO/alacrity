@@ -1,3 +1,24 @@
+/** Various functions used while debugging */
+
+// From the txHash of the transaction whereby the factory contract created the game contract,
+// extract the game creation data.
+// txHash => {contract: address, player0: address, player1: address, timeoutInBlocks: integer,
+// commitment: bytes32, wagerInWei: BN, escrowInWei: BN, blockNumber: integer}
+const getGameCreationData = txHash => (k, kError = kLogError) =>
+    errbacK(web3.eth.getTransactionReceipt)(txHash)(
+        receipt => {
+            const game = decodeGameCreationData(receipt.logs[0].data, receipt.blockNumber, txHash);
+            if(receipt.transactionHash === txHash
+               && receipt.status === "0x1"
+               && receipt.from === game.player0
+               && receipt.to === config.contract.address
+               && receipt.logs.length === 1) {
+                return k(game);
+            } else {
+                return kError("bad rps game creation data receipt", txHash, receipt, game);
+            }},
+        kError);
+
 /** Test games */
 var gsalt = "0x30f6cb71704ee3321c0bb552120a492ab2406098f5a89b0a765155f4f5dd9124";
 var alice = "0x60B8193167c5355779B4d03cA37A0C11807e667f";
@@ -24,11 +45,10 @@ var i2c = seq(getGame)(g2c)
 
 var o = (hand0, hand1) => {
     const diff = (hand1 + 3 - hand0) % 3;
-    if (diff == 1) {
+    if (diff === 1) {
         return "Player0Wins";
-    } else if (diff == 2) {
+    } else if (diff === 2) {
         return "Player1Wins";
-    } else if (diff == 0) {
+    } else if (diff === 0) {
         return "Draw";
     }}
-

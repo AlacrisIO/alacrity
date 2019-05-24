@@ -32,8 +32,8 @@ const shorten0x = string0x =>
 const renderTransaction = txHash =>
       txHash ? `<a href="${config.txExplorerUrl}${txHash}">${shorten0x(txHash)}</a>` : "unknown";
 const renderAddress = address =>
-      address ? address == zeroAddress ? "anyone" :
-      `<a href="${config.addressExplorerUrl}${address}">${shorten0x(address)}</a>` : "unknown";
+      address ?
+      `<a href="${config.addressExplorerUrl}${address}">${shorten0x(address)}</a>` : "anyone";
 const renderWei = amountInWei =>
       `${weiToEth(amountInWei)} ETH`;
 
