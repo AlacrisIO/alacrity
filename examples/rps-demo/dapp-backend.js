@@ -136,14 +136,34 @@ const decodeGameCreationEvent_ = (data, blockNumber, txHash) => {
             blockNumber, txHash}}
 decodeGameCreationEvent = decodeGameCreationEvent_
 
-const decodeGameEvent_ = (data, blockNumber, topic, txHash) => {
+const MsgType = Object.freeze({
+    Player0StarGame: 0,
+    Player1ShowHand: 1,
+    Player0Reveal: 2,
+    Player0Rescind: 3,
+    Player1WinByDefault: 4
+});
+
+const decodeGameEvent_ = (data, blockNumber, topic, msgTxHash) => {
     const x = i => data.slice(2+i*64,66+i*64);
-    //if (topic == topics.Player1ShowHand) { } else
-    if (topic == topics.Player0Reveal) {
+    if (topic == topics.Player1ShowHand) {
+        return {msgType: MsgType.Player1ShowHand,
+                player1: hexToAddress(x(0)),
+                hand1: hexToBigNumber(x(1)).toNumber(),
+                blockNumber, msgTxHash}
+    } else if (topic == topics.Player0Reveal) {
+        return {msgType: MsgType.Player0Reveal,
+                salt: hexTo0x(x(0)),
+                hand0: hexToBigNumber(x(1)).toNumber(),
+                blockNumber, msgTxHash}
     } else if (topic == topics.Player0Rescind) {
+        return {msgType: MsgType.Player0Rescind,
+                blockNumber, msgTxHash}
     } else if (topic == topics.Player1WinByDefault) {
-    } else {
+        return {msgType: MsgType.Player1WinByDefault,
+                blockNumber, msgTxHash}
     }
+    loggedAlert(`Unrecognized topic ${{data, blockNumber, topic, msgTxHash}}`);
 }
 
 const TODO = () =>

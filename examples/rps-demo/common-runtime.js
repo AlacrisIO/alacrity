@@ -382,26 +382,26 @@ const processNewGame = event => k => {
         // A game proposed by someone else, that is relevant and not yet registered. Register it!
         addGame(game); // or should we keep the blockdata separate?
         return k();
+    }
     // Handle the case where we're player0 but we crashed between
     // the time the transaction was published and
     // the time we could save the txHash to localStorage,
     // by keeping the set of interrupted games in unconfirmedGames.
-    for (let id = previousUnconfirmedId; i < 0; i++) {
+    for (let id = previousUnconfirmedId; id < 0; id++) {
         if (gameMatches(game, getGame(id))) {
             confirmGame(id, game);
             return k();
         }
     }
-        // This is a relevant game of which we're the initiator,
-        // but the game does not match any of those locally stored.
-        // That's a big problem when the game was started with private data (i.e. salt and hand0).
-        // Hopefully, the game was started on another browser
-        // (the bad case is when the state was lost because localStorage isn't atomic).
-        // The frontend needs to warn the user somehow that they better reactivate
-        // the client that has the data before they timeout, or tell them about their lost.
-        addGame(game);
-        return k();
-    }
+    // This is a relevant game of which we're the initiator,
+    // but the game does not match any of those locally stored.
+    // That's a big problem when the game was started with private data (i.e. salt and hand0).
+    // Hopefully, the game was started on another browser
+    // (the bad case is when the state was lost because localStorage isn't atomic).
+    // The frontend needs to warn the user somehow that they better reactivate
+    // the client that has the data before they timeout, or tell them about their lost.
+    addGame(game);
+    return k();
 }
 
 // TODO: this only works for single-factory-contract hooks.
