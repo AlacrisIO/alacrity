@@ -33,10 +33,13 @@ contract: $(CONTRACT_OUTPUTS)
 $(CONTRACT_OUTPUTS): dapp-contract.sol
 	$(HIDE) mkdir -p build $(BUILD_DIR)
 	$(HIDE) solc --bin --abi -o $(BUILD_DIR) --overwrite $< > $(BUILD_DIR)/solc.out
-	$(HIDE) (echo "const rpsFactoryAbi = `cat $(BUILD_DIR)/RockPaperScissorsFactory.abi`;"; \
-	echo; echo "const rpsAbi = `cat $(BUILD_DIR)/RockPaperScissors.abi`;"; \
+	$(HIDE) (echo "const rpsAbi = `cat $(BUILD_DIR)/RockPaperScissors.abi`;"; \
+	echo; echo "const rpsFactoryAbi = `cat $(BUILD_DIR)/RockPaperScissorsFactory.abi`;"; \
 	echo; echo "const rpsFactoryCode = \"0x`cat $(BUILD_DIR)/RockPaperScissorsFactory.bin`\";"; \
 	) > $@
+# To extract function signatures, add the --hashes to solc and use:
+#	echo; echo "const rpsSignatures = {`sed -e 's/^\(.*\): \(.*\)(.*)/"\2": "\1",/' $(BUILD_DIR)/RockPaperScissors.signatures`};" ; \
+#	echo; echo "const rpsFactorySignatures = {`sed -e 's/^\(.*\): \(.*\)(.*)/"\2": "\1"/' $(BUILD_DIR)/RockPaperScissorsFactory.signatures`};" ; \
 
 start_nginx:
 	$(HIDE) ../nginx/start.sh

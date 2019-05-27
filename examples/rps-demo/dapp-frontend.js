@@ -232,6 +232,9 @@ const unrenderGame = id => {
     renderActiveGameHook();
 }
 
+const renderGameId = id =>
+    `<b>Game ${id < 0 ? "Unconfirmed" : ""}<output name="id">${id}</output></b>`;
+
 const renderGame = (id, tag) => {
     logGame(id, "(Frontend) " + tag);
     const g = getGame(id);
@@ -338,7 +341,7 @@ haven't publicly revealed their hand yet.`;
         form.addEventListener('submit', dismissGameClick);
     }
 
-    form.innerHTML = `<p><b>Game <output name="id">${id}</output></b>${
+    form.innerHTML = `<p>${renderGameId(id)}${
 g.txHash ? `, tx ${renderTransaction(g.txHash)}` : ""}${
 g.contract ? `, contract ${renderAddress(g.contract)}` : ""}:<br />
 <em>${renderGameState(state, outcome, player0, player1)}.</em><br />

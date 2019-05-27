@@ -102,6 +102,11 @@ const hexToAddress = hex => hexTo0x(hex.slice(-40));
 
 /** Parse a decimal number */
 const parseDecimal = x => parseInt(x, 10);
+const stringToInt = parseDecimal
+
+/** Any object to a string */
+const anyToString = x => `${x}`
+const intToString = anyToString
 
 /** Return a random salt
     : () => String0x */
@@ -120,13 +125,12 @@ const snoc = (l, e) => [...l, e];
 /** : Object => bool */
 const isEmpty = obj => {
     for(var key in obj) { return false; }
-    return true;
-}
-
+    return true;}
 const popEntry = (table, key) => {
     const value = table[key];
     delete table[key];
-    return value; }
+    return value;}
+const merge = o1 => o2 => ({...o2, ...o1});
 
 /** : ...'a => ...'b => () */
 const logging = (...prefix) => (...result) =>
@@ -207,27 +211,67 @@ var initFunctions = {}; // maps names to an object { dependsOn: [list of depende
 const registerInit = (init) => initFunctions = {...initFunctions, ...init};
 const initialize = () => inDependencyOrder(name => initFunctions[name].fun, initFunctions, "init:")(identity);
 
+// "places", the imperative alternative to lenses.
+// type place('a) = { get: () => 'a, set: 'a => () }
+const modifyPlace = (place, func) => place.set(func(place.get()));
+const valPlace = x => ({ get: () => x, set: y => x = y })
+const pathGet = (x, path) => { for (let i in path) { x = x[path[i]] } ; return x }
+const pathDo = (x, path, func) =>
+      (path.length == 0) ? func(x) :
+      func(refPlace(pathGet(place.get(), path.slice(0, -1)), path[path.length-1]))
+const pathSet = (place, path, x) => pathDo(place, path, p => p.set(x))
+const pathModify = (place, path, func) => pathDo(place, path, p => modifyPlace(p, func))
+const pathPlace = (x, path) => ({ get: () => pathGet(x.get(), path), set: v => pathSet(x, path, v) })
+
+// type container('key, 'value) = { get: ('key, 'value) => 'value, set: ('key, 'value) => (), remove: 'key => (), modify: ('key, 'value => 'value) => (), includes: 'key =>  }
+const container = c => ({
+    includes: k => c.includes(k),
+    get: (k, default_ = null) => c.includes(k) ? c[k] : default_,
+    set: (k, v) => c[k] = v,
+    remove: k => delete c[k],
+    modify: (k, f) => c[k] = f(c[k])})
+
 
 // Local Storage for the DApp
 // TODO: use (encrypted) remote storage and implement distributed transactions, for redundancy.
 const keyValuePair = (key, value) => { let o = {}; o[key] = value; return o; }
+const includesStorage = key => window.localStorage.getItem(key) != null;
 const getStorage = (key, default_ = null) => JSON.parse(window.localStorage.getItem(key)) || default_;
-const putStorage = (key, value) => window.localStorage.setItem(key, JSON.stringify(value));
-const updateStorage = (key, update) => putStorage(key, {...getStorage(key), ...update});
-const removeStorage = (key, update) => window.localStorage.removeItem(key);
+const setStorage = (key, value) => window.localStorage.setItem(key, JSON.stringify(value));
+const Storage = {
+    includes: includesStorage,
+    get: getStorage,
+    set: setStorage,
+    modify: (key, func) => setStorage(key, func(getStorage(key))),
+    remove: key => window.localStorage.removeItem(key)};
 
-// For Apps with a "current user" that may change, making keys relative to a userID.
-// TODO: decide a good naming policy wrt delete and remove.
+const rekeyContainer = (container, rekey) => ({
+    includes: key => container.includes(rekey(key)),
+    get: (key, default_) => container.get(rekey(key), default_),
+    set: (key, value) => container.set(rekey(key), value),
+    modify: (key, func) => container.modify(rekey(key), func),
+    remove: key => container.remove(rekey(key))})
+
+/** For Apps with a "current user" that may change, making keys relative to a userId.
+TODO: decide a good naming policy wrt delete and remove.
+Also we need to have a convention for the contents of an interaction:
+creation:
+
+TODO: maybe use leveldb via web3.db to get some atomicity?
+Although that seems useless unless and until we have them expose more of leveldb.
+*/
 /** : string */
-let userID;
-const userKey = key => `${userID}.${key}`;
-const getUserStorage = (key, default_ = null) => getStorage(userKey(key), default_);
-const putUserStorage = (key, value) => putStorage(userKey(key), value);
-const updateUserStorage = (key, update) => updateStorage(userKey(key), update);
-const putUserStorageField = (key, field, value) => updateUserStorage(key, keyValuePair(field, value));
-const removeUserStorage = key => removeStorage(userKey(key));
+let userId;
+const userKey = key => `${userId}.${key}`;
+const userStorage = rekeyContainer(Storage, userKey);
+const updateUserStorage = (key, fields) => userStorage.modify(key, merge(fields));
+const setUserStorageField = (key, field, value) => updateUserStorage(key, keyValuePair(field, value));
 const deleteUserStorageField = (key, field) => {
-    const record = getUserStorage(key); delete record[field]; putUserStorage(key, record); }
+    const record = userStorage.get(key); delete record[field]; userStorage.set(key, record); }
+
+/**
+   TODO: use web3.shh for messaging between players for simple state channels?
+   */
 
 /** Debugging stuff */
 let r;

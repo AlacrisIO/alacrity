@@ -14,11 +14,11 @@
 
 /** Get an identifier for the current network.
    TODO: when using web3 1.0, use web3.eth.net.getId().then(k) or whatever it exports,
-   to also extract the chainID, which can notably distinguish between ETH and ETC
-   (both claim to be networkID 1, but the latter uses chainID 61)
+   to also extract the chainId, which can notably distinguish between ETH and ETC
+   (both claim to be networkId 1, but the latter uses chainId 61)
    : () => string */
-const getNetworkID = () => web3.currentProvider.networkVersion;
-let networkID;
+const getNetworkId = () => web3.currentProvider.networkVersion;
+let networkId;
 
 /** Get the address of the current user.
     : () => address */
@@ -30,7 +30,7 @@ const optionalAddressOf0x = x => x == zeroAddress ? undefined : x;
 const optionalAddressTo0x = x => x || zeroAddress;
 const optionalAddressMatches = (pattern, address) => !pattern || pattern == address;
 
-/** The networkConfig is an object that maps the networkID (TODO: in the future, plus chain ID?)
+/** The networkConfig is an object that maps the networkId (TODO: in the future, plus chain Id?)
     to the config below. It is the responsibility of the DApp developers to define networkConfig
     as part of their DApp deployment, typically in a dapp-config.js file loaded from the HTML page.
     : StringTable(config)
@@ -133,7 +133,7 @@ const processNewBlocks = k =>
                 (currentBlock >= nextUnprocessedBlock) ?
                 runHooks(newBlockHooks)(nextUnprocessedBlock, currentBlock)(() => {
                     nextUnprocessedBlock = currentBlock + 1;
-                    putUserStorage("nextUnprocessedBlock", nextUnprocessedBlock);
+                    userStorage.set("nextUnprocessedBlock", nextUnprocessedBlock);
                     return k();}) :
                 k(),
             error => logErrorK(error)(k)))
@@ -148,7 +148,7 @@ const processEvents = (filter, processK) => (fromBlock, toBlock) => k => {
     return (typeof toBlock == "string" || fromBlock <= toBlock) ?
         web3.eth.filter({...filter, fromBlock, toBlock})
         .get(handlerThenK(forEachK(processK), logErrorK)(k)) :
-        k(); }
+        k();}
 
 /** Register a confirmed event hook.
    NB: *IF* some event has hooks for both confirmed and unconfirmed events, then
@@ -160,7 +160,7 @@ const registerConfirmedEventHook = (name, fromBlock, filter, processK, confirmat
     newBlockHooks[name] = (firstUnprocessedBlock, lastUnprocessedBlock) => k =>
         processEvents(filter, processK)
             (firstUnprocessedBlock - confirmations, lastUnprocessedBlock - confirmations)(k);
-    return processEvents(filter, processK)(fromBlock, nextUnprocessedBlock - 1)(k); }
+    return processEvents(filter, processK)(fromBlock, nextUnprocessedBlock - 1)(k);}
 
 const registerUnconfirmedEventHook = (name, filter, processK, confirmations = config.confirmationsWantedInBlocks) => k => {
     const hook = (firstUnprocessedBlock, lastUnprocessedBlock) => k =>
@@ -169,7 +169,7 @@ const registerUnconfirmedEventHook = (name, filter, processK, confirmations = co
              "pending")(k);
     newBlockHooks[name] = hook;
     const fromBlock = nextUnprocessedBlock - 1 - confirmations;
-    return hook(filter, processK)(fromBlock, "pending")(k); }
+    return hook(filter, processK)(fromBlock, "pending")(k);}
 
 /** Given some code in 0x form (.bin output from solc), deploy a contract with that code
     and CPS-return its transactionHash
@@ -179,61 +179,75 @@ const deployContract = code => errbacK(web3.eth.sendTransaction)({data: code});
 
 // The code in the section below might belong to some library to manage multiple interactions.
 // Managing interactions
-let nextID;
-const activeGames = {};
-const gamesByTxHash = {};
-const unconfirmedGames = {};
+let nextId; // runs up from 0, in the table of games as per games.get
+let previousUnconfirmedId; // runs down from -1, in the same table of games as games.get.
+const activeGames = {}; // maps id to true
+const gamesByTxHash = {}; // maps txHash to id.
 
-const idToString = uint32ToHex;
-const stringToId = hexToInt;
-
-let logGame = (id, tag = "Game:") => logging(tag, id, getUserStorage(idToString(id)))();
+let logGame = (id, tag = "Game:") => logging(tag, id, userStorage.get(intToString(id)))();
 
 // Hook for rendering a game, to be replaced later by the UI frontend.
 // Default behavior: just log the updated game.
 let renderGameHook = logGame;
 
-const getGame = id => getUserStorage(idToString(id));
-const putGame = (id, game) => putUserStorage(idToString(id), game);
-const updateGame = (id, gameUpdate) => updateUserStorage(idToString(id), gameUpdate);
-const deleteGame = id => removeUserStorage(idToString(id));
-const deleteGameField = (id, field) => deleteUserStorageField(idToString(id), field);
+const games = rekeyContainer(userStorage, intToString);
+const getGame = games.get;
+const updateGame = (id, gameUpdate) => games.modify(id, merge(gameUpdate));
+const deleteGame = games.remove;
+const deleteGameField = (id, field) => games.modify(id, g => delete g[field]);
 
-const getGameID = () => {
-    const gameID = nextID++;
-    putUserStorage("nextID", nextID);
-    return gameID;
-}
+const getUnconfirmedGameId = () => {
+    const unconfirmedGameId = --previousUnconfirmedGameId;
+    userStorage.set("previousUnconfirmedGameId", previousUnconfirmedGameId);
+    return unconfirmedGameId;}
+const addUnconfirmedGame = game => {
+    const unconfirmedGameId = getUnconfirmedGameId();
+    userStorage.set(unconfirmedGameId, game);
+    return unconfirmedGameId;}
+const removeUnconfirmedGame = id => {
+    if (id === previousUnconfirmedGameId) {
+        previousUnconfirmedGameId++;
+        userStorage.set("previousUnconfirmedGameId", previousUnconfirmedGameId);}
+    removeUserStorage(id);}
+const confirmGame = (unconfirmedId, data) => {
+    const game = merge(data)(games.get(unconfirmedId));
+    const id = addGame(game);
+    removeUnconfirmedGame(id);
+    gamesByTxHash[game.txHash] = id;
+    addActiveGame(id);
+    renderGameHook(id, "Confirm Game:");
+    return id;}
 
-// : game => ()
-const registerGame = game => {
-    const id = getGameID();
-    putGame(id, game);
+
+const getGameId = () => {
+    const gameId = nextId++;
+    userStorage.set("nextId", nextId);
+    return gameId;}
+// : game => id
+const addGame = game => {
+    const id = getGameId();
+    games.set(id, game);
     activeGames[id] = true;
     if (game.txHash) {
         gamesByTxHash[game.txHash] = id;
     }
-    renderGameHook(id, "Register Game:");
-}
-
+    renderGameHook(id, "Add Game:");
+    return id;}
 const removeGame = id => {
     const g = getGame(id);
     if (g.txHash) {
-        delete gamesByTxHash[g.txHash];
-    }
+        delete gamesByTxHash[g.txHash];}
     deleteGame(id);
-    delete unconfirmedGames[idToString(id)];
+    delete unconfirmedGames[id];
     removeActiveGame(id);
     renderGameHook(id);
-    if (id == nextID - 1) {
-        nextID = id;
-        putUserStorage("nextID", nextID);
-    }
-}
+    if (id == nextId - 1) {
+        nextId = id;
+        userStorage.set("nextId", nextId);}}
 
 const addActiveGame = id => activeGames[id] = true;
 const removeActiveGame = id => delete activeGames[id];
-const activeGamesList = () => Object.keys(activeGames).map(parseDecimal);
+const activeGamesList = () => Object.keys(activeGames).map(stringToInt);
 
 const timeoutBlocks = new TinyQueue; // blocks (by number) that include a timeout.
 const blockTimeouts = {}; // for each block (by number, stringified), a set of game ids to mind.
@@ -243,19 +257,15 @@ const queueGame = (id, timeoutBlock) => {
     if (!queuedBlocks) {
         queuedBlocks = {};
         timeoutBlocks.push(timeoutBlock);
-        blockTimeouts[timeoutBlock] = queuedBlocks;
-    }
-    queuedBlocks[idToString(id)] = true;
-}
+        blockTimeouts[timeoutBlock] = queuedBlocks;}
+    queuedBlocks[id] = true;}
 
 const dismissGame = (id, game) => {
     if (!game.isDismissed) {
-        updateGame(id, {isDismissed: true});
-    }
-    delete unconfirmedGames[idToString(id)];
+        updateGame(id, {isDismissed: true});}
+    delete unconfirmedGames[id];
     removeActiveGame(id);
-    renderGameHook(id, "Dismiss Game:");
-}
+    renderGameHook(id, "Dismiss Game:");}
 
 // HOOKS TO BE PROVIDED BY THE APPLICATION
 // TODO: in a future version, have a higher-order function that takes
@@ -273,15 +283,16 @@ let processGameAtHook;
     as well as the blockNumber and txHash for the event, decode the data into a game object.
     The object can be compared to an existing game object with gameMatches() below
     to check whether their initial parameters match.
-    : (string, int, txHash) => game
+    : (string0x, int, txHash) => game
 */
 let decodeGameCreationEvent;
 
-/** Given a game as extracted by decodeGameCreationEvent, extract the blockchain data:
-    creation txHash, creation blockNumber, any session identifier or contract address, etc.
-   : Game => BlockData
+/** Given a game as extracted by decodeGameCreationEvent, extract the initial game data:
+    creation txHash, creation blockNumber, any session identifier or contract address,
+    dictionary or vector of public parameters, dictionary or vector of private variables, etc.
+   : (string0x, int, txHash) => game
 */
-let gameBlockData;
+let decodeGameEvent;
 
 /** Given game data from a game creation event, and a previously-registered game (possibly undefined),
     determine if the two match.
@@ -321,7 +332,7 @@ const processGame = id => k =>
     getConfirmedBlockNumber(block => processGameAt(block)(id)(k));
 
 const attemptGameCreation = game => func => (...args) => {
-    const id = getGameID();
+    const id = addUnconfirmedGame(game);
     // TODO: add the ID to the contract call for tracking purpose? Use the low bits of the escrow?
     // Or the high bits of the hand? No, use the commitment and the rest of the data.
     // Somehow when we restart transactions, we match them by content
@@ -329,18 +340,12 @@ const attemptGameCreation = game => func => (...args) => {
     // We could use the nonce for the transaction, but there's no atomic access to it.
     // Could we save the TxHash locally *before* sending it online? Unhappily web3 doesn't allow that:
     // < https://github.com/MetaMask/metamask-extension/issues/3475 >.
-    putGame(id, game);
     renderGameHook(id);
-    unconfirmedGames[idToString(id)] = true;
     return errbacK(func)(...args)(
-        txHash => {
-            gamesByTxHash[txHash] = id;
-            addActiveGame(id);
-            updateGame(id, {txHash});
-            renderGameHook(id);},
+        txHash => confirmGame(id, {txHash}),
         error => {
-            removeGame(id);
-            loggedAlert(error);});}
+            removeUnconfirmedGame(id);
+            return loggedAlert(error);});}
 
 const handleTimeoutQueueBefore = confirmedBlock => k => {
     if (timeoutBlocks.length == 0 || timeoutBlocks.peek() > confirmedBlock) {
@@ -348,8 +353,8 @@ const handleTimeoutQueueBefore = confirmedBlock => k => {
     } else {
         const block = timeoutBlocks.pop();
         const gameSet = popEntry(blockTimeouts, block);
-        const gameList = Object.keys(gameSet).map(stringToId);
-        forEachK(processGameAt(confirmedBlock))(gameList)(
+        const gameList = Object.keys(gameSet).map(stringToInt);
+        return forEachK(processGameAt(confirmedBlock))(gameList)(
             () => handleTimeoutQueueBefore(confirmedBlock)(k)); }}
 
 const handleTimeoutQueue = (_oldBlock, currentBlock) =>
@@ -365,32 +370,28 @@ const processNewGame = event => k => {
     }
     let id = gamesByTxHash[event.transactionHash];
     if (id) {
-        if (id.contract) {
+        const g = games.get(id);
+        if (g.contract) { // TODO: this assume one contract per game.
             // Known game. Assume blockNumber is also known and the game is rendered already.
             return k();
         }
-        // TODO LATER: triple-check that everything matches, or issue warning?
-        updateGame(id, gameBlockData(game));
-        renderGameHook(id, "Process New Game:");
+        updateGame(id, game); // TODO: have a "creation" subset of the information?
         return k();
-    } else if (!isGameInitiator(game, userAddress)) {
+    }
+    if (!isGameInitiator(game, userAddress)) {
         // A game proposed by someone else, that is relevant and not yet registered. Register it!
-        registerGame(game); // or should we keep the blockdata separate?
+        addGame(game); // or should we keep the blockdata separate?
         return k();
-    } else {
-        // Handle the case where we're player0 but we crashed between
-        // the time the transaction was published and
-        // the time we could save the txHash to localStorage,
-        // by keeping the set of interrupted games in unconfirmedGames.
-        for (let key in unconfirmedGames) {
-            const id = stringToId(key);
-            if (gameMatches(game, getGame(id))) {
-                updateGame(id, gameBlockData(game));
-                gamesByTxHash[event.transactionHash] = id;
-                renderGameHook(id, "New Game Matches:");
-                return k();
-            }
+    // Handle the case where we're player0 but we crashed between
+    // the time the transaction was published and
+    // the time we could save the txHash to localStorage,
+    // by keeping the set of interrupted games in unconfirmedGames.
+    for (let id = previousUnconfirmedId; i < 0; i++) {
+        if (gameMatches(game, getGame(id))) {
+            confirmGame(id, game);
+            return k();
         }
+    }
         // This is a relevant game of which we're the initiator,
         // but the game does not match any of those locally stored.
         // That's a big problem when the game was started with private data (i.e. salt and hand0).
@@ -398,7 +399,7 @@ const processNewGame = event => k => {
         // (the bad case is when the state was lost because localStorage isn't atomic).
         // The frontend needs to warn the user somehow that they better reactivate
         // the client that has the data before they timeout, or tell them about their lost.
-        registerGame(game);
+        addGame(game);
         return k();
     }
 }
@@ -418,31 +419,30 @@ const initGame = id => {
     if (game.txHash) {
         gamesByTxHash[game.txHash] = id;
     } else {
-        unconfirmedGames[idToString(id)] = true;
+        unconfirmedGames[id] = true;
     }
     if (!game.isCompleted && !game.isDismissed) { addActiveGame(id); }
     renderGameHook(id, "Init Game:");
 }
 
-const initGames = k => { for(let i=0;i<nextID;i++) {initGame(i)}; return k(); }
+const initGames = k => { for(let i=0;i<nextId;i++) {initGame(i)}; return k(); }
 
-const resumeGames = k => forEachK(processGame)(range(0, nextID))(k);
-
-
+const resumeGames = k => forEachK(processGame)(range(previousUnconfirmedId, nextId-previousUnconfirmedId))(k);
 
 /** : Kont() */
 const initRuntime = k => {
-    networkID = getNetworkID();
+    networkId = getNetworkId();
     userAddress = getUserAddress(); // NB: assuming a call to .toLowercase() is redundant
     if (!userAddress) {
         loggedAlert(`Your user address is undefined. \
 Please reload this page with metamask enabled and an account selected.`)
     }
-    config = networkConfig[networkID];
-    userID = `${networkID}.${userAddress}`;
-    nextUnprocessedBlock = getUserStorage("nextUnprocessedBlock", 0);
+    config = networkConfig[networkId];
+    userId = `${networkId}.${userAddress}`;
+    nextUnprocessedBlock = userStorage.get("nextUnprocessedBlock", 0);
     watchBlockchain();
-    nextID = getUserStorage("nextID", 0);
+    nextId = userStorage.get("nextId", 0);
+    previousUnconfirmedId = userStorage.get("previousUnconfirmedId", 0);
     // For debugging purposes only:
     newBlockHooks["newBlock"] = (from, to) => loggingK("newBlock! from:", from, "to:", to)();
     return k();
