@@ -160,6 +160,7 @@
 (struct we:match@ whole-expr (@ e m be) #:transparent)
 (struct we:send whole-expr (e) #:transparent)
 (struct we:recv whole-expr () #:transparent)
+(struct we:assert! whole-expr (assume? what why) #:transparent)
 
 (define we:unit (we:con (void)))
 (define (we:seq f s)
@@ -212,6 +213,8 @@
      (we:if (rec ce) (rec `(begin ,@te)) (rec `(cond ,@more)))]
     [`(if ,ce ,te ,fe)
      (we:if (rec ce) (rec te) (rec fe))]
+    [`(assert! ,ce) (we:assert! #f (rec ce) "Assertion")]
+    [`(require! ,ce) (we:assert! #t (rec ce) "Require")]
     [`(msg ,m) (we:msg (wm-parse m))]
     [`(! ,e) (we:send (rec e))]
     [`(?) (we:recv)]
@@ -270,7 +273,9 @@
     [(we:send e)
      (list `(! ,(we-emit1 e)))]
     [(we:recv)
-     (list `(?))]))
+     (list `(?))]
+    [(we:assert! assume? what why)
+     (list `(,(if assume? 'require! 'assert!) ,(we-emit1 what)))]))
 (define (wp-emit wp)
   (match-define (wp:program part->st n->fun in) wp)
   `(program ,@(for/list ([p (in-list (sort-symbols (hash-keys part->st)))])
@@ -296,7 +301,8 @@
         (define n2x @ N1 (- z n1x))
         (define n1x @ N2 (- z n2x))
         [N1 -> N2 : n2x]
-        [N2 -> N1 : n1x])))
+        [N2 -> N1 : n1x]
+        (assert! (= z (+ n1x n2x))))))
   (define wp:adds (wp-parse wp:adds-se))
   (chk (wp-parse (wp-emit wp:adds)) wp:adds))
 
@@ -325,6 +331,8 @@
        (de:if (rec ce) (rec te) (rec fe))]
       [(we:app op args)
        (de:app op (map rec args))]
+      [(we:assert! assume? what why)
+       (de:assert! assume? (rec what) why)]
       [(we:msg m)
        (define (wm-make m)
          (match m
@@ -341,7 +349,8 @@
               [(set-member? Γ ek-v)
                (de:app 'msg-enc (list (wm-make im) (de:var ek-v)))]
               [else
-               (error 'wp-epp "~e does not know enough to construct message ~e: ~e" me m ek)])]))
+               (error 'wp-epp "~e does not know enough to construct message ~e: ~e"
+                      me m ek)])]))
        (wm-make m)]
       [(we:match@ @ e m be)
        (define (wm-match Γ mv m k)
@@ -385,7 +394,8 @@
                (we:let@ me nv (we:msg m)
                         (wm-match (set-add Γ nv) nv (wm:var mv) k))]
               [else
-               (error 'wp-epp "~e does not know enough to receive message ~e: ~e or inv" me m ek)])]))
+               (error 'wp-epp "~e does not know enough to receive message ~e: ~e or inv"
+                      me m ek)])]))
        (cond
          [(or (not @) (eq? @ me))
           (define mv (freshen 'wm-recv))
@@ -443,7 +453,7 @@
 (struct de:app direct-expr (op args) #:transparent)
 (struct de:send direct-expr (e) #:transparent)
 (struct de:recv direct-expr () #:transparent)
-(struct de:assert direct-expr (assume? what msg) #:transparent)
+(struct de:assert! direct-expr (assume? what msg) #:transparent)
 
 (define (de-parse operation? se)
   (define (rec se) (de-parse operation? se))
@@ -460,8 +470,8 @@
     [`(cond [,ce ,@te] ,more ..1)
      (de:if (rec ce) (rec `(begin ,@te)) (rec `(cond ,@more)))]
     [`(if ,ce ,te ,fe) (de:if (rec ce) (rec te) (rec fe))]
-    [`(require! ,ae ,(? string? why)) (de:assert #t (rec ae) why)]
-    [`(assert! ,ae ,(? string? why)) (de:assert #f (rec ae) why)]
+    [`(require! ,ae ,(? string? why)) (de:assert! #t (rec ae) why)]
+    [`(assert! ,ae ,(? string? why)) (de:assert! #f (rec ae) why)]
     [`(?) (de:recv)]
     [`(! ,e) (de:send (rec e))]
     [(? number? n) (de:con n)]
@@ -513,7 +523,7 @@
         (list `(cond [,ces ,@tes] [else ,@fes]))])]
     [(de:send e) (list `(! ,(de-emit1 e)))]
     [(de:recv) (list `(?))]
-    [(de:assert assume? what why)
+    [(de:assert! assume? what why)
      (list `(,(if assume? 'require! 'assert!) ,(de-emit1 what) ,why))]))
 (define (dp-emit dp)
   (match-define (dp:program n->fun in) dp)
@@ -529,7 +539,7 @@
   (if (equal? f de:unit) s
       (de:let _seq_ f s)))
 (define (de:require-then c why be)
-  (de:seq (de:assert #t c why) be))
+  (de:seq (de:assert! #t c why) be))
 (define (de:let* x*xes be)
   (for/fold ([be be]) ([x*xe (in-list (reverse x*xes))])
     (de:let (car x*xe) (cdr x*xe) be)))
@@ -556,7 +566,7 @@
     [(de:app op args) (andmap da-anf? args)]
     [(de:send e) (da-anf? e)]
     [(de:recv) #t]
-    [(de:assert _ ce _) (da-anf? ce)]))
+    [(de:assert! _ ce _) (da-anf? ce)]))
 (define (dt-anf? dt)
   (match dt
     [(? da-anf? a) #t]
@@ -630,9 +640,9 @@
          [else
           (define nv (freshen 'anf-recv))
           (anf-res (list (cons nv (de:recv))) (de:var nv))])]
-      [(de:assert assume? ce why)
+      [(de:assert! assume? ce why)
        (match-define (anf-res nvs1 ce1) (da-anf n->fun ρ #f ce))
-       (anf-res (snoc nvs1 (cons (freshen 'anf-ignore) (de:assert assume? ce1 why)))
+       (anf-res (snoc nvs1 (cons (freshen 'anf-ignore) (de:assert! assume? ce1 why)))
                 de:unit)]))
   (define (de-anf n->fun ρ tail? e)
     (match-define (anf-res nvs e1) (da-anf n->fun ρ tail? e))
@@ -817,7 +827,7 @@
        (define nh-t (ht:seq (hs:set! v (ha:var MSG)) (de-state nh '() b k)))
        (hash-set! n->h nh (hh:handler nh-t))
        (ht:wait nh pre-sends)]
-      [(de:let v (de:assert assume? what why) b)
+      [(de:let v (de:assert! assume? what why) b)
        (unless ignore-n
          (error 'dp-state "Cannot ignore if no recv"))
        (ht:seq (hs:assert! ignore-n assume? (da-state what) why)
@@ -1063,11 +1073,14 @@
 (struct hpt:start (lab sub) #:transparent)
 (struct hpt:end (path lab sub) #:transparent)
 (struct hpt:join (lab) #:transparent)
+(struct hpt:terminate () #:transparent)
 (define (hp->tree hp)
   (define (hn->tree in)
     (match (hash-ref n->handler in #f)
       [#f
-       (hpt:join in)]
+       (if (eq? in HALT)
+         (hpt:terminate)
+         (hpt:join in))]
       [(hh:handler ht)
        (hash-remove! n->handler in)
        (hpt:start in (ht->tree empty ht))]))
@@ -1092,7 +1105,7 @@
 (define (hp->dot! hp fp)
   (define (add-for-hpt! from path hpt)
     (match hpt
-      [(hpt:join lab) (void)]
+      [(or (hpt:terminate) (hpt:join _)) (void)]
       [(hpt:start lab sub)
        (add-for-hpt! lab '() sub)]
       [(hpt:branch left right)
@@ -1114,10 +1127,12 @@
 
   (define (render-he e)
     (match e
-      [(he:app op args) (~a "(" op (if (empty? args) "" " ") (string-join (map render-ha args)) ")")]
+      [(he:app op args)
+       (~a "(" op (if (empty? args) "" " ") (string-join (map render-ha args)) ")")]
       [a (render-ha a)]))
   (define (render-ha a)
     (match a
+      [(ha:var (== MSG)) "RECEIVE"]
       [(ha:var v) (~a v)]
       [(ha:con c) (~a c)]))
   (define (add-directed-edge! from to label)
@@ -1138,7 +1153,71 @@
   (for ([(r hp) (in-hash hp-epp)])
     (hp->dot! hp (~a r ".dot"))))
 
-;; XXX extract to Z3
+(define (hp->paths hp)
+  (define hpt (hp->tree hp))
+  (define lab->tree (make-hasheq))
+  (define (hpt->paths hpt)
+    (match hpt
+      [(hpt:terminate)
+       (list empty)]
+      [(hpt:start lab sub)
+       (hash-set! lab->tree lab sub)
+       (hpt->paths sub)]
+      [(hpt:join lab)
+       (define sub (hash-ref lab->tree lab))
+       (hpt->paths sub)]
+      [(hpt:end path lab sub)
+       (map (λ (sp) (append path sp)) (hpt->paths sub))]
+      [(hpt:branch left right)
+       (append (hpt->paths left)
+               (hpt->paths right))]))
+  (hpt->paths hpt))
+(define (hp->z3! hp fp)
+  (define (render-he e)
+    (match e
+      [(he:app op args)
+       (cons op (map render-ha args))]
+      [a (render-ha a)]))
+  (define (render-ha a)
+    (match a
+      [(ha:var v) v]
+      [(ha:con c) c]))
+  
+  (match-define (hp:program args vs _ _) hp)
+  (define ps (hp->paths hp))
+  (with-output-to-file fp #:exists 'replace
+    (λ ()
+      (displayln ";; Automatically generated")
+      (for ([v (in-list (append args vs))])
+        (writeln `(declare-const ,v XXX)))
+      (writeln `(push))
+      (for ([p (in-list ps)])
+        (for ([pc (in-list p)])
+          (match pc
+            [(hpp:set! x (ha:var (== MSG))) (void)]
+            [(hpp:set! x xe)
+             (writeln `(assert (= ,x ,(render-he xe))))]
+            [(hpp:if not? ce)
+             (writeln
+              (if not?
+                `(assert (not ,(render-ha ce)))
+                `(assert ,(render-ha ce))))]
+            [(hpp:assert! assume? ce)
+             (cond
+               [assume?
+                (writeln `(assert ,(render-ha ce)))]
+               [else
+                (writeln `(push))
+                (writeln `(assert (not ,(render-ha ce))))
+                (writeln `(check-sat))
+                (writeln `(pop))
+                (writeln `(assert ,(render-ha ce)))])]
+            [(hpp:send! m)
+             (void)]))
+        (writeln `(pop))))))
+(define (extract-z3! hp-epp)
+  (for ([(r hp) (in-hash hp-epp)])
+    (hp->z3! hp (~a r ".z3"))))
 
 (define (extract-all! wp-se dir)
   (make-directory* dir)
@@ -1146,6 +1225,7 @@
   (define dp-epp (wp-epp wp))
   (define hp-epp (direct->handle/epp dp-epp))
   (parameterize ([current-directory dir])
-    (extract-dot! hp-epp)))
+    (extract-dot! hp-epp)
+    (extract-z3! hp-epp)))
 (module+ test
   (extract-all! wp:adds-se "Three-Party-Add"))
