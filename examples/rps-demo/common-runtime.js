@@ -238,7 +238,6 @@ const removeGame = id => {
     if (g.txHash) {
         delete gamesByTxHash[g.txHash];}
     deleteGame(id);
-    delete unconfirmedGames[id];
     removeActiveGame(id);
     renderGameHook(id);
     if (id == nextId - 1) {
@@ -263,7 +262,6 @@ const queueGame = (id, timeoutBlock) => {
 const dismissGame = (id, game) => {
     if (!game.isDismissed) {
         updateGame(id, {isDismissed: true});}
-    delete unconfirmedGames[id];
     removeActiveGame(id);
     renderGameHook(id, "Dismiss Game:");}
 
@@ -386,7 +384,7 @@ const processNewGame = event => k => {
     // Handle the case where we're player0 but we crashed between
     // the time the transaction was published and
     // the time we could save the txHash to localStorage,
-    // by keeping the set of interrupted games in unconfirmedGames.
+    // by keeping the set of interrupted games.
     for (let id = previousUnconfirmedId; id < 0; id++) {
         if (gameMatches(game, getGame(id))) {
             confirmGame(id, game);
@@ -418,8 +416,6 @@ const initGame = id => {
     if (!game) { return; }
     if (game.txHash) {
         gamesByTxHash[game.txHash] = id;
-    } else {
-        unconfirmedGames[id] = true;
     }
     if (!game.isCompleted && !game.isDismissed) { addActiveGame(id); }
     renderGameHook(id, "Init Game:");

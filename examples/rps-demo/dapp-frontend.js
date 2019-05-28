@@ -239,6 +239,13 @@ const renderGame = (id, tag) => {
     logGame(id, "(Frontend) " + tag);
     const g = getGame(id);
     if (!g || g.isDismissed) { return unrenderGame(id); }
+    if (!g.isDisplayed) {
+        if (!isGameRelevantToUser(g, userAddress)) {
+            return dismissGame(id, g);
+        } else {
+            updateGame(id, {isDisplayed: true});
+        }
+    }
     const form = findOrCreateGameForm(id);
     const player0 = (g.unconfirmedState && g.unconfirmedState.player0) || g.player0;
     const player1 = (g.unconfirmedState && g.unconfirmedState.player1) || g.player1;

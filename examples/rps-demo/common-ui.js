@@ -4,22 +4,18 @@ const htmlToElement = html => {
     const template = document.createElement('template');
     html = html.trim(); // Never return a text node of whitespace as the result
     template.innerHTML = html;
-    return template.content.firstChild;
-}
+    return template.content.firstChild;}
 
 const htmlToElements = html => {
     const template = document.createElement('template');
     template.innerHTML = html;
-    return template.content.childNodes;
-}
+    return template.content.childNodes;}
 
 const setNodeBySelector = (selector, content) => {
     const node = document.querySelector(selector);
     if (node) {
         node.innerHTML = '';
-        node.appendChild(content);
-    }
-}
+        node.appendChild(content);}}
 
 const emptyNode = () => document.createTextNode("");
 
@@ -46,5 +42,5 @@ Your address is: <a href="${config.addressExplorerUrl}${userAddress}">${userAddr
 // Have keyword parameters for that?
 const pronoun = (who, you, lowercase) => {
     const capitalized = who == you ? "You" : "They";
-    return lowercase ? capitalized.toLowerCase() : capitalized; }
+    return lowercase ? capitalized.toLowerCase() : capitalized;}
 

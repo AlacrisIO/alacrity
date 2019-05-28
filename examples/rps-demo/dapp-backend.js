@@ -166,13 +166,6 @@ const decodeGameEvent_ = (data, blockNumber, topic, msgTxHash) => {
     loggedAlert(`Unrecognized topic ${{data, blockNumber, topic, msgTxHash}}`);
 }
 
-const TODO = () =>
-{
-    if (!isGameRelevantToUser(game, userAddress)) {
-        return k();
-    }
-}
-
 // RECEIVING DATA FROM THE BLOCKCHAIN
 
 // Given game data (from a decoded game creation event) and game (from local user storage),
