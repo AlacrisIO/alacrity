@@ -970,9 +970,9 @@
   (hhn-eval
    (hasheq)
    (for/hasheq ([a (in-list args)])
-    (values a
-            (hash-ref init-vs a
-                      (λ () (error 'hhn-eval "No value for argument ~e" a)))))
+     (values a
+             (hash-ref init-vs a
+                       (λ () (error 'hhn-eval "No value for argument ~e" a)))))
    top #f))
 
 (module+ test
@@ -1052,45 +1052,66 @@
 
 ;; XXX extract to strand space (cpsa)
 
-(define (hp->dot! hp fp)
-  (struct :set! (x xe))
-  (struct :if (not? ce))
-  (struct :assert! (assume? what))
-  (struct :send! (msg))
-  
-  (define (add-for-handler! in)
+(struct hp-path () #:transparent)
+(struct hpp:set! (x xe))
+(struct hpp:if (not? ce))
+(struct hpp:assert! (assume? what))
+(struct hpp:send! (msg))
+
+(struct hp-tree () #:transparent)
+(struct hpt:branch (left right) #:transparent)
+(struct hpt:start (lab sub) #:transparent)
+(struct hpt:end (path lab sub) #:transparent)
+(struct hpt:join (lab) #:transparent)
+(define (hp->tree hp)
+  (define (hn->tree in)
     (match (hash-ref n->handler in #f)
-      [#f (void)]
+      [#f
+       (hpt:join in)]
       [(hh:handler ht)
        (hash-remove! n->handler in)
-       (add-for-tail! (list in) ht)]))
-  (define (add-for-tail! path ht)
+       (hpt:start in (ht->tree empty ht))]))
+  (define (ht->tree path ht)
     (match ht
       [(ht:seq (hs:assert! target assume? what why) ht)
-       (add-for-tail! (cons (if assume?
-                              (:assert! #t what)
-                              (:assert! #f what))
-                            path)
-                      ht)]
+       (ht->tree (cons (hpp:assert! assume? what) path) ht)]
       [(ht:seq (hs:set! x xe) ht)
-       (add-for-tail! (cons (:set! x xe) path) ht)]
+       (ht->tree (cons (hpp:set! x xe) path) ht)]
       [(ht:if ce tt ft)
-       (add-for-tail! (cons (:if #f ce) path) tt)
-       (add-for-tail! (cons (:if #t ce) path) ft)]
+       (hpt:branch
+        (ht->tree (cons (hpp:if #f ce) path) tt)
+        (ht->tree (cons (hpp:if #t ce) path) ft))]
       [(ht:wait* ns msgs recv?)
-       (match-define (cons from path-cs) (reverse (append (map :send! msgs) path)))
+       (hpt:end (reverse (append (map hpp:send! msgs) path))
+                ns
+                (hn->tree ns))]))
+  (match-define (hp:program args vs n->handler-imm in) hp)
+  (define n->handler (hash-copy n->handler-imm))
+  (hn->tree in))
+
+(define (hp->dot! hp fp)
+  (define (add-for-hpt! from path hpt)
+    (match hpt
+      [(hpt:join lab) (void)]
+      [(hpt:start lab sub)
+       (add-for-hpt! lab '() sub)]
+      [(hpt:branch left right)
+       (add-for-hpt! from path left)
+       (add-for-hpt! from path right)]
+      [(hpt:end path to sub)
        (add-directed-edge!
-        from ns
+        from to
         (string-join
-         (for/list ([pc (in-list path-cs)])
+         (for/list ([pc (in-list path)])
            (match pc
-             [(:set! x xe) (~a x " := " (render-he xe))]
-             [(:if not? ce) (~a "IF " (if not? "!" "") (render-ha ce))]
-             [(:assert! assume? ce) (~a (if assume? "ASSUME" "ASSERT") " "
-                                        (render-ha ce))]
-             [(:send! m) (~a "+" (render-ha m))]))
+             [(hpp:set! x xe) (~a x " := " (render-he xe))]
+             [(hpp:if not? ce) (~a "IF " (if not? "!" "") (render-ha ce))]
+             [(hpp:assert! assume? ce) (~a (if assume? "ASSUME" "ASSERT") " "
+                                           (render-ha ce))]
+             [(hpp:send! m) (~a "+" (render-ha m))]))
          "\n"))
-       (add-for-handler! ns)]))
+       (add-for-hpt! to #f sub)]))
+
   (define (render-he e)
     (match e
       [(he:app op args) (~a "(" op (if (empty? args) "" " ") (string-join (map render-ha args)) ")")]
@@ -1102,7 +1123,6 @@
   (define (add-directed-edge! from to label)
     (printf "\"~a\" -> \"~a\" [label = \"~a\"];\n" from to label))
   (match-define (hp:program args vs n->handler-imm in) hp)
-  (define n->handler (hash-copy n->handler-imm))
   (with-output-to-file fp #:exists 'replace
     (λ ()
       (printf "digraph {\n")
@@ -1111,7 +1131,7 @@
       (for ([in (in-hash-keys n->handler-imm)])
         (printf "\tnode [ shape = circle, label = \"~a\" ] \"~a\";\n" in in))
       (add-directed-edge! 'START in "")
-      (add-for-handler! in)
+      (add-for-hpt! #f #f (hp->tree hp))
       (printf "}\n")))
   (system* (find-executable-path "dot") "-O" "-Tpng" fp))
 (define (extract-dot! hp-epp)
