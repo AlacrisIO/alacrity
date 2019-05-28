@@ -13,9 +13,10 @@
          ht-emit
          hp:program hp:program?
          hh:handler hh:handler?
-         handle-tail? ht:set!& ht:if ht:wait* ht:jump ht:wait ht:stop
          handle-arg? ha:con ha:var
-         handle-expr? he:app)
+         handle-expr? he:app
+         handle-stmt? hs:set! hs:assert!
+         handle-tail? ht:seq ht:if ht:wait* ht:jump ht:wait ht:stop)
 
 (require racket/match
          racket/format
@@ -74,7 +75,6 @@
   ;; XXX fill this out and make real
   (hasheq 'random (priminfo random)
           'digest (priminfo equal-hash-code)
-          'require (priminfo (λ (b [msg "failure"]) (unless b (error msg))))
           '+ (priminfo +)
           '- (priminfo -)
           '= (priminfo =)
@@ -349,7 +349,7 @@
            [(wm:var v)
             (cond
               [(set-member? Γ v)
-               (de:ignore-unless
+               (de:require-then
                 ;; XXX insert coercion from bytes based on type, we know
                 (de:app 'equal? (list mv (de:var v)))
                 (~a mv " not equal to " v)
@@ -360,7 +360,7 @@
            [(wm:cat lm rm)
             (define lv (freshen 'wm-recv-catL))
             (define rv (freshen 'wm-recv-catR))
-            (de:ignore-unless
+            (de:require-then
              (de:app 'msg-cat? (list mv))
              (~a mv " not concatenation")
              (de:let* (list (cons lv (de:app 'msg-left (list mv)))
@@ -374,7 +374,7 @@
               [(set-member? Γ inv-ek-v)
                (define imv (freshen 'wm-recv-dec))
                (define inv-ek-a (de:var inv-ek-v))
-               (de:ignore-unless
+               (de:require-then
                 (de:app 'msg-enc? (list mv inv-ek-a))
                 (~a mv " not encrypted with " inv-ek-a)
                 (de:let* (list
@@ -443,7 +443,7 @@
 (struct de:app direct-expr (op args) #:transparent)
 (struct de:send direct-expr (e) #:transparent)
 (struct de:recv direct-expr () #:transparent)
-(struct de:ignore direct-expr (why) #:transparent)
+(struct de:assert direct-expr (assume? what msg) #:transparent)
 
 (define (de-parse operation? se)
   (define (rec se) (de-parse operation? se))
@@ -459,9 +459,9 @@
      (rec `(begin ,@fe))]
     [`(cond [,ce ,@te] ,more ..1)
      (de:if (rec ce) (rec `(begin ,@te)) (rec `(cond ,@more)))]
-    [`(if ,ce ,te ,fe)
-     (de:if (rec ce) (rec te) (rec fe))]
-    [`(ignore! ,(? string? why)) (de:ignore why)]
+    [`(if ,ce ,te ,fe) (de:if (rec ce) (rec te) (rec fe))]
+    [`(require! ,ae ,(? string? why)) (de:assert #t (rec ae) why)]
+    [`(assert! ,ae ,(? string? why)) (de:assert #f (rec ae) why)]
     [`(?) (de:recv)]
     [`(! ,e) (de:send (rec e))]
     [(? number? n) (de:con n)]
@@ -511,14 +511,16 @@
         (list `(unless ,ces ,@fes))]
        [else
         (list `(cond [,ces ,@tes] [else ,@fes]))])]
-    [(de:send e) (list `(! ,@(de-emit e)))]
+    [(de:send e) (list `(! ,(de-emit1 e)))]
     [(de:recv) (list `(?))]
-    [(de:ignore why) (list `(ignore! ,why))]))
+    [(de:assert assume? what why)
+     (list `(,(if assume? 'require! 'assert!) ,(de-emit1 what) ,why))]))
 (define (dp-emit dp)
   (match-define (dp:program n->fun in) dp)
-  `(program ,@(for/list ([f (in-list (cons in (sort-symbols (remove in (hash-keys n->fun)))))])
-                (match-define (df:fun args body) (hash-ref n->fun f))
-                `(define (,f ,@args) ,@(de-emit body)))))
+  `(program
+    ,@(for/list ([f (in-list (cons in (sort-symbols (remove in (hash-keys n->fun)))))])
+        (match-define (df:fun args body) (hash-ref n->fun f))
+        `(define (,f ,@args) ,@(de-emit body)))))
 
 ;; XXX checker for direct-style: type correct, no recursion
 
@@ -526,8 +528,8 @@
 (define (de:seq f s)
   (if (equal? f de:unit) s
       (de:let _seq_ f s)))
-(define (de:ignore-unless c why be)
-  (de:seq (de:if c de:unit (de:ignore why)) be))
+(define (de:require-then c why be)
+  (de:seq (de:assert #t c why) be))
 (define (de:let* x*xes be)
   (for/fold ([be be]) ([x*xe (in-list (reverse x*xes))])
     (de:let (car x*xe) (cdr x*xe) be)))
@@ -554,7 +556,7 @@
     [(de:app op args) (andmap da-anf? args)]
     [(de:send e) (da-anf? e)]
     [(de:recv) #t]
-    [(de:ignore why) #t]))
+    [(de:assert _ ce _) (da-anf? ce)]))
 (define (dt-anf? dt)
   (match dt
     [(? da-anf? a) #t]
@@ -628,8 +630,9 @@
          [else
           (define nv (freshen 'anf-recv))
           (anf-res (list (cons nv (de:recv))) (de:var nv))])]
-      [(de:ignore why)
-       (anf-res (list (cons (freshen 'anf-ignore) (de:ignore why)))
+      [(de:assert assume? ce why)
+       (match-define (anf-res nvs1 ce1) (da-anf n->fun ρ #f ce))
+       (anf-res (snoc nvs1 (cons (freshen 'anf-ignore) (de:assert assume? ce1 why)))
                 de:unit)]))
   (define (de-anf n->fun ρ tail? e)
     (match-define (anf-res nvs e1) (da-anf n->fun ρ tail? e))
@@ -675,10 +678,21 @@
 (define HALT (gensym 'HALT))
 (struct hh:handler (ht) #:transparent)
 
+(struct handle-arg () #:transparent)
+(struct ha:var handle-arg (v) #:transparent)
+(struct ha:con handle-arg (b) #:transparent)
+
+(struct handle-expr () #:transparent)
+(struct he:app handle-expr (op args) #:transparent)
+
+(struct handle-stmt () #:transparent)
+(struct hs:set! (x xe) #:transparent)
+(struct hs:assert! (target assume? what why) #:transparent)
+
 (struct handle-tail () #:transparent)
-(struct ht:set!& handle-tail (x xe ht) #:transparent)
+(struct ht:seq handle-tail (s ht) #:transparent)
 (struct ht:if handle-tail (ce tt ft) #:transparent)
-(struct ht:wait* handle-tail (ns msgs recv?) #:transparent)
+(struct ht:wait* handle-tail (target msgs recv?) #:transparent)
 
 (define (ht:jump ns msgs)
   (ht:wait* ns msgs #f))
@@ -686,13 +700,6 @@
   (ht:wait* ns msgs #t))
 (define (ht:stop msgs)
   (ht:jump HALT msgs))
-
-(struct handle-arg () #:transparent)
-(struct ha:var handle-arg (v) #:transparent)
-(struct ha:con handle-arg (b) #:transparent)
-
-(struct handle-expr () #:transparent)
-(struct he:app handle-expr (op args) #:transparent)
 
 (define (ha-parse se)
   (match se
@@ -709,7 +716,11 @@
   (define (rec se) (ht-parse handler? se))
   (match se
     [`(begin (set! ,(? symbol? x) ,xe) ,@more)
-     (ht:set!& x (he-parse xe) (rec `(begin ,@more)))]
+     (ht:seq (hs:set! x (he-parse xe)) (rec `(begin ,@more)))]
+    [`(begin (require! ,target ,what ,why) ,@more)
+     (ht:seq (hs:assert! target #t (ha-parse what) why (rec `(begin ,@more))))]
+    [`(begin (assert! ,target ,what ,why) ,@more)
+     (ht:seq (hs:assert! target #f (ha-parse what) why (rec `(begin ,@more))))]
     [`(begin (cond [,ce ,@tes] [else ,@fes]))
      (ht:if (he-parse ce) (rec `(begin ,@tes)) (rec `(begin ,@fes)))]
     [`(begin (send! ,msgs) ... (,(and which (or 'jump! 'wait!)) ,(? handler? ns)))
@@ -743,13 +754,18 @@
     [(he:app op args)
      `(,op ,@(map ha-emit args))]
     [x (ha-emit x)]))
+(define (hs-emit hs)
+  (match hs
+    [(hs:set! x xe)
+     `(set! ,x ,(he-emit xe))]
+    [(hs:assert! target assume? what why)
+     `(,(if assume? 'require! 'assert!) ,target ,(ha-emit what) ,why)]))
 (define (ht-emit ht)
   (define (sends-emit msgs)
     (if (empty? msgs) '() (list `(send! ,@(map ha-emit msgs)))))
   (match ht
-    [(ht:set!& x xe ht)
-     (cons `(set! ,x ,(he-emit xe))
-           (ht-emit ht))]
+    [(ht:seq hs ht)
+     (cons (hs-emit hs) (ht-emit ht))]
     [(ht:if ce tt ft)
      (list `(cond [,(he-emit ce) ,@(ht-emit tt)]
                   [else ,@(ht-emit ft)]))]
@@ -758,11 +774,12 @@
              (list `(,(if recv? 'wait! 'jump!) ,ns)))]))
 (define (hp-emit hp)
   (match-define (hp:program args vs n->han in) hp)
-  `(program (,@args)
-            (define-values ,vs)
-            ,@(for/list ([f (in-list (cons in (sort-symbols (remove in (hash-keys n->han)))))])
-                (match-define (hh:handler ht) (hash-ref n->han f))
-                `(define (,f) ,@(ht-emit ht)))))
+  `(program
+    (,@args)
+    (define-values ,vs)
+    ,@(for/list ([f (in-list (cons in (sort-symbols (remove in (hash-keys n->han)))))])
+        (match-define (hh:handler ht) (hash-ref n->han f))
+        `(define (,f) ,@(ht-emit ht)))))
 
 ;; XXX checker for handler-style: type correct, no recursion
 
@@ -787,24 +804,24 @@
        (define bh (freshen 'let-if-body))
        (hash-set! n->h bh (hh:handler (de-state ignore-n '() b k)))
        (define (bk a pre-sends)
-         (ht:set!& v a (ht:jump bh pre-sends)))
+         (ht:seq (hs:set! v a) (ht:jump bh pre-sends)))
        (ht:if (da-state ca) (de-state ignore-n pre-sends te bk)
               (de-state ignore-n pre-sends fe bk))]
       [(de:let v (de:app op args) b)
-       (ht:set!& v (he:app op (das-state args))
-                 (de-state ignore-n pre-sends b k))]
+       (ht:seq (hs:set! v (he:app op (das-state args)))
+               (de-state ignore-n pre-sends b k))]
       [(de:let v (de:send a) b)
        (de-state ignore-n (snoc pre-sends (da-state a)) b k)]
       [(de:let v (de:recv) b)
        (define nh (freshen 'recv))
-       (define nh-t (ht:set!& v (ha:var MSG) (de-state nh '() b k)))
+       (define nh-t (ht:seq (hs:set! v (ha:var MSG)) (de-state nh '() b k)))
        (hash-set! n->h nh (hh:handler nh-t))
        (ht:wait nh pre-sends)]
-      [(de:let v (de:ignore why) b)
+      [(de:let v (de:assert assume? what why) b)
        (unless ignore-n
          (error 'dp-state "Cannot ignore if no recv"))
-       ;; XXX Undo state changes
-       (ht:wait ignore-n empty)]))
+       (ht:seq (hs:assert! ignore-n assume? (da-state what) why)
+               (de-state ignore-n pre-sends b k))]))
   (define (collect-vars e)
     (match e
       [(de:if ca te fe)
@@ -898,33 +915,46 @@
 
 ;; Evaluation in simulator
 (define (hp-eval who send! recv! hp init-vs)
-  (define (ha-eval ha)
+  (define (ha-eval Σ ha)
     (match ha
       [(ha:con b) b]
       [(ha:var v) (hash-ref Σ v)]))
-  (define (he-eval he)
+  (define (he-eval Σ he)
     (match he
       [(he:app op args)
        (match (hash-ref primitive->info op #f)
          [(? priminfo? p)
           (apply (priminfo-rkt p)
-                 (map ha-eval args))]
+                 (map (λ (a) (ha-eval Σ a)) args))]
          [_
           (error 'he-eval "op ~e not implemented" op)])]
-      [_ (ha-eval he)]))
+      [_ (ha-eval Σ he)]))
   (define (send*! msgs)
     (for-each send! msgs))
-  (define (ht-eval ht)
+  (define (hs-eval n->Σ Σ hs k)
+    (match hs
+      [(hs:assert! target assume? what why)
+       (cond
+         [(ha-eval Σ what)
+          (k Σ)]
+         [assume?
+          (eprintf "[~a] require violation: ~a\n" who what)
+          (hhn-eval n->Σ (hash-ref n->Σ target) target (recv!))]
+         [else
+          (error 'hp-eval "[~a] assert violation: ~a" who what)])]
+      [(hs:set! x xe)
+       (k (hash-set Σ x (he-eval Σ xe)))]))
+  (define (ht-eval n->Σ Σ ht)
     (match ht
-      [(ht:set!& x xe ht)
-       (hash-set! Σ x (he-eval xe))
-       (ht-eval ht)]
+      [(ht:seq s ht)
+       (hs-eval n->Σ Σ s
+                (λ (Σ1) (ht-eval n->Σ Σ1 ht)))]
       [(ht:if ce tt ft)
-       (ht-eval (if (he-eval ce) tt ft))]
+       (ht-eval n->Σ Σ (if (he-eval Σ ce) tt ft))]
       [(ht:wait* ns msgs recv?)
-       (send*! (map ha-eval msgs))
-       (hhn-eval ns (and recv? (recv!)))]))
-  (define (hhn-eval n msg-v)
+       (send*! (map (λ (a) (ha-eval Σ a)) msgs))
+       (hhn-eval n->Σ Σ ns (and recv? (recv!)))]))
+  (define (hhn-eval n->Σ Σ n msg-v)
     (cond
       [(eq? n HALT)
        (eprintf "[~a] HALT\n" who)
@@ -932,17 +962,15 @@
       [else
        (eprintf "[~a] HHN-EVAL ~a w/ ~a\n" who n msg-v)
        (match-define (hh:handler ht) (hash-ref n->h n))
-       (hash-set! Σ MSG msg-v)
-       (ht-eval ht)]))
+       (ht-eval (hash-set n->Σ n Σ) (hash-set Σ MSG msg-v) ht)]))
   (match-define (hp:program args vs n->h top) hp)
-  (define Σ (make-hasheq))
-  (for ([a (in-list args)])
-    (hash-set!
-     Σ a
-     (hash-ref init-vs a
-               (λ () (error 'hhn-eval "No value for argument ~e" a)))))
-
-  (hhn-eval top #f))
+  (hhn-eval
+   (hasheq)
+   (for/hasheq ([a (in-list args)])
+    (values a
+            (hash-ref init-vs a
+                      (λ () (error 'hhn-eval "No value for argument ~e" a)))))
+   top #f))
 
 (module+ test
   (define (simulate/simchain epp-hp-ht r->args)
@@ -1022,33 +1050,42 @@
 ;; XXX extract to strand space (cpsa)
 
 (define (hp->dot! hp fp)
+  (struct :set! (x xe))
+  (struct :if (not? ce))
+  (struct :assert! (assume? what))
+  (struct :send! (msg))
+  
   (define (add-for-handler! in)
     (match (hash-ref n->handler in #f)
       [#f (void)]
       [(hh:handler ht)
        (hash-remove! n->handler in)
-       (add-for-tail! empty empty in ht)]))
-  (define (add-for-tail! effs ces from ht)
+       (add-for-tail! (list in) ht)]))
+  (define (add-for-tail! path ht)
     (match ht
-      [(ht:set!& x xe ht)
-       (add-for-tail! (cons (cons x xe) effs) ces from ht)]
+      [(ht:seq (hs:assert! target assume? what why) ht)
+       (add-for-tail! (cons (if assume?
+                              (:assert! #t what)
+                              (:assert! #f what))
+                            path)
+                      ht)]
+      [(ht:seq (hs:set! x xe) ht)
+       (add-for-tail! (cons (:set! x xe) path) ht)]
       [(ht:if ce tt ft)
-       (add-for-tail! effs (cons ce ces) from tt)
-       (add-for-tail! effs (cons (list '! ce) ces) from ft)]
+       (add-for-tail! (cons (:if #f ce) path) tt)
+       (add-for-tail! (cons (:if #t ce) path) ft)]
       [(ht:wait* ns msgs recv?)
+       (match-define (cons from path-cs) (reverse (append (map :send! msgs) path)))
        (add-directed-edge!
         from ns
         (string-join
-         (append
-          (for/list ([up (in-list (reverse effs))])
-            (match-define (cons x xe) up)
-            (~a x " := " (render-he xe)))
-          (for/list ([ce (in-list (reverse ces))])
-            (~a "IF " (match ce
-                        [(list '! ce) (~a "!" (render-ha ce))]
-                        [_ (render-ha ce)])))
-          (for/list ([m (in-list msgs)])
-            (~a "+" (render-ha m))))
+         (for/list ([pc (in-list path-cs)])
+           (match pc
+             [(:set! x xe) (~a x " := " (render-he xe))]
+             [(:if not? ce) (~a "IF " (if not? "!" "") (render-ha ce))]
+             [(:assert! assume? ce) (~a (if assume? "ASSUME" "ASSERT") " "
+                                        (render-ha ce))]
+             [(:send! m) (~a "+" (render-ha m))]))
          "\n"))
        (add-for-handler! ns)]))
   (define (render-he e)
@@ -1077,7 +1114,5 @@
 (module+ test
   (for ([(r hp) (in-hash epp:hp:adds)])
     (hp->dot! hp (~a r ".dot"))))
-
-;; XXX change de:ignore to assume? / guard / rely
 
 ;; XXX extract to Z3
