@@ -852,6 +852,9 @@
   (unless (dp-anf? ap)
     (error 'direct->handle "Failed to convert to ANF"))
   (dp-state ap))
+(define (direct->handle/epp dp-epp)
+  (for/hasheq ([(r dp) (in-hash dp-epp)])
+    (values r (direct->handle dp))))
 (module+ test
   (define hp:add-some-numbers (direct->handle dp:add-some-numbers))
   (define hp:add-some-numbers-se (hp-emit hp:add-some-numbers))
@@ -1111,8 +1114,18 @@
       (add-for-handler! in)
       (printf "}\n")))
   (system* (find-executable-path "dot") "-O" "-Tpng" fp))
-(module+ test
-  (for ([(r hp) (in-hash epp:hp:adds)])
+(define (extract-dot! hp-epp)
+  (for ([(r hp) (in-hash hp-epp)])
     (hp->dot! hp (~a r ".dot"))))
 
 ;; XXX extract to Z3
+
+(define (extract-all! wp-se dir)
+  (make-directory* dir)
+  (define wp (wp-parse wp-se))
+  (define dp-epp (wp-epp wp))
+  (define hp-epp (direct->handle/epp dp-epp))
+  (parameterize ([current-directory dir])
+    (extract-dot! hp-epp)))
+(module+ test
+  (extract-all! wp:adds-se "Three-Party-Add"))
