@@ -18,10 +18,12 @@ networkConfig =
     {networkName: "Rinkeby",
      networkUrl: "https://www.rinkeby.io/",
      contract:
-     // with user-selectable timeout, from source at commit 2bb0e1977b57939e57b80a4d0aacc3cad8b4bc60
-     {address: "0x16b1565e2091ad3f66a1b298a84dcd9ba065f4e0",
-      creationHash: "0x762653dfbb2103ab7e6cad552e2e8e270e6bc83dcd9ddfd9bf5398b28f86dbbb",
-      creationBlock: 4424195},
+     {address: "0x47cf9c64f7391b52d6e102cafc6da36b3a82bb7c",
+      creationHash: "0x39175de8c54ee1968138b85ace64485a4730b399ed2fdd0798571c8e7888489e",
+      creationBlock: 4459428}, // with events at every interaction, from source at commit cb93c843f147eb5c8c96a95a8027a8483c87a85c
+     //{address: "0x16b1565e2091ad3f66a1b298a84dcd9ba065f4e0",
+     // creationHash: "0x762653dfbb2103ab7e6cad552e2e8e270e6bc83dcd9ddfd9bf5398b28f86dbbb",
+     // creationBlock: 4424195}, // with user-selectable timeout, from source at commit 2bb0e1977b57939e57b80a4d0aacc3cad8b4bc60
      // Older contracts, with older code:
      // {address: "0xd11ac337e5a79dd9ba7a5f62e24966af3229964d",
      // creationHash: "0x173829649d2b39ecf2fae45c0578ef6c692d4d780b39a06ee3e55c5d9dff8001",
