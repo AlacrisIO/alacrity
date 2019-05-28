@@ -231,7 +231,9 @@ const addGame = game => {
     if (game.txHash) {
         gamesByTxHash[game.txHash] = id;
     }
-    renderGameHook(id, "Add Game:");
+    // Don't display yet: let a later hook do it based on further confirmed state information.
+    // Indeed, if the game is irrelevant, we don't even want to have to dismiss it.
+    // renderGameHook(id, "Add Game:");
     return id;}
 const removeGame = id => {
     const g = getGame(id);
