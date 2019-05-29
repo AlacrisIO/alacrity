@@ -197,27 +197,26 @@ const deleteGame = games.remove;
 const deleteGameField = (id, field) => games.modify(id, g => {delete g[field]; return g});
 
 const getUnconfirmedGameId = () => {
-    const unconfirmedGameId = --previousUnconfirmedGameId;
-    userStorage.set("previousUnconfirmedGameId", previousUnconfirmedGameId);
-    return unconfirmedGameId;}
+    const unconfirmedId = --previousUnconfirmedId;
+    userStorage.set("previousUnconfirmedId", previousUnconfirmedId);
+    return unconfirmedId;}
 const addUnconfirmedGame = game => {
     const unconfirmedGameId = getUnconfirmedGameId();
     userStorage.set(unconfirmedGameId, game);
     return unconfirmedGameId;}
 const removeUnconfirmedGame = id => {
-    if (id === previousUnconfirmedGameId) {
-        previousUnconfirmedGameId++;
-        userStorage.set("previousUnconfirmedGameId", previousUnconfirmedGameId);}
-    removeUserStorage(id);}
+    if (id === previousUnconfirmedId) {
+        previousUnconfirmedId++;
+        userStorage.set("previousUnconfirmedId", previousUnconfirmedId);}
+    userStorage.remove(id);}
 const confirmGame = (unconfirmedId, data) => {
     const game = merge(data)(games.get(unconfirmedId));
     const id = addGame(game);
-    removeUnconfirmedGame(id);
+    removeUnconfirmedGame(unconfirmedId);
     gamesByTxHash[game.txHash] = id;
     addActiveGame(id);
     renderGameHook(id, "Confirm Game:");
     return id;}
-
 
 const getGameId = () => {
     const gameId = nextId++;
@@ -225,19 +224,20 @@ const getGameId = () => {
     return gameId;}
 // : game => id
 const addGame = game => {
+    // logging("addGame", game)();
+    if (!game) { return; }
     const id = getGameId();
     games.set(id, game);
     activeGames[id] = true;
     if (game.txHash) {
-        gamesByTxHash[game.txHash] = id;
-    }
+        gamesByTxHash[game.txHash] = id;}
     // Don't display yet: let a later hook do it based on further confirmed state information.
     // Indeed, if the game is irrelevant, we don't even want to have to dismiss it.
     // renderGameHook(id, "Add Game:");
     return id;}
 const removeGame = id => {
     const g = getGame(id);
-    if (g.txHash) {
+    if (g && g.txHash) {
         delete gamesByTxHash[g.txHash];}
     deleteGame(id);
     removeActiveGame(id);
@@ -288,7 +288,7 @@ let processGameAtHook;
 let decodeGameCreationEvent;
 
 /** Return a game event given its topic, raw event data, block number, and transaction hash.
-   : (string0x, string0x, int, txHash) => event
+   : blockchainEvent => gameEvent
 */
 let decodeGameEvent;
 
@@ -320,12 +320,12 @@ let stateUpdate;
 const processGameAt = confirmedBlock => id => k => {
     // TODO: move the beginning of this function to a common file...
     const game = getGame(id);
-    // logging("processGameAt", id, game)();
+    //logging("processGameAt", id, game)();
     if (!game // No game: It was skipped due to non-atomicity of localStorage, or Garbage-Collected.
-        || !game.confirmedState // Game issued, but no confirmed state yet. Wait for confirmation.
+        || !isGameConfirmed(game) // Game issued, but no confirmed state yet. Wait for confirmation.
         || game.isDismissed) { // Game already dismissed
         return k();}
-    if (game.confirmedState.state == State.Completed) { // Game already completed, nothing to do.
+    if (game.state == State.Completed) { // Game already completed, nothing to do.
         updateGame(id, {isCompleted: true});
         removeActiveGame(id);
         return k();}
@@ -368,24 +368,21 @@ const handleTimeoutQueue = (_oldBlock, currentBlock) =>
  */
 const processNewGame = event => k => {
     const game = decodeGameCreationEvent(event.data, event.blockNumber, event.transactionHash);
-    if (!isGameRelevantToUser(game, userAddress)) {
-        return k();
-    }
+    //logging("processNewGame", game, gamesByTxHash, event.transactionHash)();
+    if (!game || !isGameRelevantToUser(game, userAddress)) {
+        return k();}
     let id = gamesByTxHash[event.transactionHash];
-    if (id) {
+    if (id !== undefined) {
         const g = games.get(id);
-        if (g.contract) { // TODO: this assume one contract per game.
+        if (g && g.contract) { // TODO: this assume one contract per game.
             // Known game. Assume blockNumber is also known and the game is rendered already.
-            return k();
-        }
+            return k();}
         updateGame(id, game); // TODO: have a "creation" subset of the information?
-        return k();
-    }
+        return k();}
     if (!isGameInitiator(game, userAddress)) {
         // A game proposed by someone else, that is relevant and not yet registered. Register it!
         addGame(game); // or should we keep the blockdata separate?
-        return k();
-    }
+        return k();}
     // Handle the case where we're player0 but we crashed between
     // the time the transaction was published and
     // the time we could save the txHash to localStorage,
@@ -393,9 +390,7 @@ const processNewGame = event => k => {
     for (let id = previousUnconfirmedId; id < 0; id++) {
         if (gameMatches(game, getGame(id))) {
             confirmGame(id, game);
-            return k();
-        }
-    }
+            return k();}}
     // This is a relevant game of which we're the initiator,
     // but the game does not match any of those locally stored.
     // That's a big problem when the game was started with private data (i.e. salt and hand0).
@@ -411,7 +406,8 @@ const processNewGame = event => k => {
 const watchNewGames = k =>
     registerConfirmedEventHook(
         "confirmedNewGames",
-        // TODO: only track starting from 2 timeout periods in the past(?)
+        // TODO: only track starting from 2 timeout periods in the past(?),
+        // or at least from nextUnprocessedBlock? (beware any race condition there)
         config.contract.creationBlock,
         {address: config.contract.address},
         processNewGame)(k);
@@ -426,7 +422,7 @@ const initGame = id => {
     renderGameHook(id, "Init Game:");
 }
 
-const initGames = k => { for(let i=0;i<nextId;i++) {initGame(i)}; return k(); }
+const initGames = k => { for(let i=previousUnconfirmedId;i<nextId;i++) {initGame(i)}; return k(); }
 
 const resumeGames = k => forEachK(processGame)(range(previousUnconfirmedId, nextId-previousUnconfirmedId))(k);
 

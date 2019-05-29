@@ -231,12 +231,14 @@ const container = c => ({
     remove: k => delete c[k],
     modify: (k, f) => c[k] = f(c[k])})
 
+const keyValuePair = (key, value) => { let o = {}; o[key] = value; return o; }
+const defaultIfNull = (value, default_) => value === null ? default_ : value
 
 // Local Storage for the DApp
 // TODO: use (encrypted) remote storage and implement distributed transactions, for redundancy.
-const keyValuePair = (key, value) => { let o = {}; o[key] = value; return o; }
 const includesStorage = key => window.localStorage.getItem(key) != null;
-const getStorage = (key, default_ = null) => JSON.parse(window.localStorage.getItem(key)) || default_;
+const getStorage = (key, default_ = null) =>
+      defaultIfNull(JSON.parse(window.localStorage.getItem(key)), default_);
 const setStorage = (key, value) => window.localStorage.setItem(key, JSON.stringify(value));
 const Storage = {
     includes: includesStorage,

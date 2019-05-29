@@ -134,6 +134,20 @@ const submitNewGameClick = e => {
     }},
     loggedAlert), loggedAlert), loggedAlert)}
 
+const renderPlayer0 = player0 => `${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0`;
+const renderPlayer1 = player1 => `${pronoun(player1, userAddress)} ${renderAddress(player1)} as player1`;
+
+const renderEvent = (g, event) => {
+    switch (event.msgType) {
+    case MsgType.Player1ShowHand:
+        return `${renderPlayer1(event.player1)} took the challenge and played ${handName(event.hand1)} ${renderHand(event.hand1)}`;
+    case MsgType.Player0Reveal:
+        return `${renderPlayer0(g.player0)} revealed their hand ${handName(event.hand0)} ${renderHand(event.hand0)} — ${renderOutcome(event.outcome, g.player0, g.player1)}`;
+    case MsgType.Player0Rescind:
+        return `${renderPlayer0(g.player0)} rescinded the offer to play after timeout`;
+    case MsgType.Player1WinsByDefault:
+        return `${renderPlayer1(g.player1)} claimed victory by default after timeout`}}
+
 // TODO: let you override the random salt (option hidden by default).
 const renderGameChoice = () => `
         ${renderHandChoice()}
@@ -172,22 +186,22 @@ const renderCommitment = commitment =>
       commitment ?
       `<a href="data:text/plain,${commitment}">${shorten0x(commitment)}</a>` : "unknown";
 
-const renderGameOutcome = (outcome, player0, player1) =>
+const renderOutcome = (outcome, player0, player1) =>
       outcome == Outcome.Unknown ? "The game isn't complete yet" :
       outcome == Outcome.Draw ? "The game is a draw" :
-      outcome == Outcome.Player0Wins ? `${pronoun(player0, userAddress)} ${renderAddress(player0)} won as player0` :
-      outcome == Outcome.Player1Wins ? `${pronoun(player1, userAddress)} ${renderAddress(player1)} won as player1` :
-      outcome == Outcome.Player1WinsByDefault ? `${pronoun(player0, userAddress)} ${renderAddress(player0)} timed out as player0. \
-${pronoun(player1, userAddress)} ${renderAddress(player1)} won by default as player1` :
-      outcome == Outcome.Player0Rescinds ? (player1 ? `${pronoun(player1, userAddress)} ${renderAddress(player1)} timed out as player1` : "No one chose to accept the game as player1") +
-`. ${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0 rescinded the offer to play the game` :
+      outcome == Outcome.Player0Wins ? `${renderPlayer0(player0)} won` :
+      outcome == Outcome.Player1Wins ? `${renderPlayer1(player1)} won` :
+      outcome == Outcome.Player1WinsByDefault ? `${renderPlayer0} timed out and
+${renderPlayer1(player1)} won by default` :
+      outcome == Outcome.Player0Rescinds ? (player1 ? `${renderPlayer1(player1)} timed out` : "No one chose to accept the game as player1") +
+`. ${renderPlayer0(player0)} rescinded the offer to play the game` :
       "invalid outcome";
 
 const renderGameState = (state, outcome, player0, player1) =>
       state == State.uninitialized ? "Wager unconfirmed" :
-      state == State.WaitingForPlayer1 ? "Waiting for player1" :
-      state == State.WaitingForPlayer0Reveal ? "Waiting for player0 reveal" :
-      state == State.Completed ? `Completed. ${renderGameOutcome(outcome, player0, player1)}` :
+      state == State.WaitingForPlayer1 ? "Waiting for player1 to play" :
+      state == State.WaitingForPlayer0Reveal ? "Waiting for player0 to reveal his hand" :
+      state == State.Completed ? `Completed. ${renderOutcome(outcome, player0, player1)}` :
       "unknown";
 
 const inputId = e => (k, kError = kLogError) => {
@@ -247,65 +261,67 @@ const renderGame = (id, tag) => {
         }
     }
     const form = findOrCreateGameForm(id);
-    const player0 = (g.unconfirmedState && g.unconfirmedState.player0) || g.player0;
-    const player1 = (g.unconfirmedState && g.unconfirmedState.player1) || g.player1;
-    const player0Commitment = (g.unconfirmedState && g.unconfirmedState.player0Commitment) || g.player0Commitment;
-    const state = (g.unconfirmedState && g.confirmedState.state) || State.uninitialized;
-    const outcome = g.unconfirmedState && g.confirmedState.outcome;
-    const hand0 = g.hand0 || (g.unconfirmedState && g.unconfirmedState.state == State.Completed && g.unconfirmedState.hand0);
-    const hand1 = g.hand1 || (g.unconfirmedState && (g.unconfirmedState.state == State.Completed || g.unconfirmedState.state == State.WaitingForPlayer0Reveal) && g.unconfirmedState.hand1);
-    const setup = `${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0
+    const player0 = g.player0;
+    const player1 = g.player1;
+    const player1filter = g.player1filter || g.player1;
+    const player0Commitment = g.player0Commitment;
+    const state = g.state;
+    const outcome = g.outcome;
+    const hand0 = g.hand0;
+    const hand1 = g.hand1;
+    const creation = `${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0
 wagered ${renderWei(g.wagerInWei)} (plus a ${renderWei(g.escrowInWei)} escrow)
 with commitment ${renderCommitment(player0Commitment)}
-challenging ${renderAddress(player1)}
-${isValidHand(hand0) ? ` and secretly playing ${handName(hand0)} ${renderHand(hand0)}` : ""}.<br />`;
+challenging ${renderAddress(player1filter)}
+${isValidHand(hand0) ? ` and secretly playing ${handName(hand0)} ${renderHand(hand0)}` : ""}.`;
+    let error = g.error ? `<br /><font color=red>${escape(JSON.stringify(g.error))}</font>` : "";
+    let history = "";
+    for (let i in g.confirmedEvents) {
+        history += `<br />${renderEvent(g, g.confirmedEvents[i])}`;}
+    for (let i in g.unconfirmedEvents) {
+        history += `<br /><em>Unconfirmed:</em>${renderEvent(g, g.unconfirmedEvents[i])}`;}
     let current = "";
     // TODO: somehow estimate how much time there is before deadline, and
     // display both an estimated time and a countdown timer.
     // Also display when the deadline is past.
     // TODO: show a history of what happened as messages and the events emitted as their consequences.
-    switch (g.confirmedState && g.confirmedState.state) {
-
+    switch (state) {
         case State.WaitingForPlayer1:
         if (isValidHand(hand1) && player1 == userAddress) {
             // TODO: deal with non-atomicity of hand1 and player1TxHash
-            current = `You ${renderAddress(player1)} as player1 played ${handName(hand1)} ${renderHand(hand1)}. \
-Waiting for your transaction ${renderTransaction(g.player1ShowHandTxHash)} to be confirmed.` ;
+            current = `<br />${renderPlayer1(player1)} played ${handName(hand1)} ${renderHand(hand1)}.` ;
         } else if (player0 == userAddress) {
             current = player1 ?
-            `${pronoun(player1, userAddress)} ${renderAddress(player1)} as player1
-haven't accepted the wager and chosen a hand yet.` :
-            "Nobody accepted the wager and chose a hand as player1 yet.";
-        } else if (g.confirmedState.wagerInWei < ethToWei(minWagerInEth)) {
-            current = `The proposed wager ${renderWei(g.confirmedTransaction.wagerInWei)} is too low.
+            `<br />${renderPlayer1(player1)} haven't accepted the wager and chosen a hand yet.` :
+            "<br />Nobody accepted the wager and chose a hand as player1 yet.";
+        } else if (g.wagerInWei < ethToWei(minWagerInEth)) {
+            current = `<br />The proposed wager ${renderWei(g.wagerInWei)} is too low.
 DO NOT PLAY THIS GAME.`;
             g.isCompleted = true;
-        } else if (g.confirmedState.escrowInWei < wagerToEscrow(g.confirmedState.wagerInWei)) {
-            current = `The proposed escrow ${renderWei(g.confirmedTransaction.escrowInWei)} is too low.
+        } else if (g.escrowInWei < wagerToEscrow(g.wagerInWei)) {
+            current = `<br />The proposed escrow ${renderWei(g.escrowInWei)} is too low.
 DO NOT PLAY THIS GAME.`;
             g.isCompleted = true;
-        } else if (g.confirmedState.timeoutInBlocks != config.timeoutInBlocks) {
-            current = `The proposed timeout in blocks ${g.confirmedTransaction.timeoutInBlocks} isn't as expected.
+        } else if (g.timeoutInBlocks != config.timeoutInBlocks) {
+            current = `<br />The proposed timeout in blocks ${g.timeoutInBlocks} isn't as expected.
 DO NOT PLAY THIS GAME.`;
             g.isCompleted = true;
         }
-        if (!g.isCompleted && optionalAddressMatches(player1, userAddress)) {
-            current = `To accept the wager and play the game, choose a hand:<br />
+        if (!g.isCompleted && optionalAddressMatches(player1, userAddress) && !g.hand1) {
+            current += `<br />To accept the wager and play the game, choose a hand:<br />
 ${renderGameChoice()}`;
             form.addEventListener('submit', acceptGameClick);
         }
         break;
 
         case State.WaitingForPlayer0Reveal:
-        current = `${pronoun(player1, userAddress)} ${renderAddress(player1)} as player1 played ${handName(hand1)} ${renderHand(hand1)}. `;
         if (g.player0RevealTxHash) {
             // TODO: deal with non-atomicity of hand1 and player1TxHash
-            current += `You ${renderAddress(userAddress)} as player0 posted transaction ${renderTransaction(g.player0RevealTxHash)} to reveal your hand ${handName(hand0)} ${renderHand(hand0)}. Waiting for it to be confirmed.` ;
+            current += `<br />${renderPlayer0(player0)} posted transaction ${renderTransaction(g.player0RevealTxHash)} to reveal your hand ${handName(hand0)} ${renderHand(hand0)}. Waiting for it to be confirmed.` ;
         } else if (player0 == userAddress) {
-            current += `You ${renderAddress(userAddress)} as player0 should send a reveal transaction ASAP.`;
+            current += `<br />${renderPlayer0(player0)} should send a reveal transaction ASAP.`;
         } else {
-            current += `${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0 \
-haven't publicly revealed their hand yet.`;
+            current += `<br />${renderPlayer0(player0)} haven't publicly revealed their hand yet.`;
         }
         break;
 
@@ -317,23 +333,23 @@ haven't publicly revealed their hand yet.`;
         case Outcome.Player0Wins:
         case Outcome.Player1Wins:
         case Outcome.Player1WinsByDefault:
-        current = `${pronoun(player1, userAddress)} ${renderAddress(player1)} as player1 played ${handName(hand1)} ${renderHand(hand1)}. `;
+        current = `<br />${renderPlayer1(player1)} played ${handName(hand1)} ${renderHand(hand1)}. `;
         }
         switch (outcome) {
         case Outcome.Draw:
         case Outcome.Player0Wins:
         case Outcome.Player1Wins:
-        current += `${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0 revealed ${handName(hand0)} ${renderHand(hand0)}. `;
+        current += `<br />${renderPlayer0(player0)} revealed ${handName(hand0)} ${renderHand(hand0)}. `;
         }
         switch (outcome) {
         case Outcome.Player1WinsByDefault:
-        current += `${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0 timed out. `;
+        current += `<br />${renderPlayer0(player0)} timed out. `;
         }
         switch (outcome) {
         case Outcome.Player0Rescinds:
             current += player1 ?
-                `${pronoun(player1, userAddress)} ${renderAddress(player1)} as player1 timed out. ` :
-                `No one chose to accept the game. `;
+                `<br />${renderPlayer1(player1)} timed out. ` :
+                `<br />No one chose to accept the game. `;
         }
         break;
     }
@@ -343,7 +359,7 @@ haven't publicly revealed their hand yet.`;
     }
 
     if (g.isCompleted ||
-        (g.player0 != userAddress && g.confirmedState && g.confirmedState.player1 != userAddress)) {
+        (g.player0 != userAddress && g.player1 && g.player1 != userAddress)) {
         current += `<br /><button style='width: 50%;'>Dismiss</button>`;
         form.addEventListener('submit', dismissGameClick);
     }
@@ -352,7 +368,7 @@ haven't publicly revealed their hand yet.`;
 g.txHash ? `, tx ${renderTransaction(g.txHash)}` : ""}${
 g.contract ? `, contract ${renderAddress(g.contract)}` : ""}:<br />
 <em>${renderGameState(state, outcome, player0, player1)}.</em><br />
-${setup}${current}</p>`;
+${creation}${history}${current}</p>`;
     displayedGames[id] = true;
     renderActiveGameHook();
 }
@@ -369,7 +385,7 @@ and recover your ${renderWei(toBN(wagerInWei).add(escrowInWei))} stake.`;}}
 const player0RevealContext_ = (id, hand0, hand1, wagerInWei, escrowInWei) =>
         `In game ${id}, player1 showed his hand ${handName(hand1)}. \
 You must show your hand${isValidHand(hand0) ? ` ${handName(hand0)} to \
-${player0GameResultSummary(hand0, hand1, wagerInWei, escrowInWei)}` : "."}`;
+${player0OutcomeSummary(hand0, hand1, wagerInWei, escrowInWei)}` : "."}`;
 
 const player1OutcomeSummary_ = (hand0, hand1, wagerInWei, escrowInWei) => {
     switch(outcomeOfHands(hand0, hand1)) {

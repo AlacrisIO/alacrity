@@ -152,6 +152,7 @@ const decodeGameCreationEvent_ = (data, blockNumber, txHash) => {
     const wagerInWei = hexToBigNumber(x(5));
     const escrowInWei = hexToBigNumber(x(6));
     return {contract, player0, player1, timeoutInBlocks, player0Commitment, wagerInWei, escrowInWei,
+            previousBlock: blockNumber, state: State.WaitingForPlayer1, player1filter: player1,
             blockNumber, txHash}}
 decodeGameCreationEvent = decodeGameCreationEvent_
 
@@ -163,28 +164,35 @@ const MsgType = Object.freeze({
     Player1WinByDefault: 4
 });
 
-const decodeGameEvent_ = (topic, data, blockNumber, msgTxHash) => {
+const decodeGameEvent_ = event => {
+    const topic = event.topics[0];
+    const data = event.data;
+    const blockNumber = event.blockNumber;
+    const txHash = event.transactionHash;
     const x = i => data.slice(2+i*64,66+i*64);
     if (topic == topics.Player1ShowHand) {
         return {msgType: MsgType.Player1ShowHand,
                 player1: hexToAddress(x(0)),
                 hand1: hexToBigNumber(x(1)).toNumber(),
-                blockNumber, msgTxHash}
+                blockNumber, txHash}
     } else if (topic == topics.Player0Reveal) {
         return {msgType: MsgType.Player0Reveal,
                 salt: hexTo0x(x(0)),
                 hand0: hexToBigNumber(x(1)).toNumber(),
-                blockNumber, msgTxHash}
+                outcome: hexToBigNumber(x(2)).toNumber(),
+                blockNumber, txHash}
     } else if (topic == topics.Player0Rescind) {
         return {msgType: MsgType.Player0Rescind,
-                blockNumber, msgTxHash}
+                blockNumber, txHash}
     } else if (topic == topics.Player1WinByDefault) {
         return {msgType: MsgType.Player1WinByDefault,
-                blockNumber, msgTxHash}
+                blockNumber, txHash}
     }
-    loggedAlert(`Unrecognized topic ${{data, blockNumber, topic, msgTxHash}}`);
+    loggedAlert(`Unrecognized topic ${JSON.stringify({topic, data, blockNumber, txHash})}`);
 }
 decodeGameEvent = decodeGameEvent_;
+
+const isGameConfirmed = game => game.blockNumber + config.confirmationsWantedInBlocks < nextUnprocessedBlock;
 
 // kind of like require in solidity, but with an optional message-producing thunk.
 const checkRequirement = (bool, msg) => {
@@ -199,7 +207,7 @@ const checkRequirement = (bool, msg) => {
 const player1ShowHand = (g, msg, player1, hand1) => {
     checkRequirement(g.state == State.WaitingForPlayer1,
                      () => ["Event received in incorrect state", msg, g]);
-    checkRequirement(web3.isAddress(player1) && addressMatches(g.player1, player1),
+    checkRequirement(web3.isAddress(player1) && optionalAddressMatches(g.player1, player1),
                      () => ["Invalid player1 address in event", msg, g]);
     checkRequirement(isValidHand(hand1),
                      () => ["Invalid hand1 in event", msg, g]);
@@ -218,7 +226,7 @@ const player0Reveal = (g, msg, salt, hand0, outcome) => {
                      () => ["Not the hand we knew!"]);
     checkRequirement(makeCommitment(salt, hand0) == g.player0Commitment,
                      () => ["commitments do not match", msg, g]);
-    checkRequirement(outcome == gameResult(hand0, g.hand1),
+    checkRequirement(outcome == outcomeOfHands(hand0, g.hand1),
                      () => ["unexpected outcome", msg, g]);
     return merge({salt, hand0, outcome,
                   previousBlock: msg.blockNumber, state: State.Completed, isCompleted: true})(g)}
@@ -235,7 +243,7 @@ const player0Rescind = (g, msg) => {
     return merge({outcome: Outcome.Player0Rescinds,
                   previousBlock: msg.blockNumber, state: State.Completed, isCompleted: true})(g);}
 
-const player1WinByDefault = (g, msg) => {
+const player1WinsByDefault = (g, msg) => {
     checkRequirement(g.state == State.WaitingForPlayer0Reveal,
                     () => "Invalid state");
     checkTimeout(g, msg);
@@ -312,21 +320,21 @@ const processGameAtHook_ = confirmedBlock => id => k => {
     const game = getGame(id);
     // logging("processGameAt", id, game)();
     if (!game // No game: It was skipped due to non-atomicity of localStorage, or Garbage-Collected.
-        || !game.confirmedState // Game issued, but no confirmed state yet. Wait for confirmation.
+        || !isGameConfirmed(game) // Game issued, but no confirmed state yet. Wait for confirmation.
         || game.isDismissed) { // Game already dismissed
         return k();
     }
-    if (game.confirmedState.state == State.Completed) { // Game already completed, nothing to do.
+    if (game.state == State.Completed) { // Game already completed, nothing to do.
         updateGame(id, {isCompleted: true});
         removeActiveGame(id);
         return k();
     }
     if (game.player0 == userAddress &&
-        game.confirmedState.state == State.WaitingForPlayer0Reveal &&
+        game.state == State.WaitingForPlayer0Reveal &&
         !game.player0RevealTxHash) {
         const salt = game.salt;
         const hand0 = game.hand0;
-        const hand1 = game.confirmedState.hand1;
+        const hand1 = game.hand1;
         const context = player0RevealContext(id, hand0, hand1, game.wagerInWei, game.escrowInWei);
         if (salt && isValidHand(hand0)) {
             loggedAlert(`${context} Please sign the following transaction.`);
@@ -342,7 +350,7 @@ const processGameAtHook_ = confirmedBlock => id => k => {
 Be sure to start a client that has this data before the deadline.`); // TODO: print the deadline!
         }
     }
-    const timeoutBlock = game.confirmedState.previousBlock + game.confirmedState.timeoutInBlocks;
+    const timeoutBlock = game.previousBlock + game.timeoutInBlocks;
     if (confirmedBlock < timeoutBlock) {
         // We haven't yet confirmed that future blocks will be > previous + timeout
         // So add the current game to the queue, if it wasn't added yet.
@@ -350,7 +358,7 @@ Be sure to start a client that has this data before the deadline.`); // TODO: pr
         return k();
     }
     if (game.player0 == userAddress &&
-        game.confirmedState.state == State.WaitingForPlayer1) {
+        game.state == State.WaitingForPlayer1) {
         if (game.player0RescindTxHash) {
             return k();
         }
@@ -362,8 +370,8 @@ sending a transaction to recover your stake of ${renderWei(game.stakeInWei)}`);
             txHash => { updateGame(id, { player0RescindTxHash: txHash }); return k(); },
             error => { loggedAlert(error); return k(); });
     }
-    if (game.confirmedState.player1 == userAddress &&
-        game.confirmedState.state == State.WaitingForPlayer0Reveal &&
+    if (game.player1 == userAddress &&
+        game.state == State.WaitingForPlayer0Reveal &&
         !game.player1WinByDefaultTxHash) {
         const stakeInWei = toBN(game.wagerInWei).add(game.escrowInWei);
         loggedAlert(`Player0 timed out in game ${id},
@@ -407,7 +415,7 @@ const createNewGame = (wagerInWei, escrowInWei, player1, hand0) => {
 const acceptGame = (id, hand1) => {
     const game = getGame(id);
     // This test can be generated from a generic pattern on joining games.
-    if (!game.confirmedState) {
+    if (!isGameConfirmed(game)) {
         // If that's the case, make a transaction that we only send later? No, we can't with web3.
         loggedAlert(`Game ${id} isn't confirmed yet`);
         return;
@@ -418,7 +426,7 @@ const acceptGame = (id, hand1) => {
     // at the currently confirmed state of the game (... click to show state graph...),
     // which instead expects ..."
     // and/or since this is about joining a game, some more specialized message could be available.
-    if (game.confirmedState.state != State.WaitingForPlayer1) {
+    if (game.state != State.WaitingForPlayer1) {
         loggedAlert(`Game ${id} isn't open to a wager`);
         return;
     }
@@ -442,7 +450,7 @@ const acceptGame = (id, hand1) => {
 const reduceStateUpdates = (events, stateUpdate, state) => {
     if (state.error) { return state; }
     for (let i in events) {
-        try { state = stateUpdate(state, event); }
+        try { state = stateUpdate(state, events[i]); }
         catch (error) { return {...state, error}}}
     return state}
 
@@ -451,19 +459,20 @@ const processGameEvents = (id, lastUnprocessedBlock, events) => {
     const nextUnprocessedBlock = lastUnprocessedBlock - config.confirmationsWantedInBlocks + 1;
     const isConfirmed = e => e.blockNumber < nextUnprocessedBlock;
     const isUnconfirmed = e => e.blockNumber >= nextUnprocessedBlock;
-    const previouslyConfirmed = g.confirmedEvents;
+    const previouslyConfirmed = g.confirmedEvents || [];
     const newlyConfirmed = events.filter(isConfirmed);
     const confirmedEvents = [...previouslyConfirmed, ...newlyConfirmed];
     const unconfirmedEvents = events.filter(isUnconfirmed);
     const history = {confirmedEvents, unconfirmedEvents, nextUnprocessedBlock};
-    const game = reduceStateUpdates(newlyConfirmed, stateUpdate, merge(history)(game));
-    games.set(id, game);}
+    const game = reduceStateUpdates(newlyConfirmed, stateUpdate, merge(history)(g));
+    games.set(id, game);
+    renderGameHook(id);}
 
 // TODO: this function supposes a contract with a queryState approach.
 // We probably want to use event tracking instead when generating code.
 const processActiveGame = lastUnprocessedBlock => id => k => {
     const game = getGame(id);
-    logging("processActiveGame", id, lastUnprocessedBlock, game)();
+    // logging("processActiveGame", id, lastUnprocessedBlock, game)();
     if (!game || game.isCompleted) {
         removeActiveGame(id);
         return k();
@@ -476,7 +485,12 @@ const processActiveGame = lastUnprocessedBlock => id => k => {
     const toBlock = lastUnprocessedBlock;
     return web3.eth.filter({address: game.contract, fromBlock, toBlock})
         .get(handlerK(
-            events => {processGameEvents(id, lastUnprocessedBlock, events); return k();},
+            events => {
+                if (events.length > 0) {
+                    processGameEvents(id, lastUnprocessedBlock, events.map(decodeGameEvent));
+                    return processGame(id)(k);
+                } else {
+                    return k();}},
             error => logErrorK(error)(k)))}
 
 const processActiveGames = (_firstUnprocessedBlock, lastUnprocessedBlock) => k =>
