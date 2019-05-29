@@ -55,9 +55,15 @@
 ;; ht->sol : HT -> Solidity
 (define (ht->sol ht)
   (match ht
-    [(ht:set!& x xe rht)      (ht-emit ht)]
+    [(ht:seq s rht)           (ht-emit ht)]
     [(ht:if ce tt ft)         (ht-emit ht)]
     [(ht:wait* ns msgs recv?) (ht-emit ht)]))
+
+;; hs->sol : HS -> Solidity
+(define (hs->sol hs)
+  (match hs
+    [(hs:set! x xe)                       (hs-emit hs)]
+    [(hs:assert! target assume? what why) (hs-emit hs)]))
 
 ;; -----------------------------------------------
 

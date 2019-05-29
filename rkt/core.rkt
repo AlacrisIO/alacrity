@@ -11,6 +11,7 @@
          hp-parse
          hp-emit
          ht-emit
+         hs-emit
          hp:program hp:program?
          hh:handler hh:handler?
          handle-arg? ha:con ha:var
