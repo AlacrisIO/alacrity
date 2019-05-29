@@ -88,6 +88,8 @@
      (define transfer-amount (gensym 'transfer-amount))
      `(splice (define ,transfer-amount ,e)
               [#f -> ,p : ((payment ,transfer-amount))])]
+    [`(require! ,e)
+     `(require! ,(epds-expr->mpps-expr e))]
     [`(splice ,@ds)
      `(splice ,@(map epds-decl->mpps-decl ds))]))
 
@@ -120,6 +122,8 @@
      `(define ,x ,(mpps-expr->spps-expr e))]
     [`(splice ,@ds)
      `(splice ,@(map mpps-decl->spps-decl ds))]
+    [`(require! ,e)
+     `(require! ,(mpps-expr->spps-expr e))]
     [`[,p1 -> ,p2 : (,infos/payments ...)]
      (define-values [infos payments] (partition symbol? infos/payments))
      (match payments
@@ -150,6 +154,37 @@
 
 ;; ExpressionPieceDirectStyleExpr -> SinglePaymentP2PStyleExpr
 (define epds-expr->spps-expr (compose mpps-expr->spps-expr epds-expr->mpps-expr))
+
+;; ---------------------------------------------------------
+
+(module+ test
+  (define rock-paper-scissors-epds-expr
+    `(begin
+       (define wager-amount (@deposit A (input-wager)))
+       (define escrow-amount (@deposit A (input-escrow)))
+       (@ A (define A-private-sh (msg-cat (random-salt) (input-hand))))
+       (define A-commitment (@ A (digest A-private-sh)))
+       (define B-wager-amount (@deposit B wager-amount))
+       (require! (equal? B-wager-amount wager-amount))
+       (define B-hand (@ B (input-hand)))
+       (define A-sh (@ A A-private-sh))
+       (require! (equal? (digest A-sh) A-commitment))
+       (define A-hand (msg-right A-sh))
+       ;; diff = 0 -> B wins
+       ;; diff = 1 -> draw
+       ;; diff = 2 -> A wins
+       (define diff (modulo (+ A-h (- 4 B-h)) 3))
+       (cond [(equal? diff 2)
+              ; A wins
+              (transfer A (+ (* 2 wager-amount) escrow-amount))]
+             [(equal? diff 0)
+              ; B wins
+              (transfer A escrow-amount)
+              (transfer B (* 2 wager-amount))]
+             [else
+              ; draw
+              (transfer A (+ wager-amount escrow-amount))
+              (transfer B wager-amount)]))))
 
 ;; ---------------------------------------------------------
 
@@ -193,8 +228,12 @@
       (define d (compute-d))
       (transfer A (compute-q))))
 
+  #;(show
+     epds-decl
+     (epds-decl->mpps-decl epds-decl)
+     (epds-decl->spps-decl epds-decl))
+
   (show
-   epds-decl
-   (epds-decl->mpps-decl epds-decl)
-   (epds-decl->spps-decl epds-decl))
+   rock-paper-scissors-epds-expr
+   (epds-expr->spps-expr rock-paper-scissors-epds-expr))
   )
