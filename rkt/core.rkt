@@ -26,10 +26,10 @@
          racket/list
          racket/file
          racket/system
-         racket/set)
+         racket/set
+         racket/pretty)
 (module+ test
-  (require racket/pretty
-           chk))
+  (require chk))
 
 ;; Utility
 (define (snoc l x) (append l (list x)))
@@ -1060,8 +1060,6 @@
 
 ;; XXX extract to solidity
 
-;; XXX extract to strand space (cpsa)
-
 (struct hp-path () #:transparent)
 (struct hpp:set! (x xe))
 (struct hpp:if (not? ce))
@@ -1095,7 +1093,7 @@
         (ht->tree (cons (hpp:if #f ce) path) tt)
         (ht->tree (cons (hpp:if #t ce) path) ft))]
       [(ht:wait* ns msgs recv?)
-       (hpt:end (reverse (append (map hpp:send! msgs) path))
+       (hpt:end (reverse (append (map hpp:send! (reverse msgs)) path))
                 ns
                 (hn->tree ns))]))
   (match-define (hp:program args vs n->handler-imm in) hp)
@@ -1223,6 +1221,70 @@
   (for ([(r hp) (in-hash hp-epp)])
     (hp->z3! hp (~a r ".z3"))))
 
+(define (extract-cpsa! hp-epp fp)
+  (struct :rinfo (vs lab->p))
+  (define r->info
+    (for/hasheq ([(r hp) (in-hash hp-epp)])
+      (match-define (hp:program args vs _ _) hp)
+      (define ps (hp->paths hp))
+      (values r (:rinfo (append args vs)
+                        (for/hasheq ([p (in-list ps)])
+                          (values (gensym r) p))))))
+
+  (struct :skel (vs roles))
+  (define skeletons
+    (map (λ (l-of-vs*lab)
+           ;; XXX Variables may need to be tag with role
+           (:skel (set->list (apply set-union (map car l-of-vs*lab)))
+                  (map cdr l-of-vs*lab)))
+         (apply cartesian-product
+                (map (λ (ri)
+                       (match-define (:rinfo vs lab->p) ri)
+                       (map (λ (lab) (cons vs lab))
+                            (hash-keys lab->p)))
+                     (hash-values r->info)))))
+
+  (define (render-he he)
+    (match he
+      [(ha:con b) b]
+      [(ha:var v) v]
+      [(he:app op args)
+       `(,op ,@(map (λ (a) (render-he a)) args))]))
+  (define (path->trace p)
+    (for/fold ([rtr '()] #:result (reverse rtr)) ([pc (in-list p)])
+      (match pc
+        [(hpp:set! x (ha:var (== MSG)))
+         (cons `(recv ,x) rtr)]
+        [(hpp:set! x xe)
+         (cons `(set! ,x ,(render-he xe)) rtr)]
+        [(hpp:if not? ce) rtr]
+        [(hpp:assert! assume? ce) rtr]
+        [(hpp:send! m) (cons `(send ,(render-he m)) rtr)])))
+  
+  (define as-cpsa
+    `(defprotocol Alacrity basic
+       ,@(append*
+          (for/list ([(r ri) (in-hash r->info)])
+            (match-define (:rinfo vs lab->p) ri)
+            (for/list ([(lab p) (in-hash lab->p)])
+              (define tr (path->trace p))
+              `(defrole ,lab
+                 (vars ,@(for/list ([v (in-list vs)]) `(,v XXX)))
+                 (trace ,@tr)
+                 (uniq-orig XXX)))))
+       ,@(for/list ([sk (in-list skeletons)])
+           (match-define (:skel vs roles) sk)
+           `(defskeleton ,(gensym 'Alacrity)
+              (vars ,@(for/list ([v (in-list vs)]) `(,v XXX)))
+              ,@(for/list ([r (in-list roles)])
+                  `(defstrand ,r 1 ,@(for/list ([v (in-list vs)]) `(,v ,v))))
+              (non-orig XXX)))))
+  
+  (with-output-to-file fp #:exists 'replace
+    (λ ()
+      (displayln ";; Automatically generated")
+      (pretty-write as-cpsa))))
+
 (define (extract-all! wp-se dir)
   (make-directory* dir)
   (define wp (wp-parse wp-se))
@@ -1230,6 +1292,7 @@
   (define hp-epp (direct->handle/epp dp-epp))
   (parameterize ([current-directory dir])
     (extract-dot! hp-epp)
-    (extract-z3! hp-epp)))
+    (extract-z3! hp-epp)
+    (extract-cpsa! hp-epp "cpsa.scm")))
 (module+ test
   (extract-all! wp:adds-se "Three-Party-Add"))
