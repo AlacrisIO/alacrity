@@ -1,4 +1,16 @@
 #lang racket/base
+(require racket/match
+         racket/format
+         racket/port
+         racket/syntax
+         racket/string
+         racket/list
+         racket/file
+         racket/system
+         racket/set
+         racket/pretty)
+(module+ test
+  (require chk))
 
 (provide wp-parse
          wp-emit
@@ -17,19 +29,6 @@
          handle-expr? he:app
          handle-stmt? hs:set! hs:assert!
          handle-tail? ht:seq ht:if ht:wait* ht:jump ht:wait ht:stop)
-
-(require racket/match
-         racket/format
-         racket/port
-         racket/syntax
-         racket/string
-         racket/list
-         racket/file
-         racket/system
-         racket/set
-         racket/pretty)
-(module+ test
-  (require chk))
 
 ;; Utility
 (define (snoc l x) (append l (list x)))
@@ -188,14 +187,22 @@
     [`(begin (define ,(? symbol? x) @ ,(? participant? at) ,xe)
              ,@more)
      (we:let@ at x (rec xe) (rec `(begin ,@more)))]
-    [`(begin [,(? participant? from)
-              -> ,(? participant? to) : ,m] ,@more)
+    [`(begin [,(? participant? from) -> ,(? participant? to) : ,m] ,@more)
      ;; Note: It may be inappropriate to assume that to/from is
      ;; enforced with public keys. It would be possible to reify
      ;; participants names into values, but almost all uses that don't
      ;; do this seal/sign would be wrong.
      (define m0 (if to `(seal ,m ,to) m))
      (define m1 (if from `(sign ,m0 ,from) m0))
+     ;; XXX: In Solidity, signing is part of the platform. Also, you
+     ;; can't really send messages, instead you call functions. We
+     ;; could generate a single function for `receive` or we could
+     ;; generate multiple functions, but then !/? need to be
+     ;; connected.
+     ;;
+     ;; Disconnected !/? are nice for when the information on either
+     ;; side is different, but it is not necessary because you can
+     ;; construct a message separately (and bind it), then send it.
      (rec
       `(begin (define ,_seq_ @ ,from (! (msg ,m1)))
               (match @ ,to : (?) as ,m1)
@@ -391,6 +398,7 @@
                          (wm-match Γ (de:var imv) im k)))]
               [(set-member? Γ (mk->v ek))
                (define nv (freshen 'wm-recv-enc-chk))
+               ;; XXX This needs to have we-epp called on it.
                (we:let@ me nv (we:msg m)
                         (wm-match (set-add Γ nv) nv (wm:var mv) k))]
               [else
@@ -630,9 +638,8 @@
           (anf-res (snoc nvs1 (cons nv (de:app op aes1)))
                    (de:var nv))])]
       [(de:send e)
-       (define nv (freshen 'anf-send))
        (match-define (anf-res nvs1 e1) (da-anf n->fun ρ #f e))
-       (anf-res (snoc nvs1 (cons nv (de:send e1))) de:unit)]
+       (anf-res (snoc nvs1 (cons _seq_ (de:send e1))) de:unit)]
       [(de:recv)
        (cond
          [tail?
@@ -642,7 +649,7 @@
           (anf-res (list (cons nv (de:recv))) (de:var nv))])]
       [(de:assert! assume? ce why)
        (match-define (anf-res nvs1 ce1) (da-anf n->fun ρ #f ce))
-       (anf-res (snoc nvs1 (cons (freshen 'anf-ignore) (de:assert! assume? ce1 why)))
+       (anf-res (snoc nvs1 (cons _seq_ (de:assert! assume? ce1 why)))
                 de:unit)]))
   (define (de-anf n->fun ρ tail? e)
     (match-define (anf-res nvs e1) (da-anf n->fun ρ tail? e))
@@ -1119,7 +1126,7 @@
              [(hpp:if not? ce) (~a "IF " (if not? "!" "") (render-ha ce))]
              [(hpp:assert! assume? ce) (~a (if assume? "ASSUME" "ASSERT") " "
                                            (render-ha ce))]
-             [(hpp:send! m) (~a "+" (render-ha m))]))
+             [(hpp:send! m) (~a "SEND " (render-ha m))]))
          "\n"))
        (add-for-hpt! to #f sub)]))
 
@@ -1192,8 +1199,8 @@
         ;; args and vs should really be type environments and we'll
         ;; translate to Z3
         (writeln `(declare-const ,v XXX)))
-      (writeln `(push))
       (for ([p (in-list ps)])
+        (writeln `(push))
         (for ([pc (in-list p)])
           (match pc
             [(hpp:set! x (ha:var (== MSG))) (void)]
@@ -1296,3 +1303,48 @@
     (extract-cpsa! hp-epp "cpsa.scm")))
 (module+ test
   (extract-all! wp:adds-se "Three-Party-Add"))
+
+;; Notes from 2019/05/29
+
+;; === Task 1 ===
+;; Transmissions always have...
+;; - Sender
+;; - Receiver
+;; - Message payload
+;; - Asset transaction (including gas)
+
+;; msg      0. No resources
+;; built-in 1. Fixed amount of uniform resource
+;;             from Sender to Receiver
+;; built-in 2. Zero-Balance Ledger Diff on uniform resource
+;; msg      3. Ledger Diff on heterogeneous resources
+;; ----> Go with #2
+
+;; Question: What is the right way to deal with heterogeneous
+;; resources?
+
+;; === Task 2 ===
+;; Automatically add "contract/consensus"
+#;[A -> B : m #:pay p]
+;; -- solidify -->
+#;(define m1a @ A := (msg m))
+#;[ A -> #f : m1a #:pay p]
+#;[#f ->  B : m1b #:pay p]
+#;(match @ b : m1b against m)
+
+;; === Task 2.5 ===
+;; Compile to solidity
+
+;; === Task 2.75 ===
+;; Ugly syntax
+
+;; === Task 2.85 ===
+;; RPS in Alacrity
+
+;; === Task 3 ===
+;; White paper about current state of DSL
+
+;; ---------
+
+;; Question: Does ANF make sense on WP? If so, it would be nice to
+;; coalesce before EPP to generate nice names.
