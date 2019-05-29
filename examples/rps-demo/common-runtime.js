@@ -509,4 +509,6 @@ Please reload this page with metamask enabled and an account selected.`);}
 registerInit({
     Runtime: {fun: initRuntime},
     Games: {fun: initGames, dependsOn: ["Frontend"]},
-    ResumeGames: {fun: resumeGames, dependsOn: ["Games"]}})
+    ResumeGames: {fun: resumeGames, dependsOn: ["Games"]},
+    WatchNewGames: {fun: watchNewGames, dependsOn: ["ResumeGames"]},
+    WatchActiveGames: {fun: watchActiveGames, dependsOn: ["WatchNewGames"]}});

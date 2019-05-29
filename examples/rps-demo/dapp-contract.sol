@@ -223,9 +223,9 @@ contract RockPaperScissors
                         player1_gets(wager_amount);
                         player0_gets(wager_amount+escrow_amount);
                 }
-                salt = _salt;
-                hand0 = _hand0;
-                state = State.Completed;
+                salt = _salt; // Not needed in production
+                hand0 = _hand0; // Not needed in production
+                state = State.Completed; // Yes needed in production!
 
                 // Emit a relevant event.
                 // NB: the block number implicitly comes in the event itself.

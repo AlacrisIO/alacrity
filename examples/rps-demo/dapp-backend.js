@@ -307,15 +307,7 @@ var player0RevealContext;
 const processGameAtHook_ = confirmedBlock => id => k => {
     // TODO: move the beginning of this function to a common file...
     const game = getGame(id);
-    // logging("processGameAt", id, game)();
-    if (!game // No game: It was skipped due to non-atomicity of localStorage, or Garbage-Collected.
-        || !isGameConfirmed(game) // Game issued, but no confirmed state yet. Wait for confirmation.
-        || game.isDismissed) { // Game already dismissed
-        return k();}
-    if (game.state == State.Completed) { // Game already completed, nothing to do.
-        updateGame(id, {isCompleted: true});
-        removeActiveGame(id);
-        return k();}
+    // logging("processGameAtHook_", id, game)();
     if (game.player0 == userAddress &&
         game.state == State.WaitingForPlayer0Reveal &&
         !game.player0RevealTxHash) {
@@ -435,6 +427,4 @@ const initBackend = k => {
     return k();}
 
 registerInit({
-    Backend: {fun: initBackend, dependsOn: ["Runtime"]},
-    WatchNewGames: {fun: watchNewGames, dependsOn: ["ResumeGames"]},
-    WatchActiveGames: {fun: watchActiveGames, dependsOn: ["WatchNewGames"]}});
+    Backend: {fun: initBackend, dependsOn: ["Runtime"]}})
