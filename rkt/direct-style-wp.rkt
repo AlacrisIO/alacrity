@@ -118,10 +118,10 @@
         (@ A (define A-private-sh (msg-cat (random-salt) (input-hand))))
         (define A-commitment (@ A (digest A-private-sh)))
         (define B-wager-amount (@deposit B wager-amount))
-        (require (equal? B-wager-amount wager-amount))
+        (require! (equal? B-wager-amount wager-amount))
         (define B-hand (@ B (input-hand)))
         (define A-sh (@ A A-private-sh))
-        (require (equal? (digest A-sh) A-commitment))
+        (require! (equal? (digest A-sh) A-commitment))
         (define A-hand (msg-right A-sh))
         (determine-winner A-hand B-hand wager-amount escrow-amount))
       (define (input-hand) (random 3))
@@ -149,7 +149,7 @@
   (check-match
    core-wpse
    `(program
-     (participant contract)
+     (participant contract A B)
      (participant A)
      (participant B)
      (define (main)
@@ -158,9 +158,9 @@
        (define A-d (begin (define ,temp1 @ A (digest sh1)) [A -> #f : ,temp1] ,temp1))
        (define B-d (begin (define ,temp2 @ B (digest sh2)) [B -> #f : ,temp2] ,temp2))
        (define A-sh (begin (define ,temp3 @ A sh1) [A -> #f : ,temp3] ,temp3))
-       (require (equal? (digest A-sh) A-d))
+       (require! (equal? (digest A-sh) A-d))
        (define B-sh (begin (define ,temp4 @ B sh2) [B -> #f : ,temp4] ,temp4))
-       (require (equal? (digest B-sh) B-d))
+       (require! (equal? (digest B-sh) B-d))
        (define A-h (msg-right A-sh))
        (define B-h (msg-right B-sh))
        (determine-winner A-h B-h))
