@@ -21,6 +21,14 @@
     (due to race condition with the browser crashing before localStorage was done, or use in another browser)
   * Use a post-frontend-initialization hook to only start expensive computations
     after the frontend is initialized.
+  * Handle the case where an open game was accepted by someone else already...
+    special display, and make it dismissable.
+  * Instead of polling for contract state all the time, we could have the contract emit
+    events at state transitions, and recompute the state from them.
+    That would be cheaper to compute on the client and much lighter on the node, though
+    it is involves more code to write. It might not cost more gas in the contract,
+    since emitting events and requiring users to resubmit relevant state as arguments
+    might be cheaper than storing state.
 
   TODO FOR DEMO:
 
@@ -29,20 +37,8 @@
 
   TODO LATER MAYBE:
 
-  * Handle the case where an open game was accepted by someone else already...
-    special display, and make it dismissable.
-
   * Refactor to extract a clean systematic interface between frontend and backend for user input.
-
-  * Instead of polling for contract state all the time, we could have the contract emit
-    events at state transitions, and recompute the state from them.
-    That would be cheaper to compute on the client and much lighter on the node, though
-    it is involves more code to write. It might not cost more gas in the contract,
-    since emitting events and requiring users to resubmit relevant state as arguments
-    might be cheaper than storing state.
-
   * Improve discoverability so users don't have to care too much about being player0 or player1.
-
   * Survive spamming of the chain by games to DoS clients that would run out of memory:
     Only check for new games in recent blocks; cap the number of open games;
     require a small fee for opening a game?
@@ -91,8 +87,9 @@ const State = Object.freeze({
 });
 
 
-// TODO: replace queryState and decodeState by tracking the contract events
-// and recomputing the state locally.
+// queryState & friends: Now debug only.
+// TODO: remove them from the contract and from this file.
+
 const decodeState = x => {
     let [state, outcome, timeoutInBlocks, previousBlock, player0, player1, player0Commitment, wagerInWei, escrowInWei, salt, hand0, hand1] = x;
     state = state.toNumber();
@@ -192,13 +189,10 @@ const decodeGameEvent_ = event => {
 }
 decodeGameEvent = decodeGameEvent_;
 
-const isGameConfirmed = game => game.blockNumber + config.confirmationsWantedInBlocks < nextUnprocessedBlock;
-
 // kind of like require in solidity, but with an optional message-producing thunk.
 const checkRequirement = (bool, msg) => {
     if (!bool) { throw ["Requirement failed", msg()] }}
 
-// TODO: WHAT ABOUT TIMEOUTS??? ADD THEM TO THE STATE HERE, PROCESS THEM IN THE CLIENT LATER.
 // NB: None of these checkRequirement's is useful if we trust the contract.
 // NB: if we are doing speculative execution of unconfirmed messages, though,
 // we may still check them to avoid a switcheroo attack, whereby the adversary
@@ -262,6 +256,7 @@ const stateUpdate_ = (state, event) => {
     case MsgType.Player1WinsByDefault:
         return player1WinsByDefault(state, event)}}
 stateUpdate = stateUpdate_;
+
 // RECEIVING DATA FROM THE BLOCKCHAIN
 
 // Given game data (from a decoded game creation event) and game (from local user storage),
@@ -445,63 +440,6 @@ const acceptGame = (id, hand1) => {
             updateGame(id, {player1ShowHandTxHash: txHash});
             renderGameHook(id, "Accept Game:"); },
         loggedAlert);}
-
-// fold the list of events in a variant of an error monad
-const reduceStateUpdates = (events, stateUpdate, state) => {
-    if (state.error) { return state; }
-    for (let i in events) {
-        try { state = stateUpdate(state, events[i]); }
-        catch (error) { return {...state, error}}}
-    return state}
-
-const processGameEvents = (id, lastUnprocessedBlock, events) => {
-    const g = getGame(id);
-    const nextUnprocessedBlock = lastUnprocessedBlock - config.confirmationsWantedInBlocks + 1;
-    const isConfirmed = e => e.blockNumber < nextUnprocessedBlock;
-    const isUnconfirmed = e => e.blockNumber >= nextUnprocessedBlock;
-    const previouslyConfirmed = g.confirmedEvents || [];
-    const newlyConfirmed = events.filter(isConfirmed);
-    const confirmedEvents = [...previouslyConfirmed, ...newlyConfirmed];
-    const unconfirmedEvents = events.filter(isUnconfirmed);
-    const history = {confirmedEvents, unconfirmedEvents, nextUnprocessedBlock};
-    const game = reduceStateUpdates(newlyConfirmed, stateUpdate, merge(history)(g));
-    games.set(id, game);
-    renderGameHook(id);}
-
-// TODO: this function supposes a contract with a queryState approach.
-// We probably want to use event tracking instead when generating code.
-const processActiveGame = lastUnprocessedBlock => id => k => {
-    const game = getGame(id);
-    // logging("processActiveGame", id, lastUnprocessedBlock, game)();
-    if (!game || game.isCompleted) {
-        removeActiveGame(id);
-        return k();
-    }
-    if (!game.contract) { // Nothing to watch (yet)
-        return k();
-    }
-    const kError = error => logErrorK(error)(k);
-    const fromBlock = game.nextUnprocessedBlock || game.blockNumber;
-    const toBlock = lastUnprocessedBlock;
-    return web3.eth.filter({address: game.contract, fromBlock, toBlock})
-        .get(handlerK(
-            events => {
-                if (events.length > 0) {
-                    processGameEvents(id, lastUnprocessedBlock, events.map(decodeGameEvent));
-                    return processGame(id)(k);
-                } else {
-                    return k();}},
-            error => logErrorK(error)(k)))}
-
-const processActiveGames = (_firstUnprocessedBlock, lastUnprocessedBlock) => k =>
-      forEachK(processActiveGame(lastUnprocessedBlock))(activeGamesList())(k);
-
-const watchActiveGames = k => {
-    console.log("watchActiveGames", activeGamesList());
-    newBlockHooks["confirmedActiveGames"] = processActiveGames;
-    getConfirmedBlockNumber(
-        block => processActiveGames(0, block)(k),
-        error => logErrorK(error)(k))}
 
 const topics = {}
 

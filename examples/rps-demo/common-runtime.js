@@ -313,6 +313,12 @@ let isGameInitiator;
  */
 let stateUpdate;
 
+/** Has this game been confirmed yet?
+    NB: this depends on the game having a blockNumber for its creation date (see decodeGameCreationEvent).
+   : game => bool
+ */
+const isGameConfirmed = game => game.blockNumber + config.confirmationsWantedInBlocks < nextUnprocessedBlock;
+
 /** Process a game, making all automated responses that do not require user input.
     This is perhaps the heart of the algorithm.
  */
@@ -411,6 +417,63 @@ const watchNewGames = k =>
         config.contract.creationBlock,
         {address: config.contract.address},
         processNewGame)(k);
+
+// fold the list of events in a variant of an error monad
+const reduceStateUpdates = (events, stateUpdate, state) => {
+    if (state.error) { return state; }
+    for (let i in events) {
+        try { state = stateUpdate(state, events[i]); }
+        catch (error) { return {...state, error}}}
+    return state}
+
+const processGameEvents = (id, lastUnprocessedBlock, events) => {
+    const g = getGame(id);
+    const nextUnprocessedBlock = lastUnprocessedBlock - config.confirmationsWantedInBlocks + 1;
+    const isConfirmed = e => e.blockNumber < nextUnprocessedBlock;
+    const isUnconfirmed = e => e.blockNumber >= nextUnprocessedBlock;
+    const previouslyConfirmed = g.confirmedEvents || [];
+    const newlyConfirmed = events.filter(isConfirmed);
+    const confirmedEvents = [...previouslyConfirmed, ...newlyConfirmed];
+    const unconfirmedEvents = events.filter(isUnconfirmed);
+    const history = {confirmedEvents, unconfirmedEvents, nextUnprocessedBlock};
+    const game = reduceStateUpdates(newlyConfirmed, stateUpdate, merge(history)(g));
+    games.set(id, game);
+    renderGameHook(id);}
+
+// TODO: this function supposes a contract with a queryState approach.
+// We probably want to use event tracking instead when generating code.
+const processActiveGame = lastUnprocessedBlock => id => k => {
+    const game = getGame(id);
+    // logging("processActiveGame", id, lastUnprocessedBlock, game)();
+    if (!game || game.isCompleted) {
+        removeActiveGame(id);
+        return k();
+    }
+    if (!game.contract) { // Nothing to watch (yet)
+        return k();
+    }
+    const kError = error => logErrorK(error)(k);
+    const fromBlock = game.nextUnprocessedBlock || game.blockNumber;
+    const toBlock = lastUnprocessedBlock;
+    return web3.eth.filter({address: game.contract, fromBlock, toBlock})
+        .get(handlerK(
+            events => {
+                if (events.length > 0) {
+                    processGameEvents(id, lastUnprocessedBlock, events.map(decodeGameEvent));
+                    return processGame(id)(k);
+                } else {
+                    return k();}},
+            error => logErrorK(error)(k)))}
+
+const processActiveGames = (_firstUnprocessedBlock, lastUnprocessedBlock) => k =>
+      forEachK(processActiveGame(lastUnprocessedBlock))(activeGamesList())(k);
+
+const watchActiveGames = k => {
+    console.log("watchActiveGames", activeGamesList());
+    newBlockHooks["confirmedActiveGames"] = processActiveGames;
+    getConfirmedBlockNumber(
+        block => processActiveGames(0, block)(k),
+        error => logErrorK(error)(k))}
 
 const initGame = id => {
     let game = getGame(id);
