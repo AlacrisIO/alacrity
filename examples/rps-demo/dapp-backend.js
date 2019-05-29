@@ -183,15 +183,9 @@ const decodeGameEvent_ = event => {
                 blockNumber, txHash}
     } else if (topic == topics.Player1WinByDefault) {
         return {msgType: MsgType.Player1WinByDefault,
-                blockNumber, txHash}
-    }
-    loggedAlert(`Unrecognized topic ${JSON.stringify({topic, data, blockNumber, txHash})}`);
-}
+                blockNumber, txHash}}
+    loggedAlert(`Unrecognized topic ${JSON.stringify({topic, data, blockNumber, txHash})}`);}
 decodeGameEvent = decodeGameEvent_;
-
-// kind of like require in solidity, but with an optional message-producing thunk.
-const checkRequirement = (bool, msg) => {
-    if (!bool) { throw ["Requirement failed", msg()] }}
 
 // NB: None of these checkRequirement's is useful if we trust the contract.
 // NB: if we are doing speculative execution of unconfirmed messages, though,
@@ -317,13 +311,11 @@ const processGameAtHook_ = confirmedBlock => id => k => {
     if (!game // No game: It was skipped due to non-atomicity of localStorage, or Garbage-Collected.
         || !isGameConfirmed(game) // Game issued, but no confirmed state yet. Wait for confirmation.
         || game.isDismissed) { // Game already dismissed
-        return k();
-    }
+        return k();}
     if (game.state == State.Completed) { // Game already completed, nothing to do.
         updateGame(id, {isCompleted: true});
         removeActiveGame(id);
-        return k();
-    }
+        return k();}
     if (game.player0 == userAddress &&
         game.state == State.WaitingForPlayer0Reveal &&
         !game.player0RevealTxHash) {
@@ -342,29 +334,24 @@ const processGameAtHook_ = confirmedBlock => id => k => {
                 error => {loggedAlert(error); return k();})
         } else {
             loggedAlert(`${context} However, you do not have the salt and hand data in this client.
-Be sure to start a client that has this data before the deadline.`); // TODO: print the deadline!
-        }
-    }
+Be sure to start a client that has this data before the deadline.`);}} // TODO: print the deadline!
     const timeoutBlock = game.previousBlock + game.timeoutInBlocks;
     if (confirmedBlock < timeoutBlock) {
         // We haven't yet confirmed that future blocks will be > previous + timeout
         // So add the current game to the queue, if it wasn't added yet.
         queueGame(id, timeoutBlock);
-        return k();
-    }
+        return k();}
     if (game.player0 == userAddress &&
         game.state == State.WaitingForPlayer1) {
         if (game.player0RescindTxHash) {
-            return k();
-        }
+            return k();}
         const stakeInWei = toBN(game.wagerInWei).add(game.escrowInWei);
         loggedAlert(`Player1 timed out in game ${id},
 sending a transaction to recover your stake of ${renderWei(game.stakeInWei)}`);
         // TODO register the event, don't send twice.
         return errbacK(rps(game.contract).player0_rescind)()(
             txHash => { updateGame(id, { player0RescindTxHash: txHash }); return k(); },
-            error => { loggedAlert(error); return k(); });
-    }
+            error => { loggedAlert(error); return k()})}
     if (game.player1 == userAddress &&
         game.state == State.WaitingForPlayer0Reveal &&
         !game.player1WinByDefaultTxHash) {
@@ -375,12 +362,9 @@ and their ${renderWei(stakeInWei)} stake`);
         return errbacK(rps(game.contract).player1_win_by_default)({})(
             txHash => {
                 updateGame(id, {player1WinByDefaultTxHash: txHash});
-                return k();
-            },
-            flip(logErrorK)(k));
-    }
-    return k();
-}
+                return k()},
+            flip(logErrorK)(k))}
+    return k()}
 
 processGameAtHook = processGameAtHook_;
 
@@ -413,8 +397,7 @@ const acceptGame = (id, hand1) => {
     if (!isGameConfirmed(game)) {
         // If that's the case, make a transaction that we only send later? No, we can't with web3.
         loggedAlert(`Game ${id} isn't confirmed yet`);
-        return;
-    }
+        return;}
     // This test can be generated from the state machine,
     // but generating the text of the alert requires more cleverness or human intervention.
     // Some more generic text might do "You are trying to ... but this action is not available
@@ -423,17 +406,14 @@ const acceptGame = (id, hand1) => {
     // and/or since this is about joining a game, some more specialized message could be available.
     if (game.state != State.WaitingForPlayer1) {
         loggedAlert(`Game ${id} isn't open to a wager`);
-        return;
-    }
+        return;}
     // Since this is about joining a game, and this could be automatically generated from a pattern
     if (!optionalAddressMatches(game.player1, userAddress)) {
         loggedAlert(`Game ${id} isn't open to you`);
-        return;
-    }
+        return;}
     if (game.player1ShowHandTxHash) {
         loggedAlert(`You already played ${game.hand1} on game ${id} in tx ${game.player1ShowHandTxHash}`);
-        return;
-    }
+        return;}
     updateGame(id, {hand1});
     return errbacK(rps(game.contract).player1_show_hand)(hand1, {value: game.wagerInWei})(
         txHash => {
@@ -445,19 +425,16 @@ const topics = {}
 
 const initBackend = k => {
     if (config && config.contract) { // Avoid erroring on an unconfigured network
-        rpsFactory = web3.eth.contract(rpsFactoryAbi).at(config.contract.address);
-    }
+        rpsFactory = web3.eth.contract(rpsFactoryAbi).at(config.contract.address);}
     topics.Created = rpsFactory.Created().options.topics[0];
     //topics.Player0StartGame = rps().Player0StartGame().options.topics[0];
     topics.Player1ShowHand = rps().Player1ShowHand().options.topics[0];
     topics.Player0Reveal = rps().Player0Reveal().options.topics[0];
     topics.Player0Rescind = rps().Player0Rescind().options.topics[0];
     topics.Player1WinByDefault = rps().Player1WinByDefault().options.topics[0];
-    return k();
-}
+    return k();}
 
 registerInit({
     Backend: {fun: initBackend, dependsOn: ["Runtime"]},
     WatchNewGames: {fun: watchNewGames, dependsOn: ["ResumeGames"]},
-    WatchActiveGames: {fun: watchActiveGames, dependsOn: ["WatchNewGames"]},
-});
+    WatchActiveGames: {fun: watchActiveGames, dependsOn: ["WatchNewGames"]}});

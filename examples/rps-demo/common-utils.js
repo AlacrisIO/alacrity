@@ -274,6 +274,12 @@ const deleteUserStorageField = (key, field) => {
     userStorage.set(key, record);
     return record;}
 
+/** checkRequirement checks that some boolean is true, and if not throws an error
+    based on the result of a thunk. It s thus kind of like require in solidity,
+    but with the much more useful message-producing thunk. */
+const checkRequirement = (bool, msg) => {
+    if (!bool) { throw ["Requirement failed", msg()] }}
+
 /**
    TODO: use web3.shh for messaging between players for simple state channels?
    */
