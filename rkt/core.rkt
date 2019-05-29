@@ -27,7 +27,8 @@
          racket/file
          racket/system
          racket/set
-         racket/pretty)
+         racket/pretty
+         "util/define-data.rkt")
 (module+ test
   (require chk))
 
@@ -103,11 +104,11 @@
 ;; Keys and participants
 (define (participant? p) (or (symbol? p) (eq? p #f)))
 
-(struct msg-key () #:transparent)
-(struct mk:one-way (a) #:transparent)
-(struct mk:sym-key (v) #:transparent)
-(struct mk:pub-key (p) #:transparent)
-(struct mk:pri-key (p) #:transparent)
+(define-data msg-key
+  (mk:one-way a)
+  (mk:sym-key v)
+  (mk:pub-key p)
+  (mk:pri-key p))
 (define mk-inv
   (match-lambda
     [(? mk:one-way?) #f]
@@ -139,10 +140,10 @@
 (struct wp:program (part->st n->fun in) #:transparent)
 (struct wf:fun (args body) #:transparent)
 
-(struct whole-msg () #:transparent)
-(struct wm:cat whole-msg (l r) #:transparent)
-(struct wm:var whole-msg (v) #:transparent)
-(struct wm:enc whole-msg (x k) #:transparent)
+(define-data whole-msg
+  (wm:cat l r)
+  (wm:var v)
+  (wm:enc x k))
 ;; XXX Maybe not make these macros
 (define (wm:sign m p)
   ;; XXX Maybe do digest-signing
@@ -152,17 +153,17 @@
 (define (wm:hash m)
   (wm:enc m (mk:one-way 'HASH)))
 
-(struct whole-expr () #:transparent)
-(struct we:var whole-expr (v) #:transparent)
-(struct we:con whole-expr (b) #:transparent)
-(struct we:let@ whole-expr (@ x xe be) #:transparent)
-(struct we:if whole-expr (ce te fe) #:transparent)
-(struct we:app whole-expr (op args) #:transparent)
-(struct we:msg whole-expr (m) #:transparent)
-(struct we:match@ whole-expr (@ e m be) #:transparent)
-(struct we:send whole-expr (e) #:transparent)
-(struct we:recv whole-expr () #:transparent)
-(struct we:assert! whole-expr (assume? what why) #:transparent)
+(define-data whole-expr
+  (we:var v)
+  (we:con b)
+  (we:let@ @ x xe be)
+  (we:if ce te fe)
+  (we:app op args)
+  (we:msg m)
+  (we:match@ @ e m be)
+  (we:send e)
+  (we:recv)
+  (we:assert! assume? what why))
 
 (define we:unit (we:con (void)))
 (define (we:seq f s)
@@ -447,15 +448,15 @@
 (struct dp:program (n->fun in) #:transparent)
 (struct df:fun (args body) #:transparent)
 
-(struct direct-expr () #:transparent)
-(struct de:var direct-expr (v) #:transparent)
-(struct de:con direct-expr (b) #:transparent)
-(struct de:let direct-expr (x xe be) #:transparent)
-(struct de:if direct-expr (ce te fe) #:transparent)
-(struct de:app direct-expr (op args) #:transparent)
-(struct de:send direct-expr (e) #:transparent)
-(struct de:recv direct-expr () #:transparent)
-(struct de:assert! direct-expr (assume? what msg) #:transparent)
+(define-data direct-expr
+  (de:var v)
+  (de:con b)
+  (de:let x xe be)
+  (de:if ce te fe)
+  (de:app op args)
+  (de:send e)
+  (de:recv)
+  (de:assert! assume? what msg))
 
 (define (de-parse operation? se)
   (define (rec se) (de-parse operation? se))
@@ -690,21 +691,21 @@
 (define HALT (gensym 'HALT))
 (struct hh:handler (ht) #:transparent)
 
-(struct handle-arg () #:transparent)
-(struct ha:var handle-arg (v) #:transparent)
-(struct ha:con handle-arg (b) #:transparent)
+(define-data handle-arg
+  (ha:var v)
+  (ha:con b))
 
-(struct handle-expr () #:transparent)
-(struct he:app handle-expr (op args) #:transparent)
+(define-data handle-expr
+  (he:app op args))
 
-(struct handle-stmt () #:transparent)
-(struct hs:set! (x xe) #:transparent)
-(struct hs:assert! (target assume? what why) #:transparent)
+(define-data handle-stmt
+  (hs:set! x xe)
+  (hs:assert! target assume? what why))
 
-(struct handle-tail () #:transparent)
-(struct ht:seq handle-tail (s ht) #:transparent)
-(struct ht:if handle-tail (ce tt ft) #:transparent)
-(struct ht:wait* handle-tail (target msgs recv?) #:transparent)
+(define-data handle-tail
+  (ht:seq s ht)
+  (ht:if ce tt ft)
+  (ht:wait* target msgs recv?))
 
 (define (ht:jump ns msgs)
   (ht:wait* ns msgs #f))
