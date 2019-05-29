@@ -1188,7 +1188,11 @@
   (with-output-to-file fp #:exists 'replace
     (λ ()
       (displayln ";; Automatically generated")
+      ;; XXX Include a standard library of Z3 definitions for the
+      ;; language primitives.
       (for ([v (in-list (append args vs))])
+        ;; args and vs should really be type environments and we'll
+        ;; translate to Z3
         (writeln `(declare-const ,v XXX)))
       (writeln `(push))
       (for ([p (in-list ps)])
