@@ -75,8 +75,10 @@
   ;; XXX fill this out and make real
   (hasheq 'random (priminfo random)
           'digest (priminfo equal-hash-code)
+          'transfer (priminfo (λ (participant amount) (printf "~a gets ~v" participant amount)))
           '+ (priminfo +)
           '- (priminfo -)
+          '* (priminfo *)
           '= (priminfo =)
           'modulo (priminfo modulo)
           'equal? (priminfo equal?)
@@ -1180,7 +1182,7 @@
     (match a
       [(ha:var v) v]
       [(ha:con c) c]))
-  
+
   (match-define (hp:program args vs _ _) hp)
   (define ps (hp->paths hp))
   (with-output-to-file fp #:exists 'replace
@@ -1260,7 +1262,7 @@
         [(hpp:if not? ce) rtr]
         [(hpp:assert! assume? ce) rtr]
         [(hpp:send! m) (cons `(send ,(render-he m)) rtr)])))
-  
+
   (define as-cpsa
     `(defprotocol Alacrity basic
        ,@(append*
@@ -1279,7 +1281,7 @@
               ,@(for/list ([r (in-list roles)])
                   `(defstrand ,r 1 ,@(for/list ([v (in-list vs)]) `(,v ,v))))
               (non-orig XXX)))))
-  
+
   (with-output-to-file fp #:exists 'replace
     (λ ()
       (displayln ";; Automatically generated")
