@@ -1336,10 +1336,13 @@
 ;; Compile to solidity
 
 ;; === Task 2.75 ===
-;; Ugly syntax
+;; RPS in Alacrity
+
+;; === Task 2.755 ===
+;; Type `make` and run
 
 ;; === Task 2.85 ===
-;; RPS in Alacrity
+;; Ugly syntax
 
 ;; === Task 3 ===
 ;; White paper about current state of DSL
@@ -1347,4 +1350,8 @@
 ;; ---------
 
 ;; Question: Does ANF make sense on WP? If so, it would be nice to
-;; coalesce before EPP to generate nice names.
+;; coalesce before EPP to generate a smaller set of message functions.
+
+;; Note: Solidity makes space much more expensive than time. It is
+;; often better to store a hash of a value rather than the value
+;; itself and then emit the values so the consensus verifies them.
