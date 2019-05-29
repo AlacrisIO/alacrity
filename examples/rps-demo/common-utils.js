@@ -267,7 +267,10 @@ const userStorage = rekeyContainer(Storage, userKey);
 const updateUserStorage = (key, fields) => userStorage.modify(key, merge(fields));
 const setUserStorageField = (key, field, value) => updateUserStorage(key, keyValuePair(field, value));
 const deleteUserStorageField = (key, field) => {
-    const record = userStorage.get(key); delete record[field]; userStorage.set(key, record); }
+    const record = userStorage.get(key);
+    delete record[field];
+    userStorage.set(key, record);
+    return record;}
 
 /**
    TODO: use web3.shh for messaging between players for simple state channels?

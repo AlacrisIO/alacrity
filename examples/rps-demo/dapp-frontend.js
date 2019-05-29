@@ -358,25 +358,25 @@ ${setup}${current}</p>`;
 }
 renderGameHook = renderGame;
 
-const player0GameResultSummary = (hand0, hand1, wagerInWei, escrowInWei) => {
-    switch(gameResult(hand0, hand1)) {
-    case GameResult.Draw: return `have a draw and recover your ${renderWei(toBN(wagerInWei).add(escrowInWei))} stake.`;
-    case GameResult.YouWin: return `win ${renderWei(wagerInWei)} \
-and recover your ${renderWei(toBN(wagerInWei).add(escrowInWei))} stake.`;
-    case GameResult.TheyWin: return `lose your ${renderWei(wagerInWei)} wager \
-but recover your ${renderWei(escrowInWei)} escrow.`;}}
+const player0OutcomeSummary = (hand0, hand1, wagerInWei, escrowInWei) => {
+    switch(outcomeOfHands(hand0, hand1)) {
+    case Outcome.Player1Wins: return `lose your ${renderWei(wagerInWei)} wager \
+but recover your ${renderWei(escrowInWei)} escrow.`;
+    case Outcome.Draw: return `have a draw and recover your ${renderWei(toBN(wagerInWei).add(escrowInWei))} stake.`;
+    case Outcome.Player0Wins: return `win ${renderWei(wagerInWei)} \
+and recover your ${renderWei(toBN(wagerInWei).add(escrowInWei))} stake.`;}}
 
 const player0RevealContext_ = (id, hand0, hand1, wagerInWei, escrowInWei) =>
         `In game ${id}, player1 showed his hand ${handName(hand1)}. \
 You must show your hand${isValidHand(hand0) ? ` ${handName(hand0)} to \
 ${player0GameResultSummary(hand0, hand1, wagerInWei, escrowInWei)}` : "."}`;
 
-const player1GameResultSummary_ = (hand0, hand1, wagerInWei, escrowInWei) => {
-    switch(gameResult(hand1, hand9)) {
-    case GameResult.Draw: return `have a draw and recover your ${renderWei(wagerInWei)} stake.`;
-    case GameResult.YouWin: return `win ${renderWei(wagerInWei)}
+const player1OutcomeSummary_ = (hand0, hand1, wagerInWei, escrowInWei) => {
+    switch(outcomeOfHands(hand0, hand1)) {
+    case Outcome.Player1Wins: return `win ${renderWei(wagerInWei)}
 and recover your ${renderWei(wagerInWei)} stake.`;
-    case GameResult.TheyWin: return `lose your ${renderWei(wagerInWei)} wager.`;}}
+    case Outcome.Draw: return `have a draw and recover your ${renderWei(wagerInWei)} stake.`;
+    case Outcome.Player0Wins: return `lose your ${renderWei(wagerInWei)} wager.`;}}
 
 player0RevealContext = player0RevealContext_;
 

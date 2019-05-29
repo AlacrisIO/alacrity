@@ -194,7 +194,7 @@ const games = rekeyContainer(userStorage, intToString);
 const getGame = games.get;
 const updateGame = (id, gameUpdate) => games.modify(id, merge(gameUpdate));
 const deleteGame = games.remove;
-const deleteGameField = (id, field) => games.modify(id, g => delete g[field]);
+const deleteGameField = (id, field) => games.modify(id, g => {delete g[field]; return g});
 
 const getUnconfirmedGameId = () => {
     const unconfirmedGameId = --previousUnconfirmedGameId;
@@ -287,10 +287,8 @@ let processGameAtHook;
 */
 let decodeGameCreationEvent;
 
-/** Given a game as extracted by decodeGameCreationEvent, extract the initial game data:
-    creation txHash, creation blockNumber, any session identifier or contract address,
-    dictionary or vector of public parameters, dictionary or vector of private variables, etc.
-   : (string0x, int, txHash) => game
+/** Return a game event given its topic, raw event data, block number, and transaction hash.
+   : (string0x, string0x, int, txHash) => event
 */
 let decodeGameEvent;
 
@@ -309,6 +307,11 @@ let isGameRelevantToUser;
    : (game, address) => bool
 */
 let isGameInitiator;
+
+/** Given the previous state, and a decoded event, determine the next state
+   : (state, event) => state
+ */
+let stateUpdate;
 
 /** Process a game, making all automated responses that do not require user input.
     This is perhaps the heart of the algorithm.
@@ -433,8 +436,7 @@ const initRuntime = k => {
     userAddress = getUserAddress(); // NB: assuming a call to .toLowercase() is redundant
     if (!userAddress) {
         loggedAlert(`Your user address is undefined. \
-Please reload this page with metamask enabled and an account selected.`)
-    }
+Please reload this page with metamask enabled and an account selected.`);}
     config = networkConfig[networkId];
     userId = `${networkId}.${userAddress}`;
     nextUnprocessedBlock = userStorage.get("nextUnprocessedBlock", 0);
@@ -443,10 +445,9 @@ Please reload this page with metamask enabled and an account selected.`)
     previousUnconfirmedId = userStorage.get("previousUnconfirmedId", 0);
     // For debugging purposes only:
     newBlockHooks["newBlock"] = (from, to) => loggingK("newBlock! from:", from, "to:", to)();
-    return k();
-}
+    return k();}
+
 registerInit({
     Runtime: {fun: initRuntime},
     Games: {fun: initGames, dependsOn: ["Frontend"]},
-    ResumeGames: {fun: resumeGames, dependsOn: ["Games"]},
-})
+    ResumeGames: {fun: resumeGames, dependsOn: ["Games"]}})
