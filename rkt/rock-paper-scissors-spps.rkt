@@ -7,6 +7,7 @@
     (define a-sh @ A (msg-cat (random-salt) (input-hand)))
     (define a-commitment @ A (digest a-sh))
     [A -> #f : (wager-amount a-commitment) #:pay wager+escrow-amount]
+    (require! (< wager-amount wager+escrow-amount))
     (define escrow-amount (- wager+escrow-amount wager-amount))
     ; end constructor
     ; begin player1_show_hand
