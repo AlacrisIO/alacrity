@@ -128,6 +128,8 @@
 (struct we:consensus! we (initiator from-vs ctc-e to-vs ke) #:transparent)
 
 ;; Contract Expressions
+;; XXX This is actually busted because function bodies are valid in
+;; `we` and `ce` contexts.
 (struct ce () #:transparent)
 (struct ce:con ce (b) #:transparent)
 (struct ce:prim-app ce (p rands) #:transparent)
@@ -188,18 +190,45 @@
         (msg-cat-right reveal))
       
       (define (main)
+        ;; A and B both rely on being passed correct arguments. The
+        ;; contract won't innately trust this, but we'll prove that
+        ;; honest participants won't cause a distrustful contract to
+        ;; fail.
         (@A (rely! (hand? A-hand)))
         (@B (rely! (hand? B-hand)))
+        ;; A creates the precommitment.
         (@A define-values (A-reveal A-commit) (precommit A-hand))
+        ;; A consensus action is always initiated by one participant
+        ;; which transmits the values of some variables. At the
+        ;; contract, some work can happen, such as transfering
+        ;; resources as in this case. At all other participants, the
+        ;; values of the variables are received. In this case, B, gets
+        ;; (wa ea A-c). If B already knew wa and ea, then it would
+        ;; verify that the values are the same.
+        ;;
+        ;; In the direct compilation output, this is going to be a
+        ;; Solidity method, invoked by the A JS code and monitored by
+        ;; the B JS code. In other compilation modes, everyone is
+        ;; going to execute this code and check each other's work.
         (consensus!
          #:in @A (wager-amount escrow-amount A-commit)
          (transfer! @A CTC (+ wager-amount escrow-amount)))
+        ;; It is now time for B to send its value.
         (consensus!
          #:in @B (B-hand)
+         ;; We don't check that B is a valid hand, because we have to
+         ;; handle what happens if A is dishonest no matter what, so
+         ;; we just trust B for now and will punish it later for
+         ;; lying.
          (transfer! @B CTC wager-amount))
+        ;; In this next message, the values that A sends are a subset
+        ;; of what the contract binds and what B receives.
         (consensus!
          #:in @A (A-reveal)
-         #:out (A-reval A-hand outcome A-gets B-gets)
+         ;; This #:out spec says what B learns
+         #:out (A-reveal A-hand outcome A-gets B-gets)
+         ;; At the contract, we verify A's commitment, compute the
+         ;; outcome, and finalize the transfers.
          (define A-hand (check-commit A-commit A-reveal))
          (define outcome (RPS-outcome A-hand B-hand))
          (define-values (A-gets B-gets)
@@ -213,6 +242,7 @@
               (values (+ wager-amount escrow-amount) wager-amount)]))
          (transfer! CTC @A A-gets)
          (transfer! CTC @B B-gets))
+        ;; The program returns the outcome.
         outcome)
       (main))))
 
