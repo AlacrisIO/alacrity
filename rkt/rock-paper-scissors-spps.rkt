@@ -23,7 +23,7 @@
     ;; outcome 0 -> B wins
     ;; outcome 1 -> draw
     ;; outcome 2 -> A wins
-    (define outcome (modulo (+ A-h (- 4 B-h)) 3))
+    (define outcome (modulo (+ a-hand (- 4 b-hand)) 3))
     (cond [(equal? outcome 2)
            ; A wins
            (define a-gets (+ (* 2 wager-amount) escrow-amount))
