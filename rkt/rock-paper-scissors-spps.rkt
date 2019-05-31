@@ -3,22 +3,22 @@
   (participant B)
   (define (main)
     ; begin constructor
-    (define wager+escrow-amount @ A (+ wager-amount escrow-amount))
-    (define a-sh @ A (msg-cat (random-salt) (input-hand)))
-    (define a-commitment @ A (digest a-sh))
+    (@ A (define wager+escrow-amount (+ wager-amount escrow-amount)))
+    (@ A (define a-salted-hand (msg-cat (random-salt) (input-hand))))
+    (@ A (define a-commitment (digest a-salted-hand)))
     [A -> #f : (wager-amount a-commitment) #:pay wager+escrow-amount]
     (require! (< wager-amount wager+escrow-amount))
     (define escrow-amount (- wager+escrow-amount wager-amount))
     ; end constructor
     ; begin player1_show_hand
-    (define b-hand @ B (input-hand))
+    (@ B (define b-hand (input-hand)))
     [B -> #f : (b-hand) #:pay wager-amount]
     (require! (hand? b-hand))
     ; end player1_show_hand
     ; begin player0_reveal
-    [A -> #f : (a-sh)]
-    (require! (equal? (digest a-sh) a-commitment))
-    (define a-hand (msg-right a-sh))
+    [A -> #f : (a-salted-hand)]
+    (require! (equal? (digest a-salted-hand) a-commitment))
+    (define a-hand (msg-right a-salted-hand))
     (require! (hand? a-hand))
     ;; outcome 0 -> B wins
     ;; outcome 1 -> draw
