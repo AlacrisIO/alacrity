@@ -43,8 +43,11 @@
     ; end player0_reveal
     )
 
+  (define (random-salt)
+    (random))
+
   (define (input-hand)
     (random 3))
 
   (define (hand? h)
-    (and (integer? h) (< h 3))))
+    (and (integer? h) (<= 0 h) (< h 3))))
