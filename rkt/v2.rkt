@@ -170,12 +170,18 @@
       (define (RPS-outcome A-hand B-hand)
         (define A-valid? (hand? A-hand))
         (define B-valid? (hand? B-hand))
+        ;; HONEST is a special value that is true when we trust
+        ;; all participants. This is never true in production,
+        ;; but it is true in one mode of the Z3 spec.
+        (guarantee! (implies HONEST (and A-valid? B-valid?)))
         (define o
           (cond
             [(and A-valid? B-valid?)
              (modulo (+ A-hand (- 4 B-hand)) 3)]
+            ;; The cheater loses.
             [A-valid? A_WINS]
             [B-valid? B_WINS]
+            ;; If both cheat, then it is a draw.
             [else DRAW]))
         (guarantee! (outcome? o))
         o)
@@ -251,11 +257,11 @@
 
 ;; The Z3 program should verify the follows claims:
 
-;; - guarantee! in participant is true (assuming rely is true)
-;; - rely! in contract is always true (assuming guarantee is true in participants)
-;; - guarantee! in contract is always true (assuming rely is true)
+;; - guarantee! in participant is true
+;; - guarantee! in contract is true
+;; - rely! in contract is true with honest participants
+;;   (i.e. participants rely!'s are trusted)
 
-;; NOTE: After checking a rely!, it is a guarantee for all
-;; post-conditions.
+;; NOTE: rely! is checked at run-time, but trusted in Z3
 
 ;; - balance of CTC is 0 on halt
