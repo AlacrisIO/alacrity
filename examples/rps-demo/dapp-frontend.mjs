@@ -338,6 +338,7 @@ ${renderGameChoice()}`;
         case State.Completed:
         // TODO: show what outcome, etc.
         g.isCompleted = true;
+        /*
         switch (outcome) {
         case Outcome.Draw:
         case Outcome.Player0Wins:
@@ -361,6 +362,7 @@ ${renderGameChoice()}`;
                 `<br />${renderPlayer1(player1)} timed out. ` :
                 `<br />No one chose to accept the game. `;
         }
+        */
         break;
     }
 

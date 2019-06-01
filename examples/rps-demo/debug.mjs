@@ -3,11 +3,17 @@ import * as common_utils from "./common-utils.mjs";
 import * as web3_prelude from "./web3-prelude.mjs";
 import * as local_storage from "./local-storage.mjs";
 import * as common_runtime from "./common-runtime.mjs";
+import * as dapp_config from "./dapp-config.mjs";
+import * as dapp_contract from "./build/dapp-contract.mjs";
+import * as dapp_backend from "./dapp-backend.mjs";
+import * as dapp_frontend from "./dapp-frontend.mjs";
 
 const {seq, registerGlobals, kLogError} = common_utils;
 const {getGame} = common_runtime;
 
-registerGlobals({common_utils, web3_prelude, local_storage, common_runtime})
+registerGlobals({
+    common_utils, web3_prelude, local_storage, common_runtime,
+    dapp_config, dapp_contract, dapp_backend, dapp_frontend})
 
 
 // From the txHash of the transaction whereby the factory contract created the game contract,

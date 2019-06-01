@@ -221,7 +221,8 @@ export const removeUnconfirmedGame = id => {
     if (id === previousUnconfirmedId) {
         previousUnconfirmedId++;
         userStorage.set("previousUnconfirmedId", previousUnconfirmedId);}
-    userStorage.remove(id);}
+    userStorage.remove(id);
+    renderGame(id)}
 const confirmGame = (unconfirmedId, data) => {
     const game = merge(data)(games.get(unconfirmedId));
     const id = addGame(game);
@@ -348,7 +349,7 @@ export const processGameAt = confirmedBlock => id => k => {
     return processGameAtHook(confirmedBlock)(id)(k);}
 
 export const processGame = id => k =>
-    getConfirmedBlockNumber(block => processGameAt(block)(id)(k));
+    getConfirmedBlockNumber(block => processGameAt(block)(id)(() => {renderGame(id) ; return k()}))
 
 export const attemptGameCreation = game => func => (...args) => {
     const id = addUnconfirmedGame(game);
@@ -448,7 +449,7 @@ export const processGameEvents = (id, lastUnprocessedBlock, events) => {
     const unconfirmedEvents = events.filter(isUnconfirmed);
     const history = {confirmedEvents, unconfirmedEvents, nextUnprocessedBlock};
     const game = reduceStateUpdates(newlyConfirmed, stateUpdate, merge(history)(g));
-    assert(game, () => `processGameEvents: bad state update ${id}, before: ${JSON.stringify(g)}, events: ${JSON.stringify(newlyConfirmed)}`);
+    assert(game, () => `processGameEvents: bad state update for game ${id}, before: ${JSON.stringify(g)}, events: ${JSON.stringify(newlyConfirmed)}`);
     games.set(id, game);
     renderGame(id);}
 

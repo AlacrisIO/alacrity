@@ -83,7 +83,7 @@ export const Outcome = Object.freeze({
     Player1Wins: 0,
     Draw: 1,
     Player0Wins: 2,
-    Player1WinsByDefault: 3,
+    Player1WinByDefault: 3,
     Player0Rescinds: 4
     });
 export const outcomeOfHands = (hand0, hand1) => (hand0 + 4 - hand1) % 3
@@ -235,12 +235,12 @@ export const player0Rescind = (g, msg) => {
     return merge({outcome: Outcome.Player0Rescinds,
                   previousBlock: msg.blockNumber, state: State.Completed, isCompleted: true})(g);}
 
-export const player1WinsByDefault = (g, msg) => {
+export const player1WinByDefault = (g, msg) => {
     checkRequirement(g.state == State.WaitingForPlayer0Reveal,
                     () => "Invalid state");
     checkTimeout(g, msg);
     // TODO: also check that the contract did distribute the funds as it should have?
-    return merge({outcome: Outcome.Player1WinsByDefault,
+    return merge({outcome: Outcome.Player1WinByDefault,
                   previousBlock: msg.blockNumber, state: State.Completed, isCompleted: true})(g);}
 
 export const stateUpdate = (state, event) => {
@@ -251,8 +251,8 @@ export const stateUpdate = (state, event) => {
         return player0Reveal(state, event, event.salt, event.hand0, event.outcome);
     case MsgType.Player0Rescind:
         return player0Rescind(state, event);
-    case MsgType.Player1WinsByDefault:
-        return player1WinsByDefault(state, event)}}
+    case MsgType.Player1WinByDefault:
+        return player1WinByDefault(state, event)}}
 
 // RECEIVING DATA FROM THE BLOCKCHAIN
 
