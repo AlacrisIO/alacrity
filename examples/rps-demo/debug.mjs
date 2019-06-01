@@ -8,12 +8,28 @@ import * as dapp_contract from "./build/dapp-contract.mjs";
 import * as dapp_backend from "./dapp-backend.mjs";
 import * as dapp_frontend from "./dapp-frontend.mjs";
 
-const {seq, registerGlobals, kLogError} = common_utils;
-const {getGame} = common_runtime;
+const {isInBrowser, seq, registerGlobals, globals, kLogError, errbacK, srf, loggingK} = common_utils;
+const {web3} = web3_prelude;
+const {getGame, config, meth, newBlockHooks} = common_runtime;
+const {decodeGameCreationData, player0StartGame, makeCommitment, player1ShowHand,
+      player1WinByDefault, queryConfirmedState, player0Reveal} = dapp_backend;
+
+// Usage: eval(window.globals.magic())
+// const MAGIC = () => eval(magic()) // This does NOT work. You have to type "eval" at the toplevel.
+const magic = () =>
+   `var globals = ${isInBrowser ? "window" : "process"}.globals;
+   ${Object.keys(globals).map(m=>Object.keys(window.globals[m]).map(s=>`var ${s} = globals.${m}.${s}`).join(";")).join(";")}`
 
 registerGlobals({
     common_utils, web3_prelude, local_storage, common_runtime,
     dapp_config, dapp_contract, dapp_backend, dapp_frontend})
+
+if (isInBrowser) {
+   window.magic = magic;
+} else {
+   process.magic = magic;
+}
+
 
 
 // From the txHash of the transaction whereby the factory contract created the game contract,
@@ -58,6 +74,8 @@ var wb = () =>
     newBlockHooks["newBlock"] = (from, to) => loggingK("newBlock! from:", from, "to:", to)();
 var g2c = g => g.salt && g.hand0 && makeCommitment(g.salt, g.hand0);
 var i2c = seq(getGame)(g2c)
+
+registerGlobals({debug: {bob, play0, g0v0, g0p1, g0p2, g0s, g1p1, g1s, g1p2, i2c, wb}})
 
 // Local Variables:
 // mode: JavaScript
