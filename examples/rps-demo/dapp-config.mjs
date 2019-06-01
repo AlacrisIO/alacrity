@@ -1,8 +1,10 @@
-'use strict';
-
-/** Configuration per network (indexed by networkID). */
+/** The networkConfig is an object that maps the networkId (TODO: in the future, plus chain Id?)
+    to the config below. It is the responsibility of the DApp developers to define the networkConfig
+    as part of their DApp deployment, typically in a dapp-config.mjs file loaded from the HTML page.
+    : StringTable(config)
+ */
 // Map(string, string)
-networkConfig =
+export const networkConfig =
   { "1": /* Metropolis, the Ethereum public PoW main network */
     {networkName: "Metropolis",
      networkUrl: "https://etherscan.io/",
@@ -41,3 +43,7 @@ networkConfig =
      addressExplorerUrl: "https://rinkeby.etherscan.io/address/" // + ${tx} including 0x
     }
   };
+
+// Local Variables:
+// mode: JavaScript
+// End:

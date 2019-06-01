@@ -27,15 +27,15 @@ all: build_all
 
 build_all: contract
 
-CONTRACT_OUTPUTS:=build/dapp-contract.js $(BUILD_DIR)/RockPaperScissors.abi $(BUILD_DIR)/RockPaperScissors.bin $(BUILD_DIR)/RockPaperScissorsFactory.abi $(BUILD_DIR)/RockPaperScissorsFactory.bin
+CONTRACT_OUTPUTS:=build/dapp-contract.mjs $(BUILD_DIR)/RockPaperScissors.abi $(BUILD_DIR)/RockPaperScissors.bin $(BUILD_DIR)/RockPaperScissorsFactory.abi $(BUILD_DIR)/RockPaperScissorsFactory.bin
 
 contract: $(CONTRACT_OUTPUTS)
 $(CONTRACT_OUTPUTS): dapp-contract.sol
 	$(HIDE) mkdir -p build $(BUILD_DIR)
 	$(HIDE) solc --bin --abi -o $(BUILD_DIR) --overwrite $< > $(BUILD_DIR)/solc.out
-	$(HIDE) (echo "const rpsAbi = `cat $(BUILD_DIR)/RockPaperScissors.abi`;"; \
-	echo; echo "const rpsFactoryAbi = `cat $(BUILD_DIR)/RockPaperScissorsFactory.abi`;"; \
-	echo; echo "const rpsFactoryCode = \"0x`cat $(BUILD_DIR)/RockPaperScissorsFactory.bin`\";"; \
+	$(HIDE) (echo "export const rpsAbi = `cat $(BUILD_DIR)/RockPaperScissors.abi`;"; \
+	echo; echo "export const rpsFactoryAbi = `cat $(BUILD_DIR)/RockPaperScissorsFactory.abi`;"; \
+	echo; echo "export const rpsFactoryCode = \"0x`cat $(BUILD_DIR)/RockPaperScissorsFactory.bin`\";"; \
 	) > $@
 # To extract function signatures, add the --hashes to solc and use:
 #	echo; echo "const rpsSignatures = {`sed -e 's/^\(.*\): \(.*\)(.*)/"\2": "\1",/' $(BUILD_DIR)/RockPaperScissors.signatures`};" ; \
@@ -49,3 +49,10 @@ stop_nginx:
 
 restart_nginx:
 	$(HIDE) ../nginx/stop.sh ; ../nginx/start.sh
+
+# Install web3 at the precise version we want, as well as other dependencies.
+# https://github.com/ethereum/wiki/wiki/JavaScript-API
+# https://www.npmjs.com/package/node-localstorage
+# https://jasmine.github.io/tutorials/your_first_suite
+npm_install:
+	npm install web3@0.20.3 node-localstorage@1.3.1 jasmine@3.4.0

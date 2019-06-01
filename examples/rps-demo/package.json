@@ -1,0 +1,26 @@
+{
+  "name": "rps-demo",
+  "version": "1.0.0",
+  "description": "Rock Paper Scissors, by Alacris",
+  "main": "rps-demo.mjs",
+  "type": "module",
+  "dependencies": {
+    "inquirer": "^6.3.1",
+    "jasmine": "^3.4.0",
+    "jslint": "^0.12.1",
+    "node-localstorage": "^1.3.1",
+    "web3": "^0.20.7"
+  },
+  "devDependencies": {
+    "eslint": "^5.16.0"
+  },
+  "scripts": {
+    "test": "rps-demo-test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AlacrisIO/alacrity"
+  },
+  "author": "Francois-Rene Rideau",
+  "license": "LGPL"
+}

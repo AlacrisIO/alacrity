@@ -21,7 +21,18 @@
 
   * On frontend, have a list of common playing partners, with short aliases.
 */
-'use strict';
+import {registerInit, kLogError, isEmpty, loggedAlert} from "./common-utils.mjs";
+import {web3, userAddress} from "./web3-prelude.mjs";
+import {registerFrontendHooks, toBN, config, weiToEth, ethToWei,
+        getGame, updateGame, dismissGame, removeActiveGame, logGame, optionalAddressMatches
+       } from "./common-runtime.mjs";
+import {registerRpsHooks, handName, isValidHand, randomHand, MsgType, Outcome, State, outcomeOfHands,
+        createNewGame, acceptGame, isGameRelevantToUser
+       } from "./dapp-backend.mjs";
+import {htmlToElement, setNodeBySelector, emptyNode,
+       simpleNumberRegex, addressRegex, shorten0x,
+       renderTransaction, renderAddress, renderWei, renderConfig, pronoun
+       } from "./common-ui.mjs";
 
 // TODO: offer easy standard amounts for the amount
 // TODO: let the users negotiate the escrow.
@@ -123,7 +134,6 @@ const submitNewGameClick = e => {
     opponent =>
     inputHand(e)(
     hand_ => {
-    console.log("hand:", hand_);
     const escrowInWei = wagerToEscrow(wagerInWei);
     const hand = hand_ || randomHand();
     const confirmation = `You are going to start a new game with ${opponent ? opponent : "anyone who will play"} for a wager of ${renderWei(wagerInWei)}, with an escrow of ${renderWei(escrowInWei)}, and play ${handName(hand)} ${renderHand(hand)}.`;
@@ -229,7 +239,7 @@ const dismissGameClick = e => {
 
 const acceptGameClick = e => {
     e.preventDefault();
-    inputId(e)((id, _game) =>
+    inputId(e)(id =>
     inputHand(e)(hand => acceptGame(id, hand || randomHand()),
     loggedAlert), loggedAlert);}
 
@@ -289,7 +299,7 @@ ${isValidHand(hand0) ? ` and secretly playing ${handName(hand0)} ${renderHand(ha
         case State.WaitingForPlayer1:
         if (isValidHand(hand1) && player1 == userAddress) {
             // TODO: deal with non-atomicity of hand1 and player1TxHash
-            current = `<br />${renderPlayer1(player1)} played ${handName(hand1)} ${renderHand(hand1)}.` ;
+            // current = `<br />${renderPlayer1(player1)} played ${handName(hand1)} ${renderHand(hand1)}.` ;
         } else if (player0 == userAddress) {
             current = player1 ?
             `<br />${renderPlayer1(player1)} haven't accepted the wager and chosen a hand yet.` :
@@ -368,11 +378,10 @@ ${renderGameChoice()}`;
 g.txHash ? `, tx ${renderTransaction(g.txHash)}` : ""}${
 g.contract ? `, contract ${renderAddress(g.contract)}` : ""}:<br />
 <em>${renderGameState(state, outcome, player0, player1)}.</em><br />
-${creation}${history}${current}</p>`;
+${creation}${history}${current}${error}</p>`;
     displayedGames[id] = true;
     renderActiveGameHook();
 }
-renderGameHook = renderGame;
 
 const player0OutcomeSummary = (hand0, hand1, wagerInWei, escrowInWei) => {
     switch(outcomeOfHands(hand0, hand1)) {
@@ -382,20 +391,19 @@ but recover your ${renderWei(escrowInWei)} escrow.`;
     case Outcome.Player0Wins: return `win ${renderWei(wagerInWei)} \
 and recover your ${renderWei(toBN(wagerInWei).add(escrowInWei))} stake.`;}}
 
-const player0RevealContext_ = (id, hand0, hand1, wagerInWei, escrowInWei) =>
+const player0RevealContext = (id, hand0, hand1, wagerInWei, escrowInWei) =>
         `In game ${id}, player1 showed his hand ${handName(hand1)}. \
 You must show your hand${isValidHand(hand0) ? ` ${handName(hand0)} to \
 ${player0OutcomeSummary(hand0, hand1, wagerInWei, escrowInWei)}` : "."}`;
 
-const player1OutcomeSummary_ = (hand0, hand1, wagerInWei, escrowInWei) => {
+/*
+const player1OutcomeSummary = (hand0, hand1, wagerInWei) => {
     switch(outcomeOfHands(hand0, hand1)) {
     case Outcome.Player1Wins: return `win ${renderWei(wagerInWei)}
 and recover your ${renderWei(wagerInWei)} stake.`;
     case Outcome.Draw: return `have a draw and recover your ${renderWei(wagerInWei)} stake.`;
     case Outcome.Player0Wins: return `lose your ${renderWei(wagerInWei)} wager.`;}}
-
-player0RevealContext = player0RevealContext_;
-
+*/
 
 // TODO: way to download the localState
 // TODO: way to use a remote replicated backup service for encrypted state management.
@@ -411,10 +419,16 @@ const initFrontend = k => {
         setNodeBySelector("#Play", htmlToElement(
             "<b>No contract deployed on this network. <br />" +
             "Please reload this page after connecting to Rinkeby.</b>"));
-    };
-    return k();
-}
+    }
+    return k()}
+
+registerFrontendHooks({renderGame})
+registerRpsHooks({player0RevealContext})
 
 registerInit({
     Frontend: {fun: initFrontend, dependsOn: ["Backend"]},
 });
+
+// Local Variables:
+// mode: JavaScript
+// End:

@@ -1,4 +1,14 @@
 /** Various functions used while debugging */
+import * as common_utils from "./common-utils.mjs";
+import * as web3_prelude from "./web3-prelude.mjs";
+import * as local_storage from "./local-storage.mjs";
+import * as common_runtime from "./common-runtime.mjs";
+
+const {seq, registerGlobals, kLogError} = common_utils;
+const {getGame} = common_runtime;
+
+registerGlobals({common_utils, web3_prelude, local_storage, common_runtime})
+
 
 // From the txHash of the transaction whereby the factory contract created the game contract,
 // extract the game creation data.
@@ -43,12 +53,6 @@ var wb = () =>
 var g2c = g => g.salt && g.hand0 && makeCommitment(g.salt, g.hand0);
 var i2c = seq(getGame)(g2c)
 
-var o = (hand0, hand1) => {
-    const diff = (hand1 + 3 - hand0) % 3;
-    if (diff === 1) {
-        return "Player0Wins";
-    } else if (diff === 2) {
-        return "Player1Wins";
-    } else if (diff === 0) {
-        return "Draw";
-    }}
+// Local Variables:
+// mode: JavaScript
+// End:

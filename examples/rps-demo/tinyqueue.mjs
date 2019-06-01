@@ -1,6 +1,6 @@
 /** Small Priority Queue library from https://github.com/mourner/tinyqueue/blob/master/index.js @ 3a212a4f73ad9c39caeb27922c86ff4115e59c66 */
 
-class TinyQueue {
+export class TinyQueue {
     constructor(data = [], compare = defaultCompare) {
         this.data = data;
         this.length = this.data.length;
@@ -75,7 +75,7 @@ class TinyQueue {
     }
 }
 
-function defaultCompare(a, b) {
+export function defaultCompare(a, b) {
     return a < b ? -1 : a > b ? 1 : 0;
 }
 
