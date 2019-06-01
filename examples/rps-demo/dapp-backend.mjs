@@ -439,7 +439,7 @@ registerBackendHooks({
 registerInit({
     Backend: {fun: initBackend, dependsOn: ["Runtime"]}})
 
-export const deployRps = deployContract(rpsFactoryCode)(setrr)
+export const deployRps = () => deployContract(rpsFactoryCode)(setrr)
 
 // Local Variables:
 // mode: JavaScript
