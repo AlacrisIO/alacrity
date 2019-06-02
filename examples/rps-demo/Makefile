@@ -55,4 +55,7 @@ restart_nginx:
 # https://www.npmjs.com/package/node-localstorage
 # https://jasmine.github.io/tutorials/your_first_suite
 npm_install:
-	npm install web3@0.20.3 node-localstorage@1.3.1 jasmine@3.4.0
+	npm install web3@0.20.7 node-localstorage@1.3.1 jasmine@3.4.0
+
+test:
+	node --experimental-modules test.js
