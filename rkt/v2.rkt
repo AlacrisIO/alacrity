@@ -126,19 +126,8 @@
 (struct we:assert! we (rely? ce) #:transparent)
 (struct we:let-values@ we (where xs xe ke) #:transparent)
 (struct we:consensus! we (initiator from-vs ctc-e to-vs ke) #:transparent)
-
-;; Contract Expressions
-;; XXX This is actually busted because function bodies are valid in
-;; `we` and `ce` contexts.
-(struct ce () #:transparent)
-(struct ce:con ce (b) #:transparent)
-(struct ce:prim-app ce (p rands) #:transparent)
-(struct ce:if ce (ce te fe) #:transparent)
-(struct ce:var ce (x) #:transparent)
-(struct ce:fun-app ce (f roles rands) #:transparent)
-(struct ce:assert! ce (rely? ce) #:transparent)
-(struct ce:transfer! ce (from to amt) #:transparent)
-(struct ce:let-values ce (xs xe ke) #:transparent)
+;; XXX classify / declassify
+;; XXX transfer!
 
 (module+ test
   (define RPS-se
@@ -155,6 +144,12 @@
       ;; will thinks it knows them, so after the first message, if it
       ;; is inconsistent, then B will back out (because an assumption
       ;; is violated.)
+
+      ;; XXX Don't make these globals, instead make a main expression
+      ;; with them provided?
+
+      ;; XXX Add types, including security classification types where
+      ;; {} means no one has access, {@A} means just A, and so on.
       (participant @A wager-amount escrow-amount A-hand)
       (participant @B B-hand)
 
@@ -173,6 +168,8 @@
         ;; HONEST is a special value that is true when we trust
         ;; all participants. This is never true in production,
         ;; but it is true in one mode of the Z3 spec.
+        ;;
+        ;; XXX Does this make sense?
         (guarantee! (implies HONEST (and A-valid? B-valid?)))
         (define o
           (cond
@@ -216,6 +213,11 @@
         ;; Solidity method, invoked by the A JS code and monitored by
         ;; the B JS code. In other compilation modes, everyone is
         ;; going to execute this code and check each other's work.
+
+        ;; XXX Can we detect the #:in based on what variables are free
+        ;; in the consensus, then commute consensus blocks forward &
+        ;; backward to combine adjacent senders. If so, then this is
+        ;; like an intermediate form.
         (consensus!
          #:in @A (wager-amount escrow-amount A-commit)
          (transfer! @A CTC (+ wager-amount escrow-amount)))
@@ -232,11 +234,19 @@
         (consensus!
          #:in @A (A-reveal)
          ;; This #:out spec says what B learns
+         ;;
+         ;; XXX Maybe this is not necessary
          #:out (A-reveal A-hand outcome A-gets B-gets)
          ;; At the contract, we verify A's commitment, compute the
          ;; outcome, and finalize the transfers.
          (define A-hand (check-commit A-commit A-reveal))
          (define outcome (RPS-outcome A-hand B-hand))
+         (guarantee!
+          (implies (not (hand? A-hand))
+                   (not (equal? outcome A_WINS))))
+         (guarantee!
+          (implies (not (hand? B-hand))
+                   (not (equal? outcome B_WINS))))
          (define-values (A-gets B-gets)
            (cond
              [(equal? outcome A_WINS)
@@ -251,6 +261,11 @@
         ;; The program returns the outcome.
         outcome)
       (main))))
+
+;; Compilation
+
+;; XXX The consensus blocks should list the free variables so we can
+;; create a hash of all of them as the on-contract storage.
 
 ;; Z3
 (define prim->z3 (make-hasheq))
