@@ -44,13 +44,13 @@
     require a small fee for opening a game?
 */
 import {byteToHex, registerInit, errbacK, kLogError, hexToAddress, hexTo0x, checkRequirement, setrr,
-        loggedAlert, merge, flip, logErrorK, randomSalt
+        loggedAlert, merge, flip, logErrorK, randomSalt, logging
        } from "./common-utils.mjs";
 import {web3, crypto, userAddress} from "./web3-prelude.mjs";
 import {saltedDigest, registerBackendHooks, renderGame, config, getConfirmedBlockNumber,
         toBN, optionalAddressOf0x, optionalAddressMatches, hexToBigNumber, deployContract,
         getGame, updateGame, removeActiveGame, queueGame, attemptGameCreation, optionalAddressTo0x,
-        isGameConfirmed
+        isGameConfirmed, digestHex
        } from "./common-runtime.mjs";
 import {renderWei} from "./common-ui.mjs";
 import {rpsAbi, rpsFactoryAbi, rpsFactoryCode} from "./build/dapp-contract.mjs";
@@ -89,10 +89,9 @@ export const Outcome = Object.freeze({
 export const outcomeOfHands = (hand0, hand1) => (hand0 + 4 - hand1) % 3
 
 export const State = Object.freeze({
-    Uninitialized: 0,
-    WaitingForPlayer1: 1,        // player0 funded wager+escrow and published a commitment
-    WaitingForPlayer0Reveal: 2,  // player1 showed his hand
-    Completed: 3                 // end of game (in the future, have a way to reset the contract to state Uninitialized?)
+    WaitingForPlayer1: 0,        // player0 funded wager+escrow and published a commitment
+    WaitingForPlayer0Reveal: 1,  // player1 showed his hand
+    Completed: 2                 // end of game (in the future, have a way to reset the contract to some Uninitialized state to repeat plays?)
 });
 
 
@@ -419,7 +418,10 @@ export const topics = {}
 
 const initBackend = k => {
     if (config && config.contract) { // Avoid erroring on an unconfigured network
-        rpsFactory = web3.eth.contract(rpsFactoryAbi).at(config.contract.address);}
+        rpsFactory = web3.eth.contract(rpsFactoryAbi).at(config.contract.address);
+        if (digestHex(rpsFactoryCode) !== config.contract.codeHash) {
+            logging(`Warning: deployed contract has code hash ${config.contract.codeHash} \
+but the latest version of the contract has code hash ${digestHex(rpsFactoryCode)}`)();}}
     topics.Created = rpsFactory.Created().options.topics[0];
     //topics.Player0StartGame = rps().Player0StartGame().options.topics[0];
     topics.Player1ShowHand = rps().Player1ShowHand().options.topics[0];

@@ -20,10 +20,14 @@ export const networkConfig =
     {networkName: "Rinkeby",
      networkUrl: "https://www.rinkeby.io/",
      contract:
-     {address: "0x47cf9c64f7391b52d6e102cafc6da36b3a82bb7c",
-      codeHash: "0xf65b0910be530b7500815fedef531792757f3dfe33892bbb203d1386ddc32859",
-      creationHash: "0x39175de8c54ee1968138b85ace64485a4730b399ed2fdd0798571c8e7888489e",
-      creationBlock: 4459428}, // with events at every interaction, from source at commit cb93c843f147eb5c8c96a95a8027a8483c87a85c
+     {address: "0xa9a92b393bba4badf3b56bab54e8cd8ecc25c8c2",
+      codeHash: "0x3f330a91b66b61d6d14ec29ed8f74ddf8ebdbaf3b44d8d384d3899c2be765a90",
+      creationHash: "0xd2a3ca89d8488b0c4ac74960b9419e2fd952689937c1ce58efabe920568ee026",
+      creationBlock: 4487617}, // without an "uninitialized" state, from source at commit f99a61b + 1
+     //{address: "0x47cf9c64f7391b52d6e102cafc6da36b3a82bb7c",
+     // codeHash: "0xf65b0910be530b7500815fedef531792757f3dfe33892bbb203d1386ddc32859",
+     // creationHash: "0x39175de8c54ee1968138b85ace64485a4730b399ed2fdd0798571c8e7888489e",
+     // creationBlock: 4459428}, // with events at every interaction, from source at commit cb93c843f147eb5c8c96a95a8027a8483c87a85c
      //{address: "0x16b1565e2091ad3f66a1b298a84dcd9ba065f4e0",
      // creationHash: "0x762653dfbb2103ab7e6cad552e2e8e270e6bc83dcd9ddfd9bf5398b28f86dbbb",
      // creationBlock: 4424195}, // with user-selectable timeout, from source at commit 2bb0e1977b57939e57b80a4d0aacc3cad8b4bc60

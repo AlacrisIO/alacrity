@@ -38,12 +38,11 @@ contract RockPaperScissors
 
         /** Current state of the state machine. */
         enum State {
-            Uninitialized,
             Waiting_for_player1,        // player0 funded wager+escrow and published a commitment
             Waiting_for_player0_reveal, // player1 showed his hand
-            Completed                   // end of game (in the future, have a way to reset the contract to state Uninitialized?)
+            Completed                   // end of game (in the future, have a way to reset the contract to an Uninitialized state for repeated plays?)
         }
-        State state = State.Uninitialized;
+        State state;
 
         /** Timeout in blocks.
             This needs be low enough to be bearable by humans,
@@ -134,8 +133,6 @@ contract RockPaperScissors
                      uint _timeout_in_blocks, bytes32 _commitment, uint _wager_amount)
                 public payable
         {
-                // This function can only be called while at state Uninitialized.
-                require(state == State.Uninitialized);
                 require(msg.value > _wager_amount);
 
                 // Initialize the game

@@ -208,7 +208,6 @@ ${renderPlayer1(player1)} won by default` :
       "invalid outcome";
 
 const renderGameState = (state, outcome, player0, player1) =>
-      state == State.uninitialized ? "Wager unconfirmed" :
       state == State.WaitingForPlayer1 ? "Waiting for player1 to play" :
       state == State.WaitingForPlayer0Reveal ? "Waiting for player0 to reveal his hand" :
       state == State.Completed ? `Completed. ${renderOutcome(outcome, player0, player1)}` :
