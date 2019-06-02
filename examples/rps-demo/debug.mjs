@@ -14,11 +14,11 @@ const {getGame, config, meth, newBlockHooks} = common_runtime;
 const {decodeGameCreationData, player0StartGame, makeCommitment, player1ShowHand,
       player1WinByDefault, queryConfirmedState, player0Reveal} = dapp_backend;
 
-// Usage: eval(window.globals.magic())
-// const MAGIC = () => eval(magic()) // This does NOT work. You have to type "eval" at the toplevel.
+console.log("To make all the program bindings available in the console, use:\neval(window.magic())");
 const magic = () =>
    `var globals = ${isInBrowser ? "window" : "process"}.globals;
    ${Object.keys(globals).map(m=>Object.keys(window.globals[m]).map(s=>`var ${s} = globals.${m}.${s}`).join(";")).join(";")}`
+// const MAGIC = () => eval(magic()) // This does NOT work. You do have to type "eval" at the toplevel.
 
 registerGlobals({
     common_utils, web3_prelude, local_storage, common_runtime,
@@ -75,7 +75,7 @@ var wb = () =>
 var g2c = g => g.salt && g.hand0 && makeCommitment(g.salt, g.hand0);
 var i2c = seq(getGame)(g2c)
 
-registerGlobals({debug: {bob, play0, g0v0, g0p1, g0p2, g0s, g1p1, g1s, g1p2, i2c, wb}})
+registerGlobals({debug: {magic, bob, play0, g0v0, g0p1, g0p2, g0s, g1p1, g1s, g1p2, i2c, wb}})
 
 // Local Variables:
 // mode: JavaScript

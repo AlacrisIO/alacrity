@@ -21,6 +21,7 @@ export const networkConfig =
      networkUrl: "https://www.rinkeby.io/",
      contract:
      {address: "0x47cf9c64f7391b52d6e102cafc6da36b3a82bb7c",
+      codeHash: "0xf65b0910be530b7500815fedef531792757f3dfe33892bbb203d1386ddc32859",
       creationHash: "0x39175de8c54ee1968138b85ace64485a4730b399ed2fdd0798571c8e7888489e",
       creationBlock: 4459428}, // with events at every interaction, from source at commit cb93c843f147eb5c8c96a95a8027a8483c87a85c
      //{address: "0x16b1565e2091ad3f66a1b298a84dcd9ba065f4e0",

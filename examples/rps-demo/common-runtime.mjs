@@ -222,7 +222,7 @@ export const removeUnconfirmedGame = id => {
         previousUnconfirmedId++;
         userStorage.set("previousUnconfirmedId", previousUnconfirmedId);}
     userStorage.remove(id);
-    renderGame(id)}
+    renderGame(id, "Remove Unconfirmed Game:")}
 const confirmGame = (unconfirmedId, data) => {
     const game = merge(data)(games.get(unconfirmedId));
     const id = addGame(game);
@@ -255,7 +255,7 @@ export const removeGame = id => {
         delete gamesByTxHash[g.txHash];}
     deleteGame(id);
     removeActiveGame(id);
-    renderGame(id);
+    renderGame(id, "Remove Game:");
     if (id == nextId - 1) {
         nextId = id;
         userStorage.set("nextId", nextId);}}
@@ -349,7 +349,8 @@ export const processGameAt = confirmedBlock => id => k => {
     return processGameAtHook(confirmedBlock)(id)(k);}
 
 export const processGame = id => k =>
-    getConfirmedBlockNumber(block => processGameAt(block)(id)(() => {renderGame(id) ; return k()}))
+    getConfirmedBlockNumber(block => processGameAt(block)(id)(() => {
+        renderGame(id, "Processed Game:") ; return k()}))
 
 export const attemptGameCreation = game => func => (...args) => {
     const id = addUnconfirmedGame(game);
@@ -360,7 +361,7 @@ export const attemptGameCreation = game => func => (...args) => {
     // We could use the nonce for the transaction, but there's no atomic access to it.
     // Could we save the TxHash locally *before* sending it online? Unhappily web3 doesn't allow that:
     // < https://github.com/MetaMask/metamask-extension/issues/3475 >.
-    renderGame(id);
+    renderGame(id, "Creating Game:");
     return errbacK(func)(...args)(
         txHash => confirmGame(id, {txHash}),
         error => {
@@ -451,7 +452,7 @@ export const processGameEvents = (id, lastUnprocessedBlock, events) => {
     const game = reduceStateUpdates(newlyConfirmed, stateUpdate, merge(history)(g));
     assert(game, () => `processGameEvents: bad state update for game ${id}, before: ${JSON.stringify(g)}, events: ${JSON.stringify(newlyConfirmed)}`);
     games.set(id, game);
-    renderGame(id);}
+    renderGame(id, "Processed Game Events");}
 
 export const registerFrontendHooks = hooks => {
     renderGame = hooks.renderGame;
@@ -513,6 +514,20 @@ const initGame = id => {
 const initGames = k => { for(let i=previousUnconfirmedId;i<nextId;i++) {initGame(i)} return k()}
 
 const resumeGames = k => forEachK(processGame)(range(previousUnconfirmedId, nextId-previousUnconfirmedId))(k);
+
+export const checkContract = k => {
+    const {address, codeHash, creationHash, creationBlock} = config.contract;
+    errbacK(web3.eth.getTransaction)(creationHash)(txInfo => {
+    assert(txInfo, "No txInfo");
+    assert(txInfo.blockNumber === creationBlock, () => `bad creation block: expected ${creationBlock} but got ${txInfo.blockNumber}`);
+    assert(digestHex(txInfo.input) === codeHash, () => `bad code: expected ${codeHash} but got ${digestHex(txInfo.input)}.`);
+    errbacK(web3.eth.getTransactionReceipt)(creationHash)(receipt => {
+    assert(receipt, "No tx receipt");
+    assert(receipt.transactionHash === creationHash, "Bad tx hash");
+    assert(receipt.blockNumber === creationBlock, "bad creation block");
+    assert(receipt.contractAddress === address, "bad contract address");
+    logging("Contract is OK.")();
+    return k()})})}
 
 /** : Kont() */
 const initRuntime = k => {

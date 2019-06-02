@@ -1,4 +1,5 @@
-import {registerInit, isInBrowser, require, loggedAlert} from "./common-utils.mjs";
+import {registerInit, isInBrowser, require, loggedAlert, logging, handlerK
+       } from "./common-utils.mjs";
 
 export let Web3;
 export let web3; // a variable to store local web3 object
@@ -19,7 +20,7 @@ if (!isInBrowser) {
     Web3 = require("web3");
     crypto = require("crypto");
     const providerUrl = process.env.WEB3_PROVIDER || "http://localhost:8545"
-    web3Provider=new Web3.providers.HttpProvider(providerUrl);
+    web3Provider = new Web3.providers.HttpProvider(providerUrl);
 } else if (typeof window.web3 == 'undefined' || typeof window.ethereum == 'undefined') {
     alert('You need a Web3-compatible browser. Consider downloading the MetaMask extension.');
 } else {
@@ -29,18 +30,17 @@ if (!isInBrowser) {
     web3Provider = window.web3.currentProvider;
 }
 
-let initWeb3 = k => {
-    if (!web3Provider) {return k()}
+if (web3Provider) {
     web3 = new Web3(web3Provider);
-    if (!isInBrowser) {return k()}
-    /* eslint-disable no-console, no-undef */
-    console.log("Web3:", Web3, "web3:", web3, "ethereum:", ethereum);
-    return ethereum.enable().then(x => {
-    accounts = x;
+}
+
+let initWeb3 = k => {
+    (kk => isInBrowser ? ethereum.enable().then(kk) : kk(web3.eth.accounts))(a => {
+    accounts = a;
     // NB: assuming a call to .toLowercase() on the userAddress is redundant.
     userAddress = (web3.currentProvider && web3.currentProvider.selectedAddress) || accounts[0];
     networkId = getNetworkId();
-    console.log("userAddress:", userAddress, "accounts:", accounts, "networkId:", networkId);
+    // logging("userAddress:", userAddress, "\naccounts:", accounts, "\nnetworkId:", networkId)();
     if (isInBrowser && !userAddress) {
         loggedAlert(`Your user address is undefined. \
 Please reload this page with metamask enabled and an account selected.`);}

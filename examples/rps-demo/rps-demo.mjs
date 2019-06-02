@@ -1,5 +1,3 @@
-'use strict';
-
 import {isInBrowser, initialize} from "./common-utils.mjs";
 import "./web3-prelude.mjs";
 import "./local-storage.mjs";

@@ -44,8 +44,7 @@ export const compose = (...fa) => {
 export const assert = (bool, msg, doAlert) => { if (!bool) {
     const err = msg ? typeof msg == "function" ? msg () : msg : "assertion failed";
     // TODO: do something good on nodejs
-    console.log(err);
-    if (doAlert) { alert(err); }
+    if (doAlert) { loggedAlert(err) } else { logging(err)() }
     throw(err)}}
 
 // Combinators for CPS functions
@@ -154,11 +153,13 @@ export const popEntry = (table, key) => {
 export const merge = o1 => o2 => ({...o2, ...o1});
 
 /** : ...'a => ...'b => () */
-export const logging = (...prefix) => (...result) =>
-      console.log(...prefix, ...result.map(JSON.stringify));
+export const logging = (...prefix) => (...result) => {
+    const args = [...prefix, ...result.map(JSON.stringify)];
+    if (isInBrowser) { console.log(...args) }
+    else { console.log("%s", args.join(" ")); }}
 
 export const loggedAlert = (...message) => {
-    console.log(...message); alert(message.pop()); }
+    logging(...message)(); if (isInBrowser) { alert(message.pop()) }}
 
 /** : ...'a => ...'b => Kont(...'b) */
 export const loggingK = (...prefix) => (...result) => k =>
@@ -209,8 +210,7 @@ export const runHooks = hooks => (...args) => k =>
     forEachK(entry => entry[1](...args))(Object.entries(hooks).sort(compareFirst))(k);
 
 /** walk a data structure in dependency order, achieving a topologically sort */
-export const inDependencyOrder = (act, dependencyOrder, activityName) => k => {
-    const issued = {};
+export const inDependencyOrder = (act, dependencyOrder, activityName, issued = {}) => k => {
     const current = {};
     const handleFun = name => k => {
         if (current[name]) {
@@ -218,7 +218,6 @@ export const inDependencyOrder = (act, dependencyOrder, activityName) => k => {
         } else if (issued[name]) {
             return k();
         } else {
-            console.log("name:", name)
             issued[name] = true;
             current[name] = true;
             const rec = dependencyOrder[name];
@@ -233,10 +232,9 @@ export const inDependencyOrder = (act, dependencyOrder, activityName) => k => {
 const initFunctions = {}; // maps names to an object { dependsOn: [list of dependencies], fun: actual fun }
 const initFunctionFunction = name => { const f = initFunctions[name]; return f.fun || f }
 export const registerInit = init => Object.assign(initFunctions, init);
-export const initialize = () => {
-console.log(initFunctions);
-inDependencyOrder(initFunctionFunction, initFunctions, "init:")(identity);
-}
+export const initialized = {}
+export const initialize = () =>
+    inDependencyOrder(initFunctionFunction, initFunctions, "init:", initialized)(identity);
 
 // "places", the imperative alternative to lenses.
 // type place('a) = { get: () => 'a, set: 'a => () }
@@ -281,6 +279,7 @@ export const checkRequirement = (bool, msg) => {
 
 /** Debugging stuff */
 export let r;
+export const rr = () => r;
 export const setr = result => {r = result; logging("result:")(r); return r;};
 export const setrr = seq(Array.of)(setr);
 export const setrk = result => k => k(setr(result));
