@@ -76,7 +76,7 @@ contract RockPaperScissors
             Player1_wins_by_default,
             Player0_rescinds
         }
-        Outcome outcome; // NB: Superfluous: never read, can be computed purely on the client side.
+        // Outcome outcome; // NB: Superfluous: never read, can be computed purely on the client side.
         // at 5000 GAS, ~2 GWEI/GAS, 1e-9 ETH/GWEI, 250 USD/ETH, storing a 256-bit word of information in an ethereum contract costs about ¼¢ and a basic transaction (21000 GAS) costs about 1¢, so there's a lot of pennies to pinch by avoiding needless computation.
 
         // Utility functions
@@ -209,7 +209,7 @@ contract RockPaperScissors
                 // Compute outcome. 0: player1 wins, 1: draw, 2: player0 wins.
                 // Numbers chosen to be one above the strcmp convention used by C, OCaml, Javascript, etc.
                 // could be made a local variable. See above about outcome.
-                outcome = Outcome((uint8(_hand0) + 4 - uint8(hand1)) % 3);
+                Outcome outcome = Outcome((uint8(_hand0) + 4 - uint8(hand1)) % 3);
 
                 if (outcome == Outcome.Player0_wins) {
                         // The reveal is in favor of player0
@@ -223,8 +223,8 @@ contract RockPaperScissors
                         player1_gets(wager_amount);
                         player0_gets(wager_amount+escrow_amount);
                 }
-                salt = _salt; // Not needed in production
-                hand0 = _hand0; // Not needed in production
+                //salt = _salt; // Not needed in production
+                //hand0 = _hand0; // Not needed in production
                 state = State.Completed; // Yes needed in production!
 
                 // Emit a relevant event.
@@ -239,7 +239,7 @@ contract RockPaperScissors
                 require(state == State.Waiting_for_player1);
                 require_player0();
                 require_timeout();
-                outcome = Outcome.Player0_rescinds; // Superfluous, see above about outcome
+                //outcome = Outcome.Player0_rescinds; // Superfluous, see above about outcome
                 player0_gets(wager_amount+escrow_amount);
                 state = State.Completed;
                 emit Player0Rescind();
@@ -252,13 +252,12 @@ contract RockPaperScissors
                 require(state == State.Waiting_for_player0_reveal);
                 require_player1();
                 require_timeout();
-                outcome = Outcome.Player1_wins_by_default; // Superfluous, see above about outcome
+                //outcome = Outcome.Player1_wins_by_default; // Superfluous, see above about outcome
                 player1_gets(2*wager_amount+escrow_amount);
                 state = State.Completed;
-
                 emit Player1WinByDefault();
         }
-
+/* // Now commenting out this obsolete function.
         function query_state () external view
                 returns (State _state, Outcome _outcome,
                          uint _timeout_in_blocks, uint _previous_block,
@@ -269,6 +268,7 @@ contract RockPaperScissors
                 return (state, outcome, timeout_in_blocks, previous_block, player[0], player[1],
                         player0_commitment, wager_amount, escrow_amount, salt, hand0, hand1);
         }
+*/
 }
 
 contract RockPaperScissorsFactory
