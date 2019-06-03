@@ -27,6 +27,7 @@ data C_Prim = ADD | SUB | MULT | DIV | MOD
             | RANDOM
             | DIGEST
             | BYTES_EQ
+            | INT_TO_BYTES
             | BCAT | BCAT_LEFT | BCAT_RIGHT
             | IF_THEN_ELSE
 data EP_Prim = CP C_Prim
@@ -39,6 +40,7 @@ data Role = RolePart Participant
           | RoleContract
 
 -- Surface Language
+-- XXX Drastically simplify this and add real macros
 data SLExpr = SL_Con Constant
             | SL_Var Var
             | SL_PrimApp EP_Prim [SLExpr]
@@ -52,10 +54,31 @@ data SLExpr = SL_Con Constant
             | SL_LetValues (Maybe Var) [Var] SLExpr SLExpr
             | SL_FunApp Var [Var] [SLExpr]
 
-data SL_Def = SL_DefineValues [Var] SLExpr
-            | SL_DefineFun Var [Var] [Var] SLExpr 
+data SLDef = SL_Require FilePath
+           | SL_DefineValues [Var] SLExpr
+           | SL_DefineFun Var [Var] [Var] SLExpr
 
-data SLProgram = SL_Prog [SL_Def] (M.Map Participant [Var]) SLExpr
+data SLProgram = SL_Lib [SLExpr]
+               | SL_Exe [SLDef] (M.Map Participant [Var]) [SLExpr]
+
+-- Expanded Language
+data XLExpr = XL_Con Constant
+            | XL_Var Var
+            | XL_PrimApp EP_Prim [XLExpr]
+            | XL_If XLExpr XLExpr XLExpr
+            | XL_Assert Bool XLExpr
+            | XL_Consensus Var [Var] XLExpr
+            | XL_Values [XLExpr]
+            | XL_Transfer Var Var XLExpr
+            | XL_Classify XLExpr
+            | XL_Declassify XLExpr
+            | XL_LetValues (Maybe Var) [Var] XLExpr XLExpr
+            | XL_FunApp Var [Var] [XLExpr]
+
+data XLDef = XL_DefineValues [Var] XLExpr
+           | XL_DefineFun Var [Var] [Var] XLExpr
+
+data XLProgram = XL_Prog [XLDef] (M.Map Participant [Var]) XLExpr
 
 -- Intermediate Language
 type ILVar = Int
@@ -117,14 +140,17 @@ slParser :: Parser SLProgram
 slParser = error "XXX"
 
 -- Compilation & Analysis API
-anf :: SLProgram -> ILProgram
+expand :: SLProgram -> IO XLProgram
+anf :: XLProgram -> ILProgram
 epp :: ILProgram -> BLProgram
 emit_js :: BLProgram -> Doc ann
 emit_sol :: BLProgram -> Doc ann
 emit_z3 :: BLProgram -> Z3 String
 
 -- Implementation
-anf slp = error "XXX"
+expand slp = error "XXX"
+
+anf xlp = error "XXX"
 
 --- Performs type checking (including information-flow security)
 epp ilp = error "XXX"
@@ -135,17 +161,25 @@ emit_sol blp = error "XXX"
 
 emit_z3 blp = error "XXX"
 
+slparse :: FilePath -> IO SLProgram
+slparse srcp = do
+  input <- readFile srcp
+  case parse slParser srcp input of
+    Left bundle ->
+      do putStr (errorBundlePretty bundle)
+         error "Failed to parse"
+    Right slp ->
+      return slp
+
 compile :: FilePath -> IO ()
 compile srcp = do
   let solp = srcp ++ ".sol"
       jsp = srcp ++ ".js"
-  input <- readFile srcp
-  case parse slParser srcp input of
-    Left bundle -> putStr (errorBundlePretty bundle)
-    Right slp ->
-      let ilp = anf slp
-          blp = epp ilp in
-      do z3res <- evalZ3 (emit_z3 blp)
-         putStrLn ("Z3: " ++ z3res)
-         writeFile solp (show (emit_sol blp))
-         writeFile jsp (show (emit_js blp))
+  slp <- slparse srcp
+  xlp <- expand slp
+  let ilp = anf xlp
+      blp = epp ilp
+  z3res <- evalZ3 (emit_z3 blp)
+  putStrLn ("Z3: " ++ z3res)
+  writeFile solp (show (emit_sol blp))
+  writeFile jsp (show (emit_js blp))
