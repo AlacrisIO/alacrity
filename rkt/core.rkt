@@ -207,6 +207,14 @@
       `(begin (define ,_seq_ @ ,from (! (msg ,m1)))
               (match @ ,to : (?) as ,m1)
               ,@more))]
+    [`(begin [,(? participant? from) -> ,(? participant? to)
+                                     : ,m
+                                     #:pay ,(? symbol?)]
+             ,@more)
+     ;; TODO: handle the #:pay keyword somehow as part of sending and
+     ;; receiving
+     (rec
+      `(begin [,from -> ,to : ,m] ,@more))]
     [`(begin (match @ ,(? participant? at) : ,e as ,m) ,@more)
      (we:match@ at (rec e) (wm-parse m)
                 (rec `(begin ,@more)))]
