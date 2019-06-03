@@ -210,15 +210,16 @@ export const runHooks = hooks => (...args) => k =>
     forEachK(entry => entry[1](...args))(Object.entries(hooks).sort(compareFirst))(k);
 
 /** walk a data structure in dependency order, achieving a topologically sort */
-export const inDependencyOrder = (act, dependencyOrder, activityName, issued = {}) => k => {
+export const inDependencyOrder = (act, dependencyOrder, activityName,
+                                  what = Object.keys(dependencyOrder), done = {}) => k => {
     const current = {};
     const handleFun = name => k => {
         if (current[name]) {
             throw ["Circular dependency during", activityName, Object.keys(current)];
-        } else if (issued[name]) {
+        } else if (done[name]) {
             return k();
         } else {
-            issued[name] = true;
+            done[name] = true;
             current[name] = true;
             const rec = dependencyOrder[name];
             const kk =
@@ -226,15 +227,16 @@ export const inDependencyOrder = (act, dependencyOrder, activityName, issued = {
                 () => { delete current[name]; return k(); })};
             if (rec.dependsOn) {return handleFuns(rec.dependsOn)(kk)} else {return kk()}}};
     const handleFuns = funs => forEachK(handleFun)(funs);
-    return handleFuns(Object.keys(dependencyOrder))(k);}
+    return handleFuns(what)(k);}
 
 // Initialization. TODO: maybe have a dependency graph instead?
 const initFunctions = {}; // maps names to an object { dependsOn: [list of dependencies], fun: actual fun }
 const initFunctionFunction = name => { const f = initFunctions[name]; return f.fun || f }
 export const registerInit = init => Object.assign(initFunctions, init);
 export const initialized = {}
-export const initialize = () =>
-    inDependencyOrder(initFunctionFunction, initFunctions, "init:", initialized)(identity);
+export const initialize = (what = Object.keys(initFunctions), done={}) =>
+    inDependencyOrder(initFunctionFunction, initFunctions, "init:",
+                      what, done)(identity);
 
 // "places", the imperative alternative to lenses.
 // type place('a) = { get: () => 'a, set: 'a => () }
