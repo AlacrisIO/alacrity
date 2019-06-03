@@ -46,6 +46,18 @@ export const networkConfig =
      blockPollingPeriodInSeconds: 1,
      txExplorerUrl: "https://rinkeby.etherscan.io/tx/", // + ${tx} including 0x
      addressExplorerUrl: "https://rinkeby.etherscan.io/address/" // + ${tx} including 0x
+    },
+    "17": /* devnet, a private Geth PoA testnet running on localhost */
+    {networkName: "devnet",
+     networkUrl: null, // TODO: deploy etherscan on the private network!
+     contract: null,
+     timeoutInBlocks: 12,
+     timeoutString: "about 3 minutes",
+     confirmationsWantedInBlocks: 1,
+     confirmationsString: "about 15 seconds",
+     blockPollingPeriodInSeconds: 1,
+     txExplorerUrl: null, // TODO: deploy etherscan on the private network!
+     addressExplorerUrl: null, // TODO: deploy etherscan on the private network!
     }
   };
 

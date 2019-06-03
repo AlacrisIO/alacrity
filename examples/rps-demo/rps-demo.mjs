@@ -12,9 +12,10 @@ import "./debug.mjs"
 
 if (isInBrowser) {
     window.addEventListener('load', () => {
+        /* eslint-disable no-console */
         console.log("Page loaded. Initializing...");
-        return initialize()})}
-else { initialize() }
+        return initialize()()})}
+else { initialize()() }
 
 // Local Variables:
 // mode: JavaScript

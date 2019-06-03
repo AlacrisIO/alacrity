@@ -8,13 +8,13 @@ import * as dapp_contract from "./build/dapp-contract.mjs";
 import * as dapp_backend from "./dapp-backend.mjs";
 import * as dapp_frontend from "./dapp-frontend.mjs";
 
-const {isInBrowser, seq, registerGlobals, globals, kLogError, errbacK, srf, loggingK} = common_utils;
+const {isInBrowser, seq, registerGlobals, globals, kLogError, errbacK, srf, logging, loggingK} = common_utils;
 const {web3} = web3_prelude;
 const {getGame, config, meth, newBlockHooks} = common_runtime;
 const {decodeGameCreationData, player0StartGame, makeCommitment, player1ShowHand,
       player1WinByDefault, queryConfirmedState, player0Reveal} = dapp_backend;
 
-console.log("To make all the program bindings available in the console, use:\neval(window.magic())");
+logging("To make all the program bindings available in the console, use:\neval(window.magic())")();
 const magic = () =>
    `var globals = ${isInBrowser ? "window" : "process"}.globals;
    ${Object.keys(globals).map(m=>Object.keys(window.globals[m]).map(s=>`var ${s} = globals.${m}.${s}`).join(";")).join(";")}`

@@ -42,12 +42,14 @@
   * Survive spamming of the chain by games to DoS clients that would run out of memory:
     Only check for new games in recent blocks; cap the number of open games;
     require a small fee for opening a game?
+  * Have a serial number for the factory contract, and inside it a serial number for the game?
+    This would allow games to have a unique ID shareable with other users.
 */
-import {byteToHex, registerInit, errbacK, kLogError, hexToAddress, hexTo0x, checkRequirement, setrr,
+import {byteToHex, registerInit, errbacK, hexToAddress, hexTo0x, checkRequirement, setrr,
         loggedAlert, merge, flip, logErrorK, randomSalt, logging
        } from "./common-utils.mjs";
 import {web3, crypto, userAddress} from "./web3-prelude.mjs";
-import {saltedDigest, registerBackendHooks, renderGame, config, getConfirmedBlockNumber,
+import {saltedDigest, registerBackendHooks, renderGame, config,
         toBN, optionalAddressOf0x, optionalAddressMatches, hexToBigNumber, deployContract,
         getGame, updateGame, removeActiveGame, queueGame, attemptGameCreation, optionalAddressTo0x,
         isGameConfirmed, digestHex
@@ -381,13 +383,13 @@ const initBackend = k => {
         rpsFactory = web3.eth.contract(rpsFactoryAbi).at(config.contract.address);
         if (digestHex(rpsFactoryCode) !== config.contract.codeHash) {
             logging(`Warning: deployed contract has code hash ${config.contract.codeHash} \
-but the latest version of the contract has code hash ${digestHex(rpsFactoryCode)}`)();}}
-    topics.Created = rpsFactory.Created().options.topics[0];
-    //topics.Player0StartGame = rps().Player0StartGame().options.topics[0];
-    topics.Player1ShowHand = rps().Player1ShowHand().options.topics[0];
-    topics.Player0Reveal = rps().Player0Reveal().options.topics[0];
-    topics.Player0Rescind = rps().Player0Rescind().options.topics[0];
-    topics.Player1WinByDefault = rps().Player1WinByDefault().options.topics[0];
+but the latest version of the contract has code hash ${digestHex(rpsFactoryCode)}`)();}
+        topics.Created = rpsFactory.Created().options.topics[0];
+        //topics.Player0StartGame = rps().Player0StartGame().options.topics[0];
+        topics.Player1ShowHand = rps().Player1ShowHand().options.topics[0];
+        topics.Player0Reveal = rps().Player0Reveal().options.topics[0];
+        topics.Player0Rescind = rps().Player0Rescind().options.topics[0];
+        topics.Player1WinByDefault = rps().Player1WinByDefault().options.topics[0]}
     return k()}
 
 export const registerRpsHooks = hooks => {
@@ -401,7 +403,7 @@ registerBackendHooks({
 registerInit({
     Backend: {fun: initBackend, dependsOn: ["Runtime"]}})
 
-export const deployRps = () => deployContract(rpsFactoryCode)(setrr)
+export const deployRps = (k = setrr) => deployContract(rpsFactoryCode)(k)
 
 // Local Variables:
 // mode: JavaScript

@@ -94,7 +94,6 @@ export const deleteUserStorageField = (key, field) => {
     return record;}
 
 
-
 /** Count the number of confirmations for a transaction given by its hash.
     Return -1 if the transaction is yet unconfirmed.
     : String0x => KontE(int) */
@@ -111,10 +110,10 @@ export const getConfirmations = txHash => (k = kLogResult, kError = kLogError) =
 
 /** Wait for a transaction to be confirmed
     : String0x => KontE() */
-export const confirmEtherTransaction =
+export const confirmTransaction =
       (txHash, confirmations = config.confirmationsWantedInBlocks) => (k = kLogResult) => {
     const kRetry = () =>
-          setTimeout((() => confirmEtherTransaction(txHash, confirmations)(k)),
+          setTimeout((() => confirmTransaction(txHash, confirmations)(k)),
                      config.blockPollingPeriodInSeconds * 1000);
     return errbacK(getConfirmations)(txHash)(
         txConfirmations => (txConfirmations >= confirmations) ? k() : kRetry(),
@@ -154,6 +153,10 @@ export const processNewBlocks = k =>
 /** : Kont() */
 export const watchBlockchain = () =>
     processNewBlocks(() => setTimeout(watchBlockchain, config.blockPollingPeriodInSeconds * 1000));
+
+export const initWatchBlockchain = k => {
+    watchBlockchain();
+    return k()}
 
 /** hook to synchronously watch all events of some kind as the chain keeps getting updated */
 export const processEvents = (filter, processK) => (fromBlock, toBlock) => k => {
@@ -496,7 +499,7 @@ const processActiveGames = (_firstUnprocessedBlock, lastUnprocessedBlock) => k =
 
 const watchActiveGames = k => {
     /* eslint-disable no-console */
-    console.log("watchActiveGames", activeGamesList());
+    logging("watchActiveGames", activeGamesList())();
     newBlockHooks["confirmedActiveGames"] = processActiveGames;
     getConfirmedBlockNumber(
         block => processActiveGames(0, block)(k),
@@ -532,7 +535,6 @@ export const checkContract = k => {
 /** : Kont() */
 const initRuntime = k => {
     nextUnprocessedBlock = userStorage.get("nextUnprocessedBlock", 0);
-    watchBlockchain();
     nextId = userStorage.get("nextId", 0);
     previousUnconfirmedId = userStorage.get("previousUnconfirmedId", 0);
     // For debugging purposes only:
@@ -543,9 +545,10 @@ const initRuntime = k => {
 
 registerInit({
     Runtime: {fun: initRuntime, dependsOn: ["Web3"]},
+    WatchBlockchain: {fun: initWatchBlockchain, dependsOn: ["Runtime"]},
     Games: {fun: initGames, dependsOn: ["Frontend"]},
     ResumeGames: {fun: resumeGames, dependsOn: ["Games"]},
-    WatchNewGames: {fun: watchNewGames, dependsOn: ["ResumeGames"]},
+    WatchNewGames: {fun: watchNewGames, dependsOn: ["ResumeGames", "WatchBlockchain"]},
     WatchActiveGames: {fun: watchActiveGames, dependsOn: ["WatchNewGames"]}});
 
 // Local Variables:

@@ -1,4 +1,4 @@
-import {registerInit, isInBrowser, require, loggedAlert, logging, handlerK
+import {registerInit, isInBrowser, require, loggedAlert
        } from "./common-utils.mjs";
 
 export let Web3;
@@ -35,7 +35,7 @@ if (web3Provider) {
 }
 
 let initWeb3 = k => {
-    (kk => isInBrowser ? ethereum.enable().then(kk) : kk(web3.eth.accounts))(a => {
+    (kk => isInBrowser ? window.ethereum.enable().then(kk) : kk(web3.eth.accounts))(a => {
     accounts = a;
     // NB: assuming a call to .toLowercase() on the userAddress is redundant.
     userAddress = (web3.currentProvider && web3.currentProvider.selectedAddress) || accounts[0];

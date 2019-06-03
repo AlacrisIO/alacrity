@@ -230,13 +230,13 @@ export const inDependencyOrder = (act, dependencyOrder, activityName,
     return handleFuns(what)(k);}
 
 // Initialization. TODO: maybe have a dependency graph instead?
-const initFunctions = {}; // maps names to an object { dependsOn: [list of dependencies], fun: actual fun }
-const initFunctionFunction = name => { const f = initFunctions[name]; return f.fun || f }
+export const initFunctions = {}; // maps names to an object { dependsOn: [list of dependencies], fun: actual fun }
+export const initFunctionFunction = name => { const f = initFunctions[name]; return f.fun || f }
 export const registerInit = init => Object.assign(initFunctions, init);
 export const initialized = {}
-export const initialize = (what = Object.keys(initFunctions), done={}) =>
+export const initialize = (what = Object.keys(initFunctions), done={}) => (k = identity) =>
     inDependencyOrder(initFunctionFunction, initFunctions, "init:",
-                      what, done)(identity);
+                      what, done)(k);
 
 // "places", the imperative alternative to lenses.
 // type place('a) = { get: () => 'a, set: 'a => () }

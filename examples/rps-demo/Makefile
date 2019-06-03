@@ -58,4 +58,7 @@ npm_install:
 	npm install web3@0.20.7 node-localstorage@1.3.1 jasmine@3.4.0
 
 test:
-	node --experimental-modules test.js
+	node --experimental-modules test.js -- test
+
+deploy:
+	node --experimental-modules test.js -- deploy
