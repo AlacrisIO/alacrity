@@ -1,5 +1,7 @@
-import Lib
+import System.Process
+import System.Exit
 
 main :: IO ()
-main =
-  compile "rps.ala"
+main = do
+  ec <- system "stack exec alacrityc ala/rps.ala"
+  exitWith ec

@@ -20,6 +20,9 @@ import qualified Text.SExpression as SE
 
 import Z3.Monad
 
+import System.FilePath
+import System.Directory
+
 -- Shared types
 data AVType = AT_Int | AT_Bool | AT_String | AT_Void
             deriving (Show)
@@ -353,7 +356,7 @@ emit_z3 blp = error "XXX emit_z3"
 
 compile :: FilePath -> IO ()
 compile srcp = do
-  xlp <- readXLProgram srcp
+  xlp <- withCurrentDirectory (takeDirectory srcp) (readXLProgram (takeFileName srcp))
   writeFile (srcp ++ ".xl") (show xlp)
   let ilp = anf xlp
   writeFile (srcp ++ ".il") (show ilp)

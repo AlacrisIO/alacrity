@@ -1,3 +1,8 @@
 .stack-work/
 alacrity.cabal
 *~
+ala/*.il
+ala/*.xl
+ala/*.bl
+ala/*.sol
+ala/*.js
