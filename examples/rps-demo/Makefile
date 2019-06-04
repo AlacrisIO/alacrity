@@ -55,10 +55,13 @@ restart_nginx:
 # https://www.npmjs.com/package/node-localstorage
 # https://jasmine.github.io/tutorials/your_first_suite
 npm_install:
-	npm install web3@0.20.7 node-localstorage@1.3.1 jasmine@3.4.0
+	$(HIDE) npm install web3@0.20.7 node-localstorage@1.3.1 jasmine@3.4.0
 
 test:
-	node --experimental-modules test.js -- test
+	$(HIDE) node --experimental-modules test.js -- test
 
 deploy:
-	node --experimental-modules test.js -- deploy
+	$(HIDE) node --experimental-modules test.js -- deploy
+
+lint:
+	$(HIDE) ./node_modules/eslint/bin/eslint.js *.mjs

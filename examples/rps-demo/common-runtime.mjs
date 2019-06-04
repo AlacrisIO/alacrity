@@ -187,10 +187,22 @@ export const registerUnconfirmedEventHook = (name, filter, processK, confirmatio
     const fromBlock = nextUnprocessedBlock - 1 - confirmations;
     return hook(filter, processK)(fromBlock, "pending")(k);}
 
+/** Given some function that sends a transaction, see if any gas was specified;
+    if not specify it from the output of estimateGas.
+    : (...a => KontE(...b)) => (...a => KontE(...b)) */
+export const sendTx = fun => (...args) => (k, kError = kLogError) => {
+    const txObject = args.pop();
+    if (txObject.gas) {
+        return errbacK(fun || web3.eth.sendTransaction)(...args, txObject)(k, kError);
+    } else {
+        return errbacK((fun || web3.eth).estimateGas)(...args, txObject)(
+            gas => errbacK(fun || web3.eth.sendTransaction)(...args, {...txObject, gas})(k, kError),
+            kError)}}
+
 /** Given some code in 0x form (.bin output from solc), deploy a contract with that code
     and CPS-return its transactionHash
-    : String0x => Kont(digest) */
-export const deployContract = code => errbacK(web3.eth.sendTransaction)({data: code});
+    : String0x => KontE(txHash) */
+export const deployContract = code => sendTx(null)({data: code});
 
 
 // The code in the section below might belong to some library to manage multiple interactions.

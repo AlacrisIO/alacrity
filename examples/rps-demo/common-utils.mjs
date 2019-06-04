@@ -139,6 +139,9 @@ export const randomSalt = () => {
    : (int, int) => Array */
 export const range = (start, length) => Array.from({length}, (_, i) => start + i);
 
+/** Return the last element in a non-empty */
+export const arrayLast = a => a[a.length-1];
+
 /** : (Array(...'a), 'b) => Array(...'a, 'b) */
 export const snoc = (l, e) => [...l, e];
 

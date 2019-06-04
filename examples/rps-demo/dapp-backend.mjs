@@ -45,23 +45,23 @@
   * Have a serial number for the factory contract, and inside it a serial number for the game?
     This would allow games to have a unique ID shareable with other users.
 */
-import {byteToHex, registerInit, errbacK, hexToAddress, hexTo0x, checkRequirement, setrr,
-        loggedAlert, merge, flip, logErrorK, randomSalt, logging
+import {byteToHex, registerInit, hexToAddress, hexTo0x, checkRequirement,
+        loggedAlert, merge, flip, logErrorK, randomSalt, logging, kLogResult, kLogError,
        } from "./common-utils.mjs";
 import {web3, crypto, userAddress} from "./web3-prelude.mjs";
 import {saltedDigest, registerBackendHooks, renderGame, config,
         toBN, optionalAddressOf0x, optionalAddressMatches, hexToBigNumber, deployContract,
         getGame, updateGame, removeActiveGame, queueGame, attemptGameCreation, optionalAddressTo0x,
-        isGameConfirmed, digestHex
+        isGameConfirmed, digestHex, sendTx
        } from "./common-runtime.mjs";
 import {renderWei} from "./common-ui.mjs";
 import {rpsAbi, rpsFactoryAbi, rpsFactoryCode} from "./build/dapp-contract.mjs";
 
 // The contract object, to be fulfilled from config after initialization.
-let rpsFactory;
+export let rpsFactory;
 
-const rpsContract = web3.eth.contract(rpsAbi);
-const rps = contractAddress => rpsContract.at(contractAddress);
+export const rpsContract = web3.eth.contract(rpsAbi);
+export const rps = contractAddress => rpsContract.at(contractAddress);
 
 /// TYPES INVOLVED
 
@@ -282,7 +282,7 @@ export const processGameAtHook = confirmedBlock => id => k => {
         const context = player0RevealContext(id, hand0, hand1, game.wagerInWei, game.escrowInWei);
         if (salt && isValidHand(hand0)) {
             loggedAlert(`${context} Please sign the following transaction.`);
-            return errbacK(rps(game.contract).player0_reveal)(salt, hand0, {})(
+            return sendTx(rps(game.contract).player0_reveal)(salt, hand0, {})(
                 txHash => {
                     updateGame(id, {player0RevealTxHash: txHash})
                     // Register txHash for confirmation? Nah, we're just polling for state change!
@@ -306,7 +306,7 @@ Be sure to start a client that has this data before the deadline.`);}} // TODO: 
         loggedAlert(`Player1 timed out in game ${id},
 sending a transaction to recover your stake of ${renderWei(stakeInWei)}`);
         // TODO register the event, don't send twice.
-        return errbacK(rps(game.contract).player0_rescind)()(
+        return sendTx(rps(game.contract).player0_rescind)()(
             txHash => { updateGame(id, { player0RescindTxHash: txHash }); return k(); },
             error => { loggedAlert(error); return k()})}
     if (game.player1 == userAddress &&
@@ -316,7 +316,7 @@ sending a transaction to recover your stake of ${renderWei(stakeInWei)}`);
         loggedAlert(`Player0 timed out in game ${id},
 sending a transaction to recover your ${renderWei(game.wagerInWei)} wager
 and their ${renderWei(stakeInWei)} stake`);
-        return errbacK(rps(game.contract).player1_win_by_default)({})(
+        return sendTx(rps(game.contract).player1_win_by_default)({})(
             txHash => {
                 updateGame(id, {player1WinByDefaultTxHash: txHash});
                 return k()},
@@ -370,7 +370,7 @@ export const acceptGame = (id, hand1) => {
         loggedAlert(`You already played ${game.hand1} on game ${id} in tx ${game.player1ShowHandTxHash}`);
         return;}
     updateGame(id, {hand1});
-    return errbacK(rps(game.contract).player1_show_hand)(hand1, {value: game.wagerInWei})(
+    return sendTx(rps(game.contract).player1_show_hand)(hand1, {value: game.wagerInWei})(
         txHash => {
             updateGame(id, {player1ShowHandTxHash: txHash});
             renderGame(id, "Accept Game:"); },
@@ -403,7 +403,7 @@ registerBackendHooks({
 registerInit({
     Backend: {fun: initBackend, dependsOn: ["Runtime"]}})
 
-export const deployRps = (k = setrr) => deployContract(rpsFactoryCode)(k)
+export const deployRps = (k = kLogResult, kError = kLogError) => deployContract(rpsFactoryCode)(k, kError)
 
 // Local Variables:
 // mode: JavaScript

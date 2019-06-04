@@ -18,3 +18,7 @@ To rebuild the contract, type: `make`
 To install the Javascript dependencies for the test suite, type: `make npm_install`
 
 To run the tests (TBD), type: `make test`
+
+To watch what the tests send on the wire, type in another terminal:
+`tcpdump -i lo -nn -s0 -A -w test.cap -v tcp port 8545`
+and interrupt with Ctrl-C when you're done.

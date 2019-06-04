@@ -32,16 +32,23 @@ const deployCommand = k =>
     initialize(["Backend"], initialized)(() => {
     console.log("Connected to network %s (%s) as %s", networkId, config.networkName, userAddress);
     web3.eth.defaultAccount = userAddress;
-    errbacK(web3.eth.getBalance)(userAddress)(balance => {
-    console.log("Account %s has balance %s", userAddress, balance);
+    //errbacK(web3.eth.getBalance)(userAddress)(balance => {
+    //console.log("Account %s has balance %s", userAddress, balance);
+
+    const len = (rpsFactoryCode.length-2)/2;
+    const intrinsicCost = 21000 + len*68; // NB: zero bytes actually only cost 4.
+    console.log("Code has length %d, intrinsic cost %d", len, intrinsicCost); // 3291, 244788
+    errbacK(web3.eth.getBlock)("pending")(block => {
+    console.log("Block has gas limit %s", block.gasLimit); // 6289319
+
     if (config.contract && digestHex(rpsFactoryCode) === config.contract.codeHash) {
         console.log("Contract already deployed at %s, not redeploying but checking it...",
                     config.contract.address);
         return checkContract(k);
     } else {
-        deployRps(creationHash => {
+        return deployRps(creationHash => {
             console.log("Deploying the contract through transaction %s...", creationHash);
-            confirmTransaction(creationHash, 0)(() => {
+            return confirmTransaction(creationHash, 0)(() =>
             errbacK(web3.eth.getTransactionReceipt)(creationHash)(receipt => {
             assert(receipt.transactionHash === creationHash, "Bad tx hash");
             const address = receipt.contractAddress;
@@ -50,7 +57,7 @@ const deployCommand = k =>
             console.log("Add this creation data to dapp-config.js for network %s: %s",
                         networkId, JSON.stringify({address, codeHash, creationHash, creationBlock}));
             console.log("You should wait for %d confirmations (%s)...",
-                        config.confirmationsWantedInBlocks, config.confirmationsString)})})})}})})
+                        config.confirmationsWantedInBlocks, config.confirmationsString)}))})}})})
 
 const usageString = "Usage: undocumented, UTSL";
 const versionString = "rps-demo 0.1";
