@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 
 import {initialize, initFunctions, registerInit,
-        identity, logging, errbacK, assert
+        identity, logging, errbacK, assert, kLogResult, kLogError
        } from "./common-utils.mjs";
 import {web3, networkId, userAddress} from "./web3-prelude.mjs";
 import "./local-storage.mjs";
@@ -28,25 +28,20 @@ delete initFunctions.WatchActiveGames;
 
 const initialized = {};
 
-const deployCommand = k =>
+const deployCommand = (k = kLogResult, kError = kLogError) => {
     initialize(["Backend"], initialized)(() => {
     console.log("Connected to network %s (%s) as %s", networkId, config.networkName, userAddress);
     web3.eth.defaultAccount = userAddress;
     //errbacK(web3.eth.getBalance)(userAddress)(balance => {
     //console.log("Account %s has balance %s", userAddress, balance);
+    //const len = (rpsFactoryCode.length-2)/2;
+    //const intrinsicCost = 21000 + len*68; // NB: zero bytes actually only cost 4.
+    //console.log("Code has length %d, intrinsic cost %d", len, intrinsicCost); // 3291, 244788
+    //errbacK(web3.eth.getBlock)("pending")(block => {
+    //console.log("Block has gas limit %s", block.gasLimit); // 6289319
 
-    const len = (rpsFactoryCode.length-2)/2;
-    const intrinsicCost = 21000 + len*68; // NB: zero bytes actually only cost 4.
-    console.log("Code has length %d, intrinsic cost %d", len, intrinsicCost); // 3291, 244788
-    errbacK(web3.eth.getBlock)("pending")(block => {
-    console.log("Block has gas limit %s", block.gasLimit); // 6289319
-
-    if (config.contract && digestHex(rpsFactoryCode) === config.contract.codeHash) {
-        console.log("Contract already deployed at %s, not redeploying but checking it...",
-                    config.contract.address);
-        return checkContract(k);
-    } else {
-        return deployRps(creationHash => {
+    const kDeploy = () =>
+        deployRps(creationHash => {
             console.log("Deploying the contract through transaction %s...", creationHash);
             return confirmTransaction(creationHash, 0)(() =>
             errbacK(web3.eth.getTransactionReceipt)(creationHash)(receipt => {
@@ -56,8 +51,16 @@ const deployCommand = k =>
             const creationBlock = receipt.blockNumber;
             console.log("Add this creation data to dapp-config.js for network %s: %s",
                         networkId, JSON.stringify({address, codeHash, creationHash, creationBlock}));
-            console.log("You should wait for %d confirmations (%s)...",
-                        config.confirmationsWantedInBlocks, config.confirmationsString)}))})}})})
+            console.log("Now waiting for %d confirmations (%s) — use Ctrl-C to interrupt earlier.",
+                        config.confirmationsWantedInBlocks, config.confirmationsString);
+            return confirmTransaction(creationHash, config.confirmationsWantedInBlocks)(
+                k)}, kError))})
+    if (config.contract && digestHex(rpsFactoryCode) === config.contract.codeHash) {
+        console.log("Contract already deployed at %s, not redeploying but checking it...",
+                    config.contract.address);
+        return checkContract(k, err => {console.log("Contract invalid: %s", err); return kDeploy()});
+    }
+    return kDeploy()})}
 
 const usageString = "Usage: undocumented, UTSL";
 const versionString = "rps-demo 0.1";

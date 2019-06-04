@@ -106,7 +106,7 @@ export const getConfirmations = txHash => (k = kLogResult, kError = kLogError) =
             errbacK(web3.eth.getBlockNumber)()(
                 currentBlock => k(currentBlock - txInfo.blockNumber),
                 kError),
-        kError);
+        kError)
 
 /** Wait for a transaction to be confirmed
     : String0x => KontE() */
@@ -115,8 +115,8 @@ export const confirmTransaction =
     const kRetry = () =>
           setTimeout((() => confirmTransaction(txHash, confirmations)(k)),
                      config.blockPollingPeriodInSeconds * 1000);
-    return errbacK(getConfirmations)(txHash)(
-        txConfirmations => (txConfirmations >= confirmations) ? k() : kRetry(),
+    return getConfirmations(txHash)(
+        txConfirmations => (txConfirmations >= confirmations ? k : kRetry)(),
         error => logErrorK(error)(kRetry))}
 
 /** Get the number of the latest confirmed block
@@ -530,19 +530,25 @@ const initGames = k => { for(let i=previousUnconfirmedId;i<nextId;i++) {initGame
 
 const resumeGames = k => forEachK(processGame)(range(previousUnconfirmedId, nextId-previousUnconfirmedId))(k);
 
-export const checkContract = k => {
+export const checkContract = (k = kLogResult, kError = kLogError) => {
     const {address, codeHash, creationHash, creationBlock} = config.contract;
     errbacK(web3.eth.getTransaction)(creationHash)(txInfo => {
-    assert(txInfo, "No txInfo");
-    assert(txInfo.blockNumber === creationBlock, () => `bad creation block: expected ${creationBlock} but got ${txInfo.blockNumber}`);
-    assert(digestHex(txInfo.input) === codeHash, () => `bad code: expected ${codeHash} but got ${digestHex(txInfo.input)}.`);
-    errbacK(web3.eth.getTransactionReceipt)(creationHash)(receipt => {
-    assert(receipt, "No tx receipt");
-    assert(receipt.transactionHash === creationHash, "Bad tx hash");
-    assert(receipt.blockNumber === creationBlock, "bad creation block");
-    assert(receipt.contractAddress === address, "bad contract address");
-    logging("Contract is OK.")();
-    return k()})})}
+    try {
+        assert(txInfo, "No txInfo");
+        assert(txInfo.blockNumber === creationBlock, () => `bad creation block: expected ${creationBlock} but got ${txInfo.blockNumber}`);
+        assert(digestHex(txInfo.input) === codeHash, () => `bad code: expected ${codeHash} but got ${digestHex(txInfo.input)}.`);
+    } catch (e) {return kError(e)}
+    return errbacK(web3.eth.getTransactionReceipt)(creationHash)(
+        receipt => {
+        try {
+            assert(receipt, "No tx receipt");
+            assert(receipt.transactionHash === creationHash, "Bad tx hash");
+            assert(receipt.blockNumber === creationBlock, "bad creation block");
+            assert(receipt.contractAddress === address, "bad contract address");
+        } catch (e) {return kError(e);}
+        logging("Contract is OK.")()
+        return k()},
+        kError)})}
 
 /** : Kont() */
 const initRuntime = k => {
