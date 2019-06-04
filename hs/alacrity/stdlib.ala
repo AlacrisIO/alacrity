@@ -1,0 +1,9 @@
+#lang alacrity/lib
+
+(define (precommit x)
+  (define reveal (msg-cat (random) x))
+  (define commitment (digest reveal))
+  (values reveal commitment))
+(define (check-commit commitment reveal)
+  (rely! (equal? commitment (digest reveal)))
+  (msg-right reveal))

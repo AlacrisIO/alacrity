@@ -26,6 +26,8 @@ dependencies:
 - z3 >= 408.0
 - megaparsec
 - parser-combinators
+- bytestring
+- sexpr-parser
 
 library:
   source-dirs: src
