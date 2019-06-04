@@ -28,6 +28,7 @@ dependencies:
 - parser-combinators
 - bytestring
 - sexpr-parser
+- mtl
 
 library:
   source-dirs: src

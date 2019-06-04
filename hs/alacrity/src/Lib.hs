@@ -11,10 +11,11 @@ import qualified Data.ByteString.Char8 as B
 import Data.Text.Prettyprint.Doc
 
 import Control.Monad (void)
+import Control.Monad.State.Lazy
 import Control.Monad.Combinators.Expr -- from parser-combinators
 import Data.Void
-import Text.Megaparsec
-import Text.Megaparsec.Char
+import qualified Text.Megaparsec as MP
+import qualified Text.Megaparsec.Char as MPC
 import qualified Text.Megaparsec.Char.Lexer as L
 import qualified Text.SExpression as SE
 
@@ -105,6 +106,7 @@ data ILTail = IL_Ret [ILArg]
             --- there are still adjacent ones, it is an error.
             | IL_Consensus Role [ILVar] ILTail [ILVar] ILTail
             | IL_Transfer Role Role ILArg ILTail
+            | IL_Declassify ILArg
             deriving (Show)
 
 data ILProgram = IL_Prog (M.Map Participant [ILVar]) ILTail
@@ -278,8 +280,8 @@ invalids :: String -> [SE.SExpr] -> a
 invalids f ses = invalid f (SE.List ses)
 
 parseSExprs :: SE.Parser SE.SExpr
-parseSExprs = SE.List <$> (sepBy1 SE.parseSExpr sc)
-  where sc = L.space space1 lineCmnt empty
+parseSExprs = SE.List <$> (MP.sepBy1 SE.parseSExpr sc)
+  where sc = L.space MPC.space1 lineCmnt MP.empty
         lineCmnt  = L.skipLineComment ";"
 
 readXLProgram :: FilePath -> IO XLProgram
@@ -291,15 +293,44 @@ readXLLibrary fp = readSExpr fp >>= decodeXLLibrary
 readSExpr :: FilePath -> IO SE.SExpr
 readSExpr srcp = do
   input <- readFile srcp
-  case parse parseSExprs srcp input of
+  case MP.parse parseSExprs srcp input of
     Left bundle ->
-      do putStr (errorBundlePretty bundle)
+      do putStr (MP.errorBundlePretty bundle)
          error ("Failed to parse " ++ srcp)
     Right se -> return se
 
 -- Compilation & Analysis API
+
+-- --- The ANF Monad stores the next available variable and a list of
+-- --- previously bound variables.
+type ANFMonad a = State (ILVar, [(ILVar, ILExpr)]) a
+
+runANF :: ANFMonad a -> a
+runANF am = a
+  where (a, (_,[])) = runState am (0, [])
+
 anf :: XLProgram -> ILProgram
-anf xlp = error "XXX anf"
+anf xlp = runANF xm
+  where XL_Prog defs ps main = xlp
+        anf_funs :: [XLDef] -> (M.Map Var ([Var], [Var], XLExpr))
+        anf_funs ds = error "XXX anf_funs"
+        funmap = anf_funs defs
+        anf_defs :: [XLDef] -> ANFMonad (M.Map Var ILArg)
+        anf_defs ds = error "XXX anf_defs"
+        anf_ps :: (M.Map Participant [Var]) -> ANFMonad ((M.Map Var ILArg), (M.Map Participant [ILVar]))
+        anf_ps ps = error "XXX anf_ps"
+        anf_tail :: (M.Map Var ILArg) -> XLExpr -> ANFMonad ILTail
+        anf_tail ρ xe = error "XXX anf_tail"
+        anf_expr :: (M.Map Var ILArg) -> XLExpr -> ANFMonad ILExpr
+        anf_expr ρ xe = error "XXX anf_expr"
+        anf_arg :: (M.Map Var ILArg) -> XLExpr -> ANFMonad ILArg
+        anf_arg ρ xe = error "XXX anf_arg"
+        xm :: ANFMonad ILProgram
+        xm = do ρ0 <- anf_defs defs
+                (ρ1, nps) <- anf_ps ps
+                let ρ2 = M.union ρ0 ρ1
+                mt <- anf_tail ρ2 main
+                return (IL_Prog nps mt)
 
 --- Performs type checking (including information-flow security)
 epp :: ILProgram -> BLProgram
