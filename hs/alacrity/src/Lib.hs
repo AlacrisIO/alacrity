@@ -3,7 +3,6 @@ module Lib (compile) where
 import System.IO
 
 import Data.Maybe
-
 import Data.List
 import qualified Data.Map.Strict as M
 import qualified Data.ByteString.Char8 as B
@@ -12,7 +11,7 @@ import Data.Text.Prettyprint.Doc
 
 import Control.Monad (void)
 import Control.Monad.State.Lazy
-import Control.Monad.Combinators.Expr -- from parser-combinators
+import Control.Monad.Combinators.Expr
 import Data.Void
 import qualified Text.Megaparsec as MP
 import qualified Text.Megaparsec.Char as MPC
@@ -207,8 +206,7 @@ decodeXLExpr1 (SE.List [SE.Atom "gurantee!", arg]) = XL_Assert False (decodeXLEx
 decodeXLExpr1 (SE.List [SE.Atom "transfer", from, to, amt]) = XL_Transfer (decodeVar from) (decodeVar to) (decodeXLExpr1 amt)
 decodeXLExpr1 (SE.List [SE.Atom "declassify", arg]) = XL_Declassify (decodeXLExpr1 arg)
 decodeXLExpr1 (SE.List (SE.Atom "values" : args)) = XL_Values (map decodeXLExpr1 args)
-decodeXLExpr1 (SE.List (SE.Atom op : args)) =
-  (decodeXLOp op) (map decodeXLExpr1 args)
+decodeXLExpr1 (SE.List (SE.Atom op : args)) = (decodeXLOp op) (map decodeXLExpr1 args)
 decodeXLExpr1 se = invalid "decodeXLExpr1" se
 
 decodeXLExpr :: [SE.SExpr] -> XLExpr
@@ -306,8 +304,7 @@ readSExpr srcp = do
 type ANFMonad a = State (ILVar, [(ILVar, ILExpr)]) a
 
 runANF :: ANFMonad a -> a
-runANF am = a
-  where (a, (_,[])) = runState am (0, [])
+runANF am = a where (a, (_,[])) = runState am (0, [])
 
 anf :: XLProgram -> ILProgram
 anf xlp = runANF xm
