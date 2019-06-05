@@ -90,10 +90,9 @@ data XLExpr
   | XL_Assert XLExpr
   --- Sender x Message x Contract Code
   | XL_Consensus Participant [XLVar] XLExpr
-  {- XXX Notice that the consensus doesn't list the binders. We assume
-     that it ends in XL_Values, which is the message that gets
-     returned. We'll unwind this during ANF and turn Consensus into a
-     binding form. -}
+  {- Notice that the consensus doesn't list the binders. We assume that it
+     ends in XL_Values, which is the message that gets returned. We'll
+     unwind this during ANF and turn Consensus into a binding form. -}
   | XL_Values [XLExpr]
   --- From x To x Amount
   | XL_Transfer Role Role XLExpr
