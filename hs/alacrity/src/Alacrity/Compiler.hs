@@ -31,11 +31,14 @@ runANF am = if null vs then a else error "ANF: Left variables in state!"
   where
     (a, (_, vs)) = runState am (0, S.Empty)
 
-collectANF :: (ANFElem -> a -> a) -> a -> ANFMonad a
-collectANF f a = do
-  (nv, vs) <- get
-  put (nv, S.Empty)
-  return (foldr f a vs)
+--- Run an ANF computation, with local new variables, but a global new
+--- variable counter.
+collectANF :: (ANFElem -> a -> a) -> (ANFMonad a) -> ANFMonad a
+collectANF f ma = do
+  (v0, vs0) <- get
+  let (a, (v1, vs1)) = runState ma (v0, S.Empty)
+  put (v1, vs0)
+  return (foldr f a vs1)
 
 consumeANF :: String -> ANFMonad ILVar
 consumeANF s = do
@@ -159,14 +162,12 @@ anf_expr σ me ρ e mk =
           nv <- allocANF me ne s
           mk [ IL_Var nv ]
 
-anf_addVar :: ANFElem -> ILTail -> ILTail
-anf_addVar (mp, v, e) t = IL_Let mp (Just v) e t
+anf_addVar :: ANFElem -> (Natural, ILTail) -> (Natural, ILTail)
+anf_addVar (mp, v, e) (c, t) = (c, IL_Let mp (Just v) e t)
 
 anf_tail :: XLFuns -> Maybe Participant -> XLRenaming -> XLExpr -> ([ILArg] -> ANFMonad (Natural, ILTail)) -> ANFMonad (Natural, ILTail)
 anf_tail σ me ρ e mk = do
-  (n, et) <- anf_expr σ me ρ e mk
-  et' <- collectANF anf_addVar et
-  return (n, et')
+  collectANF anf_addVar (anf_expr σ me ρ e mk)
 
 anf_ktop :: [ILArg] -> ANFMonad (Natural, ILTail)
 anf_ktop args = return (fromInteger (toInteger (length args)), IL_Ret args)
