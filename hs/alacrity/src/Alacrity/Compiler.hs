@@ -4,7 +4,9 @@ import Control.Monad.State.Lazy
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Map.Strict as M
 import qualified Data.Text.Lazy.IO as TIO
+import Data.Sequence
 import Data.Text.Prettyprint.Doc
+import Language.JavaScript.Parser as JS
 import System.Exit
 import System.IO
 import Z3.Monad as Z3
@@ -20,18 +22,25 @@ import Alacrity.Parser
    The ANF monad stores the next available variable and the list of
    defined variables.
  -}
-  
-type ANFMonad a = State (ILVar, [(Maybe ILVar, ILExpr)]) a
 
-runANF :: ANFMonad a -> a
-runANF am = a
+type ANFElem = (Maybe Participant, ILVar, ILExpr)
+type ANFMonad a = State (ILVar, Seq ANFElem) a
+
+runANF :: (ANFElem -> a -> a) -> ANFMonad a -> a
+runANF addVar am = foldr addVar a vs
   where
-    (a, (_, [])) = runState am (0, [])
+    (a, (_, vs)) = runState am (0, Empty)
+
+allocANF :: Maybe Participant -> ILExpr -> ANFMonad ILVar
+allocANF mp e = do
+  (nv, vs) <- get
+  put (nv + 1, vs |> (mp, nv, e))
+  return nv
 
 type XLRenaming = (M.Map XLVar ILArg)
 
 anf :: XLProgram -> ILProgram
-anf xlp = runANF xm
+anf xlp = IL_Prog nps xt
   where
     XL_Prog defs ps main = xlp
     anf_funs :: [XLDef] -> (M.Map XLVar XLDef)
@@ -47,13 +56,16 @@ anf xlp = runANF xm
     anf_expr ρ xe = error "XXX anf_expr"
     anf_arg :: XLRenaming -> XLExpr -> ANFMonad ILArg
     anf_arg ρ xe = error "XXX anf_arg"
-    xm :: ANFMonad ILProgram
+    xm :: ANFMonad (ILPartInfo, ILTail)
     xm = do
       ρ0 <- anf_defs defs
       (ρ1, nps) <- anf_ps ps
       let ρ2 = M.union ρ0 ρ1
       mt <- anf_tail ρ2 main
-      return (IL_Prog nps mt)
+      return (nps, xt)
+    addVar :: ANFElem -> (ILPartInfo, ILTail) -> (ILPartInfo, ILTail)
+    addVar (mp, v, e) (ps, t) = (ps, IL_Let mp (Just v) e t)
+    (nps, xt) = runANF addVar xm
 
 --- End-Point Projection
 
@@ -106,8 +118,11 @@ epp ilp = error "XXX epp"
    with the result.
   -}
 
-emit_js :: BLProgram -> Doc ann
-emit_js blp = error "XXX emit_js"
+as_js :: BLProgram -> JS.JSAST
+as_js blp = error "XXX as_js"
+
+emit_js :: BLProgram -> String
+emit_js blp = JS.renderToString $ as_js blp
 
 {- Compilation to Solidity
 

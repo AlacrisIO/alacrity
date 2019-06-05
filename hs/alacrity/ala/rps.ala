@@ -32,10 +32,7 @@
 
 #:participants
 ;; Each participant starts knowing their hand. If we wanted, we could
-;; add a primitive like "query-user", or assume that primitives can be
-;; passed as arguments to allow Alacrity to interact with Javascript,
-;; but this would require a kind of modal type, which would be
-;; annoying.
+;; use the primitive "interact", to ask them and decode the response.
 
 ;; A starts knowing the wager and escrow amount, which means that it
 ;; gets to set the terms of the wager. If we added those to B's

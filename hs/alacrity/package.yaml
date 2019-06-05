@@ -28,6 +28,7 @@ dependencies:
 - process
 - pretty-simple
 - text
+- language-javascript
 
 library:
   source-dirs: src
