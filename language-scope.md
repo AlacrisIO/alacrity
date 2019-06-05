@@ -882,3 +882,4 @@ See the [examples](examples/index.md) directory.
   is a resource with lots of information about the design of languages to specify "smart contracts",
   not all of them backed by a blockchain (indeed, going back to the 1960s).
 
+* See what Statebox has, what O(1)labs has, etc.
