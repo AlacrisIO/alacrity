@@ -6,19 +6,15 @@ import qualified Data.ByteString.Char8 as B
 import qualified Data.Map.Strict as M
 import System.Directory
 import System.FilePath
-import System.IO
---- import Control.Monad (void)
---- import Control.Monad.Combinators.Expr
---- import Data.Void
 import qualified Text.Megaparsec as MP
-import qualified Text.Megaparsec.Char as MPC
-import qualified Text.Megaparsec.Char.Lexer as L
+-- import qualified Text.Megaparsec.Char as MPC
+-- import qualified Text.Megaparsec.Char.Lexer as L
 import qualified Alacrity.SExpr as SE
 
 import Alacrity.AST
 
 valid_id :: String -> Bool
-valid_id p = not (elem p rsw) && head p /= '#' && (not (isPrim p))
+valid_id p = not (elem p rsw) && head p /= '#' && (Nothing == (decodePrim p))
   where rsw = ["if", "cond", "else", "assert!", "transfer!", "declassify", "values", "@", "define", "define-values", "require"]
 
 decodeXLType :: SE.SExpr -> AType
@@ -32,6 +28,7 @@ decodeRole (SE.Atom "CTC") = RoleContract
 decodeRole (SE.Atom p)
   | valid_id p = RolePart p
   | otherwise = error (p ++ " is reserved!")
+decodeRole se = invalid "decodeRole" se
 
 decodeXLVar :: SE.SExpr -> XLVar
 decodeXLVar (SE.Atom v)
@@ -46,39 +43,42 @@ decodeXLVarType se = invalid "decodeXLVarType" se
 decodeXLVars :: [SE.SExpr] -> [XLVar]
 decodeXLVars ses = map decodeXLVar ses
 
+decodePrim :: String -> Maybe EP_Prim
+decodePrim s =
+    case s of
+    "+" -> Just (CP ADD)
+    "-" -> Just (CP SUB)
+    "*" -> Just (CP MUL)
+    "/" -> Just (CP DIV)
+    "%" -> Just (CP MOD)
+    "modulo" -> Just (CP SUB)
+    "<" -> Just (CP PLT)
+    "<=" -> Just (CP PLE)
+    "=" -> Just (CP PEQ)
+    ">=" -> Just (CP PGE)
+    ">" -> Just (CP PGT)
+    "ite" -> Just (CP IF_THEN_ELSE)
+    "integer->integer-bytes" -> Just (CP INT_TO_BYTES)
+    "digest" -> Just (CP DIGEST)
+    "bytes=?" -> Just (CP BYTES_EQ)
+    "bytes-length" -> Just (CP BYTES_LEN)
+    "msg-cat" -> Just (CP BCAT)
+    "msg-left" -> Just (CP BCAT_LEFT)
+    "msg-right" -> Just (CP BCAT_RIGHT)
+    "DISHONEST" -> Just (CP DISHONEST)
+    "random" -> Just RANDOM
+    "interact" -> Just INTERACT
+    _ -> Nothing
+
 decodeXLOp :: String -> [XLExpr] -> XLExpr
 decodeXLOp s =
-  case s of
-    "+" -> prim (CP ADD)
-    "-" -> prim (CP SUB)
-    "*" -> prim (CP MUL)
-    "/" -> prim (CP DIV)
-    "%" -> prim (CP MOD)
-    "modulo" -> prim (CP SUB)
-    "<" -> prim (CP PLT)
-    "<=" -> prim (CP PLE)
-    "=" -> prim (CP PEQ)
-    ">=" -> prim (CP PGE)
-    ">" -> prim (CP PGT)
-    "ite" -> prim (CP IF_THEN_ELSE)
-    "integer->integer-bytes" -> prim (CP INT_TO_BYTES)
-    "digest" -> prim (CP DIGEST)
-    "bytes=?" -> prim (CP BYTES_EQ)
-    "bytes-length" -> prim (CP BYTES_LEN)
-    "msg-cat" -> prim (CP BCAT)
-    "msg-left" -> prim (CP BCAT_LEFT)
-    "msg-right" -> prim (CP BCAT_RIGHT)
-    "DISHONEST" -> prim (CP DISHONEST)
-    "random" -> prim RANDOM
-    "interact" -> prim INTERACT
-    _ -> XL_FunApp s
-  where
-    prim p = XL_PrimApp p
-
-isPrim :: String -> Bool
-isPrim s = case decodeXLOp s [] of
-             XL_PrimApp _ _ -> True
-             _ -> False
+  case decodePrim s of
+    Just p -> XL_PrimApp p
+    Nothing ->
+      if valid_id s then
+        XL_FunApp s
+      else
+        error $ "Invalid function name: " ++ show s
 
 decodeXLExpr1 :: SE.SExpr -> XLExpr
 decodeXLExpr1 (SE.Number i) = XL_Con (Con_I i)
@@ -108,10 +108,10 @@ decodeXLExpr1 se = invalid "decodeXLExpr1" se
 
 decodeXLExpr :: [SE.SExpr] -> XLExpr
 decodeXLExpr [] = error "Empty expression sequence"
-decodeXLExpr ((SE.List (SE.Atom "consensus!" : SE.Atom "#:in" : fromse : SE.List inse : SE.Atom "#:out" : SE.List outse : bse)):kse) =
-  XL_LetValues Nothing (Just outs) (XL_Consensus p ins body) k
+decodeXLExpr ((SE.List (SE.Atom "consensus!" : SE.Atom "#:in" : fromse : iese : SE.Atom "#:out" : SE.List outse : bse)):kse) =
+  XL_LetValues Nothing (Just outs) (XL_Consensus p ie body) k
   where RolePart p = decodeRole fromse
-        ins = decodeXLVars inse
+        ie = decodeXLExpr1 iese
         outs = decodeXLVars outse
         bse' = bse ++ [(SE.List (SE.Atom "values" : outse))]
         body = decodeXLExpr bse'

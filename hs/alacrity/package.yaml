@@ -30,6 +30,11 @@ dependencies:
 - text
 - language-javascript
 
+ghc-options:
+- -Wall
+- -Werror
+- -O2
+
 library:
   source-dirs: src
 

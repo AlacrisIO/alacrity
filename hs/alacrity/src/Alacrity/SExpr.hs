@@ -20,13 +20,11 @@ import Control.Applicative (empty)
 import Control.Monad (void)
 import Text.Megaparsec
     ( (<|>)
-    , endBy
     , many
     , noneOf
     , oneOf
     , sepBy
     , some
-    , try
     )
 import Text.Megaparsec.Char
     ( char

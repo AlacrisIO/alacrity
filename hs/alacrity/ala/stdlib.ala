@@ -1,9 +1,16 @@
 #lang alacrity/lib
 
+(define (not x) (ite x #f #t))
+(define (or x y) (ite x #t y))
+(define (and x y) (ite x y #f))
+(define (implies x y) (or (not x) y))
+
+(define (HONEST) (not (DISHONEST)))
+
 (define (precommit x)
   (define reveal (msg-cat (random) x))
   (define commitment (digest reveal))
   (values reveal commitment))
 (define (check-commit commitment reveal)
-  (rely! (equal? commitment (digest reveal)))
+  (assert! (bytes=? commitment (digest reveal)))
   (msg-right reveal))

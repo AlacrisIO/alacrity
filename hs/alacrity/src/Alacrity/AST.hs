@@ -1,9 +1,8 @@
 module Alacrity.AST where
 
 import qualified Data.ByteString.Char8 as B
-import Data.List
 import qualified Data.Map.Strict as M
-import Data.Maybe
+import Numeric.Natural
 
 -- Shared types
 
@@ -13,13 +12,13 @@ data AType
   = AT_Int
   | AT_Bool
   | AT_Bytes
-  deriving (Show)
+  deriving (Show,Eq)
 
 data Constant
   = Con_I Integer
   | Con_B Bool
   | Con_BS B.ByteString
-  deriving (Show)
+  deriving (Show,Eq)
 
 -- -- Primitives are divided into ones that the contract can do and
 -- -- ones that endpoints can do.
@@ -45,24 +44,24 @@ data C_Prim
   | BCAT_LEFT
   | BCAT_RIGHT
   | DISHONEST
-  deriving (Show)
+  deriving (Show,Eq)
 
 data EP_Prim
   = CP C_Prim
   | RANDOM
   | INTERACT
-  deriving (Show)
+  deriving (Show,Eq)
 
 primType :: EP_Prim -> ([AType], AType)
 primType (CP ADD) = ([AT_Int, AT_Int], AT_Int)
-primType p = error "XXX fill in types"
+primType _ = error "XXX fill in types"
 
 type Participant = String
 
 data Role
   = RolePart Participant
   | RoleContract
-  deriving (Show)
+  deriving (Show,Eq)
 
 {- Surface Language
 
@@ -89,7 +88,7 @@ data XLExpr
   | XL_If XLExpr XLExpr XLExpr
   | XL_Assert XLExpr
   --- Sender x Message x Contract Code
-  | XL_Consensus Participant [XLVar] XLExpr
+  | XL_Consensus Participant XLExpr XLExpr
   {- Notice that the consensus doesn't list the binders. We assume that it
      ends in XL_Values, which is the message that gets returned. We'll
      unwind this during ANF and turn Consensus into a binding form. -}
@@ -100,18 +99,18 @@ data XLExpr
   --- Where x Vars x Expression x Body
   | XL_LetValues (Maybe Participant) (Maybe [XLVar]) XLExpr XLExpr
   | XL_FunApp XLVar [XLExpr]
-  deriving (Show)
+  deriving (Show,Eq)
 
 data XLDef
   = XL_DefineValues [XLVar] XLExpr
   | XL_DefineFun XLVar [XLVar] XLExpr
-  deriving (Show)
+  deriving (Show,Eq)
 
 type XLPartInfo = (M.Map Participant [(XLVar, AType)])
 
 data XLProgram =
   XL_Prog [XLDef] XLPartInfo XLExpr
-  deriving (Show)
+  deriving (Show,Eq)
 
 {- Intermediate Language
 
@@ -135,19 +134,21 @@ data XLProgram =
    exactly how to do this and am only 80% sure it is necessary.)
    -}
 
-type ILVar = Int
+--- The string is just for debugging, it tracks where the variable was
+--- created.
+type ILVar = (Natural, String)
 
 data ILArg
   = IL_Con Constant
   | IL_Var ILVar
-  deriving (Show)
+  deriving (Show,Eq)
 
 data ILExpr
   = IL_PrimApp EP_Prim [ILArg]
   | IL_Declassify ILArg
   | IL_Transfer Role Role ILArg
   | IL_Assert ILArg
-  deriving (Show)
+  deriving (Show,Eq)
 
 data ILTail
   = IL_Ret [ILArg]
@@ -155,13 +156,13 @@ data ILTail
   | IL_Let (Maybe Participant) (Maybe ILVar) ILExpr ILTail
   --- From x SentMsg x Contract Body x RecvMsg x K
   | IL_Consensus Participant [ILVar] ILTail [ILVar] ILTail
-  deriving (Show)
+  deriving (Show,Eq)
 
 type ILPartInfo = (M.Map Participant [(ILVar, AType)])
 
 data ILProgram =
   IL_Prog ILPartInfo ILTail
-  deriving (Show)
+  deriving (Show,Eq)
 
 {- Backend Language
 
@@ -189,19 +190,19 @@ data ILProgram =
 
    -}
 
-type BLVar = (Int, AType)
+type BLVar = (Natural, AType)
 
 data BLArg
   = BL_Con Constant
   | BL_Var BLVar
-  deriving (Show)
+  deriving (Show,Eq)
 
 -- -- End-Points
 data EPExpr
   = EP_PrimApp EP_Prim [BLArg]
   | EP_Assert BLArg
-  | EP_Send Int [BLVar]
-  deriving (Show)
+  | EP_Send Natural [BLVar]
+  deriving (Show,Eq)
 
 data EPTail
   = EP_Ret [BLArg]
@@ -210,12 +211,12 @@ data EPTail
   {- XXX Right now this Recv represents receiving the message from the
      consensus, but in the future it will represent the message that
      the consensus RECEIVES and we will do the computation ourselves. -}
-  | EP_Recv Int [BLVar] EPTail
-  deriving (Show)
+  | EP_Recv Natural [BLVar] EPTail
+  deriving (Show,Eq)
 
 data EProgram
   = EP_Prog [BLVar] EPTail
-  deriving (Show)
+  deriving (Show,Eq)
 
 -- -- Contracts
 data CExpr
@@ -225,7 +226,7 @@ data CExpr
      there should be a way to deal with arbitrary Addresses
      and transform Roles into addresses. -}
   | C_Transfer Role Role BLArg CTail
-  deriving (Show)
+  deriving (Show,Eq)
 
 data CTail
   {- This return represents what the contract sends out in response to
@@ -239,19 +240,19 @@ data CTail
   = C_Ret [BLArg]
   | C_If BLArg CTail CTail
   | C_Let (Maybe BLVar) CExpr CTail
-  deriving (Show)
+  deriving (Show,Eq)
 
 data CHandler
   --- Each handler has a message that it expects to receive
   = C_Handler [BLVar] CTail
-  deriving (Show)
+  deriving (Show,Eq)
 
 --- A contract program is just a sequence of handlers.
 data CProgram
   = C_Prog [CHandler]
-  deriving (Show)
+  deriving (Show,Eq)
 
 -- -- Backend
 data BLProgram
   = BL_Prog (M.Map Participant EProgram) CProgram
-  deriving (Show)
+  deriving (Show,Eq)

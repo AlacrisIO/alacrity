@@ -4,12 +4,12 @@
 ;; This would be the result of a `define-enum` macro.
 (define-values (ROCK PAPER SCISSORS) (values 0 1 2))
 (define (hand? x)
-  (or (= x ROCK) (= x PAPER) (= x SCISSORS)))
+  (or (= x ROCK) (or (= x PAPER) (= x SCISSORS))))
 
 ;; Ditto
 (define-values (B_WINS DRAW A_WINS) (values 0 1 2))
 (define (outcome? x)
-  (or (= x B_WINS) (= x DRAW) (= x A_WINS)))
+  (or (= x B_WINS) (or (= x DRAW) (= x A_WINS))))
 
 (define (RPS-outcome A-hand B-hand)
   (define A-valid? (hand? A-hand))
@@ -17,7 +17,7 @@
   ;; DISHONEST is a special value that is false when we don't trust
   ;; all participants. This is true in production, but it is false in
   ;; one mode of the Z3 spec. (HONEST) is its opposite.
-  (guarantee! (implies (HONEST) (and A-valid? B-valid?)))
+  (assert! (implies (HONEST) (and A-valid? B-valid?)))
   (define o
     (cond
       ((and A-valid? B-valid?)
@@ -27,7 +27,7 @@
       (B-valid? B_WINS)
       ;; If both cheat, then it is a draw.
       (else DRAW)))
-  (guarantee! (outcome? o))
+  (assert! (outcome? o))
   o)
 
 #:participants
@@ -67,12 +67,12 @@
 ;; other compilation modes, everyone is going to execute this code and
 ;; check each other's work.
 (consensus!
- #:in A (wager-amount escrow-amount A-commit)
+ #:in A (values wager-amount escrow-amount A-commit)
  #:out (wager-amount escrow-amount A-commit)
  (transfer! A CTC (+ wager-amount escrow-amount)))
 ;; It is now time for B to send its value.
 (consensus!
- #:in B (B-hand)
+ #:in B B-hand
  #:out (B-hand)
  ;; We don't check that B is a valid hand, because we have to handle
  ;; what happens if A is dishonest no matter what, so we just trust B
@@ -81,7 +81,7 @@
 ;; In this next message, the values that A sends are a subset of what
 ;; the contract binds and what B receives.
 (consensus!
- #:in A (A-reveal)
+ #:in A A-reveal
  ;; This #:out spec says what gets transmitted. In the future, it can
  ;; be detected based on the free variables in the continuation of the
  ;; contract.
@@ -92,18 +92,18 @@
  (define outcome (RPS-outcome A-hand B-hand))
  (assert!
   (implies (not (hand? A-hand))
-           (not (equal? outcome A_WINS))))
+           (not (= outcome A_WINS))))
  (assert!
   (implies (not (hand? B-hand))
-           (not (equal? outcome B_WINS))))
+           (not (= outcome B_WINS))))
  (define-values (A-gets B-gets)
    (cond
-     ((equal? outcome A_WINS)
+     ((= outcome A_WINS)
       (values (+ (* 2 wager-amount) escrow-amount) 0))
-     ((equal? outcome B_WINS)
+     ((= outcome B_WINS)
       (values escrow-amount (* 2 wager-amount)))
      (else
-      (guarantee! outcome DRAW)
+      (assert! (= outcome DRAW))
       (values (+ wager-amount escrow-amount) wager-amount))))
  (transfer! CTC A A-gets)
  (transfer! CTC B B-gets))
