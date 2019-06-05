@@ -14,7 +14,7 @@ const {getGame, config, meth, newBlockHooks} = common_runtime;
 const {decodeGameCreationData, player0StartGame, makeCommitment, player1ShowHand,
       player1WinByDefault, queryConfirmedState, player0Reveal} = dapp_backend;
 
-logging("To make all the program bindings available in the console, use:\neval(window.magic())")();
+logging(`To make all the program bindings available in the console, use:\neval(${isInBrowser ? "" : "process."}magic())`)();
 const magic = () =>
    `var globals = ${isInBrowser ? "window" : "process"}.globals;
    ${Object.keys(globals).map(m=>Object.keys(window.globals[m]).map(s=>`var ${s} = globals.${m}.${s}`).join(";")).join(";")}`

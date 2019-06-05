@@ -49,7 +49,8 @@ const deployCommand = (k = kLogResult, kError = kLogError) => {
             const address = receipt.contractAddress;
             const codeHash = digestHex(rpsFactoryCode);
             const creationBlock = receipt.blockNumber;
-            console.log("Add this creation data to dapp-config.js for network %s: %s",
+            // TODO: add it ourselves, atomically enough.
+            console.log("PLEASE ADD THIS CONTRACT CREATION RECORD to dapp-config.js for network %s:\n%s",
                         networkId, JSON.stringify({address, codeHash, creationHash, creationBlock}));
             console.log("Now waiting for %d confirmations (%s) — use Ctrl-C to interrupt earlier.",
                         config.confirmationsWantedInBlocks, config.confirmationsString);
