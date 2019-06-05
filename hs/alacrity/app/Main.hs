@@ -2,7 +2,7 @@ module Main where
 
 import System.Environment 
 import System.IO
-import Lib
+import Alacrity.Compiler
 
 main :: IO ()
 main = do
