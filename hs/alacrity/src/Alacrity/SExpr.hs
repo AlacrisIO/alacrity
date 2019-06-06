@@ -67,7 +67,9 @@ parseSExpr = do
   se <- (parseAtom
          <|> parseString
          <|> parseNumber
-         <|> parseList)
+         <|> parseList '(' ')'
+         <|> parseList '[' ']'
+         <|> parseList '{' '}')
   sc
   pure $ se
 
@@ -84,11 +86,11 @@ parseAtom = do
                 _ -> Atom s
 
 -- | Parse s-expression list
-parseList :: Parser SExpr    -- ^ parser
-parseList = do
-  void $ char '('
+parseList :: Char -> Char -> Parser SExpr    -- ^ parser
+parseList before after = do
+  void $ char before
   lst <- parseSExpr `sepBy` sc
-  void $ char ')'
+  void $ char after
   pure $ List lst
 
 -- | Parse s-expression number literal
