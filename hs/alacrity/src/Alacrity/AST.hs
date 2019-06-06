@@ -8,11 +8,28 @@ import Numeric.Natural
 
 --- XXX Make types more general with arbitary range integers. Bool as
 --- alias to [0,1]. Bytes with fixed lengths.
-data AType
+data BaseType
   = AT_Int
   | AT_Bool
   | AT_Bytes
   deriving (Show,Eq)
+data ExprType
+  = TY_Var String
+  | TY_Con BaseType
+  deriving (Show,Eq)
+data FunctionType
+  = TY_Arrow [ExprType] ExprType
+  | TY_Forall [String] FunctionType
+  deriving (Show,Eq)
+
+tBool :: ExprType
+tInt :: ExprType
+tBytes :: ExprType
+(-->) :: [ExprType] -> ExprType -> FunctionType
+tBool = TY_Con AT_Bool
+tInt = TY_Con AT_Int
+tBytes = TY_Con AT_Bytes
+ins --> out = TY_Arrow ins out
 
 data Constant
   = Con_I Integer
@@ -52,9 +69,28 @@ data EP_Prim
   | INTERACT
   deriving (Show,Eq)
 
-primType :: EP_Prim -> ([AType], AType)
-primType (CP ADD) = ([AT_Int, AT_Int], AT_Int)
-primType _ = error "XXX fill in types"
+primType :: EP_Prim -> FunctionType
+primType (CP ADD) = [tInt, tInt] --> tInt
+primType (CP SUB) = [tInt, tInt] --> tInt
+primType (CP MUL) = [tInt, tInt] --> tInt
+primType (CP DIV) = [tInt, tInt] --> tInt
+primType (CP MOD) = [tInt, tInt] --> tInt
+primType (CP PLT) = [tInt, tInt] --> tBool
+primType (CP PLE) = [tInt, tInt] --> tBool
+primType (CP PEQ) = [tInt, tInt] --> tBool
+primType (CP PGE) = [tInt, tInt] --> tBool
+primType (CP PGT) = [tInt, tInt] --> tBool
+primType (CP IF_THEN_ELSE) = TY_Forall ["a"] ([tBool, TY_Var "a", TY_Var "a"] --> TY_Var "a")
+primType (CP INT_TO_BYTES) = [tInt] --> tBytes
+primType (CP DIGEST) = ([tBytes] --> tInt)
+primType (CP BYTES_EQ) = [tBytes, tBytes] --> tBool
+primType (CP BYTES_LEN) = [tBytes] --> tInt
+primType (CP BCAT)       = ([tBytes, tBytes] --> tBytes)
+primType (CP BCAT_LEFT)  = ([tBytes] --> tBytes)
+primType (CP BCAT_RIGHT) = ([tBytes] --> tBytes)
+primType (CP DISHONEST) = ([] --> tBool)
+primType RANDOM = ([] --> tInt)
+primType INTERACT = ([tBytes] --> tBytes)
 
 type Participant = String
 
@@ -106,7 +142,7 @@ data XLDef
   | XL_DefineFun XLVar [XLVar] XLExpr
   deriving (Show,Eq)
 
-type XLPartInfo = (M.Map Participant [(XLVar, AType)])
+type XLPartInfo = (M.Map Participant [(XLVar, ExprType)])
 
 data XLProgram =
   XL_Prog [XLDef] XLPartInfo XLExpr
@@ -158,7 +194,7 @@ data ILTail
   | IL_Consensus Participant [ILVar] ILTail [ILVar] ILTail
   deriving (Show,Eq)
 
-type ILPartInfo = (M.Map Participant [(ILVar, AType)])
+type ILPartInfo = (M.Map Participant [(ILVar, ExprType)])
 
 data ILProgram =
   IL_Prog ILPartInfo ILTail
@@ -190,7 +226,7 @@ data ILProgram =
 
    -}
 
-type BLVar = (Natural, AType)
+type BLVar = (Natural, ExprType)
 
 data BLArg
   = BL_Con Constant
