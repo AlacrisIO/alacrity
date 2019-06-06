@@ -92,8 +92,7 @@ primType (CP BCAT_LEFT)  = TY_Forall ["a","b"] ([TY_MsgCat (TY_Var "a") (TY_Var 
 primType (CP BCAT_RIGHT) = TY_Forall ["a","b"] ([TY_MsgCat (TY_Var "a") (TY_Var "b")] --> TY_Var "b")
 primType (CP DISHONEST) = ([] --> tBool)
 primType RANDOM = ([] --> tInt)
--- TODO: add the type for the INTERACT primitive
-primType _ = error "XXX fill in types"
+primType INTERACT = ([tBytes] --> tBytes)
 
 type Participant = String
 
