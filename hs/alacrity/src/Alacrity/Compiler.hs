@@ -63,7 +63,7 @@ allocANF mp e s = do
 type XLRenaming = M.Map XLVar ILArg
 type XLFuns = M.Map XLVar XLDef
 
-anf_parg :: (XLVar, AType) -> (XLRenaming, [(ILVar, AType)]) -> ANFMonad (XLRenaming, [(ILVar, AType)])
+anf_parg :: (XLVar, ExprType) -> (XLRenaming, [(ILVar, ExprType)]) -> ANFMonad (XLRenaming, [(ILVar, ExprType)])
 anf_parg (v, t) (ρ, args) =
   case M.lookup v ρ of
     Nothing -> do
@@ -73,7 +73,7 @@ anf_parg (v, t) (ρ, args) =
     Just _ -> error $ "ANF: Participant argument not bound to variable: " ++ v
   where args' nv = args ++ [(nv,t)]
 
-anf_part :: (XLRenaming, ILPartInfo) -> (Participant, [(XLVar, AType)]) -> ANFMonad (XLRenaming, ILPartInfo)
+anf_part :: (XLRenaming, ILPartInfo) -> (Participant, [(XLVar, ExprType)]) -> ANFMonad (XLRenaming, ILPartInfo)
 anf_part (ρ, ips) (p, args) = do
   (ρ', args') <- foldrM anf_parg (ρ, []) args
   let ips' = M.insert p args' ips
@@ -118,7 +118,7 @@ anf_expr σ me ρ e mk =
     XL_Consensus p msg body -> do
       anf_expr σ me ρ msg k
       where k msgas = do
-              let msgvs = vsOnly msgas 
+              let msgvs = vsOnly msgas
               (bn, bodyt) <- anf_tail σ Nothing ρ body anf_ktop
               outs <- consumeANF_N bn
               (kn, kt) <- mk $ map IL_Var outs
@@ -229,7 +229,7 @@ data SecurityLevel
   | Public
   deriving (Show)
 
-type SType = (AType, SecurityLevel)
+type SType = (ExprType, SecurityLevel)
 
 epp :: ILProgram -> BLProgram
 epp _ = error $ "XXX epp"

@@ -17,10 +17,11 @@ valid_id :: String -> Bool
 valid_id p = not (elem p rsw) && head p /= '#' && (Nothing == (decodePrim p))
   where rsw = ["if", "cond", "else", "assert!", "transfer!", "declassify", "values", "@", "define", "define-values", "require"]
 
-decodeXLType :: SE.SExpr -> AType
-decodeXLType (SE.Atom "int") = AT_Int
-decodeXLType (SE.Atom "bool") = AT_Bool
-decodeXLType (SE.Atom "bytes") = AT_Bytes
+decodeXLType :: SE.SExpr -> ExprType
+decodeXLType (SE.Atom "int") = TY_Con AT_Int
+decodeXLType (SE.Atom "bool") = TY_Con AT_Bool
+decodeXLType (SE.Atom "bytes") = TY_Con AT_Bytes
+decodeXLType (SE.List [SE.Atom "Msg-Cat", l, r]) = TY_MsgCat (decodeXLType l) (decodeXLType r)
 decodeXLType se = invalid "decodeXLType" se
 
 decodeRole :: SE.SExpr -> Role
@@ -36,7 +37,7 @@ decodeXLVar (SE.Atom v)
   | otherwise = error (v ++ " is reserved!")
 decodeXLVar se = invalid "decodeXLVar" se
 
-decodeXLVarType :: SE.SExpr -> (XLVar, AType)
+decodeXLVarType :: SE.SExpr -> (XLVar, ExprType)
 decodeXLVarType (SE.List [vse,SE.Atom ":", tse]) = ((decodeXLVar vse), (decodeXLType tse))
 decodeXLVarType se = invalid "decodeXLVarType" se
 
