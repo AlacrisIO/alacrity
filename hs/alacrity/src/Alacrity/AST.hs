@@ -16,8 +16,6 @@ data BaseType
 data ExprType
   = TY_Var String
   | TY_Con BaseType
-  | TY_MsgCat ExprType ExprType
-  | TY_MsgEnc ExprType
   deriving (Show,Eq)
 data FunctionType
   = TY_Arrow [ExprType] ExprType
@@ -84,12 +82,12 @@ primType (CP PGE) = [tInt, tInt] --> tBool
 primType (CP PGT) = [tInt, tInt] --> tBool
 primType (CP IF_THEN_ELSE) = TY_Forall ["a"] ([tBool, TY_Var "a", TY_Var "a"] --> TY_Var "a")
 primType (CP INT_TO_BYTES) = [tInt] --> tBytes
-primType (CP DIGEST) = TY_Forall ["a"] ([TY_Var "a"] --> tInt)
+primType (CP DIGEST) = ([tBytes] --> tInt)
 primType (CP BYTES_EQ) = [tBytes, tBytes] --> tBool
 primType (CP BYTES_LEN) = [tBytes] --> tInt
-primType (CP BCAT)       = TY_Forall ["a","b"] ([TY_Var "a", TY_Var "b"] --> TY_MsgCat (TY_Var "a") (TY_Var "b"))
-primType (CP BCAT_LEFT)  = TY_Forall ["a","b"] ([TY_MsgCat (TY_Var "a") (TY_Var "b")] --> TY_Var "a")
-primType (CP BCAT_RIGHT) = TY_Forall ["a","b"] ([TY_MsgCat (TY_Var "a") (TY_Var "b")] --> TY_Var "b")
+primType (CP BCAT)       = ([tBytes, tBytes] --> tBytes)
+primType (CP BCAT_LEFT)  = ([tBytes] --> tBytes)
+primType (CP BCAT_RIGHT) = ([tBytes] --> tBytes)
 primType (CP DISHONEST) = ([] --> tBool)
 primType RANDOM = ([] --> tInt)
 primType INTERACT = ([tBytes] --> tBytes)

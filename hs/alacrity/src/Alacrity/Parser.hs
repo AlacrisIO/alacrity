@@ -21,7 +21,6 @@ decodeXLType :: SE.SExpr -> ExprType
 decodeXLType (SE.Atom "int") = TY_Con AT_Int
 decodeXLType (SE.Atom "bool") = TY_Con AT_Bool
 decodeXLType (SE.Atom "bytes") = TY_Con AT_Bytes
-decodeXLType (SE.List [SE.Atom "Msg-Cat", l, r]) = TY_MsgCat (decodeXLType l) (decodeXLType r)
 decodeXLType se = invalid "decodeXLType" se
 
 decodeRole :: SE.SExpr -> Role
