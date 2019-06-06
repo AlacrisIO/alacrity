@@ -67,33 +67,75 @@
 
 ;; Types
 ;; XXX
+;; An Expr-Type is one of:
+;;  - (ty:var Symbol)
+;;  - (ty:con Symbol)
+;;  - (ty:Msg-Cat Expr-Type Expr-Type)
+;;  - (ty:Msg-Enc Expr-Type)
+;; TODO: add ADTs, n-ary tuples, records, etc.
+(define (expr-type? v)
+  (or (ty:var? v)
+      (ty:con? v)
+      (ty:Msg-Cat? v) (ty:Msg-Enc? v)))
+(struct ty:var [v] #:transparent)
+(struct ty:con [b] #:transparent)
+(struct ty:Msg-Cat [left right] #:transparent)
+(struct ty:Msg-Enc [content] #:transparent)
+
+
+;; A Function-Type is one of:
+;;  - (ty:arrow [Listof Expr-Type] Expr-Type)
+;;  - (ty:forall [Listof Symbol] (ty:arrow [Listof Expr-Type] Expr-Type))
+;; TODO: after closures / first-class-fuctions are figured out, think
+;;       about merging ty:arrow into Expr-Type
+(define (function-type? v)
+  (or (ty:arrow? v) (ty:forall? v)))
+(struct ty:arrow [inputs output] #:transparent)
+(struct ty:forall [params body] #:transparent)
+
+(define Bool (ty:con 'Bool))
+(define Int₂₅₆ (ty:con 'Int256))
+(define Msg-Key (ty:con 'Msg-Key))
+(define (→ fst . rst)
+  (match-define (list inputs ... output) (cons fst rst))
+  (ty:arrow inputs output))
+(define-syntax-rule (∀ (a ...) b)
+  (let ([a (gensym 'a)] ...)
+    (ty:forall (list a ...) (let ([a (ty:var a)] ...) b))))
 
 ;; Primitives
-(struct priminfo (rkt))
+(struct priminfo (rkt ty))
 (define primitive->info
   ;; XXX fill this out and make real
-  (hasheq 'random (priminfo random)
-          'digest (priminfo equal-hash-code)
-          '+ (priminfo +)
-          '- (priminfo -)
-          '= (priminfo =)
-          'modulo (priminfo modulo)
-          'equal? (priminfo equal?)
-          'msg-cat? (priminfo cons?)
-          'msg-cat (priminfo cons)
-          'msg-left (priminfo car)
-          'msg-right (priminfo cdr)
-          'msg-enc (priminfo (λ (m k) (list 'enc m k)))
+  (hasheq 'random (priminfo random (→ Int₂₅₆ Int₂₅₆))
+          'digest (priminfo equal-hash-code (∀ (a) (→ a Int₂₅₆)))
+          '+ (priminfo + (→ Int₂₅₆ Int₂₅₆ Int₂₅₆))
+          '- (priminfo - (→ Int₂₅₆ Int₂₅₆ Int₂₅₆))
+          '= (priminfo = (→ Int₂₅₆ Int₂₅₆ Bool))
+          'modulo (priminfo modulo (→ Int₂₅₆ Int₂₅₆ Int₂₅₆))
+          'equal? (priminfo equal? (∀ (a) (→ a a Bool)))
+          ;TODO: Do type-predicates like msg-cat? make sense in a
+          ;      disjoint-types world without union or any?
+          'msg-cat? (priminfo cons? (∀ (a b) (→ (ty:Msg-Cat a b) Bool)))
+          'msg-cat (priminfo cons (∀ (a b) (→ a b (ty:Msg-Cat a b))))
+          'msg-left (priminfo car (∀ (a b) (→ (ty:Msg-Cat a b) a)))
+          'msg-right (priminfo cdr (∀ (a b) (→ (ty:Msg-Cat a b) b)))
+          'msg-enc (priminfo (λ (m k) (list 'enc m k))
+                             (∀ (a) (→ a Msg-Key (ty:Msg-Enc a))))
+          ;TODO: Do type-predicates like msg-enc? make sense in a
+          ;      disjoint-types world without union or any?
           'msg-enc?
           (priminfo (λ (x k)
                       (and (list? x) (= (length x) 3) (eq? (first x) 'enc)
-                           (eq? (third x) k))))
+                           (eq? (third x) k)))
+                    (∀ (a) (→ (ty:Msg-Enc a) Bool)))
           'msg-dec
           (priminfo
            (λ (em k)
              (match em
                [(list 'enc im (== k)) im]
-               [x (error 'msg-dec "~v ~v" em k)])))))
+               [x (error 'msg-dec "~v ~v" em k)]))
+           (∀ (a) (→ (ty:Msg-Enc a) Msg-Key a)))))
 (define (primitive-op? x)
   (hash-has-key? primitive->info x))
 
