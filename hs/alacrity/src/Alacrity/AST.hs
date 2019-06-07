@@ -122,7 +122,7 @@ data XLExpr
   = XL_Con Constant
   | XL_Var XLVar
   | XL_PrimApp EP_Prim [XLExpr]
-  | XL_If XLExpr XLExpr XLExpr
+  | XL_If Bool XLExpr XLExpr XLExpr
   | XL_Assert XLExpr
   --- Sender x Message x Contract Code
   | XL_Consensus Participant XLExpr XLExpr
@@ -135,6 +135,7 @@ data XLExpr
   | XL_Declassify XLExpr
   --- Where x Vars x Expression x Body
   | XL_LetValues (Maybe Participant) (Maybe [XLVar]) XLExpr XLExpr
+  --- Impossible in inlined (XXX: Enforce via GADT)
   | XL_FunApp XLVar [XLExpr]
   deriving (Show,Eq)
 
@@ -147,6 +148,10 @@ type XLPartInfo = (M.Map Participant [(XLVar, ExprType)])
 
 data XLProgram =
   XL_Prog [XLDef] XLPartInfo XLExpr
+  deriving (Show,Eq)
+
+data XLInlinedProgram =
+  XL_InlinedProg XLPartInfo XLExpr
   deriving (Show,Eq)
 
 {- Intermediate Language

@@ -96,6 +96,13 @@
  (assert!
   (implies (not (hand? B-hand))
            (not (= outcome B_WINS))))
+ ;; This implies is showing that the cond below is sound. We don't put
+ ;; the assert inside the cond though, because asserts are effects and
+ ;; that is expensive.
+ (assert! (implies
+           (not (or (= outcome A_WINS)
+                    (= outcome B_WINS)))
+           (= outcome DRAW)))
  (define-values (A-gets B-gets)
    (cond
      [(= outcome A_WINS)
@@ -103,7 +110,6 @@
      [(= outcome B_WINS)
       (values escrow-amount (* 2 wager-amount))]
      [else
-      (assert! (= outcome DRAW))
       (values (+ wager-amount escrow-amount) wager-amount)]))
  (transfer! CTC A A-gets)
  (transfer! CTC B B-gets))

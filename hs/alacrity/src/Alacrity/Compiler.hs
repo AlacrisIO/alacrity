@@ -13,6 +13,87 @@ import Z3.Monad as Z3
 import Alacrity.AST
 import Alacrity.Parser
 
+{- Inliner
+
+   We remove XL_FunApp and convert XL_If into IF-THEN-ELSE where
+   possible.
+
+ -}
+
+type XLFuns = M.Map XLVar ([XLVar], XLExpr)
+type XLIFuns = M.Map XLVar (Bool, ([XLVar], XLExpr))
+type InlineMonad a = State (XLFuns, XLIFuns) (Bool, a)
+
+inline_fun :: XLVar -> InlineMonad ([XLVar], XLExpr)
+inline_fun f = do
+  (σi, σo) <- get
+  case M.lookup f σo of
+    Just v -> return v
+    Nothing -> do
+      case M.lookup f σi of
+        Nothing -> error $ "Inline: Function unbound, or in cycle: " ++ show f
+        Just (formals, fun_body) -> do
+          let σi' = M.delete f σi
+          put (σi', σo)
+          (fp, fun_body') <- inline_expr fun_body
+          let v = (fp, (formals, fun_body'))
+          (σi'', σo') <- get          
+          let σo'' = M.insert f v σo'
+          put (σi'', σo'')
+          return v
+
+inline_exprs :: [XLExpr] -> InlineMonad [XLExpr]
+inline_exprs es = foldM (\(tp, es') e -> do
+                            (ep, e') <- inline_expr e
+                            return (tp && ep, e' : es'))
+                  (True, []) (reverse es)
+
+inline_expr :: XLExpr -> InlineMonad XLExpr
+inline_expr e =
+  case e of
+    XL_Con _ -> return (True, e)
+    XL_Var _ -> return (True, e)
+    XL_PrimApp p es -> inline_exprs es >>= \(ep, es') -> return (ep, XL_PrimApp p es')
+    XL_If _ ce te fe -> do
+      (cp, ce') <- inline_expr ce
+      (tp, te') <- inline_expr te
+      (fp, fe') <- inline_expr fe
+      return (cp && tp && fp, XL_If (tp && fp) ce' te' fe')
+    XL_Assert ae -> do
+      (_, ae') <- inline_expr ae
+      --- Assert is impure because it could fail
+      return (False, XL_Assert ae')
+    XL_Consensus p me ce -> do
+      (_, me') <- inline_expr me
+      (_, ce') <- inline_expr ce
+      return (False, XL_Consensus p me' ce')
+    XL_Values es -> inline_exprs es >>= \(ep, es') -> return (ep, XL_Values es')
+    XL_Transfer from to te -> do
+      (_, tp') <- inline_expr te
+      return (False, XL_Transfer from to tp')
+    XL_Declassify de -> do
+      (dp, de') <- inline_expr de
+      return (dp, XL_Declassify de')
+    XL_LetValues mp mvs ve be -> do
+      (vp, ve') <- inline_expr ve
+      (bp, be') <- inline_expr be
+      return (vp && bp, XL_LetValues mp mvs ve' be')
+    XL_FunApp f args -> do
+      (arp, args') <- inline_exprs args
+      (fp, (formals, fun_body')) <- inline_fun f
+      return (arp && fp, XL_LetValues Nothing (Just formals) (XL_Values args') fun_body')
+
+inline_defs :: [XLDef] -> XLFuns -> XLExpr -> XLExpr
+inline_defs [] σ me = me'
+  where ((_, me'), _) = runState (inline_expr me) (σ, M.empty)
+inline_defs (XL_DefineFun f args body : ds) σ me = inline_defs ds σ' me
+  where σ' = M.insert f (args,body) σ
+inline_defs (XL_DefineValues vs e : ds) σ me = inline_defs ds σ me'
+  where me'= XL_LetValues Nothing (Just vs) e me
+
+inline :: XLProgram -> XLInlinedProgram
+inline (XL_Prog defs ps m) = XL_InlinedProg ps (inline_defs defs M.empty m)
+
 {- ANF
 
    See AST for a description of the job of this pass.
@@ -59,7 +140,6 @@ allocANF mp e s = do
   return nv
 
 type XLRenaming = M.Map XLVar ILArg
-type XLFuns = M.Map XLVar XLDef
 
 anf_parg :: (XLVar, ExprType) -> (XLRenaming, [(ILVar, ExprType)]) -> ANFMonad (XLRenaming, [(ILVar, ExprType)])
 anf_parg (v, t) (ρ, args) =
@@ -80,20 +160,23 @@ anf_part (ρ, ips) (p, args) = do
 anf_parts :: XLPartInfo -> ANFMonad (XLRenaming, ILPartInfo)
 anf_parts ps = foldM anf_part (M.empty, M.empty) (M.toList ps)
 
-anf_exprs :: XLFuns -> Maybe Participant -> XLRenaming -> [XLExpr] -> ([ILArg] -> ANFMonad (Natural, ILTail)) -> ANFMonad (Natural, ILTail)
-anf_exprs σ me ρ es mk =
+anf_exprs :: Maybe Participant -> XLRenaming -> [XLExpr] -> ([ILArg] -> ANFMonad (Natural, ILTail)) -> ANFMonad (Natural, ILTail)
+anf_exprs me ρ es mk =
   case es of
     [] -> mk []
     e : more ->
-      anf_expr σ me ρ e (\ [ e' ] -> anf_exprs σ me ρ more (\ es' -> mk $ e' : es'))
+      anf_expr me ρ e k1
+      where k1 [ e' ] = anf_exprs me ρ more k2
+              where k2 es' = mk $ e' : es'
+            k1 evs = error $ "anf_exprs, expect 1, got " ++ show evs
 
 vsOnly :: [ILArg] -> [ILVar]
 vsOnly [] = []
 vsOnly (IL_Var v : m) = v : vsOnly m
 vsOnly (_ : m) = vsOnly m
 
-anf_expr :: XLFuns -> Maybe Participant -> XLRenaming -> XLExpr -> ([ILArg] -> ANFMonad (Natural, ILTail)) -> ANFMonad (Natural, ILTail)
-anf_expr σ me ρ e mk =
+anf_expr :: Maybe Participant -> XLRenaming -> XLExpr -> ([ILArg] -> ANFMonad (Natural, ILTail)) -> ANFMonad (Natural, ILTail)
+anf_expr me ρ e mk =
   case e of
     XL_Con b ->
       mk [ IL_Con b ]
@@ -102,37 +185,38 @@ anf_expr σ me ρ e mk =
         Nothing -> error ("ANF: Variable unbound: " ++ (show v))
         Just a -> mk [ a ]
     XL_PrimApp p args ->
-      anf_exprs σ me ρ args (\args' -> ret_expr ("PrimApp" ++ show p) (IL_PrimApp p args'))
-    XL_If ce te fe ->
-      anf_expr σ me ρ ce k
+      anf_exprs me ρ args (\args' -> ret_expr ("PrimApp" ++ show p) (IL_PrimApp p args'))
+    XL_If _ ce te fe ->
+      anf_expr me ρ ce k
       where k [ ca ] = do
-              (tn, tt) <- anf_tail σ me ρ te mk
-              (fn, ft) <- anf_tail σ me ρ fe mk
+              --- XXX Use is_pure
+              (tn, tt) <- anf_tail me ρ te mk
+              (fn, ft) <- anf_tail me ρ fe mk
               unless (tn == fn) $ error "ANF: If branches don't have same continuation arity"
               return (tn, IL_If ca tt ft)
             k _ = error "anf_expr XL_If ce doesn't return 1"
     XL_Assert ae ->
-      anf_expr σ me ρ ae (\[ aa ] -> ret_expr "Assert" (IL_Assert aa))
+      anf_expr me ρ ae (\[ aa ] -> ret_expr "Assert" (IL_Assert aa))
     XL_Consensus p msg body -> do
-      anf_expr σ me ρ msg k
+      anf_expr me ρ msg k
       where k msgas = do
               let msgvs = vsOnly msgas
-              (bn, bodyt) <- anf_tail σ Nothing ρ body anf_ktop
+              (bn, bodyt) <- anf_tail Nothing ρ body anf_ktop
               outs <- consumeANF_N bn
               (kn, kt) <- mk $ map IL_Var outs
               return (kn, IL_Consensus p msgvs bodyt outs kt)
     XL_Values args ->
-      anf_exprs σ me ρ args (\args' -> mk args')
+      anf_exprs me ρ args (\args' -> mk args')
     XL_Transfer from to ae ->
-      anf_expr σ me ρ ae (\[ aa ] -> ret_expr "Transfer" (IL_Transfer from to aa))
+      anf_expr me ρ ae (\[ aa ] -> ret_expr "Transfer" (IL_Transfer from to aa))
     XL_Declassify ae ->
-      anf_expr σ me ρ ae (\[ aa ] -> ret_expr "Declassify" (IL_Declassify aa))
+      anf_expr me ρ ae (\[ aa ] -> ret_expr "Declassify" (IL_Declassify aa))
     XL_LetValues mwho mvs ve be ->
-      anf_expr σ who ρ ve k
+      anf_expr who ρ ve k
       where who = case mwho of
                     Nothing -> me
                     Just _ -> mwho
-            k nvs = anf_expr σ me ρ' be mk
+            k nvs = anf_expr me ρ' be mk
               where ρ' = case mvs of
                       Nothing -> ρ
                       Just ovs ->
@@ -142,20 +226,7 @@ anf_expr σ me ρ e mk =
                           M.union ρ $ M.fromList $ zip ovs nvs
                         else
                           error $ "ANF XL_LetValues, context arity mismatch, " ++ show olen ++ " vs " ++ show nlen
-    XL_FunApp f args ->
-      case M.lookup f σ of
-        Just (XL_DefineFun _ formals fun_body) ->
-          anf_expr σ' me ρ ne mk
-          where ne = XL_LetValues Nothing (Just formals) (XL_Values args) fun_body
-                --- We remove f from sigma because we are not allowed to write recursive functions.
-                {- XXX We can't do this because `args` might mention the function too
-                   Solution 1: Do nothing and infinite programs crash.
-                   Solution 2: Inline/externalize the code for LetValues that would run
-                   Solution 3: Make a separate inlining pass and language level
-                 -}
-                --- σ' = M.delete f σ
-                σ' = σ
-        _ -> error $ "ANF XL_FunApp, f not defined: " ++ show f
+    XL_FunApp _ _ -> error $ "ANF XL_FunApp, impossible after inliner"
   where ret_expr s ne = do
           nv <- allocANF me ne s
           mk [ IL_Var nv ]
@@ -163,37 +234,22 @@ anf_expr σ me ρ e mk =
 anf_addVar :: ANFElem -> (Natural, ILTail) -> (Natural, ILTail)
 anf_addVar (mp, v, e) (c, t) = (c, IL_Let mp (Just v) e t)
 
-anf_tail :: XLFuns -> Maybe Participant -> XLRenaming -> XLExpr -> ([ILArg] -> ANFMonad (Natural, ILTail)) -> ANFMonad (Natural, ILTail)
-anf_tail σ me ρ e mk = do
-  collectANF anf_addVar (anf_expr σ me ρ e mk)
+anf_tail :: Maybe Participant -> XLRenaming -> XLExpr -> ([ILArg] -> ANFMonad (Natural, ILTail)) -> ANFMonad (Natural, ILTail)
+anf_tail me ρ e mk = do
+  collectANF anf_addVar (anf_expr me ρ e mk)
 
 anf_ktop :: [ILArg] -> ANFMonad (Natural, ILTail)
 anf_ktop args = return (fromInteger (toInteger (length args)), IL_Ret args)
 
-anf_funs :: [XLDef] -> XLFuns
-anf_funs [] = M.empty
-anf_funs (XL_DefineValues _ _ : ds) = anf_funs ds
-anf_funs (d@(XL_DefineFun f _ _) : ds) = M.insert f d $ anf_funs ds
-
-wrap_defs :: [XLDef] -> XLExpr -> XLExpr
-wrap_defs [] e = e
-wrap_defs (d : ds) me =
-  case d of
-    XL_DefineFun _ _ _ -> me'
-    XL_DefineValues vs e -> XL_LetValues Nothing (Just vs) e me'
-  where me' = wrap_defs ds me
-
-anf :: XLProgram -> ILProgram
-anf xlp = IL_Prog ips xt
+anf :: XLInlinedProgram -> ILProgram
+anf xilp = IL_Prog ips xt
   where
-    XL_Prog defs ps main = xlp
-    σ = anf_funs defs
-    main_w_defs = wrap_defs defs main
+    XL_InlinedProg ps main = xilp
     (ips, xt) = runANF xm
     xm :: ANFMonad (ILPartInfo, ILTail)
     xm = do
       (ρ, nps) <- anf_parts ps
-      (_, mt) <- anf_tail σ Nothing ρ main_w_defs anf_ktop
+      (_, mt) <- anf_tail Nothing ρ main anf_ktop
       return (nps, mt)
 
 --- End-Point Projection
@@ -317,7 +373,8 @@ compile :: FilePath -> IO ()
 compile srcp = do
   xlp <- readAlacrityFile srcp
   writeFile (srcp ++ ".xl") (show (pretty xlp))
-  let ilp = anf xlp
+  let xilp = inline xlp
+  let ilp = anf xilp
   writeFile (srcp ++ ".il") (show (pretty ilp))
   let blp = epp ilp
   writeFile (srcp ++ ".bl") (show (pretty blp))

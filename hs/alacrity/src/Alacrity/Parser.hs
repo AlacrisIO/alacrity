@@ -84,14 +84,11 @@ decodeXLExpr1 (SE.Bool t) = XL_Con (Con_B t)
 decodeXLExpr1 (SE.String s) = XL_Con (Con_BS (B.pack s))
 decodeXLExpr1 (SE.Atom v) = XL_Var v
 decodeXLExpr1 (SE.List [SE.Atom "if", ce, te, fe]) =
-  XL_If (decodeXLExpr1 ce) (decodeXLExpr1 te) (decodeXLExpr1 fe)
+  XL_If False (decodeXLExpr1 ce) (decodeXLExpr1 te) (decodeXLExpr1 fe)
 decodeXLExpr1 (SE.List [SE.Atom "cond", SE.List (SE.Atom "else":answer)]) =
   decodeXLExpr answer
 decodeXLExpr1 (SE.List (SE.Atom "cond":SE.List (question:answer):more)) =
-  XL_If
-    (decodeXLExpr1 question)
-    (decodeXLExpr answer)
-    (decodeXLExpr1 (SE.List (SE.Atom "cond" : more)))
+  XL_If False (decodeXLExpr1 question) (decodeXLExpr answer) (decodeXLExpr1 (SE.List (SE.Atom "cond" : more)))
 decodeXLExpr1 (SE.List [SE.Atom "assert!", arg]) =
   XL_Assert (decodeXLExpr1 arg)
 decodeXLExpr1 (SE.List [SE.Atom "transfer!", from, to, amt]) =
