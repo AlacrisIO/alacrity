@@ -7,8 +7,6 @@ import qualified Data.Map.Strict as M
 import System.Directory
 import System.FilePath
 import qualified Text.Megaparsec as MP
--- import qualified Text.Megaparsec.Char as MPC
--- import qualified Text.Megaparsec.Char.Lexer as L
 import qualified Alacrity.SExpr as SE
 
 import Alacrity.AST
