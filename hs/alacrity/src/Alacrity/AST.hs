@@ -302,11 +302,38 @@ data BLProgram
 
 --- Emiting Code ---
 
+{- XXX I would prefer this to be somewhere else, but we can't because of
+   orphaned instances.
+ -}
+
+instance Pretty ExprType where
+  pretty = viaShow --- XXX
+
 instance Pretty XLProgram where
   pretty = viaShow
 
+instance Pretty ILTail where
+  pretty = viaShow --- XXX
+
+prettyILVar :: ILVar -> Doc ann
+prettyILVar (n, s) = pretty n <> pretty "/" <> pretty s
+
+prettyILPartArg :: (ILVar, ExprType) -> Doc ann
+prettyILPartArg (v, et) = group $ brackets $ prettyILVar v <+> pretty ":" <+> pretty et
+
+prettyILPart :: (Participant, [(ILVar, ExprType)]) -> Doc ann
+prettyILPart (p, vs) =
+  group $ parens $ pretty "define-participant" <+> pretty p <> body
+  where pvs = map prettyILPartArg vs
+        body = case vs of [] -> emptyDoc
+                          _ -> (nest 2 $ hardline <> vsep pvs)
+
+prettyILPartInfo :: ILPartInfo -> Doc ann
+prettyILPartInfo ps =
+  vsep $ pretty "#:participants" : (map prettyILPart (M.toList ps))
+
 instance Pretty ILProgram where
-  pretty = viaShow
+  pretty (IL_Prog ps t) = vsep [pretty "#lang alacrity/il", emptyDoc, prettyILPartInfo ps, emptyDoc, pretty "#:main", pretty t]
 
 instance Pretty BLProgram where
   pretty = viaShow
