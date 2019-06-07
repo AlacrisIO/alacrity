@@ -534,6 +534,33 @@ emit_sol _ = pretty "pragma solidity ^0.5.2;" -- error $ "Solidity output is not
 
  -}
 
+primZ3BinOp :: (Z3.AST -> Z3.AST -> Z3.Z3 Z3.AST) -> ([Z3.AST] -> Z3.Z3 Z3.AST)
+primZ3BinOp op [a, b] = op a b
+primZ3BinOp _ lst =
+  error ("binary operation: expected 2 arguments, received " ++ show (length lst))
+
+primZ3TernOp :: (Z3.AST -> Z3.AST -> Z3.AST -> Z3.Z3 Z3.AST) -> ([Z3.AST] -> Z3.Z3 Z3.AST)
+primZ3TernOp op [a, b, c] = op a b c
+primZ3TernOp _ lst =
+  error ("ternary operation: expected 3 arguments, received " ++ show (length lst))
+
+primZ3 :: EP_Prim -> [Z3.AST] -> Z3.Z3 Z3.AST
+primZ3 (CP ADD) = mkAdd
+primZ3 (CP SUB) = mkSub
+primZ3 (CP MUL) = mkMul
+primZ3 (CP DIV) = primZ3BinOp mkDiv
+primZ3 (CP MOD) = primZ3BinOp mkMod
+primZ3 (CP PLT) = primZ3BinOp mkLt
+primZ3 (CP PLE) = primZ3BinOp mkLe
+primZ3 (CP PEQ) = primZ3BinOp mkEq
+primZ3 (CP PGE) = primZ3BinOp mkGe
+primZ3 (CP PGT) = primZ3BinOp mkGt
+primZ3 (CP IF_THEN_ELSE) = primZ3TernOp mkIte
+-- TODO INT_TO_BYTES and DIGEST
+primZ3 (CP BYTES_EQ) = primZ3BinOp mkEq
+-- TODO BYTES_LEN through INTERACT
+primZ3 _ = error "XXX fill in Z3 primitives"
+
 emit_z3 :: BLProgram -> Z3.Z3 [String]
 emit_z3 _
  = do
