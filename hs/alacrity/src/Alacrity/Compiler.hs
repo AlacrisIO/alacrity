@@ -132,12 +132,15 @@ consumeANF_N n = do
   vs <- consumeANF_N (n - 1)
   return $ v : vs
 
-allocANF :: Maybe Participant -> ILExpr -> String -> ANFMonad ILVar
-allocANF mp e s = do
+allocANF :: Maybe Participant -> String -> ILExpr -> ANFMonad ILVar
+allocANF mp s e = do
   (nvi, vs) <- get
   let nv = (nvi, s)
   put (nvi + 1, vs S.|> (mp, nv, e))
   return nv
+
+allocANFs :: Maybe Participant -> String -> [ILExpr] -> ANFMonad [ILVar]
+allocANFs mp s es = mapM (allocANF mp s) es
 
 type XLRenaming = M.Map XLVar ILArg
 
@@ -186,14 +189,24 @@ anf_expr me ρ e mk =
         Just a -> mk [ a ]
     XL_PrimApp p args ->
       anf_exprs me ρ args (\args' -> ret_expr ("PrimApp" ++ show p) (IL_PrimApp p args'))
-    XL_If _ ce te fe ->
+    XL_If is_pure ce te fe ->
       anf_expr me ρ ce k
-      where k [ ca ] = do
-              --- XXX Use is_pure
-              (tn, tt) <- anf_tail me ρ te mk
-              (fn, ft) <- anf_tail me ρ fe mk
-              unless (tn == fn) $ error "ANF: If branches don't have same continuation arity"
-              return (tn, IL_If ca tt ft)
+      where k [ ca ] =
+              if is_pure then
+                anf_expr me ρ te
+                  (\ tvs ->
+                      anf_expr me ρ fe
+                        (\ fvs ->
+                           if (length tvs /= length fvs) then
+                             error "ANF: If branches don't have same continuation arity"
+                           else do
+                             ks <- allocANFs me "PureIf" $ zipWith (\ t f -> IL_PrimApp (CP IF_THEN_ELSE) [ ca, t, f ]) tvs fvs
+                             mk $ map IL_Var ks))
+              else do
+                (tn, tt) <- anf_tail me ρ te mk
+                (fn, ft) <- anf_tail me ρ fe mk
+                unless (tn == fn) $ error "ANF: If branches don't have same continuation arity"
+                return (tn, IL_If ca tt ft)
             k _ = error "anf_expr XL_If ce doesn't return 1"
     XL_Assert ae ->
       anf_expr me ρ ae (\[ aa ] -> ret_expr "Assert" (IL_Assert aa))
@@ -228,7 +241,7 @@ anf_expr me ρ e mk =
                           error $ "ANF XL_LetValues, context arity mismatch, " ++ show olen ++ " vs " ++ show nlen
     XL_FunApp _ _ -> error $ "ANF XL_FunApp, impossible after inliner"
   where ret_expr s ne = do
-          nv <- allocANF me ne s
+          nv <- allocANF me s ne
           mk [ IL_Var nv ]
 
 anf_addVar :: ANFElem -> (Natural, ILTail) -> (Natural, ILTail)
