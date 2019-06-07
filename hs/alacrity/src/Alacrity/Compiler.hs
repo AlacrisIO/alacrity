@@ -3,14 +3,12 @@ module Alacrity.Compiler where
 import Numeric.Natural
 import Control.Monad.State.Lazy
 import qualified Data.Map.Strict as M
-import qualified Data.Text.Lazy.IO as TIO
 import Data.Foldable
 import qualified Data.Sequence as S
 import Data.Text.Prettyprint.Doc
 import Language.JavaScript.Parser as JS
 import System.Exit
 import Z3.Monad as Z3
-import Text.Pretty.Simple
 
 import Alacrity.AST
 import Alacrity.Parser
@@ -318,11 +316,11 @@ emit_z3 _
 compile :: FilePath -> IO ()
 compile srcp = do
   xlp <- readAlacrityFile srcp
-  TIO.writeFile (srcp ++ ".xl") (pShowNoColor xlp)
+  writeFile (srcp ++ ".xl") (show (pretty xlp))
   let ilp = anf xlp
-  TIO.writeFile (srcp ++ ".il") (pShowNoColor ilp)
+  writeFile (srcp ++ ".il") (show (pretty ilp))
   let blp = epp ilp
-  TIO.writeFile (srcp ++ ".bl") (pShowNoColor blp)
+  writeFile (srcp ++ ".bl") (show (pretty blp))
   z3res <- evalZ3 (emit_z3 blp)
   case z3res of
     [] -> do

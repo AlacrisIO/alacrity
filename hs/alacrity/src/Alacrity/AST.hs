@@ -3,6 +3,7 @@ module Alacrity.AST where
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Map.Strict as M
 import Numeric.Natural
+import Data.Text.Prettyprint.Doc
 
 -- Shared types
 
@@ -292,3 +293,15 @@ data CProgram
 data BLProgram
   = BL_Prog (M.Map Participant EProgram) CProgram
   deriving (Show,Eq)
+
+
+--- Emiting Code ---
+
+instance Pretty XLProgram where
+  pretty = viaShow
+
+instance Pretty ILProgram where
+  pretty = viaShow
+
+instance Pretty BLProgram where
+  pretty = viaShow
