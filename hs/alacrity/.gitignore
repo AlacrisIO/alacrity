@@ -3,6 +3,7 @@ alacrity.cabal
 *~
 ala/*.il
 ala/*.xl
+ala/*.xil
 ala/*.bl
 ala/*.sol
 ala/*.js

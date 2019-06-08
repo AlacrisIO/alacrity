@@ -211,7 +211,7 @@ anf_expr me ρ e mk =
     XL_Assert ae ->
       anf_expr me ρ ae (\[ aa ] -> ret_expr "Assert" (IL_Assert aa))
     XL_Consensus p msg body -> do
-      anf_expr me ρ msg k
+      anf_expr (Just p) ρ msg k
       where k msgas = do
               let msgvs = vsOnly msgas
               (bn, bodyt) <- anf_tail Nothing ρ body anf_ktop
@@ -236,7 +236,7 @@ anf_expr me ρ e mk =
                         let olen = length ovs
                             nlen = length nvs in
                         if olen == nlen then
-                          M.union ρ $ M.fromList $ zip ovs nvs
+                          M.union (M.fromList $ zip ovs nvs) ρ
                         else
                           error $ "ANF XL_LetValues, context arity mismatch, " ++ show olen ++ " vs " ++ show nlen
     XL_FunApp _ _ -> error $ "ANF XL_FunApp, impossible after inliner"
@@ -387,6 +387,7 @@ compile srcp = do
   xlp <- readAlacrityFile srcp
   writeFile (srcp ++ ".xl") (show (pretty xlp))
   let xilp = inline xlp
+  writeFile (srcp ++ ".xil") (show (pretty xilp))
   let ilp = anf xilp
   writeFile (srcp ++ ".il") (show (pretty ilp))
   let blp = epp ilp

@@ -306,8 +306,14 @@ data BLProgram
    orphaned instances.
  -}
 
+instance Pretty BaseType where
+  pretty AT_Int = pretty "int"
+  pretty AT_Bool = pretty "bool"
+  pretty AT_Bytes = pretty "bytes"
+
 instance Pretty ExprType where
-  pretty = viaShow --- XXX
+  pretty (TY_Con bt) = pretty bt
+  pretty (TY_Var s) = viaShow s
 
 instance Pretty Constant where
   pretty (Con_I i) = viaShow i
@@ -320,10 +326,13 @@ instance Pretty EP_Prim where
     _ -> viaShow p
 
 instance Pretty Role where
-  pretty (RolePart p) = viaShow p
+  pretty (RolePart p) = pretty p
   pretty RoleContract = pretty "CTC"
 
 instance Pretty XLProgram where
+  pretty = viaShow
+
+instance Pretty XLInlinedProgram where
   pretty = viaShow
 
 instance Pretty ILArg where
