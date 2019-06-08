@@ -188,7 +188,7 @@ anf_expr me ρ e mk =
         Nothing -> error ("ANF: Variable unbound: " ++ (show v))
         Just a -> mk [ a ]
     XL_PrimApp p args ->
-      anf_exprs me ρ args (\args' -> ret_expr ("PrimApp" ++ show p) (IL_PrimApp p args'))
+      anf_exprs me ρ args (\args' -> ret_expr "PrimApp" (IL_PrimApp p args'))
     XL_If is_pure ce te fe ->
       anf_expr me ρ ce k
       where k [ ca ] =

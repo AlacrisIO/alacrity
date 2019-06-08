@@ -309,14 +309,62 @@ data BLProgram
 instance Pretty ExprType where
   pretty = viaShow --- XXX
 
+instance Pretty Constant where
+  pretty (Con_I i) = viaShow i
+  pretty (Con_B b) = viaShow b
+  pretty (Con_BS bs) = viaShow bs
+
+instance Pretty EP_Prim where
+  pretty p = case p of
+    CP cp -> viaShow cp
+    _ -> viaShow p
+
+instance Pretty Role where
+  pretty (RolePart p) = viaShow p
+  pretty RoleContract = pretty "CTC"
+
 instance Pretty XLProgram where
   pretty = viaShow
 
+instance Pretty ILArg where
+  pretty (IL_Var v) = prettyILVar v
+  pretty (IL_Con c) = pretty c
+
+instance Pretty ILExpr where
+  pretty (IL_PrimApp p al) = group $ parens $ pretty p <> ap
+    where ap = case al of [] -> emptyDoc
+                          _ -> space <> (hsep $ map pretty al)
+  pretty (IL_Declassify a) = group $ parens $ pretty "declassify" <+> pretty a
+  pretty (IL_Transfer from to a) = group $ parens $ pretty "transfer" <+> pretty from <+> pretty to <+> pretty a
+  pretty (IL_Assert a) = group $ parens $ pretty "assert!" <+> pretty a
+
 instance Pretty ILTail where
-  pretty = viaShow --- XXX
+  pretty (IL_Ret al) =
+    case al of
+      [ a ] -> pretty a
+      _ -> group $ parens $ (pretty "values") <+> (hsep $ map pretty al)
+  pretty (IL_If ca tt ft) =
+    group $ parens $ pretty "cond" <+> (nest 2 $ hardline <> vsep [(group $ brackets $ (pretty ca) <+> pretty tt), (group $ brackets $ pretty "else" <+> pretty ft)])
+  pretty (IL_Let mp miv e bt) =
+    vsep [(group $ maybe_at (parens $ ivp <> pretty e)), pretty bt]
+    where ivp = case miv of
+            Nothing -> emptyDoc
+            Just v -> pretty "define" <+> prettyILVar v <> space
+          maybe_at d = case mp of
+            Nothing -> d
+            Just p -> (group $ parens $ pretty "@" <+> pretty p <+> d)
+  pretty (IL_Consensus p svs ct rvs bt) =
+    vsep [(group $ parens $ pretty "consensus!" <+> (nest 2 $ hardline <> vsep [inp, outp, cp])),
+          pretty bt]
+    where inp = pretty "#:in" <+> pretty p <+> prettyILVars svs
+          outp = pretty "#:out" <+> prettyILVars rvs
+          cp = pretty ct
 
 prettyILVar :: ILVar -> Doc ann
 prettyILVar (n, s) = pretty n <> pretty "/" <> pretty s
+
+prettyILVars :: [ILVar] -> Doc ann
+prettyILVars vs = parens $ hsep $ map prettyILVar vs
 
 prettyILPartArg :: (ILVar, ExprType) -> Doc ann
 prettyILPartArg (v, et) = group $ brackets $ prettyILVar v <+> pretty ":" <+> pretty et
