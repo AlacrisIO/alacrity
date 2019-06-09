@@ -238,7 +238,7 @@ export const removeUnconfirmedGame = id => {
         userStorage.set("previousUnconfirmedId", previousUnconfirmedId);}
     userStorage.remove(id);
     renderGame(id, "Remove Unconfirmed Game:")}
-const confirmGame = (unconfirmedId, data) => {
+export const confirmGame = (unconfirmedId, data) => {
     const game = merge(data)(games.get(unconfirmedId));
     const id = addGame(game);
     removeUnconfirmedGame(unconfirmedId);
@@ -484,7 +484,7 @@ export const registerBackendHooks = hooks => {
 
 // TODO: this function supposes a contract with a queryState approach.
 // We probably want to use event tracking instead when generating code.
-const processActiveGame = lastUnprocessedBlock => id => k => {
+export const processActiveGame = lastUnprocessedBlock => id => k => {
     const game = getGame(id);
     // logging("processActiveGame", id, lastUnprocessedBlock, game)();
     if (!game || game.isCompleted) {
@@ -506,10 +506,10 @@ const processActiveGame = lastUnprocessedBlock => id => k => {
                     return k();}},
             error => logErrorK(error)(k)))}
 
-const processActiveGames = (_firstUnprocessedBlock, lastUnprocessedBlock) => k =>
+export const processActiveGames = (_firstUnprocessedBlock, lastUnprocessedBlock) => k =>
       forEachK(processActiveGame(lastUnprocessedBlock))(activeGamesList())(k);
 
-const watchActiveGames = k => {
+export const watchActiveGames = k => {
     /* eslint-disable no-console */
     logging("watchActiveGames", activeGamesList())();
     newBlockHooks["confirmedActiveGames"] = processActiveGames;
@@ -517,7 +517,7 @@ const watchActiveGames = k => {
         block => processActiveGames(0, block)(k),
         error => logErrorK(error)(k))}
 
-const initGame = id => {
+export const initGame = id => {
     let game = getGame(id);
     if (!game) { return; }
     if (game.txHash) {
@@ -526,9 +526,9 @@ const initGame = id => {
     if (!game.isCompleted && !game.isDismissed) { addActiveGame(id); }
     renderGame(id, "Init Game:")}
 
-const initGames = k => { for(let i=previousUnconfirmedId;i<nextId;i++) {initGame(i)} return k()}
+export const initGames = k => { for(let i=previousUnconfirmedId;i<nextId;i++) {initGame(i)} return k()}
 
-const resumeGames = k => forEachK(processGame)(range(previousUnconfirmedId, nextId-previousUnconfirmedId))(k);
+export const resumeGames = k => forEachK(processGame)(range(previousUnconfirmedId, nextId-previousUnconfirmedId))(k);
 
 export const checkContract = (k = kLogResult, kError = kLogError) => {
     const {address, codeHash, creationHash, creationBlock} = config.contract;
@@ -551,14 +551,14 @@ export const checkContract = (k = kLogResult, kError = kLogError) => {
         kError)})}
 
 /** : Kont() */
-const initRuntime = k => {
+export const initRuntime = k => {
+    config = networkConfig[networkId];
+    userId = `${networkId}.${userAddress}`;
     nextUnprocessedBlock = userStorage.get("nextUnprocessedBlock", 0);
     nextId = userStorage.get("nextId", 0);
     previousUnconfirmedId = userStorage.get("previousUnconfirmedId", 0);
     // For debugging purposes only:
     newBlockHooks["newBlock"] = (from, to) => loggingK("newBlock! from:", from, "to:", to)();
-    config = networkConfig[networkId];
-    userId = `${networkId}.${userAddress}`;
     return k()}
 
 registerInit({

@@ -281,8 +281,8 @@ const renderGame = (id, tag) => {
     const creation = `${pronoun(player0, userAddress)} ${renderAddress(player0)} as player0
 wagered ${renderWei(g.wagerInWei)} (plus a ${renderWei(g.escrowInWei)} escrow)
 with commitment ${renderCommitment(player0Commitment)}
-challenging ${renderAddress(player1filter)}
-${isValidHand(hand0) ? ` and secretly playing ${handName(hand0)} ${renderHand(hand0)}` : ""}.`;
+challenging ${renderAddress(player1filter)}${
+isValidHand(hand0) ? ` and secretly playing ${handName(hand0)} ${renderHand(hand0)}` : ""}.`;
     let error = g.error ? `<br /><font color=red>${escape(JSON.stringify(g.error))}</font>` : "";
     let history = "";
     for (let i in g.confirmedEvents) {
