@@ -63,10 +63,10 @@ inline_expr e =
       (_, ae') <- inline_expr ae
       --- Assert is impure because it could fail
       return (False, XL_Assert ae')
-    XL_Consensus p me ce -> do
-      (_, me') <- inline_expr me
+    XL_Consensus p ins ce outs be -> do
       (_, ce') <- inline_expr ce
-      return (False, XL_Consensus p me' ce')
+      (_, be') <- inline_expr be
+      return (False, XL_Consensus p ins ce' outs be')
     XL_Values es -> inline_exprs es >>= \(ep, es') -> return (ep, XL_Values es')
     XL_Transfer from to te -> do
       (_, tp') <- inline_expr te
@@ -125,13 +125,6 @@ consumeANF s = do
   put (nv+1, vs)
   return (nv, s)
 
-consumeANF_N :: Natural -> ANFMonad [ILVar]
-consumeANF_N 0 = return []
-consumeANF_N n = do
-  v <- consumeANF ("ANF_N" ++ show n)
-  vs <- consumeANF_N (n - 1)
-  return $ v : vs
-
 allocANF :: Maybe Participant -> String -> ILExpr -> ANFMonad ILVar
 allocANF mp s e = do
   (nvi, vs) <- get
@@ -178,15 +171,28 @@ vsOnly [] = []
 vsOnly (IL_Var v : m) = v : vsOnly m
 vsOnly (_ : m) = vsOnly m
 
+anf_renamed_to :: XLRenaming -> XLVar -> ILArg
+anf_renamed_to ρ v =
+  case M.lookup v ρ of
+    Nothing -> error ("ANF: Variable unbound: " ++ (show v))
+    Just a -> a
+
+anf_out_rename :: XLRenaming -> [XLVar] -> ANFMonad (XLRenaming, [ILVar])
+anf_out_rename ρ outs = foldM aor1 (ρ, []) (reverse outs)
+  where aor1 (ρ', outs') ov =
+          case M.lookup ov ρ' of
+            Just (IL_Var iv) -> return (ρ', iv:outs')
+            Just (IL_Con _) -> return (ρ', outs')
+            Nothing -> do
+              iv <- consumeANF "Consensus_Out"
+              return (M.insert ov (IL_Var iv) ρ', iv:outs') 
+
 anf_expr :: Maybe Participant -> XLRenaming -> XLExpr -> ([ILArg] -> ANFMonad (Natural, ILTail)) -> ANFMonad (Natural, ILTail)
 anf_expr me ρ e mk =
   case e of
     XL_Con b ->
       mk [ IL_Con b ]
-    XL_Var v ->
-      case M.lookup v ρ of
-        Nothing -> error ("ANF: Variable unbound: " ++ (show v))
-        Just a -> mk [ a ]
+    XL_Var v -> mk [ anf_renamed_to ρ v ]
     XL_PrimApp p args ->
       anf_exprs me ρ args (\args' -> ret_expr "PrimApp" (IL_PrimApp p args'))
     XL_If is_pure ce te fe ->
@@ -210,14 +216,14 @@ anf_expr me ρ e mk =
             k _ = error "anf_expr XL_If ce doesn't return 1"
     XL_Assert ae ->
       anf_expr me ρ ae (\[ aa ] -> ret_expr "Assert" (IL_Assert aa))
-    XL_Consensus p msg body -> do
-      anf_expr (Just p) ρ msg k
-      where k msgas = do
-              let msgvs = vsOnly msgas
-              (bn, bodyt) <- anf_tail Nothing ρ body anf_ktop
-              outs <- consumeANF_N bn
-              (kn, kt) <- mk $ map IL_Var outs
-              return (kn, IL_Consensus p msgvs bodyt outs kt)
+    XL_Consensus p ins cone outs be  -> do
+      let ins' = vsOnly $ map (anf_renamed_to ρ) ins
+      (cn, cont) <- anf_tail Nothing ρ cone anf_ktop
+      --- XXX This is wrong, because outs is bound inside of cone so it is renamed there
+      unless (cn == 0) (error "Consensus does not return 0")
+      (ρ', outs') <- anf_out_rename ρ outs
+      (kn, kt) <- anf_expr me ρ' be mk
+      return (kn, IL_Consensus p ins' cont outs' kt)
     XL_Values args ->
       anf_exprs me ρ args (\args' -> mk args')
     XL_Transfer from to ae ->

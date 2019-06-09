@@ -67,12 +67,12 @@
 ;; other compilation modes, everyone is going to execute this code and
 ;; check each other's work.
 (consensus!
- #:in A (values wager-amount escrow-amount A-commit)
+ #:in A (wager-amount escrow-amount A-commit)
  #:out (wager-amount escrow-amount A-commit)
  (transfer! A CTC (+ wager-amount escrow-amount)))
 ;; It is now time for B to send its value.
 (consensus!
- #:in B B-hand
+ #:in B (B-hand)
  #:out (B-hand)
  ;; We don't check that B is a valid hand, because we have to handle
  ;; what happens if A is dishonest no matter what, so we just trust B
@@ -81,7 +81,7 @@
 ;; In this next message, the values that A sends are a subset of what
 ;; the contract binds and what B receives.
 (consensus!
- #:in A (declassify A-reveal)
+ #:in A (A-reveal)
  ;; This #:out spec says what gets transmitted. In the future, it can
  ;; be detected based on the free variables in the continuation of the
  ;; contract.

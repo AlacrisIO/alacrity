@@ -103,12 +103,12 @@ decodeXLExpr1 se = invalid "decodeXLExpr1" se
 
 decodeXLExpr :: [SE.SExpr] -> XLExpr
 decodeXLExpr [] = error "Empty expression sequence"
-decodeXLExpr ((SE.List (SE.Atom "consensus!" : SE.Atom "#:in" : fromse : iese : SE.Atom "#:out" : SE.List outse : bse)):kse) =
-  XL_LetValues Nothing (Just outs) (XL_Consensus p ie body) k
+decodeXLExpr ((SE.List (SE.Atom "consensus!" : SE.Atom "#:in" : fromse : SE.List inse : SE.Atom "#:out" : SE.List outse : bse)):kse) =
+  (XL_Consensus p ins body outs k)
   where RolePart p = decodeRole fromse
-        ie = decodeXLExpr1 iese
+        ins = decodeXLVars inse
         outs = decodeXLVars outse
-        bse' = bse ++ [(SE.List (SE.Atom "values" : outse))]
+        bse' = bse ++ [(SE.List [SE.Atom "values"])]
         body = decodeXLExpr bse'
         k = decodeXLExpr kse
 --- define

@@ -124,11 +124,8 @@ data XLExpr
   | XL_PrimApp EP_Prim [XLExpr]
   | XL_If Bool XLExpr XLExpr XLExpr
   | XL_Assert XLExpr
-  --- Sender x Message x Contract Code
-  | XL_Consensus Participant XLExpr XLExpr
-  {- Notice that the consensus doesn't list the binders. We assume that it
-     ends in XL_Values, which is the message that gets returned. We'll
-     unwind this during ANF and turn Consensus into a binding form. -}
+  --- Sender x InMsg x Contract Code x OutMsg x Body
+  | XL_Consensus Participant [XLVar] XLExpr [XLVar] XLExpr
   | XL_Values [XLExpr]
   --- From x To x Amount
   | XL_Transfer Role Role XLExpr
@@ -351,6 +348,7 @@ instance Pretty ILTail where
   pretty (IL_Ret al) =
     case al of
       [ a ] -> pretty a
+      [] -> group $ parens $ pretty "values"
       _ -> group $ parens $ (pretty "values") <+> (hsep $ map pretty al)
   pretty (IL_If ca tt ft) =
     group $ parens $ pretty "cond" <+> (nest 2 $ hardline <> vsep [(group $ brackets $ (pretty ca) <+> pretty tt), (group $ brackets $ pretty "else" <+> pretty ft)])
