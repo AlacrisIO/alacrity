@@ -13,9 +13,6 @@
   "devDependencies": {
     "eslint": "^5.16.0"
   },
-  "scripts": {
-    "test": "rps-demo-test.js"
-  },
   "repository": {
     "type": "git",
     "url": "https://github.com/AlacrisIO/alacrity"
