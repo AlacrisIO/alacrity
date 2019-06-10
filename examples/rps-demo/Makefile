@@ -58,10 +58,13 @@ npm_install:
 	$(HIDE) npm install web3@0.20.7 node-localstorage@1.3.1 jasmine@3.4.0
 
 test:
-	$(HIDE) node --experimental-modules test.js -- test
+	$(HIDE) node --experimental-modules spec
 
 deploy:
 	$(HIDE) node --experimental-modules test.js -- deploy
 
 lint:
 	$(HIDE) ./node_modules/eslint/bin/eslint.js *.mjs
+
+start_devnet:
+	$(HIDE) ../../scripts/ethereum-devnet/run.sh
