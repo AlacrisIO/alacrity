@@ -66,54 +66,49 @@
 ;; method, invoked by the A JS code and monitored by the B JS code. In
 ;; other compilation modes, everyone is going to execute this code and
 ;; check each other's work.
-(consensus!
- #:in A (wager-amount escrow-amount A-commit)
- #:out (wager-amount escrow-amount A-commit)
- (transfer! A CTC (+ wager-amount escrow-amount)))
+(@ A
+   #:pub (wager-amount escrow-amount A-commit)
+   #:pay (+ wager-amount escrow-amount))
 ;; It is now time for B to send its value.
-(consensus!
- #:in B (B-hand)
- #:out (B-hand)
- ;; We don't check that B is a valid hand, because we have to handle
- ;; what happens if A is dishonest no matter what, so we just trust B
- ;; for now and will punish it later for lying.
- (transfer! B CTC wager-amount))
+(@ B
+   #:pub (B-hand)
+   #:pay wager-amount
+   ;; We don't check that B is a valid hand, because we have to handle
+   ;; what happens if A is dishonest no matter what, so we just trust
+   ;; B for now and will punish it later for lying.
+   )
 ;; In this next message, the values that A sends are a subset of what
 ;; the contract binds and what B receives.
-(consensus!
- #:in A (A-reveal)
- ;; This #:out spec says what gets transmitted. In the future, it can
- ;; be detected based on the free variables in the continuation of the
- ;; contract.
- #:out (A-reveal A-hand outcome A-gets B-gets)
- ;; At the contract, we verify A's commitment, compute the outcome,
- ;; and finalize the transfers.
- (define A-hand (check-commit A-commit A-reveal))
- (define outcome (RPS-outcome A-hand B-hand))
- (assert!
-  (implies (not (hand? A-hand))
-           (not (= outcome A_WINS))))
- (assert!
-  (implies (not (hand? B-hand))
-           (not (= outcome B_WINS))))
- ;; This implies is showing that the cond below is sound. We don't put
- ;; the assert inside the cond though, because asserts are effects and
- ;; that is expensive.
- (assert! (implies
-           (not (or (= outcome A_WINS)
-                    (= outcome B_WINS)))
-           (= outcome DRAW)))
- (define-values (A-gets B-gets)
-   (cond
-     [(= outcome A_WINS)
-      (values (+ (* 2 wager-amount) escrow-amount) 0)]
-     [(= outcome B_WINS)
-      (values escrow-amount (* 2 wager-amount))]
-     [else
-      (values (+ wager-amount escrow-amount) wager-amount)]))
- (transfer! CTC A A-gets)
- (transfer! CTC B B-gets))
+(@ A
+   #:pub (A-reveal)
+   #:pay 0
+   ;; At the contract, we verify A's commitment, compute the outcome,
+   ;; and finalize the transfers.
+   (define A-hand (check-commit A-commit A-reveal))
+   (define outcome (RPS-outcome A-hand B-hand))
+   (assert!
+    (implies (not (hand? A-hand))
+             (not (= outcome A_WINS))))
+   (assert!
+    (implies (not (hand? B-hand))
+             (not (= outcome B_WINS))))
+   ;; This implies is showing that the cond below is sound. We don't put
+   ;; the assert inside the cond though, because asserts are effects and
+   ;; that is expensive.
+   (assert! (implies
+             (not (or (= outcome A_WINS)
+                      (= outcome B_WINS)))
+             (= outcome DRAW)))
+   (define-values (A-gets B-gets)
+     (cond
+       [(= outcome A_WINS)
+        (values (+ (* 2 wager-amount) escrow-amount) 0)]
+       [(= outcome B_WINS)
+        (values escrow-amount (* 2 wager-amount))]
+       [else
+        (values (+ wager-amount escrow-amount) wager-amount)]))
+   (transfer! A A-gets)
+   (transfer! B B-gets))
 
 ;; The program returns the outcome.
 outcome
-

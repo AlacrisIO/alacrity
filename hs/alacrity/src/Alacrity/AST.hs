@@ -106,6 +106,14 @@ data Role
 
 {- Expanded Language (the language after expansion)
 
+   XXX It is ugly that the XL requires the contract code to be written
+   inside of the publish!, as opposed to collapsing all of the
+   following (@ CTC ...) blocks. An alternative approach to XL would
+   break those appart and have a phase that reconstructs them. The
+   main reason I don't know how to do that now is that I don't want to
+   have the scope of the contract be a global thing and I don't know
+   another way to collect all the published variables in the contract.
+
    There are some extensions we need to add in the future:
 
    XXX Add roles to function definitions and calls, so you can write
@@ -124,11 +132,23 @@ data XLExpr
   | XL_PrimApp EP_Prim [XLExpr]
   | XL_If Bool XLExpr XLExpr XLExpr
   | XL_Assert XLExpr
-  --- Sender x InMsg x Contract Code x OutMsg x Body
-  | XL_Consensus Participant [XLVar] XLExpr [XLVar] XLExpr
+  --- A ToConsensus transfers control to the contract. The arguments
+  --- are (initiator, message, pay expression, contract body). The
+  --- message is a sequence of variables, because it binds these in
+  --- the contract body. The contract body is expected to end in a
+  --- FromConsensus that will switch back.
+  | XL_ToConsensus Participant [XLVar] XLExpr XLExpr
+  --- A FromConsensus expression is a terminator inside of a contract
+  --- block that switches the context back away from the consensus,
+  --- while still retaining all of the bindings established during the
+  --- consensus execution.
+  | XL_FromConsensus XLExpr
   | XL_Values [XLExpr]
-  --- From x To x Amount
-  | XL_Transfer Role Role XLExpr
+  --- Transfer expressions are always from the contract to another
+  --- role. In the future, we could make something like mutable state
+  --- on a local side of a transaction that collects all the transfers
+  --- and puts them in the pay position.
+  | XL_Transfer Role XLExpr
   | XL_Declassify XLExpr
   --- Where x Vars x Expression x Body
   | XL_LetValues (Maybe Participant) (Maybe [XLVar]) XLExpr XLExpr
@@ -185,16 +205,23 @@ data ILArg
 data ILExpr
   = IL_PrimApp EP_Prim [ILArg]
   | IL_Declassify ILArg
-  | IL_Transfer Role Role ILArg
+  | IL_Transfer Role ILArg
   | IL_Assert ILArg
   deriving (Show,Eq)
 
 data ILTail
   = IL_Ret [ILArg]
   | IL_If ILArg ILTail ILTail
-  | IL_Let (Maybe Participant) (Maybe ILVar) ILExpr ILTail
-  --- From x SentMsg x Contract Body x RecvMsg x K
-  | IL_Consensus Participant [ILVar] ILTail [ILVar] ILTail
+  --- This role represents where the action happens. If it is
+  --- RoleContract, then this means that everyone does it.
+  | IL_Let Role (Maybe ILVar) ILExpr ILTail
+  --- As in XL, a ToConsensus is a transfer to the contract with
+  --- (initiator, message, pay amount). The tail is inside of the
+  --- contract.
+  | IL_ToConsensus Participant [ILVar] ILArg ILTail
+  --- A FromConsensus moves back from the consensus; the tail is
+  --- "local" again.
+  | IL_FromConsensus ILTail
   deriving (Show,Eq)
 
 type ILPartInfo = (M.Map Participant [(ILVar, ExprType)])
@@ -240,7 +267,7 @@ data BLArg
 data EPExpr
   = EP_PrimApp EP_Prim [BLArg]
   | EP_Assert BLArg
-  | EP_Send Natural [BLVar]
+  | EP_Send Natural [BLVar] BLArg
   deriving (Show,Eq)
 
 data EPTail
@@ -260,11 +287,11 @@ data EProgram
 -- -- Contracts
 data CExpr
   = C_PrimApp C_Prim [BLArg]
-  | C_Assert BLArg CTail
-  {- XXX In the future, these Roles should be BLArg and
-     there should be a way to deal with arbitrary Addresses
-     and transform Roles into addresses. -}
-  | C_Transfer Role Role BLArg CTail
+  | C_Assert BLArg
+  {- XXX In the future, this Role should be BLArg and there should be a
+     way to deal with arbitrary Addresses and transform Roles into
+     addresses. -}
+  | C_Transfer Role BLArg
   deriving (Show,Eq)
 
 data CTail
@@ -341,7 +368,7 @@ instance Pretty ILExpr where
     where ap = case al of [] -> emptyDoc
                           _ -> space <> (hsep $ map pretty al)
   pretty (IL_Declassify a) = group $ parens $ pretty "declassify" <+> pretty a
-  pretty (IL_Transfer from to a) = group $ parens $ pretty "transfer" <+> pretty from <+> pretty to <+> pretty a
+  pretty (IL_Transfer to a) = group $ parens $ pretty "transfer!" <+> pretty to <+> pretty a
   pretty (IL_Assert a) = group $ parens $ pretty "assert!" <+> pretty a
 
 instance Pretty ILTail where
@@ -352,20 +379,20 @@ instance Pretty ILTail where
       _ -> group $ parens $ (pretty "values") <+> (hsep $ map pretty al)
   pretty (IL_If ca tt ft) =
     group $ parens $ pretty "cond" <+> (nest 2 $ hardline <> vsep [(group $ brackets $ (pretty ca) <+> pretty tt), (group $ brackets $ pretty "else" <+> pretty ft)])
-  pretty (IL_Let mp miv e bt) =
-    vsep [(group $ maybe_at (parens $ ivp <> pretty e)), pretty bt]
+  pretty (IL_Let r miv e bt) =
+    vsep [(group $ at (parens $ ivp <> pretty e)), pretty bt]
     where ivp = case miv of
             Nothing -> emptyDoc
             Just v -> pretty "define" <+> prettyILVar v <> space
-          maybe_at d = case mp of
-            Nothing -> d
-            Just p -> (group $ parens $ pretty "@" <+> pretty p <+> d)
-  pretty (IL_Consensus p svs ct rvs bt) =
-    vsep [(group $ parens $ pretty "consensus!" <+> (nest 2 $ hardline <> vsep [inp, outp, cp])),
-          pretty bt]
-    where inp = pretty "#:in" <+> pretty p <+> prettyILVars svs
-          outp = pretty "#:out" <+> prettyILVars rvs
-          cp = pretty ct
+          at d = (group $ parens $ pretty "@" <+> pretty r <+> d)
+  pretty (IL_ToConsensus p svs pa ct) =
+    vsep [(group $ parens $ pretty "@" <+> pretty p <+> (nest 2 $ hardline <> vsep [svsp, pap])),
+          pretty ct]
+    where svsp = pretty "#:pub" <+> prettyILVars svs
+          pap = pretty "#:pay" <+> pretty pa
+  pretty (IL_FromConsensus lt) =
+    vsep [(group $ parens $ pretty "return!"),
+          pretty lt]
 
 prettyILVar :: ILVar -> Doc ann
 prettyILVar (n, s) = pretty n <> pretty "/" <> pretty s

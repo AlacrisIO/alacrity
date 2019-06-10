@@ -63,14 +63,17 @@ inline_expr e =
       (_, ae') <- inline_expr ae
       --- Assert is impure because it could fail
       return (False, XL_Assert ae')
-    XL_Consensus p ins ce outs be -> do
+    XL_ToConsensus p ins pe ce -> do
+      (_, pe') <- inline_expr pe
       (_, ce') <- inline_expr ce
+      return (False, XL_ToConsensus p ins pe' ce')
+    XL_FromConsensus be -> do
       (_, be') <- inline_expr be
-      return (False, XL_Consensus p ins ce' outs be')
+      return (False, XL_FromConsensus be')
     XL_Values es -> inline_exprs es >>= \(ep, es') -> return (ep, XL_Values es')
-    XL_Transfer from to te -> do
+    XL_Transfer to te -> do
       (_, tp') <- inline_expr te
-      return (False, XL_Transfer from to tp')
+      return (False, XL_Transfer to tp')
     XL_Declassify de -> do
       (dp, de') <- inline_expr de
       return (dp, XL_Declassify de')
@@ -100,9 +103,23 @@ inline (XL_Prog defs ps m) = XL_InlinedProg ps (inline_defs defs M.empty m)
 
    The ANF monad stores the next available variable and the list of
    defined variables.
+
+   XXX The ANF process has a big problem, because it is separate from
+   EPP. If A transmits 'v' and B already knows 'v', then this code
+   completely ignores that and does not introduce an assertion that
+   the transmitted value is the same as the value already known. The
+   correct behavior can be implemented manually by programmers, by not
+   sharing names, but it would be more robust if this was done
+   automatically. Unfortunately, the renaming environment in ANF does
+   not track what each party knows, so it can't do this. One strategy
+   would be to change XLRenaming to (Role -> XLVar -> ILArg) and
+   record a separate renaming environment for everyone. This would be
+   quite awkward, especially because the Contract role is really
+   "everyone".
+
  -}
 
-type ANFElem = (Maybe Participant, ILVar, ILExpr)
+type ANFElem = (Role, ILVar, ILExpr)
 type ANFMonad a = State (Natural, S.Seq ANFElem) a
 
 runANF :: ANFMonad a -> a
@@ -125,14 +142,21 @@ consumeANF s = do
   put (nv+1, vs)
   return (nv, s)
 
-allocANF :: Maybe Participant -> String -> ILExpr -> ANFMonad ILVar
+consumeANF_N :: Natural -> ANFMonad [ILVar]
+consumeANF_N 0 = return []
+consumeANF_N n = do
+  v <- consumeANF ("ANF_N" ++ show n)
+  vs <- consumeANF_N (n - 1)
+  return $ v : vs
+
+allocANF :: Role -> String -> ILExpr -> ANFMonad ILVar
 allocANF mp s e = do
   (nvi, vs) <- get
   let nv = (nvi, s)
   put (nvi + 1, vs S.|> (mp, nv, e))
   return nv
 
-allocANFs :: Maybe Participant -> String -> [ILExpr] -> ANFMonad [ILVar]
+allocANFs :: Role -> String -> [ILExpr] -> ANFMonad [ILVar]
 allocANFs mp s es = mapM (allocANF mp s) es
 
 type XLRenaming = M.Map XLVar ILArg
@@ -156,7 +180,7 @@ anf_part (ρ, ips) (p, args) = do
 anf_parts :: XLPartInfo -> ANFMonad (XLRenaming, ILPartInfo)
 anf_parts ps = foldM anf_part (M.empty, M.empty) (M.toList ps)
 
-anf_exprs :: Maybe Participant -> XLRenaming -> [XLExpr] -> ([ILArg] -> ANFMonad (Natural, ILTail)) -> ANFMonad (Natural, ILTail)
+anf_exprs :: Role -> XLRenaming -> [XLExpr] -> ([ILArg] -> ANFMonad (Natural, ILTail)) -> ANFMonad (Natural, ILTail)
 anf_exprs me ρ es mk =
   case es of
     [] -> mk []
@@ -187,7 +211,7 @@ anf_out_rename ρ outs = foldM aor1 (ρ, []) (reverse outs)
               iv <- consumeANF "Consensus_Out"
               return (M.insert ov (IL_Var iv) ρ', iv:outs') 
 
-anf_expr :: Maybe Participant -> XLRenaming -> XLExpr -> ([ILArg] -> ANFMonad (Natural, ILTail)) -> ANFMonad (Natural, ILTail)
+anf_expr :: Role -> XLRenaming -> XLExpr -> ([ILArg] -> ANFMonad (Natural, ILTail)) -> ANFMonad (Natural, ILTail)
 anf_expr me ρ e mk =
   case e of
     XL_Con b ->
@@ -216,33 +240,35 @@ anf_expr me ρ e mk =
             k _ = error "anf_expr XL_If ce doesn't return 1"
     XL_Assert ae ->
       anf_expr me ρ ae (\[ aa ] -> ret_expr "Assert" (IL_Assert aa))
-    XL_Consensus p ins cone outs be  -> do
-      let ins' = vsOnly $ map (anf_renamed_to ρ) ins
-      (cn, cont) <- anf_tail Nothing ρ cone anf_ktop
-      --- XXX This is wrong, because outs is bound inside of cone so it is renamed there
-      unless (cn == 0) (error "Consensus does not return 0")
-      (ρ', outs') <- anf_out_rename ρ outs
-      (kn, kt) <- anf_expr me ρ' be mk
-      return (kn, IL_Consensus p ins' cont outs' kt)
+    XL_FromConsensus le -> do
+      (ln, lt) <- anf_tail RoleContract ρ le mk
+      return (ln, IL_FromConsensus lt)
+    XL_ToConsensus from ins pe ce ->
+      anf_expr (RolePart from) ρ pe
+      (\ [ pa ] -> do
+         let ins' = vsOnly $ map (anf_renamed_to ρ) ins
+         (cn, ct) <- anf_tail RoleContract ρ ce mk
+         return (cn, IL_ToConsensus from ins' pa ct))
     XL_Values args ->
       anf_exprs me ρ args (\args' -> mk args')
-    XL_Transfer from to ae ->
-      anf_expr me ρ ae (\[ aa ] -> ret_expr "Transfer" (IL_Transfer from to aa))
+    XL_Transfer to ae ->
+      anf_expr me ρ ae (\[ aa ] -> ret_expr "Transfer" (IL_Transfer to aa))
     XL_Declassify ae ->
       anf_expr me ρ ae (\[ aa ] -> ret_expr "Declassify" (IL_Declassify aa))
     XL_LetValues mwho mvs ve be ->
       anf_expr who ρ ve k
       where who = case mwho of
                     Nothing -> me
-                    Just _ -> mwho
+                    Just p -> RolePart p
             k nvs = anf_expr me ρ' be mk
-              where ρ' = case mvs of
+              where ρ' = M.union ρvs ρ
+                    ρvs = case mvs of
                       Nothing -> ρ
                       Just ovs ->
                         let olen = length ovs
                             nlen = length nvs in
                         if olen == nlen then
-                          M.union (M.fromList $ zip ovs nvs) ρ
+                          (M.fromList $ zip ovs nvs)
                         else
                           error $ "ANF XL_LetValues, context arity mismatch, " ++ show olen ++ " vs " ++ show nlen
     XL_FunApp _ _ -> error $ "ANF XL_FunApp, impossible after inliner"
@@ -253,12 +279,15 @@ anf_expr me ρ e mk =
 anf_addVar :: ANFElem -> (Natural, ILTail) -> (Natural, ILTail)
 anf_addVar (mp, v, e) (c, t) = (c, IL_Let mp (Just v) e t)
 
-anf_tail :: Maybe Participant -> XLRenaming -> XLExpr -> ([ILArg] -> ANFMonad (Natural, ILTail)) -> ANFMonad (Natural, ILTail)
+anf_tail :: Role -> XLRenaming -> XLExpr -> ([ILArg] -> ANFMonad (Natural, ILTail)) -> ANFMonad (Natural, ILTail)
 anf_tail me ρ e mk = do
   collectANF anf_addVar (anf_expr me ρ e mk)
 
 anf_ktop :: [ILArg] -> ANFMonad (Natural, ILTail)
-anf_ktop args = return (fromInteger (toInteger (length args)), IL_Ret args)
+anf_ktop args = return (int2nat (length args), IL_Ret args)
+
+int2nat :: Int -> Natural
+int2nat n = fromInteger $ toInteger n
 
 anf :: XLInlinedProgram -> ILProgram
 anf xilp = IL_Prog ips xt
@@ -268,7 +297,7 @@ anf xilp = IL_Prog ips xt
     xm :: ANFMonad (ILPartInfo, ILTail)
     xm = do
       (ρ, nps) <- anf_parts ps
-      (_, mt) <- anf_tail Nothing ρ main anf_ktop
+      (_, mt) <- anf_tail RoleContract ρ main anf_ktop
       return (nps, mt)
 
 --- End-Point Projection

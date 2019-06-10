@@ -91,26 +91,31 @@ decodeXLExpr1 (SE.List (SE.Atom "cond":SE.List (question:answer):more)) =
   XL_If False (decodeXLExpr1 question) (decodeXLExpr answer) (decodeXLExpr1 (SE.List (SE.Atom "cond" : more)))
 decodeXLExpr1 (SE.List [SE.Atom "assert!", arg]) =
   XL_Assert (decodeXLExpr1 arg)
-decodeXLExpr1 (SE.List [SE.Atom "transfer!", from, to, amt]) =
-  XL_Transfer (decodeRole from) (decodeRole to) (decodeXLExpr1 amt)
+decodeXLExpr1 (SE.List [SE.Atom "transfer!", to, amt]) =
+  XL_Transfer (decodeRole to) (decodeXLExpr1 amt)
 decodeXLExpr1 (SE.List [SE.Atom "declassify", arg]) =
   XL_Declassify (decodeXLExpr1 arg)
 decodeXLExpr1 (SE.List (SE.Atom "values":args)) =
   XL_Values (map decodeXLExpr1 args)
+--- XXX Add let / let* / let-values / let*-values / begin
 decodeXLExpr1 (SE.List (SE.Atom op:args)) =
   (decodeXLOp op) (map decodeXLExpr1 args)
 decodeXLExpr1 se = invalid "decodeXLExpr1" se
 
 decodeXLExpr :: [SE.SExpr] -> XLExpr
 decodeXLExpr [] = error "Empty expression sequence"
-decodeXLExpr ((SE.List (SE.Atom "consensus!" : SE.Atom "#:in" : fromse : SE.List inse : SE.Atom "#:out" : SE.List outse : bse)):kse) =
-  (XL_Consensus p ins body outs k)
+decodeXLExpr [SE.List (SE.Atom "begin-local" : kse)] =
+  XL_FromConsensus (decodeXLExpr kse)
+decodeXLExpr ((SE.List (SE.Atom "@" : fromse :
+                        SE.Atom "#:pub" : SE.List inse :
+                        SE.Atom "#:pay" : payse :
+                        bse)):kse) =
+  XL_ToConsensus p ins pay body
   where RolePart p = decodeRole fromse
         ins = decodeXLVars inse
-        outs = decodeXLVars outse
-        bse' = bse ++ [(SE.List [SE.Atom "values"])]
+        pay = decodeXLExpr1 payse
+        bse' = bse ++ [(SE.List (SE.Atom "begin-local" : kse))]
         body = decodeXLExpr bse'
-        k = decodeXLExpr kse
 --- define
 decodeXLExpr ((SE.List [SE.Atom "@", rs, (SE.List [SE.Atom "define", vse, ese])]):kse) =
   XL_LetValues (Just p) (Just [(decodeXLVar vse)]) (decodeXLExpr1 ese) (decodeXLExpr kse)
