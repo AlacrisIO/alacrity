@@ -7,8 +7,6 @@ import Data.Text.Prettyprint.Doc
 
 -- Shared types
 
---- XXX Make types more general with arbitary range integers. Bool as
---- alias to [0,1]. Bytes with fixed lengths.
 data BaseType
   = AT_Int
   | AT_Bool
@@ -41,7 +39,6 @@ data Constant
 -- -- Primitives are divided into ones that the contract can do and
 -- -- ones that endpoints can do.
 
---- XXX Flesh out all of the operations
 data C_Prim
   = ADD
   | SUB
@@ -106,21 +103,7 @@ data Role
 
 {- Expanded Language (the language after expansion)
 
-   XXX It is ugly that the XL requires the contract code to be written
-   inside of the publish!, as opposed to collapsing all of the
-   following (@ CTC ...) blocks. An alternative approach to XL would
-   break those appart and have a phase that reconstructs them. The
-   main reason I don't know how to do that now is that I don't want to
-   have the scope of the contract be a global thing and I don't know
-   another way to collect all the published variables in the contract.
-
    There are some extensions we need to add in the future:
-
-   XXX Add roles to function definitions and calls, so you can write
-   generic communicators. Change Participant/Role below to a Var and
-   dynamically decide.
-
-   XXX Add exceptions, exception handling & timeouts
 
  -}
 
@@ -152,7 +135,7 @@ data XLExpr
   | XL_Declassify XLExpr
   --- Where x Vars x Expression x Body
   | XL_LetValues (Maybe Participant) (Maybe [XLVar]) XLExpr XLExpr
-  --- Impossible in inlined (XXX: Enforce via GADT)
+  --- Impossible in inlined
   | XL_FunApp XLVar [XLExpr]
   deriving (Show,Eq)
 
@@ -189,9 +172,8 @@ data XLInlinedProgram =
 
    It is essential that all participants agree on the number of times
    consensus is reached. This means that ANF has to do another complex
-   job: it must ensure that IFs are consensual. (XXX: I don't know
-   exactly how to do this and am only 80% sure it is necessary.)
-   -}
+   job: it must ensure that IFs are consensual. 
+ -}
 
 --- The string is just for debugging, it tracks where the variable was
 --- created.
@@ -245,15 +227,6 @@ data ILProgram =
    tagged with integers, so that all participants can agree on which
    block is going to run.
 
-   XXX It is plausible that it is valuable to de-inline in the
-   contract to save storage space on the contract implementation.
-
-   XXX At this point, we assume that the contract remembers all
-   variables defined in earlier handlers. In the future, when we hash
-   the state in the contract, we need to make the handlers mostly
-   stateless (except for a hash of the state), so that the
-   participants communicate the required state.
-
    -}
 
 type BLVar = (Natural, ExprType)
@@ -274,9 +247,8 @@ data EPTail
   = EP_Ret [BLArg]
   | EP_If BLArg EPTail EPTail
   | EP_Let (Maybe BLVar) EPExpr EPTail
-  {- XXX Right now this Recv represents receiving the message from the
-     consensus, but in the future it will represent the message that
-     the consensus RECEIVES and we will do the computation ourselves. -}
+  {- This recv is what the sender sent; we will be doing the same
+     computation as the contract. -}
   | EP_Recv Natural [BLVar] EPTail
   deriving (Show,Eq)
 
@@ -288,9 +260,6 @@ data EProgram
 data CExpr
   = C_PrimApp C_Prim [BLArg]
   | C_Assert BLArg
-  {- XXX In the future, this Role should be BLArg and there should be a
-     way to deal with arbitrary Addresses and transform Roles into
-     addresses. -}
   | C_Transfer Role BLArg
   deriving (Show,Eq)
 
@@ -325,10 +294,6 @@ data BLProgram
 
 
 --- Emiting Code ---
-
-{- XXX I would prefer this to be somewhere else, but we can't because of
-   orphaned instances.
- -}
 
 instance Pretty BaseType where
   pretty AT_Int = pretty "int"

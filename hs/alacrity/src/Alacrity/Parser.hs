@@ -97,7 +97,6 @@ decodeXLExpr1 (SE.List [SE.Atom "declassify", arg]) =
   XL_Declassify (decodeXLExpr1 arg)
 decodeXLExpr1 (SE.List (SE.Atom "values":args)) =
   XL_Values (map decodeXLExpr1 args)
---- XXX Add let / let* / let-values / let*-values / begin
 decodeXLExpr1 (SE.List (SE.Atom op:args)) =
   (decodeXLOp op) (map decodeXLExpr1 args)
 decodeXLExpr1 se = invalid "decodeXLExpr1" se

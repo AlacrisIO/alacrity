@@ -104,19 +104,6 @@ inline (XL_Prog defs ps m) = XL_InlinedProg ps (inline_defs defs M.empty m)
    The ANF monad stores the next available variable and the list of
    defined variables.
 
-   XXX The ANF process has a big problem, because it is separate from
-   EPP. If A transmits 'v' and B already knows 'v', then this code
-   completely ignores that and does not introduce an assertion that
-   the transmitted value is the same as the value already known. The
-   correct behavior can be implemented manually by programmers, by not
-   sharing names, but it would be more robust if this was done
-   automatically. Unfortunately, the renaming environment in ANF does
-   not track what each party knows, so it can't do this. One strategy
-   would be to change XLRenaming to (Role -> XLVar -> ILArg) and
-   record a separate renaming environment for everyone. This would be
-   quite awkward, especially because the Contract role is really
-   "everyone".
-
  -}
 
 type ANFElem = (Role, ILVar, ILExpr)
@@ -321,11 +308,8 @@ properties:
 4. All parties assert that information they receive as message
 contents are the same as things they already know.
 
-XXX Maybe more
-
 -}
 
---- XXX The default type of variables is Secret
 data SecurityLevel
   = Secret
   | Public
@@ -334,7 +318,7 @@ data SecurityLevel
 type SType = (ExprType, SecurityLevel)
 
 epp :: ILProgram -> BLProgram
-epp _ = error $ "XXX epp"
+epp _ = error $ "EPP is not implemented"
 
 {- Compilation to Javascript
 
@@ -352,7 +336,7 @@ epp _ = error $ "XXX epp"
   -}
 
 as_js :: BLProgram -> JS.JSAST
-as_js _ = error $ "XXX as_js"
+as_js _ = error $ "JS output is not implemented"
 
 emit_js :: BLProgram -> String
 emit_js blp = JS.renderToString $ as_js blp
@@ -369,9 +353,8 @@ emit_js blp = JS.renderToString $ as_js blp
    way though. Instead, we'll do dispatch ourselves.
  -}
 
---- XXX The consensus block can know all of the variables to do hash storage.
 emit_sol :: BLProgram -> Doc ann
-emit_sol _ = error $ "XXX emit_sol"
+emit_sol _ = error $ "Solidity output is not implemented"
 
 {- Z3 Theory Generation
 
@@ -400,7 +383,6 @@ emit_sol _ = error $ "XXX emit_sol"
 
 emit_z3 :: BLProgram -> Z3.Z3 [String]
 emit_z3 _
-  -- XXX Actually implement theory generation
  = do
   Z3.push
   f <- Z3.mkFalse
