@@ -353,8 +353,8 @@ instance Pretty ILTail where
   pretty (IL_ToConsensus p svs pa ct) =
     vsep [(group $ parens $ pretty "@" <+> pretty p <+> (nest 2 $ hardline <> vsep [svsp, pap])),
           pretty ct]
-    where svsp = pretty "#:pub" <+> prettyILVars svs
-          pap = pretty "#:pay" <+> pretty pa
+    where svsp = parens $ pretty "publish!" <+> prettyILVars svs
+          pap = parens $ pretty "pay!" <+> pretty pa
   pretty (IL_FromConsensus lt) =
     vsep [(group $ parens $ pretty "return!"),
           pretty lt]
