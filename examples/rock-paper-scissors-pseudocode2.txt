@@ -1,5 +1,3 @@
----
-
 Standard Library
 
 class Communication a where
