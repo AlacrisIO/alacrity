@@ -1,6 +1,5 @@
 module Alacrity.Compiler where
 
-import Numeric.Natural
 import Control.Monad.State.Lazy
 import qualified Data.Map.Strict as M
 import Data.Foldable
@@ -107,7 +106,7 @@ inline (XL_Prog defs ps m) = XL_InlinedProg ps (inline_defs defs M.empty m)
  -}
 
 type ANFElem = (Role, ILVar, ILExpr)
-type ANFMonad a = State (Natural, S.Seq ANFElem) a
+type ANFMonad a = State (Int, S.Seq ANFElem) a
 
 runANF :: ANFMonad a -> a
 runANF am = if null vs then a else error "ANF: Left variables in state!"
@@ -129,7 +128,7 @@ consumeANF s = do
   put (nv+1, vs)
   return (nv, s)
 
-consumeANF_N :: Natural -> ANFMonad [ILVar]
+consumeANF_N :: Int -> ANFMonad [ILVar]
 consumeANF_N 0 = return []
 consumeANF_N n = do
   v <- consumeANF ("ANF_N" ++ show n)
@@ -167,7 +166,7 @@ anf_part (ρ, ips) (p, args) = do
 anf_parts :: XLPartInfo -> ANFMonad (XLRenaming, ILPartInfo)
 anf_parts ps = foldM anf_part (M.empty, M.empty) (M.toList ps)
 
-anf_exprs :: Role -> XLRenaming -> [XLExpr] -> ([ILArg] -> ANFMonad (Natural, ILTail)) -> ANFMonad (Natural, ILTail)
+anf_exprs :: Role -> XLRenaming -> [XLExpr] -> ([ILArg] -> ANFMonad (Int, ILTail)) -> ANFMonad (Int, ILTail)
 anf_exprs me ρ es mk =
   case es of
     [] -> mk []
@@ -198,7 +197,7 @@ anf_out_rename ρ outs = foldM aor1 (ρ, []) (reverse outs)
               iv <- consumeANF "Consensus_Out"
               return (M.insert ov (IL_Var iv) ρ', iv:outs') 
 
-anf_expr :: Role -> XLRenaming -> XLExpr -> ([ILArg] -> ANFMonad (Natural, ILTail)) -> ANFMonad (Natural, ILTail)
+anf_expr :: Role -> XLRenaming -> XLExpr -> ([ILArg] -> ANFMonad (Int, ILTail)) -> ANFMonad (Int, ILTail)
 anf_expr me ρ e mk =
   case e of
     XL_Con b ->
@@ -263,18 +262,15 @@ anf_expr me ρ e mk =
           nv <- allocANF me s ne
           mk [ IL_Var nv ]
 
-anf_addVar :: ANFElem -> (Natural, ILTail) -> (Natural, ILTail)
+anf_addVar :: ANFElem -> (Int, ILTail) -> (Int, ILTail)
 anf_addVar (mp, v, e) (c, t) = (c, IL_Let mp (Just v) e t)
 
-anf_tail :: Role -> XLRenaming -> XLExpr -> ([ILArg] -> ANFMonad (Natural, ILTail)) -> ANFMonad (Natural, ILTail)
+anf_tail :: Role -> XLRenaming -> XLExpr -> ([ILArg] -> ANFMonad (Int, ILTail)) -> ANFMonad (Int, ILTail)
 anf_tail me ρ e mk = do
   collectANF anf_addVar (anf_expr me ρ e mk)
 
-anf_ktop :: [ILArg] -> ANFMonad (Natural, ILTail)
-anf_ktop args = return (int2nat (length args), IL_Ret args)
-
-int2nat :: Int -> Natural
-int2nat n = fromInteger $ toInteger n
+anf_ktop :: [ILArg] -> ANFMonad (Int, ILTail)
+anf_ktop args = return (length args, IL_Ret args)
 
 anf :: XLInlinedProgram -> ILProgram
 anf xilp = IL_Prog ips xt
@@ -305,9 +301,6 @@ properties:
 3. No secret information is shared. (By default, all participants'
    initial knowledge is secret.)
 
-4. All parties assert that information they receive as message
-contents are the same as things they already know.
-
 -}
 
 data SecurityLevel
@@ -317,8 +310,63 @@ data SecurityLevel
 
 type SType = (ExprType, SecurityLevel)
 
+type EPPEnv = M.Map Role (M.Map ILVar SType)
+type EPPRes = (M.Map Participant EPTail, Int, [CHandler])
+
+epp_arg :: EPPEnv -> Role -> ILArg -> BLArg
+epp_arg _ _ (IL_Con c) = BL_Con c
+epp_arg γ r (IL_Var iv) = BL_Var (n, s, et)
+  where (n,s) = iv
+        env = case M.lookup r γ of
+          Nothing -> error $ "EPP: Unknown role: " ++ show r
+          Just v -> v
+        et = case M.lookup iv env of
+          Nothing -> error $ "EPP: Role " ++ show r ++ " does not know " ++ show iv
+          Just (v,_) -> v
+
+epp_args :: EPPEnv -> Role -> [ILArg] -> [BLArg]
+epp_args γ r ivs = map (epp_arg γ r) ivs
+
+epp_it_ctc :: [Participant] -> EPPEnv -> Int -> ILTail -> EPPRes
+epp_it_ctc ps γ hn0 it = case it of
+  IL_Ret _ -> error "EPP: CTC cannot return"
+  IL_FromConsensus bt -> epp_it_loc ps γ hn0 bt
+  _ -> error "XXX epp_it_ctc"
+
+epp_it_loc :: [Participant] -> EPPEnv -> Int -> ILTail -> EPPRes
+epp_it_loc ps γ hn0 it = case it of
+  IL_Ret al -> ( ts, hn0, [] )
+    where ts = M.fromList $ map mkt ps
+          mkt p = (p, EP_Ret $ epp_args γ (RolePart p) al)
+  IL_If ca tt ft -> ( ts3, hn3, hs3 )
+    where (ts1, hn1, hs1) = epp_it_loc ps γ hn0 tt
+          (ts2, hn2, hs2) = epp_it_loc ps γ hn1 ft
+          hn3 = hn2
+          hs3 = hs1 ++ hs2
+          ts3 = M.fromList $ map mkt ps
+          mkt p = (p, EP_If ca' tt' ft')
+            where ca' = epp_arg γ (RolePart p) ca
+                  tt' = ts1 M.! p
+                  ft' = ts2 M.! p
+  IL_Let _ _ _ _ ->
+    error "XXX epp_it let"
+  IL_ToConsensus _ _ _ _ ->
+    error "XXX epp_it to"
+  IL_FromConsensus _ ->
+    error "EPP: Cannot transition to local from local"
+
 epp :: ILProgram -> BLProgram
-epp _ = error $ "EPP is not implemented"
+epp (IL_Prog ips it) = BL_Prog bps cp
+  where cp = C_Prog chs
+        ps = M.keys ips
+        bps = M.mapWithKey mkep ets
+        mkep p ept = EP_Prog args ept
+          where args = map (\((n, s), et) -> (n,s,et)) $ ips M.! p
+        (ets, _, chs) = epp_it_loc ps γ 0 it
+        γi = M.fromList $ map initγ $ M.toList ips
+        initγ (p, args) = (RolePart p, M.fromList $ map initarg args)
+        initarg ((n, s), et) = ((n, s), (et, Secret))
+        γ = M.insert RoleContract M.empty γi
 
 {- Compilation to Javascript
 

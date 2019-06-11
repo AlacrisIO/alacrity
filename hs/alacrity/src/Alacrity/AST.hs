@@ -2,7 +2,6 @@ module Alacrity.AST where
 
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Map.Strict as M
-import Numeric.Natural
 import Data.Text.Prettyprint.Doc
 
 -- Shared types
@@ -95,7 +94,7 @@ type Participant = String
 data Role
   = RolePart Participant
   | RoleContract
-  deriving (Show,Eq)
+  deriving (Show,Eq,Ord)
 
 {- Surface Language
 
@@ -177,7 +176,7 @@ data XLInlinedProgram =
 
 --- The string is just for debugging, it tracks where the variable was
 --- created.
-type ILVar = (Natural, String)
+type ILVar = (Int, String)
 
 data ILArg
   = IL_Con Constant
@@ -229,7 +228,7 @@ data ILProgram =
 
    -}
 
-type BLVar = (Natural, String, ExprType)
+type BLVar = (Int, String, ExprType)
 
 data BLArg
   = BL_Con Constant
@@ -240,7 +239,7 @@ data BLArg
 data EPExpr
   = EP_PrimApp EP_Prim [BLArg]
   | EP_Assert BLArg
-  | EP_Send Natural [BLVar] BLArg
+  | EP_Send Int [BLVar] BLArg
   deriving (Show,Eq)
 
 data EPTail
@@ -249,7 +248,7 @@ data EPTail
   | EP_Let (Maybe BLVar) EPExpr EPTail
   {- This recv is what the sender sent; we will be doing the same
      computation as the contract. -}
-  | EP_Recv Natural [BLVar] EPTail
+  | EP_Recv Int [BLVar] EPTail
   deriving (Show,Eq)
 
 data EProgram
@@ -293,7 +292,6 @@ type BLParts = M.Map Participant EProgram
 data BLProgram
   = BL_Prog BLParts CProgram
   deriving (Show,Eq)
-
 
 --- Emiting Code ---
 
