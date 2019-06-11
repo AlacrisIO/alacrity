@@ -327,20 +327,14 @@ epp_arg γ r (IL_Var iv) = BL_Var (n, s, et)
 epp_args :: EPPEnv -> Role -> [ILArg] -> [BLArg]
 epp_args γ r ivs = map (epp_arg γ r) ivs
 
-epp_it_ctc :: [Participant] -> EPPEnv -> Int -> ILTail -> EPPRes
+epp_it_ctc :: [Participant] -> EPPEnv -> Int -> ILTail -> (CTail, EPPRes)
 epp_it_ctc ps γ hn0 it = case it of
-  IL_Ret _ -> error "EPP: CTC cannot return"
-  IL_FromConsensus bt -> epp_it_loc ps γ hn0 bt
-  _ -> error "XXX epp_it_ctc"
-
-epp_it_loc :: [Participant] -> EPPEnv -> Int -> ILTail -> EPPRes
-epp_it_loc ps γ hn0 it = case it of
-  IL_Ret al -> ( ts, hn0, [] )
-    where ts = M.fromList $ map mkt ps
-          mkt p = (p, EP_Ret $ epp_args γ (RolePart p) al)
-  IL_If ca tt ft -> ( ts3, hn3, hs3 )
-    where (ts1, hn1, hs1) = epp_it_loc ps γ hn0 tt
-          (ts2, hn2, hs2) = epp_it_loc ps γ hn1 ft
+  IL_Ret _ ->
+    error "EPP: CTC cannot return"
+  IL_If ca tt ft -> (C_If cca' ctt' cft', (ts3, hn3, hs3))
+    where cca' = epp_arg γ RoleContract ca
+          (ctt', (ts1, hn1, hs1)) = epp_it_ctc ps γ hn0 tt
+          (cft', (ts2, hn2, hs2)) = epp_it_ctc ps γ hn1 ft
           hn3 = hn2
           hs3 = hs1 ++ hs2
           ts3 = M.fromList $ map mkt ps
@@ -348,10 +342,59 @@ epp_it_loc ps γ hn0 it = case it of
             where ca' = epp_arg γ (RolePart p) ca
                   tt' = ts1 M.! p
                   ft' = ts2 M.! p
-  IL_Let _ _ _ _ ->
-    error "XXX epp_it let"
+  IL_Let RoleContract _ _ _ ->
+    error "XXX epp_it_ctc let"
+  IL_Let (RolePart _) _ _ _ ->
+    error "EPP: Cannot perform local binding in consensus"
   IL_ToConsensus _ _ _ _ ->
-    error "XXX epp_it to"
+    error "EPP: Cannot transitions to consensus from consensus"
+  IL_FromConsensus bt -> (C_Wait hn1, (ts1, hn1, hs1))
+    where (ts1, hn1, hs1) = epp_it_loc ps γ hn0 bt
+
+mep :: Role -> Role -> Bool
+mep _ RoleContract = True
+mep RoleContract _ = False
+mep (RolePart x) (RolePart y) = x == y
+
+epp_e_loc :: EPPEnv -> Participant -> ILExpr -> (SType, EPExpr)
+epp_e_loc _ _ _ = error "XXX: epp_e_loc"
+
+epp_it_loc :: [Participant] -> EPPEnv -> Int -> ILTail -> EPPRes
+epp_it_loc ps γ hn0 it = case it of
+  IL_Ret al -> ( ts, hn0, [] )
+    where ts = M.fromList $ map mkt ps
+          mkt p = (p, EP_Ret $ epp_args γ (RolePart p) al)
+  IL_If _ _ _ ->
+    error "EPP: Ifs must be consensual"
+  IL_Let who what how next -> (ts2, hn1, hs1)
+    where (ts1, hn1, hs1) = epp_it_loc ps γ' hn0 next
+          γ' = case what of
+                 Nothing -> γ
+                 Just iv ->
+                   M.mapWithKey addwhat γ
+                   where addwhat r env =
+                           if mep r who then
+                             M.insert iv lst env
+                           else
+                             env
+          lst = case fmst of
+            Nothing -> error "EPP: Let not local to any participant"
+            Just v -> v
+          (fmst, ts2) = M.foldrWithKey addhow (Nothing, M.empty) ts1
+          addhow p t (mst, ts) =
+            if not (mep (RolePart p) who) then
+              (mst, M.insert p t ts)
+            else
+              (mst', M.insert p t' ts)
+              where t' = EP_Let mbv how' t
+                    mst' = Just st
+                    (st, how') = epp_e_loc γ p how
+                    (et, _) = st
+                    mbv = case what of
+                      Nothing -> Nothing
+                      Just (n, s) -> Just (n, s, et)
+  IL_ToConsensus _ _ _ _ ->
+    error "XXX epp_it_loc to"
   IL_FromConsensus _ ->
     error "EPP: Cannot transition to local from local"
 

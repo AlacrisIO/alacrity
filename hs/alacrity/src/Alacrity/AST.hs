@@ -263,21 +263,14 @@ data CExpr
   deriving (Show,Eq)
 
 data CTail
-  {- This return represents what the contract sends out in response to
-     this handler. In the future, I believe this is unnecessary
-     because observes of this handler call can always work out what
-     the behavior of the consensus was, so all that it is necessary is
-     for the contract to emit that it was called and (maybe) the hash
-     of the arguments? .... In fact, it may be the case that we don't
-     even need the hash of the arguments, because they are listed in
-     the Ethereum log somewhere. -}
-  = C_Ret [BLArg]
+  = C_Wait Int
   | C_If BLArg CTail CTail
   | C_Let (Maybe BLVar) CExpr CTail
   deriving (Show,Eq)
 
 data CHandler
   --- Each handler has a message that it expects to receive
+  --- XXX Maybe needs to know the transfer in amount
   = C_Handler [BLVar] CTail
   deriving (Show,Eq)
 
@@ -424,7 +417,7 @@ instance Pretty EPTail where
           pretty bt]
 
 instance Pretty CTail where
-  pretty (C_Ret al) = prettyValues al
+  pretty (C_Wait i) = group $ parens $ pretty "wait" <+> pretty i
   pretty (C_If ca tt ft) = prettyIf ca tt ft
   pretty (C_Let mv e bt) = prettyLet prettyBLVar (\x -> x) mv e bt
 
