@@ -43,7 +43,13 @@ let initWeb3 = k => {
     // logging("userAddress:", userAddress, "\naccounts:", accounts, "\nnetworkId:", networkId)();
     if (isInBrowser && !userAddress) {
         loggedAlert(`Your user address is undefined. \
-Please reload this page with metamask enabled and an account selected.`);}
+Please reload this page with metamask enabled and an account selected.`);
+    }
+
+    if (!isInBrowser && !userAddress) {
+      throw new Error(`No account address selected`)
+    }
+
     return k()})}
 
 registerInit({"Web3": {fun: initWeb3}})
@@ -51,3 +57,4 @@ registerInit({"Web3": {fun: initWeb3}})
 // Local Variables:
 // mode: JavaScript
 // End:
+// vim: filetype=javascript

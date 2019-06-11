@@ -564,11 +564,9 @@ export const initRuntime = k => {
 registerInit({
     Runtime: {fun: initRuntime, dependsOn: ["Web3"]},
     WatchBlockchain: {fun: initWatchBlockchain, dependsOn: ["Runtime"]},
-    Games: {fun: initGames, dependsOn: ["Frontend"]},
-    ResumeGames: {fun: resumeGames, dependsOn: ["Games"]},
-    WatchNewGames: {fun: watchNewGames, dependsOn: ["ResumeGames", "WatchBlockchain"]},
-    WatchActiveGames: {fun: watchActiveGames, dependsOn: ["WatchNewGames"]}});
+});
 
+// vim: filetype=javascript
 // Local Variables:
 // mode: JavaScript
 // End:
