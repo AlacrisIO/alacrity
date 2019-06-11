@@ -229,7 +229,7 @@ data ILProgram =
 
    -}
 
-type BLVar = (Natural, ExprType)
+type BLVar = (Natural, String, ExprType)
 
 data BLArg
   = BL_Con Constant
@@ -288,8 +288,10 @@ data CProgram
   deriving (Show,Eq)
 
 -- -- Backend
+type BLParts = M.Map Participant EProgram
+
 data BLProgram
-  = BL_Prog (M.Map Participant EProgram) CProgram
+  = BL_Prog BLParts CProgram
   deriving (Show,Eq)
 
 
@@ -309,9 +311,12 @@ instance Pretty Constant where
   pretty (Con_B b) = viaShow b
   pretty (Con_BS bs) = viaShow bs
 
+instance Pretty C_Prim where
+  pretty = viaShow
+
 instance Pretty EP_Prim where
   pretty p = case p of
-    CP cp -> viaShow cp
+    CP cp -> pretty cp
     _ -> viaShow p
 
 instance Pretty Role where
@@ -328,28 +333,43 @@ instance Pretty ILArg where
   pretty (IL_Var v) = prettyILVar v
   pretty (IL_Con c) = pretty c
 
+prettyApp :: (Pretty p, Pretty a) => p -> [a] -> Doc ann
+prettyApp p al = group $ parens $ pretty p <> ap
+  where ap = case al of [] -> emptyDoc
+                        _ -> space <> (hsep $ map pretty al)
+
+prettyAssert :: Pretty a => a -> Doc ann
+prettyAssert a = group $ parens $ pretty "assert!" <+> pretty a
+
+prettyTransfer :: Pretty a => Role -> a -> Doc ann
+prettyTransfer to a = group $ parens $ pretty "transfer!" <+> pretty to <+> pretty a
+
 instance Pretty ILExpr where
-  pretty (IL_PrimApp p al) = group $ parens $ pretty p <> ap
-    where ap = case al of [] -> emptyDoc
-                          _ -> space <> (hsep $ map pretty al)
+  pretty (IL_PrimApp p al) = prettyApp p al
   pretty (IL_Declassify a) = group $ parens $ pretty "declassify" <+> pretty a
-  pretty (IL_Transfer to a) = group $ parens $ pretty "transfer!" <+> pretty to <+> pretty a
-  pretty (IL_Assert a) = group $ parens $ pretty "assert!" <+> pretty a
+  pretty (IL_Transfer to a) = prettyTransfer to a
+  pretty (IL_Assert a) = prettyAssert a
+
+prettyValues :: Pretty a => [a] -> Doc ann
+prettyValues [ a ] = pretty a
+prettyValues [] = group $ parens $ pretty "values"
+prettyValues al = group $ parens $ (pretty "values") <+> (hsep $ map pretty al)
+
+prettyIf :: (Pretty a, Pretty b) => a -> b -> b -> Doc ann
+prettyIf ca tt ft = group $ parens $ pretty "cond" <+> (nest 2 $ hardline <> vsep [(group $ brackets $ (pretty ca) <+> pretty tt), (group $ brackets $ pretty "else" <+> pretty ft)])
+
+prettyLet :: (Pretty xe, Pretty bt) => (x -> Doc ann) -> (Doc ann -> Doc ann) -> Maybe x -> xe -> bt -> Doc ann
+prettyLet prettyVar at mv e bt =
+  vsep [(group $ at (parens $ ivp <> pretty e)), pretty bt]
+  where ivp = case mv of
+                Nothing -> emptyDoc
+                Just v -> pretty "define" <+> prettyVar v <> space
 
 instance Pretty ILTail where
-  pretty (IL_Ret al) =
-    case al of
-      [ a ] -> pretty a
-      [] -> group $ parens $ pretty "values"
-      _ -> group $ parens $ (pretty "values") <+> (hsep $ map pretty al)
-  pretty (IL_If ca tt ft) =
-    group $ parens $ pretty "cond" <+> (nest 2 $ hardline <> vsep [(group $ brackets $ (pretty ca) <+> pretty tt), (group $ brackets $ pretty "else" <+> pretty ft)])
-  pretty (IL_Let r miv e bt) =
-    vsep [(group $ at (parens $ ivp <> pretty e)), pretty bt]
-    where ivp = case miv of
-            Nothing -> emptyDoc
-            Just v -> pretty "define" <+> prettyILVar v <> space
-          at d = (group $ parens $ pretty "@" <+> pretty r <+> d)
+  pretty (IL_Ret al) = prettyValues al
+  pretty (IL_If ca tt ft) = prettyIf ca tt ft
+  pretty (IL_Let r miv e bt) = prettyLet prettyILVar at miv e bt
+    where at d = (group $ parens $ pretty "@" <+> pretty r <+> d)
   pretty (IL_ToConsensus p svs pa ct) =
     vsep [(group $ parens $ pretty "@" <+> pretty p <+> (nest 2 $ hardline <> vsep [svsp, pap])),
           pretty ct]
@@ -382,5 +402,56 @@ prettyILPartInfo ps =
 instance Pretty ILProgram where
   pretty (IL_Prog ps t) = vsep [pretty "#lang alacrity/il", emptyDoc, prettyILPartInfo ps, emptyDoc, pretty "#:main", pretty t]
 
+instance Pretty BLArg where
+  pretty (BL_Con c) = pretty c
+  pretty (BL_Var v) = prettyBLVar v
+
+instance Pretty EPExpr where
+  pretty (EP_PrimApp p al) = prettyApp p al
+  pretty (EP_Assert a) = prettyAssert a
+  pretty (EP_Send hi vs pa) =
+    group $ parens $ pretty "send!" <+> pretty hi <+> prettyBLVars vs <+> pretty pa
+
+instance Pretty CExpr where
+  pretty (C_PrimApp p al) = prettyApp p al
+  pretty (C_Assert a) = prettyAssert a
+  pretty (C_Transfer to a) = prettyTransfer to a
+
+instance Pretty EPTail where
+  pretty (EP_Ret al) = prettyValues al
+  pretty (EP_If ca tt ft) = prettyIf ca tt ft
+  pretty (EP_Let mv e bt) = prettyLet prettyBLVar (\x -> x) mv e bt
+  pretty (EP_Recv hi vs bt) =
+    vsep [group $ parens $ pretty "define-values" <+> prettyBLVars vs <+> (parens $ pretty "recv!" <+> pretty hi),
+          pretty bt]
+
+instance Pretty CTail where
+  pretty (C_Ret al) = prettyValues al
+  pretty (C_If ca tt ft) = prettyIf ca tt ft
+  pretty (C_Let mv e bt) = prettyLet prettyBLVar (\x -> x) mv e bt
+
+prettyCHandler :: Int -> CHandler -> Doc ann
+prettyCHandler i (C_Handler args ct) =
+  group $ brackets $ pretty i <+> prettyBLVars args <+> (nest 2 $ hardline <> pretty ct)
+
+instance Pretty CProgram where
+  pretty (C_Prog hs) = group $ parens $ pretty "define-contract" <+> (nest 2 $ hardline <> vsep hsp)
+    where hsp = zipWith prettyCHandler [0..] hs
+
+prettyBLVar :: BLVar -> Doc ann
+prettyBLVar (n, s, et) = group $ brackets $ prettyILVar (n,s) <+> pretty ":" <+> pretty et
+
+prettyBLVars :: [BLVar] -> Doc ann
+prettyBLVars bs = parens $ hsep $ map prettyBLVar bs
+
+prettyBLPart :: (Participant, EProgram) -> Doc ann
+prettyBLPart (p, (EP_Prog args t)) =
+  group $ parens $ pretty "define-participant" <+> pretty p <+> (nest 2 $ hardline <> vsep [argp, emptyDoc, pretty t])
+  where argp = group $ parens $ vsep $ map prettyBLVar args
+
+prettyBLParts :: BLParts -> Doc ann
+prettyBLParts ps =
+  vsep $ map prettyBLPart (M.toList ps)
+
 instance Pretty BLProgram where
-  pretty = viaShow
+  pretty (BL_Prog ps ctc) = vsep [pretty "#lang alacrity/bl", emptyDoc, pretty ctc, emptyDoc, prettyBLParts ps]
