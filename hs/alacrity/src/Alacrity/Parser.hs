@@ -49,7 +49,7 @@ decodePrim s =
     "*" -> Just (CP MUL)
     "/" -> Just (CP DIV)
     "%" -> Just (CP MOD)
-    "modulo" -> Just (CP SUB)
+    "modulo" -> Just (CP MOD)
     "<" -> Just (CP PLT)
     "<=" -> Just (CP PLE)
     "=" -> Just (CP PEQ)
@@ -106,8 +106,8 @@ decodeXLExpr [] = error "Empty expression sequence"
 decodeXLExpr [SE.List (SE.Atom "begin-local" : kse)] =
   XL_FromConsensus (decodeXLExpr kse)
 decodeXLExpr ((SE.List (SE.Atom "@" : fromse :
-                        SE.Atom "#:pub" : SE.List inse :
-                        SE.Atom "#:pay" : payse :
+                        SE.List (SE.Atom "publish!" : inse) :
+                        SE.List [SE.Atom "pay!", payse] :
                         bse)):kse) =
   XL_ToConsensus p ins pay body
   where RolePart p = decodeRole fromse
@@ -160,7 +160,10 @@ decodeXLDefs ((SE.List [SE.Atom "require", SE.String fp]):more) = do
 decodeXLDefs ((SE.List (SE.Atom "define":SE.List (fse:argse):ese)):more) = do
   let f = decodeXLVar fse
       args = decodeXLVars argse
-      e = decodeXLExpr ese
+      e = case ese of
+        (SE.Atom ":" : predse : ese') ->
+          (XL_LetValues Nothing (Just ["result"]) (decodeXLExpr ese') (XL_LetValues Nothing Nothing (XL_Assert (XL_FunApp (decodeXLVar predse) [XL_Var "result"])) (XL_Var "result")))
+        _ -> decodeXLExpr ese
   (defs2, m) <- decodeXLDefs more
   return ((XL_DefineFun f args e) : defs2, m)
 decodeXLDefs ((SE.List [SE.Atom "define", SE.Atom vse, ese]):more) = do

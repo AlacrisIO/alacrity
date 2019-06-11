@@ -1,45 +1,24 @@
 #lang alacrity/exe
 (require "stdlib.ala")
 
-;; This would be the result of a `define-enum` macro.
 (define-values (ROCK PAPER SCISSORS) (values 0 1 2))
 (define (hand? x)
   (or (= x ROCK) (or (= x PAPER) (= x SCISSORS))))
 
-;; Ditto
 (define-values (B_WINS DRAW A_WINS) (values 0 1 2))
 (define (outcome? x)
   (or (= x B_WINS) (or (= x DRAW) (= x A_WINS))))
 
-(define (RPS-outcome A-hand B-hand)
+(define (RPS-outcome A-hand B-hand) : outcome?
   (define A-valid? (hand? A-hand))
   (define B-valid? (hand? B-hand))
-  ;; DISHONEST is a special value that is false when we don't trust
-  ;; all participants. This is true in production, but it is false in
-  ;; one mode of the Z3 spec. (HONEST) is its opposite.
-  (assert! (implies (HONEST) (and A-valid? B-valid?)))
-  (define o
-    (cond
-      [(and A-valid? B-valid?)
-       (modulo (+ A-hand (- 4 B-hand)) 3)]
-      ;; The cheater loses.
-      [A-valid? A_WINS]
-      [B-valid? B_WINS]
-      ;; If both cheat, then it is a draw.
-      [else DRAW]))
-  (assert! (outcome? o))
-  o)
+  (cond [(and A-valid? B-valid?)
+         (modulo (+ A-hand (- 4 B-hand)) 3)]
+        [A-valid? A_WINS]
+        [B-valid? B_WINS]
+        [else DRAW]))
 
 #:participants
-;; Each participant starts knowing their hand. If we wanted, we could
-;; use the primitive "interact", to ask them and decode the response.
-
-;; A starts knowing the wager and escrow amount, which means that it
-;; gets to set the terms of the wager. If we added those to B's
-;; initial knowledge as well, then it would mean that B will thinks it
-;; knows them, so after the first message, if it is inconsistent, then
-;; B will back out (because an assumption is violated.)
-
 (define-participant A
   [wager-amount : int]
   [escrow-amount : int]
@@ -48,67 +27,30 @@
   [B-hand : int])
 
 #:main
-;; A and B both rely on being passed correct arguments. The contract
-;; won't innately trust this, but we'll prove that honest participants
-;; won't cause a distrustful contract to fail.
 (@ A (assert! (hand? A-hand)))
-(@ B (assert! (hand? B-hand)))
-;; A creates the precommitment.
 (@ A (define-values (A-reveal A-commit) (precommit A-hand)))
-;; A consensus action is always initiated by one participant which
-;; transmits the values of some variables. At the contract, some work
-;; can happen, such as transfering resources as in this case. At all
-;; other participants, the values of the variables are received. In
-;; this case, B, gets (wa ea A-c). If B already knew wa and ea, then
-;; it would verify that the values are the same.
-;;
-;; In the direct compilation output, this is going to be a Solidity
-;; method, invoked by the A JS code and monitored by the B JS code. In
-;; other compilation modes, everyone is going to execute this code and
-;; check each other's work.
-(@ A
-   #:pub (wager-amount escrow-amount A-commit)
-   #:pay (+ wager-amount escrow-amount))
-;; It is now time for B to send its value.
-(@ B
-   #:pub (B-hand)
-   #:pay wager-amount
-   ;; We don't check that B is a valid hand, because we have to handle
-   ;; what happens if A is dishonest no matter what, so we just trust
-   ;; B for now and will punish it later for lying.
-   )
-;; In this next message, the values that A sends are a subset of what
-;; the contract binds and what B receives.
-(@ A
-   #:pub (A-reveal)
-   #:pay 0
-   ;; At the contract, we verify A's commitment, compute the outcome,
-   ;; and finalize the transfers.
-   (define A-hand (check-commit A-commit A-reveal))
-   (define outcome (RPS-outcome A-hand B-hand))
-   (assert!
-    (implies (not (hand? A-hand))
-             (not (= outcome A_WINS))))
-   (assert!
-    (implies (not (hand? B-hand))
-             (not (= outcome B_WINS))))
-   ;; This implies is showing that the cond below is sound. We don't put
-   ;; the assert inside the cond though, because asserts are effects and
-   ;; that is expensive.
-   (assert! (implies
-             (not (or (= outcome A_WINS)
-                      (= outcome B_WINS)))
-             (= outcome DRAW)))
-   (define-values (A-gets B-gets)
-     (cond
-       [(= outcome A_WINS)
-        (values (+ (* 2 wager-amount) escrow-amount) 0)]
-       [(= outcome B_WINS)
-        (values escrow-amount (* 2 wager-amount))]
-       [else
-        (values (+ wager-amount escrow-amount) wager-amount)]))
-   (transfer! A A-gets)
-   (transfer! B B-gets))
+(@ A (publish! wager-amount escrow-amount A-commit)
+     (pay! (+ wager-amount escrow-amount)))
 
-;; The program returns the outcome.
+(@ B (assert! (hand? B-hand)))
+(@ B (publish! B-hand) (pay! wager-amount)
+     (assert! (implies (HONEST) (hand? B-hand))))
+
+(@ A (publish! A-reveal) (pay! 0)
+     (define A-hand (check-commit A-commit A-reveal))
+     (assert! (implies (HONEST) (hand? A-hand)))
+     (define outcome (RPS-outcome A-hand B-hand))
+     (assert! (implies (= outcome A_WINS) (hand? A-hand)))
+     (assert! (implies (= outcome B_WINS) (hand? B-hand)))
+     (define-values (A-gets B-gets)
+       (cond
+         [(= outcome A_WINS)
+          (values (+ (* 2 wager-amount) escrow-amount) 0)]
+         [(= outcome B_WINS)
+          (values escrow-amount (* 2 wager-amount))]
+         [else
+          (values (+ wager-amount escrow-amount) wager-amount)]))
+     (transfer! A A-gets)
+     (transfer! B B-gets))
+
 outcome
