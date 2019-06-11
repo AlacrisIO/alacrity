@@ -534,32 +534,74 @@ emit_sol _ = pretty "pragma solidity ^0.5.2;" -- error $ "Solidity output is not
 
  -}
 
-primZ3BinOp :: (Z3.AST -> Z3.AST -> Z3.Z3 Z3.AST) -> ([Z3.AST] -> Z3.Z3 Z3.AST)
-primZ3BinOp op [a, b] = op a b
-primZ3BinOp _ lst =
+exprTypeZ3 :: ExprType -> Z3.Z3 Z3.Sort
+exprTypeZ3 (TY_Con AT_Int) = Z3.mkIntSort
+exprTypeZ3 (TY_Con AT_Bool) = Z3.mkBoolSort
+exprTypeZ3 (TY_Con AT_Bytes) = error "z3 sort `Bytes`"
+exprTypeZ3 (TY_Var _) = error "type variables not yet supported"
+
+cPrimZ3BinOp :: (Z3.AST -> Z3.AST -> Z3.Z3 Z3.AST) -> ([Z3.AST] -> Z3.Z3 Z3.AST)
+cPrimZ3BinOp op [a, b] = op a b
+cPrimZ3BinOp _ lst =
   error ("binary operation: expected 2 arguments, received " ++ show (length lst))
 
-primZ3TernOp :: (Z3.AST -> Z3.AST -> Z3.AST -> Z3.Z3 Z3.AST) -> ([Z3.AST] -> Z3.Z3 Z3.AST)
-primZ3TernOp op [a, b, c] = op a b c
-primZ3TernOp _ lst =
+cPrimZ3TernOp :: (Z3.AST -> Z3.AST -> Z3.AST -> Z3.Z3 Z3.AST) -> ([Z3.AST] -> Z3.Z3 Z3.AST)
+cPrimZ3TernOp op [a, b, c] = op a b c
+cPrimZ3TernOp _ lst =
   error ("ternary operation: expected 3 arguments, received " ++ show (length lst))
 
-primZ3 :: EP_Prim -> [Z3.AST] -> Z3.Z3 Z3.AST
-primZ3 (CP ADD) = mkAdd
-primZ3 (CP SUB) = mkSub
-primZ3 (CP MUL) = mkMul
-primZ3 (CP DIV) = primZ3BinOp mkDiv
-primZ3 (CP MOD) = primZ3BinOp mkMod
-primZ3 (CP PLT) = primZ3BinOp mkLt
-primZ3 (CP PLE) = primZ3BinOp mkLe
-primZ3 (CP PEQ) = primZ3BinOp mkEq
-primZ3 (CP PGE) = primZ3BinOp mkGe
-primZ3 (CP PGT) = primZ3BinOp mkGt
-primZ3 (CP IF_THEN_ELSE) = primZ3TernOp mkIte
--- TODO INT_TO_BYTES and DIGEST
-primZ3 (CP BYTES_EQ) = primZ3BinOp mkEq
--- TODO BYTES_LEN through INTERACT
-primZ3 _ = error "XXX fill in Z3 primitives"
+cPrimZ3Fun :: String -> FunctionType -> ([Z3.AST] -> Z3.Z3 Z3.AST)
+cPrimZ3Fun fstr (TY_Arrow intys outty) ins =
+  do fsym <- Z3.mkStringSymbol fstr
+     insorts <- mapM exprTypeZ3 intys
+     outsort <- exprTypeZ3 outty
+     f <- Z3.mkFuncDecl fsym insorts outsort
+     Z3.mkApp f ins
+cPrimZ3Fun _ (TY_Forall _ _) _ =
+  error "forall not yet supported"
+
+cPrimZ3 :: C_Prim -> [Z3.AST] -> Z3.Z3 Z3.AST
+cPrimZ3 ADD = mkAdd
+cPrimZ3 SUB = mkSub
+cPrimZ3 MUL = mkMul
+cPrimZ3 DIV = cPrimZ3BinOp mkDiv
+cPrimZ3 MOD = cPrimZ3BinOp mkMod
+cPrimZ3 PLT = cPrimZ3BinOp mkLt
+cPrimZ3 PLE = cPrimZ3BinOp mkLe
+cPrimZ3 PEQ = cPrimZ3BinOp mkEq
+cPrimZ3 PGE = cPrimZ3BinOp mkGe
+cPrimZ3 PGT = cPrimZ3BinOp mkGt
+cPrimZ3 IF_THEN_ELSE = cPrimZ3TernOp mkIte
+cPrimZ3 INT_TO_BYTES = cPrimZ3Fun "integer->bytes" (primType (CP INT_TO_BYTES))
+cPrimZ3 DIGEST = cPrimZ3Fun "digest" (primType (CP DIGEST))
+cPrimZ3 BYTES_EQ = cPrimZ3BinOp mkEq
+cPrimZ3 BYTES_LEN = cPrimZ3Fun "bytes-length" (primType (CP BYTES_LEN))
+cPrimZ3 BCAT = cPrimZ3Fun "msg-cat" (primType (CP BCAT))
+cPrimZ3 BCAT_LEFT = cPrimZ3Fun "msg-left" (primType (CP BCAT_LEFT))
+cPrimZ3 BCAT_RIGHT = cPrimZ3Fun "msg-right" (primType (CP BCAT_RIGHT))
+-- TODO DISHONEST
+cPrimZ3 _ = error "XXX fill in Z3 primitives"
+
+primZ3 :: EP_Prim -> [Z3.AST] -> Z3.AST -> Z3.Z3 ()
+-- primZ3 op ins out = assertion
+primZ3 (CP op) ins out =
+  do op_call <- cPrimZ3 op ins
+     eq_call <- Z3.mkEq op_call out
+     Z3.assert eq_call
+primZ3 RANDOM [] _ =
+  -- the arguments don't specify any constraint
+  return ()
+primZ3 RANDOM [x] o =
+  -- the arguments specify 0 <= o < x
+  do z <- Z3.mkInteger 0
+     zleo <- Z3.mkLe z o
+     oltx <- Z3.mkLt o x
+     zleoltx <- Z3.mkAnd [zleo, oltx]
+     Z3.assert zleoltx
+primZ3 INTERACT [_] _ =
+  -- no constraint
+  return ()
+primZ3 _ _ _ = error "XXX fill in Z3 primitives"
 
 emit_z3 :: BLProgram -> Z3.Z3 [String]
 emit_z3 _
