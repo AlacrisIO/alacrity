@@ -39,7 +39,8 @@ packages:
 # (e.g., acme-missiles-0.3)
 # extra-deps: []
 extra-deps:
-  - z3-408.0@sha256:89bbc2d828dc1fe1f19666e8e501c69ce5d0ed8026e4a02f7eae1e69f4a352af
+  - git: https://github.com/alexknauth/haskell-z3.git
+    commit: a5ae69b5ba5a3b19a1bf5949a08738090e002154
   - sexpr-parser-0.1.1.2@sha256:e41930091ed1c8ccb026d2ad55efcc76306b8de833216b68137f08a08d3d606b
 
 # Override default flag values for local packages and extra-deps
