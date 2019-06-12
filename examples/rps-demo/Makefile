@@ -66,5 +66,5 @@ deploy:
 lint:
 	$(HIDE) ./node_modules/eslint/bin/eslint.js *.mjs
 
-start_devnet:
-	$(HIDE) ../../scripts/ethereum-devnet/run.sh
+run_ethereum:
+	$(HIDE) ../../scripts/ethereum_devnet/run.sh

@@ -306,7 +306,7 @@ Be sure to start a client that has this data before the deadline.`);}} // TODO: 
         loggedAlert(`Player1 timed out in game ${id},
 sending a transaction to recover your stake of ${renderWei(stakeInWei)}`);
         // TODO register the event, don't send twice.
-        return sendTx(rps(game.contract).player0_rescind)()(
+        return sendTx(rps(game.contract).player0_rescind)({})(
             txHash => { updateGame(id, { player0RescindTxHash: txHash }); return k(); },
             error => { loggedAlert(error); return k()})}
     if (game.player1 == userAddress &&

@@ -37,7 +37,7 @@ geth \
     --datadir $DATADIR \
     --nodiscover \
     --maxpeers 0 \
-    --rpc --rpcapi "db,eth,net,debug,web3,light,personal" --rpcport $RPCPORT --rpccorsdomain "*" \
+    --rpc --rpcapi "db,eth,net,debug,web3,light,personal,admin" --rpcport $RPCPORT --rpccorsdomain "*" \
     --port $PORT \
     --nousb \
     --networkid 17 \
