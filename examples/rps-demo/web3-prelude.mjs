@@ -34,7 +34,7 @@ if (web3Provider) {
     web3 = new Web3(web3Provider);
 }
 
-let initWeb3 = k => {
+export const initWeb3 = k => {
     (kk => isInBrowser ? window.ethereum.enable().then(kk) : kk(web3.eth.accounts))(a => {
     accounts = a;
     // NB: assuming a call to .toLowercase() on the userAddress is redundant.
