@@ -3,6 +3,7 @@ module Alacrity.AST where
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Map.Strict as M
 import Data.Text.Prettyprint.Doc
+import Data.List (intersperse)
 
 -- Shared types
 
@@ -34,6 +35,11 @@ data Constant
   | Con_B Bool
   | Con_BS B.ByteString
   deriving (Show,Eq)
+
+conType :: Constant -> BaseType
+conType (Con_I _) = AT_Int
+conType (Con_B _) = AT_Bool
+conType (Con_BS _) = AT_Bytes
 
 -- -- Primitives are divided into ones that the contract can do and
 -- -- ones that endpoints can do.
@@ -89,6 +95,39 @@ primType (CP DISHONEST) = ([] --> tBool)
 primType RANDOM = ([] --> tInt)
 primType INTERACT = ([tBytes] --> tBytes)
 
+checkFun :: FunctionType -> [BaseType] -> BaseType
+checkFun top topdom = hFun [] M.empty top topdom
+  where
+    hTy γ et = case et of
+      TY_Con bt -> bt
+      TY_Var v -> case M.lookup v γ of
+        Nothing -> error $ "checkFun: Unconstrained/bound type variable: " ++ show v
+        Just et' -> et'
+    hExpr vs γ et at = case et of
+      TY_Con bt ->
+        if at == bt then γ
+        else error $ "checkFun: Expected " ++ show bt ++ ", got: " ++ show at
+      TY_Var v ->
+        if not $ elem v vs then
+          error $ "checkFun: Unbound type variable: " ++ show v
+        else
+          case M.lookup v γ of
+            Just bt -> hExpr vs γ (TY_Con bt) at
+            Nothing -> M.insert v at γ
+    hFun vs γ ft adom = case ft of
+      TY_Forall nvs ft' -> hFun (vs ++ nvs) γ ft' adom
+      TY_Arrow edom rng -> hTy γ' rng
+        where γ' = hExprs vs γ edom adom
+    hExprs vs γ esl asl = case esl of
+      [] ->
+        case asl of
+          [] -> γ
+          _ -> error "checkFun: Received more than expected"
+      e1 : esl' ->
+        case asl of
+          [] -> error "checkFun: Received fewer than expected"
+          a1 : asl' -> hExpr vs (hExprs vs γ esl' asl') e1 a1
+
 type Participant = String
 
 data Role
@@ -143,7 +182,7 @@ data XLDef
   | XL_DefineFun XLVar [XLVar] XLExpr
   deriving (Show,Eq)
 
-type XLPartInfo = (M.Map Participant [(XLVar, ExprType)])
+type XLPartInfo = (M.Map Participant [(XLVar, BaseType)])
 
 data XLProgram =
   XL_Prog [XLDef] XLPartInfo XLExpr
@@ -205,7 +244,7 @@ data ILTail
   | IL_FromConsensus ILTail
   deriving (Show,Eq)
 
-type ILPartInfo = (M.Map Participant [(ILVar, ExprType)])
+type ILPartInfo = (M.Map Participant [(ILVar, BaseType)])
 
 data ILProgram =
   IL_Prog ILPartInfo ILTail
@@ -228,7 +267,7 @@ data ILProgram =
 
    -}
 
-type BLVar = (Int, String, ExprType)
+type BLVar = (Int, String, BaseType)
 
 data BLArg
   = BL_Con Constant
@@ -237,7 +276,8 @@ data BLArg
 
 -- -- End-Points
 data EPExpr
-  = EP_PrimApp EP_Prim [BLArg]
+  = EP_Arg BLArg
+  | EP_PrimApp EP_Prim [BLArg]
   | EP_Assert BLArg
   | EP_Send Int [BLVar] BLArg
   deriving (Show,Eq)
@@ -263,7 +303,8 @@ data CExpr
   deriving (Show,Eq)
 
 data CTail
-  = C_Wait Int
+  = C_Halt
+  | C_Wait Int
   | C_If BLArg CTail CTail
   | C_Let (Maybe BLVar) CExpr CTail
   deriving (Show,Eq)
@@ -351,10 +392,10 @@ prettyIf ca tt ft = group $ parens $ pretty "cond" <+> (nest 2 $ hardline <> vse
 
 prettyLet :: (Pretty xe, Pretty bt) => (x -> Doc ann) -> (Doc ann -> Doc ann) -> Maybe x -> xe -> bt -> Doc ann
 prettyLet prettyVar at mv e bt =
-  vsep [(group $ at (parens $ ivp <> pretty e)), pretty bt]
-  where ivp = case mv of
-                Nothing -> emptyDoc
-                Just v -> pretty "define" <+> prettyVar v <> space
+  vsep [(group $ at (ivp $ pretty e)), pretty bt]
+  where ivp ep = case mv of
+                Nothing -> ep
+                Just v -> parens $ pretty "define" <+> prettyVar v <> space <> ep
 
 instance Pretty ILTail where
   pretty (IL_Ret al) = prettyValues al
@@ -376,10 +417,10 @@ prettyILVar (n, s) = pretty n <> pretty "/" <> pretty s
 prettyILVars :: [ILVar] -> Doc ann
 prettyILVars vs = parens $ hsep $ map prettyILVar vs
 
-prettyILPartArg :: (ILVar, ExprType) -> Doc ann
+prettyILPartArg :: (ILVar, BaseType) -> Doc ann
 prettyILPartArg (v, et) = group $ brackets $ prettyILVar v <+> pretty ":" <+> pretty et
 
-prettyILPart :: (Participant, [(ILVar, ExprType)]) -> Doc ann
+prettyILPart :: (Participant, [(ILVar, BaseType)]) -> Doc ann
 prettyILPart (p, vs) =
   group $ parens $ pretty "define-participant" <+> pretty p <> body
   where pvs = map prettyILPartArg vs
@@ -398,6 +439,7 @@ instance Pretty BLArg where
   pretty (BL_Var v) = prettyBLVar v
 
 instance Pretty EPExpr where
+  pretty (EP_Arg a) = pretty a
   pretty (EP_PrimApp p al) = prettyApp p al
   pretty (EP_Assert a) = prettyAssert a
   pretty (EP_Send hi vs pa) =
@@ -417,7 +459,8 @@ instance Pretty EPTail where
           pretty bt]
 
 instance Pretty CTail where
-  pretty (C_Wait i) = group $ parens $ pretty "wait" <+> pretty i
+  pretty C_Halt = group $ parens $ pretty "halt!"
+  pretty (C_Wait i) = group $ parens $ pretty "wait!" <+> pretty i
   pretty (C_If ca tt ft) = prettyIf ca tt ft
   pretty (C_Let mv e bt) = prettyLet prettyBLVar (\x -> x) mv e bt
 
@@ -437,12 +480,12 @@ prettyBLVars bs = parens $ hsep $ map prettyBLVar bs
 
 prettyBLPart :: (Participant, EProgram) -> Doc ann
 prettyBLPart (p, (EP_Prog args t)) =
-  group $ parens $ pretty "define-participant" <+> pretty p <+> (nest 2 $ hardline <> vsep [argp, emptyDoc, pretty t])
+  group $ parens $ pretty "define-participant" <+> pretty p <+> (nest 2 $ hardline <> vsep [argp, emptyDoc, pretty t]) 
   where argp = group $ parens $ vsep $ map prettyBLVar args
 
 prettyBLParts :: BLParts -> Doc ann
 prettyBLParts ps =
-  vsep $ map prettyBLPart (M.toList ps)
+  vsep $ intersperse emptyDoc $ map prettyBLPart (M.toList ps)
 
 instance Pretty BLProgram where
   pretty (BL_Prog ps ctc) = vsep [pretty "#lang alacrity/bl", emptyDoc, pretty ctc, emptyDoc, prettyBLParts ps]

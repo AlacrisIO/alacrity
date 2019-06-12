@@ -20,22 +20,28 @@
 
 #:participants
 (define-participant A
-  [wager-amount : int]
-  [escrow-amount : int]
-  [A-hand : int])
+  [Swager-amount : int]
+  [Sescrow-amount : int]
+  [SA-hand : int])
 (define-participant B
-  [B-hand : int])
+  [SB-hand : int])
 
 #:main
-(@ A (assert! (hand? A-hand)))
-(@ A (define-values (A-reveal A-commit) (precommit A-hand)))
+(@ A (assert! (hand? SA-hand)))
+(@ A (define-values (SA-reveal SA-commit) (precommit SA-hand)))
+(@ A (define-values (wager-amount escrow-amount A-commit)
+       (values (declassify Swager-amount)
+               (declassify Sescrow-amount)
+               (declassify SA-commit))))
 (@ A (publish! wager-amount escrow-amount A-commit)
      (pay! (+ wager-amount escrow-amount)))
 
-(@ B (assert! (hand? B-hand)))
+(@ B (assert! (hand? SB-hand)))
+(@ B (define B-hand (declassify SB-hand)))
 (@ B (publish! B-hand) (pay! wager-amount)
      (assert! (implies (HONEST) (hand? B-hand))))
 
+(@ A (define A-reveal (declassify SA-reveal)))
 (@ A (publish! A-reveal) (pay! 0)
      (define A-hand (check-commit A-commit A-reveal))
      (assert! (implies (HONEST) (hand? A-hand)))
