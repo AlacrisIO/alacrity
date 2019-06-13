@@ -5,10 +5,11 @@ with (import <nixpkgs> {});
 haskell.lib.buildStackProject {
   inherit ghc;
   name = "alacrity";
-  buildInputs = [ z3 glibcLocales ];
-  shellHook = ''
+  buildInputs = [ z3 ];
+  shellHook = lib.optionalString (glibcLocales != null) ''
     export LOCALE_ARCHIVE="${glibcLocales}/lib/locale/locale-archive"
-    export LC_ALL=C.UTF-8
+  '' + ''
+    export LC_ALL=en_US.UTF-8
   '';
 }
 
@@ -40,3 +41,14 @@ haskell.lib.buildStackProject {
 # said end-user fancies while interacting with his windowing environment.
 # Build error messages should use the very same default, unless explicitly
 # overridden, e.g. by an interactive flag directing to use this locale.
+#
+# https://www.snoyman.com/blog/2016/12/beware-of-readfile
+# https://github.com/agda/agda/issues/2922
+#
+# Bug reported:
+# https://github.com/NixOS/nixpkgs/issues/63014
+# https://github.com/commercialhaskell/stack/issues/4859
+# https://github.com/haskell/cabal/issues/6076
+#
+# NB: Haskell.Z3 408.0 works with z3 4.8.4 but not with z3 4.8.5,
+# so for now we should only use nixpkgs @ 4c4afb3
