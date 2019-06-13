@@ -566,50 +566,51 @@ cPrimZ3Fun fstr (TY_Arrow intys outty) ins =
 cPrimZ3Fun _ (TY_Forall _ _) _ =
   error "forall not yet supported"
 
-cPrimZ3 :: C_Prim -> [Z3.AST] -> Z3.Z3 Z3.AST
+cPrimZ3 :: C_Prim -> Bool -> [Z3.AST] -> Z3.Z3 Z3.AST
+-- cPrimZ3 op dishon ins = out
 -- relies on the declarations from `primZ3Runtime` being available
-cPrimZ3 ADD = mkAdd
-cPrimZ3 SUB = mkSub
-cPrimZ3 MUL = mkMul
-cPrimZ3 DIV = cPrimZ3BinOp mkDiv
-cPrimZ3 MOD = cPrimZ3BinOp mkMod
-cPrimZ3 PLT = cPrimZ3BinOp mkLt
-cPrimZ3 PLE = cPrimZ3BinOp mkLe
-cPrimZ3 PEQ = cPrimZ3BinOp mkEq
-cPrimZ3 PGE = cPrimZ3BinOp mkGe
-cPrimZ3 PGT = cPrimZ3BinOp mkGt
-cPrimZ3 IF_THEN_ELSE = cPrimZ3TernOp mkIte
-cPrimZ3 INT_TO_BYTES = cPrimZ3Fun "integer->bytes" (primType (CP INT_TO_BYTES))
-cPrimZ3 DIGEST = cPrimZ3Fun "digest" (primType (CP DIGEST))
-cPrimZ3 BYTES_EQ = cPrimZ3BinOp mkEq
-cPrimZ3 BYTES_LEN = cPrimZ3Fun "bytes-length" (primType (CP BYTES_LEN))
-cPrimZ3 BCAT = cPrimZ3Fun "msg-cat" (primType (CP BCAT))
-cPrimZ3 BCAT_LEFT = cPrimZ3Fun "msg-left" (primType (CP BCAT_LEFT))
-cPrimZ3 BCAT_RIGHT = cPrimZ3Fun "msg-right" (primType (CP BCAT_RIGHT))
+cPrimZ3 ADD _ = mkAdd
+cPrimZ3 SUB _ = mkSub
+cPrimZ3 MUL _ = mkMul
+cPrimZ3 DIV _ = cPrimZ3BinOp mkDiv
+cPrimZ3 MOD _ = cPrimZ3BinOp mkMod
+cPrimZ3 PLT _ = cPrimZ3BinOp mkLt
+cPrimZ3 PLE _ = cPrimZ3BinOp mkLe
+cPrimZ3 PEQ _ = cPrimZ3BinOp mkEq
+cPrimZ3 PGE _ = cPrimZ3BinOp mkGe
+cPrimZ3 PGT _ = cPrimZ3BinOp mkGt
+cPrimZ3 IF_THEN_ELSE _ = cPrimZ3TernOp mkIte
+cPrimZ3 INT_TO_BYTES _ = cPrimZ3Fun "integer->bytes" (primType (CP INT_TO_BYTES))
+cPrimZ3 DIGEST _ = cPrimZ3Fun "digest" (primType (CP DIGEST))
+cPrimZ3 BYTES_EQ _ = cPrimZ3BinOp mkEq
+cPrimZ3 BYTES_LEN _ = cPrimZ3Fun "bytes-length" (primType (CP BYTES_LEN))
+cPrimZ3 BCAT _ = cPrimZ3Fun "msg-cat" (primType (CP BCAT))
+cPrimZ3 BCAT_LEFT _ = cPrimZ3Fun "msg-left" (primType (CP BCAT_LEFT))
+cPrimZ3 BCAT_RIGHT _ = cPrimZ3Fun "msg-right" (primType (CP BCAT_RIGHT))
 -- TODO DISHONEST
-cPrimZ3 _ = error "XXX fill in Z3 primitives"
+cPrimZ3 _ _ = error "XXX fill in Z3 primitives"
 
-primZ3 :: EP_Prim -> [Z3.AST] -> Z3.AST -> Z3.Z3 ()
--- primZ3 op ins out = assertion
+primZ3 :: EP_Prim -> Bool -> [Z3.AST] -> Z3.AST -> Z3.Z3 ()
+-- primZ3 op dishon ins out = assertion
 -- relies on the declarations from `primZ3Runtime` being available
-primZ3 (CP op) ins out =
-  do op_call <- cPrimZ3 op ins
+primZ3 (CP op) dishon ins out =
+  do op_call <- cPrimZ3 op dishon ins
      eq_call <- Z3.mkEq op_call out
      Z3.assert eq_call
-primZ3 RANDOM [] _ =
+primZ3 RANDOM _ [] _ =
   -- the arguments don't specify any constraint
   return ()
-primZ3 RANDOM [x] o =
+primZ3 RANDOM _ [x] o =
   -- the arguments specify 0 <= o < x
   do z <- Z3.mkInteger 0
      zleo <- Z3.mkLe z o
      oltx <- Z3.mkLt o x
      zleoltx <- Z3.mkAnd [zleo, oltx]
      Z3.assert zleoltx
-primZ3 INTERACT [_] _ =
+primZ3 INTERACT _ [_] _ =
   -- no constraint
   return ()
-primZ3 _ _ _ = error "XXX fill in Z3 primitives"
+primZ3 _ _ _ _ = error "XXX fill in Z3 primitives"
 
 emit_z3 :: BLProgram -> Z3.Z3 [String]
 emit_z3 _
