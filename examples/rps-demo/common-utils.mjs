@@ -2,16 +2,20 @@
 /* eslint-disable no-alert, no-console */
 
 export const isInBrowser = typeof window === "object" && window !== null;
-export let require;
 export const globals = {}
 export const registerGlobals = x => Object.assign(globals, x);
+
+export let require;
+export let crypto;
 
 if (isInBrowser) {
     window.globals = globals;
     require = () => loggedAlert("Cannot use require in a browser");
+    crypto = window.crypto;
 } else {
     process.globals = globals;
     require = process.require; // cheat the module system; must be set by an outer loader.
+    crypto = require("crypto");
 }
 
 
@@ -130,10 +134,14 @@ export const intToString = anyToString
 
 /** Return a random salt
     : () => String0x */
-export const randomSalt = () => {
-    const array = new Uint8Array(32);
-    window.crypto.getRandomValues(array);
-    return bytesTo0x(array);}
+// export const randomSalt = () => {
+//     const array = new Uint8Array(32);
+//     crypto.getRandomValues(array);
+//     return bytesTo0x(array);}
+// TODO FIXME - node's `crypto` library doesn't export a `getRandomValues`
+// method so we're temporarily stubbing this with a fixed salt
+export const randomSalt = () =>
+  '0x4bc9788d9f289c0bcd1104233f2c087f4f499a08c1b8eeb2c9311140b9244abd';
 
 /** Create an array containing the integers from start to start + length - 1 (included).
    : (int, int) => Array */
@@ -292,6 +300,7 @@ export const setrrk = seq(Array.of)(setrk);
 export const srf = func => {r = undefined; return func(setr);}
 export const srrf = func => {r = undefined; return func(setrr);}
 
+// vim: filetype=javascript
 // Local Variables:
 // mode: JavaScript
 // End:
