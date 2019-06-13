@@ -1,8 +1,5 @@
 pragma solidity ^0.5.2;
 
-// TODO: Should we emit an event for each transition,
-// or rely on people watching the chain transactions and/or running the query function?
-
 /*
   From the DSL to the solidity contract, many transformations and optimizations were manually done,
   that could be realistically done automatically.
@@ -28,6 +25,15 @@ pragma solidity ^0.5.2;
     - after the closure contents have been converted,
       the program counter / current instruction / recipe step / machine state / etc. is represented as
       a single number (called "state") rather than a data structure.
+
+ TODO:
+ - Introduce an extra state Factory (3) so we can share code between factory and game,
+   with the state being Factory in the factory, and 0, 1 or 2 in the game.
+   (making 0 part of the game saves a little bit of gas at the initialization of each game)
+ - Maybe make the contract a trivial proxy (see ../experiments/proxy.sol),
+   and "just" delegatecall into the factory to do the changes?
+   If the cost of contract creation dominates the cost of contract use as in r-p-s,
+   that's worth it; not for long-running contract where the opposite is true, though.
  */
 
 contract RockPaperScissors
@@ -298,3 +304,4 @@ contract RockPaperScissorsFactory
                 return rpsContract;
         }
 }
+
