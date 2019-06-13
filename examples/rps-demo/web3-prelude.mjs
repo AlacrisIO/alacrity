@@ -31,7 +31,7 @@ if (web3Provider) {
     web3 = new Web3(web3Provider);
 }
 
-let initWeb3 = k =>
+export const initWeb3 = k =>
     (kk => isInBrowser ? window.ethereum.enable().then(kk) : kk(web3.eth.accounts))(a => {
     accounts = a;
     // NB: assuming a call to .toLowercase() on the userAddress is redundant.
@@ -47,11 +47,12 @@ Please reload this page with metamask enabled and an account selected.`);
       throw new Error(`No account address selected`)
     }
 
-    return k()});
+    return k();
+});
 
 registerInit({"Web3": {fun: initWeb3}})
 
+// vim: filetype=javascript
 // Local Variables:
 // mode: JavaScript
 // End:
-// vim: filetype=javascript

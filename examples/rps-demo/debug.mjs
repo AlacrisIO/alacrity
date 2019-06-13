@@ -5,6 +5,7 @@ import * as local_storage from "./local-storage.mjs";
 import * as common_runtime from "./common-runtime.mjs";
 import * as dapp_config from "./dapp-config.mjs";
 import * as dapp_contract from "./build/dapp-contract.mjs";
+import * as dsl_api from "./dsl-api.mjs";
 import * as dapp_backend from "./dapp-backend.mjs";
 import * as dapp_frontend from "./dapp-frontend.mjs";
 
@@ -22,7 +23,7 @@ const magic = () =>
 
 registerGlobals({
     common_utils, web3_prelude, local_storage, common_runtime,
-    dapp_config, dapp_contract, dapp_backend, dapp_frontend})
+    dapp_config, dapp_contract, dsl_api, dapp_backend, dapp_frontend})
 
 if (isInBrowser) {
    window.magic = magic;

@@ -45,23 +45,17 @@
   * Have a serial number for the factory contract, and inside it a serial number for the game?
     This would allow games to have a unique ID shareable with other users.
 */
-import {byteToHex, registerInit, hexToAddress, hexTo0x, checkRequirement, crypto,
+import {byteToHex, registerInit, hexToAddress, hexTo0x, checkRequirement,
         loggedAlert, merge, flip, logErrorK, randomSalt, logging, kLogResult, kLogError,
-       } from "./common-utils.mjs";
-import {web3, userAddress} from "./web3-prelude.mjs";
-import {saltedDigest, registerBackendHooks, renderGame, config,
+        web3, crypto, userAddress,
+        saltedDigest, registerBackendHooks, renderGame, config,
         toBN, optionalAddressOf0x, optionalAddressMatches, hexToBigNumber, deployContract,
         getGame, updateGame, removeActiveGame, queueGame, attemptGameCreation, optionalAddressTo0x,
-        isGameConfirmed, digestHex, sendTx
-       } from "./common-runtime.mjs";
-import {renderWei} from "./common-ui.mjs";
-import {rpsAbi, rpsFactoryAbi, rpsFactoryCode} from "./build/dapp-contract.mjs";
-
-// The contract object, to be fulfilled from config after initialization.
-export let rpsFactory;
-
-export const rpsContract = web3.eth.contract(rpsAbi);
-export const rps = contractAddress => rpsContract.at(contractAddress);
+        isGameConfirmed, digestHex, sendTx,
+        contractFactory, contractFactoryAbi, contract, contractAt,
+        renderWei,
+       } from "./dsl-api.mjs";
+import {} from "./build/dapp-contract.mjs";
 
 /// TYPES INVOLVED
 
@@ -282,7 +276,7 @@ export const processGameAtHook = confirmedBlock => id => k => {
         const context = player0RevealContext(id, hand0, hand1, game.wagerInWei, game.escrowInWei);
         if (salt && isValidHand(hand0)) {
             loggedAlert(`${context} Please sign the following transaction.`);
-            return sendTx(rps(game.contract).player0_reveal)(salt, hand0, {})(
+            return sendTx(contractAt(game.contract).player0_reveal)(salt, hand0, {})(
                 txHash => {
                     updateGame(id, {player0RevealTxHash: txHash})
                     // Register txHash for confirmation? Nah, we're just polling for state change!
@@ -306,7 +300,7 @@ Be sure to start a client that has this data before the deadline.`);}} // TODO: 
         loggedAlert(`Player1 timed out in game ${id},
 sending a transaction to recover your stake of ${renderWei(stakeInWei)}`);
         // TODO register the event, don't send twice.
-        return sendTx(rps(game.contract).player0_rescind)({})(
+        return sendTx(contractAt(game.contract).player0_rescind)({})(
             txHash => { updateGame(id, { player0RescindTxHash: txHash }); return k(); },
             error => { loggedAlert(error); return k()})}
     if (game.player1 == userAddress &&
@@ -316,7 +310,7 @@ sending a transaction to recover your stake of ${renderWei(stakeInWei)}`);
         loggedAlert(`Player0 timed out in game ${id},
 sending a transaction to recover your ${renderWei(game.wagerInWei)} wager
 and their ${renderWei(stakeInWei)} stake`);
-        return sendTx(rps(game.contract).player1_win_by_default)({})(
+        return sendTx(contractAt(game.contract).player1_win_by_default)({})(
             txHash => {
                 updateGame(id, {player1WinByDefaultTxHash: txHash});
                 return k()},
@@ -345,7 +339,7 @@ export const createNewGame = (wagerInWei, escrowInWei, player1, hand0) => {
       [ optionalAddressTo0x(player1), timeoutInBlocks, player0Commitment
       , wagerInWei, {value: totalAmount} ]
 
-    return attemptGameCreation(game)(rpsFactory.player0_start_game)(...args)
+    return attemptGameCreation(game)(contractFactory.player0_start_game)(...args)
 };
 
 /** Accept a game of given id, playing given hand.
@@ -376,7 +370,7 @@ export const acceptGame = (id, hand1) => {
         loggedAlert(`You already played ${game.hand1} on game ${id} in tx ${game.player1ShowHandTxHash}`);
         return;}
     updateGame(id, {hand1});
-    return sendTx(rps(game.contract).player1_show_hand)(hand1, {value: game.wagerInWei})(
+    return sendTx(contractAt(game.contract).player1_show_hand)(hand1, {value: game.wagerInWei})(
         txHash => {
             updateGame(id, {player1ShowHandTxHash: txHash});
             renderGame(id, "Accept Game:"); },
@@ -385,17 +379,13 @@ export const acceptGame = (id, hand1) => {
 export const topics = {}
 
 const initBackend = k => {
-    if (config && config.contract) { // Avoid erroring on an unconfigured network
-        rpsFactory = web3.eth.contract(rpsFactoryAbi).at(config.contract.address);
-        if (digestHex(rpsFactoryCode) !== config.contract.codeHash) {
-            logging(`Warning: deployed contract has code hash ${config.contract.codeHash} \
-but the latest version of the contract has code hash ${digestHex(rpsFactoryCode)}`)();}
-        topics.Created = rpsFactory.Created().options.topics[0];
-        //topics.Player0StartGame = rps().Player0StartGame().options.topics[0];
-        topics.Player1ShowHand = rps().Player1ShowHand().options.topics[0];
-        topics.Player0Reveal = rps().Player0Reveal().options.topics[0];
-        topics.Player0Rescind = rps().Player0Rescind().options.topics[0];
-        topics.Player1WinByDefault = rps().Player1WinByDefault().options.topics[0]}
+    if (contractFactory) { // Avoid erroring on an unconfigured network
+        topics.Created = contractFactory.Created().options.topics[0];
+        //topics.Player0StartGame = contractAt().Player0StartGame().options.topics[0];
+        topics.Player1ShowHand = contractAt().Player1ShowHand().options.topics[0];
+        topics.Player0Reveal = contractAt().Player0Reveal().options.topics[0];
+        topics.Player0Rescind = contractAt().Player0Rescind().options.topics[0];
+        topics.Player1WinByDefault = contractAt().Player1WinByDefault().options.topics[0]}
     return k()}
 
 export const registerRpsHooks = hooks => {
@@ -407,9 +397,7 @@ registerBackendHooks({
     gameMatches, isGameRelevantToUser, isGameInitiator, stateUpdate})
 
 registerInit({
-    Backend: {fun: initBackend, dependsOn: ["Runtime"]}})
-
-export const deployRps = (k = kLogResult, kError = kLogError) => deployContract(rpsFactoryCode)(k, kError)
+    Backend: {fun: initBackend, dependsOn: ["Contract"]}})
 
 // vim: filetype=javascript
 // Local Variables:

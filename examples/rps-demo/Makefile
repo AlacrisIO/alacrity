@@ -33,9 +33,9 @@ contract: $(CONTRACT_OUTPUTS)
 $(CONTRACT_OUTPUTS): dapp-contract.sol
 	$(HIDE) mkdir -p build $(BUILD_DIR)
 	$(HIDE) solc --bin --abi -o $(BUILD_DIR) --overwrite $< > $(BUILD_DIR)/solc.out
-	$(HIDE) (echo "export const rpsAbi = `cat $(BUILD_DIR)/RockPaperScissors.abi`;"; \
-	echo; echo "export const rpsFactoryAbi = `cat $(BUILD_DIR)/RockPaperScissorsFactory.abi`;"; \
-	echo; echo "export const rpsFactoryCode = \"0x`cat $(BUILD_DIR)/RockPaperScissorsFactory.bin`\";"; \
+	$(HIDE) (echo "export const contractAbi = `cat $(BUILD_DIR)/RockPaperScissors.abi`;"; \
+	echo; echo "export const contractFactoryAbi = `cat $(BUILD_DIR)/RockPaperScissorsFactory.abi`;"; \
+	echo; echo "export const contractFactoryCode = \"0x`cat $(BUILD_DIR)/RockPaperScissorsFactory.bin`\";"; \
 	) > $@
 # To extract function signatures, add the --hashes to solc and use:
 #	echo; echo "const rpsSignatures = {`sed -e 's/^\(.*\): \(.*\)(.*)/"\2": "\1",/' $(BUILD_DIR)/RockPaperScissors.signatures`};" ; \

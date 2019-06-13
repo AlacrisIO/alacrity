@@ -199,12 +199,6 @@ export const sendTx = fun => (...args) => (k, kError = kLogError) => {
             gas => errbacK(fun || web3.eth.sendTransaction)(...args, {...txObject, gas})(k, kError),
             kError)}}
 
-/** Given some code in 0x form (.bin output from solc), deploy a contract with that code
-    and CPS-return its transactionHash
-    : String0x => KontE(txHash) */
-export const deployContract = code => sendTx(null)({data: code});
-
-
 // The code in the section below might belong to some library to manage multiple interactions.
 // Managing interactions
 export let nextId; // runs up from 0, in the table of games as per games.get
@@ -530,6 +524,21 @@ export const initGames = k => { for(let i=previousUnconfirmedId;i<nextId;i++) {i
 
 export const resumeGames = k => forEachK(processGame)(range(previousUnconfirmedId, nextId-previousUnconfirmedId))(k);
 
+import {contractAbi, contractFactoryAbi, contractFactoryCode} from "./build/dapp-contract.mjs";
+
+// The contract object, to be fulfilled from config after initialization.
+export let contractFactory;
+export const contract = web3.eth.contract(contractAbi);
+export const contractAt = contractAddress => contract.at(contractAddress);
+
+/** Given some code in 0x form (.bin output from solc), deploy a contract with that code
+    and CPS-return its transactionHash
+    : String0x => KontE(txHash) */
+export const deployCode = code => sendTx(null)({data: code});
+
+export const deployContract = (k = kLogResult, kError = kLogError) =>
+    deployCode(contractFactoryCode)(k, kError)
+
 export const checkContract = (k = kLogResult, kError = kLogError) => {
     const {address, codeHash, creationHash, creationBlock} = config.contract;
     errbacK(web3.eth.getTransaction)(creationHash)(txInfo => {
@@ -550,6 +559,14 @@ export const checkContract = (k = kLogResult, kError = kLogError) => {
         return k()},
         kError)})}
 
+const initContract = k => {
+    if (config && config.contract) { // Avoid erroring on an unconfigured network
+        contractFactory = web3.eth.contract(contractFactoryAbi).at(config.contract.address);
+        if (digestHex(contractFactoryCode) !== config.contract.codeHash) {
+            logging(`Warning: deployed contract has code hash ${config.contract.codeHash} \
+but the latest version of the contract has code hash ${digestHex(contractFactoryCode)}`)();}}
+    return k()}
+
 /** : Kont() */
 export const initRuntime = k => {
     config = networkConfig[networkId];
@@ -564,6 +581,7 @@ export const initRuntime = k => {
 registerInit({
     Runtime: {fun: initRuntime, dependsOn: ["Web3"]},
     WatchBlockchain: {fun: initWatchBlockchain, dependsOn: ["Runtime"]},
+    Contract: {fun: initContract, dependsOn: ["Runtime"]},
 });
 
 // vim: filetype=javascript

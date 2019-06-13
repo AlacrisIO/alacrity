@@ -9,8 +9,8 @@ import "./tinyqueue.mjs";
 import {digestHex, confirmTransaction, config, checkContract} from "./common-runtime.mjs";
 import "./common-ui.mjs";
 import "./dapp-config.mjs";
-import {rpsFactoryCode} from "./build/dapp-contract.mjs";
-import {deployRps} from "./dapp-backend.mjs";
+import {contractFactoryCode} from "./build/dapp-contract.mjs";
+import {deployFactory} from "./dsl-api.mjs";
 
 // TODO: implement a text "frontend". Have a flag to disable the auto-update daemon.
 // import "./dapp-frontend.mjs";
@@ -41,7 +41,7 @@ const deployCommand = (k = kLogResult, kError = kLogError) => {
     //console.log("Block has gas limit %s", block.gasLimit); // 6289319
 
     const kDeploy = () =>
-        deployRps(creationHash => {
+        deployFactory(creationHash => {
             console.log("Deploying the contract through transaction %s...", creationHash);
             return confirmTransaction(creationHash, 0)(() =>
             errbacK(web3.eth.getTransactionReceipt)(creationHash)(receipt => {

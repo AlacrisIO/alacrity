@@ -6,9 +6,10 @@ haskell.lib.buildStackProject {
   inherit ghc;
   name = "alacrity";
   buildInputs = [ z3 ];
-  shellHook = lib.optionalString (glibcLocales != null) ''
+  shellHook = if glibcLocales != null then ''
     export LOCALE_ARCHIVE="${glibcLocales}/lib/locale/locale-archive"
-  '' + ''
+    export LC_ALL=C.UTF-8
+  '' else ''
     export LC_ALL=en_US.UTF-8
   '';
 }

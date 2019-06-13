@@ -5,12 +5,12 @@ import qualified Data.Map.Strict as M
 import Data.Foldable
 import qualified Data.Sequence as S
 import Data.Text.Prettyprint.Doc
-import Language.JavaScript.Parser as JS
 import System.Exit
 import Z3.Monad as Z3
 
 import Alacrity.AST
 import Alacrity.Parser
+import Alacrity.EmitJS
 
 {- Inliner
 
@@ -36,7 +36,7 @@ inline_fun f = do
           put (σi', σo)
           (fp, fun_body') <- inline_expr fun_body
           let v = (fp, (formals, fun_body'))
-          (σi'', σo') <- get          
+          (σi'', σo') <- get
           let σo'' = M.insert f v σo'
           put (σi'', σo'')
           return v
@@ -195,7 +195,7 @@ anf_out_rename ρ outs = foldM aor1 (ρ, []) (reverse outs)
             Just (IL_Con _) -> return (ρ', outs')
             Nothing -> do
               iv <- consumeANF "Consensus_Out"
-              return (M.insert ov (IL_Var iv) ρ', iv:outs') 
+              return (M.insert ov (IL_Var iv) ρ', iv:outs')
 
 anf_expr :: Role -> XLRenaming -> XLExpr -> ([ILArg] -> ANFMonad (Int, ILTail)) -> ANFMonad (Int, ILTail)
 anf_expr me ρ e mk =
@@ -494,27 +494,6 @@ epp (IL_Prog ips it) = BL_Prog bps cp
         initarg ((n, s), et) = ((n, s), (et, Secret))
         γ = M.insert RoleContract M.empty γi
 
-{- Compilation to Javascript
-
-   I'm imagining the type of the JS export is:
-
-   Network -> Participant -> NetworkArgs x Args x (Result -> A) -> A or doesn't
-
-   We have some standard way of interacting with the network (so we
-   don't depend in the compiler on whether we're using rinkydink or
-   whatever or what the name is.) Then, you can look up the code for
-   one of the participants (by name). Then you provide extra arguments
-   for the network (such as the contract / game id) and the
-   participant's initial knowledge, then a continuation for what to do
-   with the result.
-  -}
-
-as_js :: BLProgram -> JS.JSAST
-as_js _ = error $ "JS output is not implemented"
-
-emit_js :: BLProgram -> String
-emit_js blp = JS.renderToString $ as_js blp
-
 {- Compilation to Solidity
 
    The handler program becomes a contract factory where the first
@@ -528,7 +507,7 @@ emit_js blp = JS.renderToString $ as_js blp
  -}
 
 emit_sol :: BLProgram -> Doc ann
-emit_sol _ = error $ "Solidity output is not implemented"
+emit_sol _ = pretty "pragma solidity ^0.5.2;" -- error $ "Solidity output is not implemented"
 
 {- Z3 Theory Generation
 
@@ -587,8 +566,10 @@ compile srcp = do
   case z3res of
     [] -> do
       writeFile (srcp ++ ".sol") (show (emit_sol blp))
-      writeFile (srcp ++ ".js") (show (emit_js blp))
+      writeFile (srcp ++ ".js") (Alacrity.EmitJS.emit_js blp)
       exitSuccess
     ps -> do
       mapM_ (\x -> putStrLn $ ("Z3 error:" ++ x)) ps
       die "Z3 failed to verify!"
+
+
