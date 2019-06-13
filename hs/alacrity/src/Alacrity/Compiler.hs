@@ -507,7 +507,7 @@ epp (IL_Prog ips it) = BL_Prog bps cp
  -}
 
 emit_sol :: BLProgram -> Doc ann
-emit_sol _ = error $ "Solidity output is not implemented"
+emit_sol _ = pretty "pragma solidity ^0.5.2;" -- error $ "Solidity output is not implemented"
 
 {- Z3 Theory Generation
 
@@ -566,7 +566,7 @@ compile srcp = do
   case z3res of
     [] -> do
       writeFile (srcp ++ ".sol") (show (emit_sol blp))
-      writeFile (srcp ++ ".js") (show (Alacrity.EmitJS.emit_js blp))
+      writeFile (srcp ++ ".js") (Alacrity.EmitJS.emit_js blp)
       exitSuccess
     ps -> do
       mapM_ (\x -> putStrLn $ ("Z3 error:" ++ x)) ps

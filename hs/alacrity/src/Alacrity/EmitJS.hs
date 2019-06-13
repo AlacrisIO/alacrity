@@ -8,6 +8,9 @@ module Alacrity.EmitJS where
 import Language.JavaScript.Parser as JS
 import Language.JavaScript.Parser.Parser as JSParser
 import Language.JavaScript.Parser.AST as JSAST
+--import Language.JavaScript.Pretty.Printer as JSPrinter
+
+
 --import Language.JavaScript.Parser.SrcLocation as SrcLocation
 import System.IO
 
@@ -30,7 +33,7 @@ import Alacrity.AST
 
 as_js :: BLProgram -> JS.JSAST
 as_js (BL_Prog _blparts (C_Prog _handlers)) = JS.JSAstModule
-  [] JSNoAnnot
+  (module_header ++ []) JSAnnotSpace
 
 emit_js :: BLProgram -> String
 emit_js blp = JS.renderToString $ as_js blp
@@ -50,12 +53,39 @@ js_import_names =
   map (\name -> JSAST.JSImportSpecifier (JSAST.JSIdentName JSAST.JSNoAnnot name))
 
 js_imports :: String -> [String] -> JSAST.JSModuleItem
-js_imports module_name identifiers = JSAST.JSModuleImportDeclaration JS.JSNoAnnot
-  (JSAST.JSImportDeclaration
-   (js_import_names identifiers)
-   (JSAST.JSFromClause JS.JSNoAnnot JS.JSNoAnnot module_name) JS.JSSemiAuto)
+js_imports module_name identifiers =
+  JSAST.JSModuleImportDeclaration JS.JSNoAnnot
+    (JSAST.JSImportDeclaration
+     (js_import_names identifiers)
+     (JSAST.JSFromClause JS.JSAnnotSpace JS.JSAnnotSpace module_name)
+     (JS.JSSemi JS.JSNoAnnot))
 
--- For debug purposes (Fare)
+local_module_name :: String -> String
+local_module_name s = "\"./" ++ s ++ ".mjs\""
+
+js_imports_local :: String -> [String] -> JSAST.JSModuleItem
+js_imports_local = js_imports . local_module_name
+
+module_header :: [JSAST.JSModuleItem]
+module_header =
+  [js_imports_local "dsl-api"
+    ["byteToHex", "registerInit", "hexToAddress", "hexTo0x", "checkRequirement",
+     "loggedAlert", "merge", "flip", "logErrorK", "randomSalt", "logging", "kLogResult", "kLogError",
+     "web3", "crypto", "userAddress",
+     "saltedDigest", "registerBackendHooks", "renderGame", "config",
+     "toBN", "optionalAddressOf0x", "optionalAddressMatches", "hexToBigNumber", "deployContract",
+     "getGame", "updateGame", "removeActiveGame", "queueGame", "attemptGameCreation",
+     "optionalAddressTo0x", "isGameConfirmed", "digestHex", "sendTx",
+     "renderWei",
+     "contract", "contractAt", "contractFactory"]]
+
+--jsconst :: String -> -> JSAST.JSModuleItem
+--jsconst :: JSAST.JSModuleItem
+--    JSModuleExportDeclaration JSNoAnnot (JSExport (JSConst JSNoAnnot (JSLOne (JSVarInitExpression (JSIdentifier JSNoAnnot "rpsFactory") JSVarInitNone)) (JSSemi JSNoAnnot)) JSSemiAuto),
+
+
+
+-- Below stuff for debug purposes (Fare)
 -- | Parse JavaScript Module (Script)
 -- Parse one compound statement, or a sequence of simple statements.
 -- Generally used for interactive input, such as from the command line of an interpreter.
@@ -69,7 +99,7 @@ parseJS filename = do
   return (JSParser.parseModule x filename)
 
 dbj :: String
-dbj = "/home/fare/src/fare/alacrity/examples/rps-demo/dapp-backend.mjs"
+dbj = "/home/fare/src/fare/alacrity/examples/rps-demo/dapp-backend.mjs.lj"
 
 pjb :: a -> IO ()
 pjb _ = do
