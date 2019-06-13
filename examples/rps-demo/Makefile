@@ -67,4 +67,4 @@ lint:
 	$(HIDE) ./node_modules/eslint/bin/eslint.js *.mjs
 
 run_ethereum:
-	$(HIDE) ../../scripts/ethereum_devnet/run.sh
+	$(HIDE) ../../scripts/ethereum-devnet/run.sh
