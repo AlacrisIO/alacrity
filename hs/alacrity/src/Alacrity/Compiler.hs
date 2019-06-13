@@ -546,6 +546,11 @@ exprTypeZ3 (TY_Con AT_Bool) = Z3.mkBoolSort
 exprTypeZ3 (TY_Con AT_Bytes) = error "z3 sort `Bytes`"
 exprTypeZ3 (TY_Var _) = error "type variables not yet supported"
 
+cPrimZ3NoargOp :: (Z3.Z3 Z3.AST) -> ([Z3.AST] -> Z3.Z3 Z3.AST)
+cPrimZ3NoargOp op [] = op
+cPrimZ3NoargOp _ lst =
+  error ("no-arg operation: expected 0 arguments, received " ++ show (length lst))
+
 cPrimZ3BinOp :: (Z3.AST -> Z3.AST -> Z3.Z3 Z3.AST) -> ([Z3.AST] -> Z3.Z3 Z3.AST)
 cPrimZ3BinOp op [a, b] = op a b
 cPrimZ3BinOp _ lst =
@@ -587,8 +592,7 @@ cPrimZ3 BYTES_LEN _ = cPrimZ3Fun "bytes-length" (primType (CP BYTES_LEN))
 cPrimZ3 BCAT _ = cPrimZ3Fun "msg-cat" (primType (CP BCAT))
 cPrimZ3 BCAT_LEFT _ = cPrimZ3Fun "msg-left" (primType (CP BCAT_LEFT))
 cPrimZ3 BCAT_RIGHT _ = cPrimZ3Fun "msg-right" (primType (CP BCAT_RIGHT))
--- TODO DISHONEST
-cPrimZ3 _ _ = error "XXX fill in Z3 primitives"
+cPrimZ3 DISHONEST dishon = cPrimZ3NoargOp (mkBool dishon)
 
 primZ3 :: EP_Prim -> Bool -> [Z3.AST] -> Z3.AST -> Z3.Z3 ()
 -- primZ3 op dishon ins out = assertion
