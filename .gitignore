@@ -23,6 +23,9 @@ setup.log
 # Merlin-generated files
 .merlin
 
+# Haskell stack-generated files
+stack.yaml.lock
+
 # Coq-generated files
 .*.aux
 *.glob
