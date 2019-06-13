@@ -25,6 +25,7 @@ dependencies:
 - mtl
 - filepath
 - directory
+- file-embed >= 0.0.9
 - process
 - pretty-simple
 - text
