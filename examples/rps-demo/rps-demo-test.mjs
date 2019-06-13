@@ -81,6 +81,7 @@ const processArg = () => {
 
 processArg();
 
+// vim: filetype=javascript
 // Local Variables:
 // mode: JavaScript
 // End:
