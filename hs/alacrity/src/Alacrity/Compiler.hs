@@ -371,7 +371,7 @@ epp_e_ctc γ e = case e of
 epp_e_loc :: EPPEnv -> Participant -> ILExpr -> (SType, EPExpr)
 epp_e_loc γ p e = case e of
   IL_Declassify a -> ((et, Public), EP_Arg a')
-    where (a', (et, _)) = earg a    
+    where (a', (et, _)) = earg a
   IL_Transfer _ _ -> error "EPP: Local cannot transfer"
   IL_Assert a -> (st', EP_Assert a')
     where (a', st@(_, slvl)) = earg a
