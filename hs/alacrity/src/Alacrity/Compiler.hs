@@ -1,7 +1,9 @@
+{-# LANGUAGE TemplateHaskell #-}
 module Alacrity.Compiler where
 
 import Control.Monad.State.Lazy
 import qualified Data.Map.Strict as M
+import Data.FileEmbed
 import Data.Foldable
 import qualified Data.Sequence as S
 import Data.Text.Prettyprint.Doc
@@ -371,7 +373,7 @@ epp_e_ctc γ e = case e of
 epp_e_loc :: EPPEnv -> Participant -> ILExpr -> (SType, EPExpr)
 epp_e_loc γ p e = case e of
   IL_Declassify a -> ((et, Public), EP_Arg a')
-    where (a', (et, _)) = earg a    
+    where (a', (et, _)) = earg a
   IL_Transfer _ _ -> error "EPP: Local cannot transfer"
   IL_Assert a -> (st', EP_Assert a')
     where (a', st@(_, slvl)) = earg a
@@ -533,6 +535,86 @@ emit_sol _ = pretty "pragma solidity ^0.5.2;" -- error $ "Solidity output is not
    amounts may rely on participant data.
 
  -}
+
+primZ3Runtime :: Z3.Z3 Z3.AST
+primZ3Runtime =
+  parseSMTLib2String $(embedStringFile "../../z3/z3-runtime.smt2") [] [] [] []
+
+exprTypeZ3 :: ExprType -> Z3.Z3 Z3.Sort
+exprTypeZ3 (TY_Con AT_Int) = Z3.mkIntSort
+exprTypeZ3 (TY_Con AT_Bool) = Z3.mkBoolSort
+exprTypeZ3 (TY_Con AT_Bytes) = error "z3 sort `Bytes`"
+exprTypeZ3 (TY_Var _) = error "type variables not yet supported"
+
+cPrimZ3NoargOp :: (Z3.Z3 Z3.AST) -> ([Z3.AST] -> Z3.Z3 Z3.AST)
+cPrimZ3NoargOp op [] = op
+cPrimZ3NoargOp _ lst =
+  error ("no-arg operation: expected 0 arguments, received " ++ show (length lst))
+
+cPrimZ3BinOp :: (Z3.AST -> Z3.AST -> Z3.Z3 Z3.AST) -> ([Z3.AST] -> Z3.Z3 Z3.AST)
+cPrimZ3BinOp op [a, b] = op a b
+cPrimZ3BinOp _ lst =
+  error ("binary operation: expected 2 arguments, received " ++ show (length lst))
+
+cPrimZ3TernOp :: (Z3.AST -> Z3.AST -> Z3.AST -> Z3.Z3 Z3.AST) -> ([Z3.AST] -> Z3.Z3 Z3.AST)
+cPrimZ3TernOp op [a, b, c] = op a b c
+cPrimZ3TernOp _ lst =
+  error ("ternary operation: expected 3 arguments, received " ++ show (length lst))
+
+cPrimZ3Fun :: String -> FunctionType -> ([Z3.AST] -> Z3.Z3 Z3.AST)
+cPrimZ3Fun fstr (TY_Arrow intys outty) ins =
+  do fsym <- Z3.mkStringSymbol fstr
+     insorts <- mapM exprTypeZ3 intys
+     outsort <- exprTypeZ3 outty
+     f <- Z3.mkFuncDecl fsym insorts outsort
+     Z3.mkApp f ins
+cPrimZ3Fun _ (TY_Forall _ _) _ =
+  error "forall not yet supported"
+
+cPrimZ3 :: C_Prim -> Bool -> [Z3.AST] -> Z3.Z3 Z3.AST
+-- cPrimZ3 op dishon ins = out
+-- relies on the declarations from `primZ3Runtime` being available
+cPrimZ3 ADD _ = mkAdd
+cPrimZ3 SUB _ = mkSub
+cPrimZ3 MUL _ = mkMul
+cPrimZ3 DIV _ = cPrimZ3BinOp mkDiv
+cPrimZ3 MOD _ = cPrimZ3BinOp mkMod
+cPrimZ3 PLT _ = cPrimZ3BinOp mkLt
+cPrimZ3 PLE _ = cPrimZ3BinOp mkLe
+cPrimZ3 PEQ _ = cPrimZ3BinOp mkEq
+cPrimZ3 PGE _ = cPrimZ3BinOp mkGe
+cPrimZ3 PGT _ = cPrimZ3BinOp mkGt
+cPrimZ3 IF_THEN_ELSE _ = cPrimZ3TernOp mkIte
+cPrimZ3 INT_TO_BYTES _ = cPrimZ3Fun "integer->integer-bytes" (primType (CP INT_TO_BYTES))
+cPrimZ3 DIGEST _ = cPrimZ3Fun "digest" (primType (CP DIGEST))
+cPrimZ3 BYTES_EQ _ = cPrimZ3BinOp mkEq
+cPrimZ3 BYTES_LEN _ = cPrimZ3Fun "bytes-length" (primType (CP BYTES_LEN))
+cPrimZ3 BCAT _ = cPrimZ3Fun "msg-cat" (primType (CP BCAT))
+cPrimZ3 BCAT_LEFT _ = cPrimZ3Fun "msg-left" (primType (CP BCAT_LEFT))
+cPrimZ3 BCAT_RIGHT _ = cPrimZ3Fun "msg-right" (primType (CP BCAT_RIGHT))
+cPrimZ3 DISHONEST dishon = cPrimZ3NoargOp (mkBool dishon)
+
+primZ3 :: EP_Prim -> Bool -> [Z3.AST] -> Z3.AST -> Z3.Z3 ()
+-- primZ3 op dishon ins out = assertion
+-- relies on the declarations from `primZ3Runtime` being available
+primZ3 (CP op) dishon ins out =
+  do op_call <- cPrimZ3 op dishon ins
+     eq_call <- Z3.mkEq op_call out
+     Z3.assert eq_call
+primZ3 RANDOM _ [] _ =
+  -- the arguments don't specify any constraint
+  return ()
+primZ3 RANDOM _ [x] o =
+  -- the arguments specify 0 <= o < x
+  do z <- Z3.mkInteger 0
+     zleo <- Z3.mkLe z o
+     oltx <- Z3.mkLt o x
+     zleoltx <- Z3.mkAnd [zleo, oltx]
+     Z3.assert zleoltx
+primZ3 INTERACT _ [_] _ =
+  -- no constraint
+  return ()
+primZ3 _ _ _ _ = error "XXX fill in Z3 primitives"
 
 emit_z3 :: BLProgram -> Z3.Z3 [String]
 emit_z3 _
