@@ -321,6 +321,8 @@ instance Monoid SecurityLevel where
 type SType = (BaseType, SecurityLevel)
 
 type EPPEnv = M.Map Role (M.Map ILVar SType)
+--- XXX Maybe the last two parameters should just be CTail and it
+--- should have them directly embedded.
 type EPPRes = (CTail, M.Map Participant EPTail, Int, [CHandler])
 
 must_be_public :: (a, SType) -> (a, BaseType)
@@ -382,6 +384,8 @@ epp_e_loc γ p e = case e of
     where args'st = map earg args
           args't = map (fst . snd) args'st
           args' = map fst args'st
+          --- XXX digest result should be public
+          --- XXX interact result should be secret
           ret = checkFun (primType pr) args't
           slvl = mconcat $ map (snd . snd) args'st
  where earg = epp_arg γ (RolePart p)

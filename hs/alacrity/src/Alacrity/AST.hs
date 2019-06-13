@@ -312,11 +312,13 @@ data CTail
 data CHandler
   --- Each handler has a message that it expects to receive
   --- XXX Maybe needs to know the transfer in amount
+  --- XXX Need to know the initiator identity
   = C_Handler [BLVar] CTail
   deriving (Show,Eq)
 
 --- A contract program is just a sequence of handlers.
 data CProgram
+  --- XXX Need to know all the participant addresses
   = C_Prog [CHandler]
   deriving (Show,Eq)
 
