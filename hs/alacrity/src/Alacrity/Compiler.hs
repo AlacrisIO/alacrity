@@ -1,7 +1,9 @@
+{-# LANGUAGE TemplateHaskell #-}
 module Alacrity.Compiler where
 
 import Control.Monad.State.Lazy
 import qualified Data.Map.Strict as M
+import Data.FileEmbed
 import Data.Foldable
 import qualified Data.Sequence as S
 import Data.Text.Prettyprint.Doc
@@ -534,6 +536,10 @@ emit_sol _ = pretty "pragma solidity ^0.5.2;" -- error $ "Solidity output is not
 
  -}
 
+primZ3Runtime :: Z3.Z3 Z3.AST
+primZ3Runtime =
+  parseSMTLib2String $(embedStringFile "../../z3/z3-runtime.smt2") [] [] [] []
+
 exprTypeZ3 :: ExprType -> Z3.Z3 Z3.Sort
 exprTypeZ3 (TY_Con AT_Int) = Z3.mkIntSort
 exprTypeZ3 (TY_Con AT_Bool) = Z3.mkBoolSort
@@ -561,6 +567,7 @@ cPrimZ3Fun _ (TY_Forall _ _) _ =
   error "forall not yet supported"
 
 cPrimZ3 :: C_Prim -> [Z3.AST] -> Z3.Z3 Z3.AST
+-- relies on the declarations from `primZ3Runtime` being available
 cPrimZ3 ADD = mkAdd
 cPrimZ3 SUB = mkSub
 cPrimZ3 MUL = mkMul
@@ -584,6 +591,7 @@ cPrimZ3 _ = error "XXX fill in Z3 primitives"
 
 primZ3 :: EP_Prim -> [Z3.AST] -> Z3.AST -> Z3.Z3 ()
 -- primZ3 op ins out = assertion
+-- relies on the declarations from `primZ3Runtime` being available
 primZ3 (CP op) ins out =
   do op_call <- cPrimZ3 op ins
      eq_call <- Z3.mkEq op_call out
