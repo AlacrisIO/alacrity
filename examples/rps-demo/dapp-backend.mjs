@@ -45,10 +45,10 @@
   * Have a serial number for the factory contract, and inside it a serial number for the game?
     This would allow games to have a unique ID shareable with other users.
 */
-import {byteToHex, registerInit, hexToAddress, hexTo0x, checkRequirement,
+import {byteToHex, registerInit, hexToAddress, hexTo0x, checkRequirement, crypto,
         loggedAlert, merge, flip, logErrorK, randomSalt, logging, kLogResult, kLogError,
        } from "./common-utils.mjs";
-import {web3, crypto, userAddress} from "./web3-prelude.mjs";
+import {web3, userAddress} from "./web3-prelude.mjs";
 import {saltedDigest, registerBackendHooks, renderGame, config,
         toBN, optionalAddressOf0x, optionalAddressMatches, hexToBigNumber, deployContract,
         getGame, updateGame, removeActiveGame, queueGame, attemptGameCreation, optionalAddressTo0x,
@@ -336,11 +336,17 @@ export const createNewGame = (wagerInWei, escrowInWei, player1, hand0) => {
     // We could use the nonce for the transaction, but there's no atomic access to it.
     // Could we save the TxHash locally *before* sending it online? Unhappily web3 doesn't allow that:
     // < https://github.com/MetaMask/metamask-extension/issues/3475 >.
-    return attemptGameCreation(
-        {salt, hand0, player0Commitment, player0, player1, timeoutInBlocks, wagerInWei, escrowInWei})(
-        rpsFactory.player0_start_game)(
-        optionalAddressTo0x(player1), timeoutInBlocks, player0Commitment, wagerInWei,
-            {value: totalAmount})}
+
+    const game =
+      { salt, hand0, player0Commitment, player0, player1
+      , timeoutInBlocks, wagerInWei, escrowInWei }
+
+    const args =
+      [ optionalAddressTo0x(player1), timeoutInBlocks, player0Commitment
+      , wagerInWei, {value: totalAmount} ]
+
+    return attemptGameCreation(game)(rpsFactory.player0_start_game)(...args)
+};
 
 /** Accept a game of given id, playing given hand.
     Assumes the game is waiting for player1 and we're authorized.
@@ -405,6 +411,7 @@ registerInit({
 
 export const deployRps = (k = kLogResult, kError = kLogError) => deployContract(rpsFactoryCode)(k, kError)
 
+// vim: filetype=javascript
 // Local Variables:
 // mode: JavaScript
 // End:
