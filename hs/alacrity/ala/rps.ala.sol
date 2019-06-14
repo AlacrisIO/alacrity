@@ -3,27 +3,27 @@ pragma solidity ^0.5.2;
 import "../sol/stdlib.sol";
 
 contract ALAFactory {
-  function make(address payable partA, address payable partB, int256 Declassify_13, int256 Declassify_14, bytes Declassify_15) public payable returns (ALAContract _ctc) {
+  function make(address payable partA, address payable partB, uint256 Declassify_13, uint256 Declassify_14, bytes memory Declassify_15) public payable returns (ALAContract _ctc) {
     ALAContract ctc = new ALAContract(partA, partB);
     ctc.value(msg.value).msg0_m(partA, partB, Declassify_13, Declassify_14, Declassify_15);
     return ctc; } }
 
-contract ALAContract {
+contract ALAContract is Stdlib {
   bytes32 current_state;
   
   constructor(address payable partA, address payable partB) public payable {
-    current_state = keccak256(api.encode(0, partA, partB)); }
+    current_state = keccak256(abi.encode(0, partA, partB)); }
   
-  event msg0_evt(int256 Declassify_13, int256 Declassify_14, bytes Declassify_15);
-  function msg0_m(address payable partA, address payable partB, int256 Declassify_13, int256 Declassify_14, bytes Declassify_15) external payable {
-    require(current_state == keccak256(api.encode(0, partA, partB)));
+  event msg0_evt(uint256 Declassify_13, uint256 Declassify_14, bytes Declassify_15);
+  function msg0_m(address payable partA, address payable partB, uint256 Declassify_13, uint256 Declassify_14, bytes calldata Declassify_15) external payable {
+    require(current_state == keccak256(abi.encode(0, partA, partB)));
     require(msg.sender == partA);
-    current_state = keccak256(api.encode(1, partA, partB, Declassify_13, Declassify_14, Declassify_15));
+    current_state = keccak256(abi.encode(1, partA, partB, Declassify_13, Declassify_14, Declassify_15));
     emit msg0_evt(Declassify_13, Declassify_14, Declassify_15); }
   
-  event msg1_evt(int256 Declassify_23);
-  function msg1_m(address payable partA, address payable partB, int256 Declassify_13, int256 Declassify_14, bytes Declassify_15, int256 Declassify_23) external payable {
-    require(current_state == keccak256(api.encode(1, partA, partB, Declassify_13, Declassify_14, Declassify_15)));
+  event msg1_evt(uint256 Declassify_23);
+  function msg1_m(address payable partA, address payable partB, uint256 Declassify_13, uint256 Declassify_14, bytes calldata Declassify_15, uint256 Declassify_23) external payable {
+    require(current_state == keccak256(abi.encode(1, partA, partB, Declassify_13, Declassify_14, Declassify_15)));
     require(msg.sender == partB);
     bool PrimApp_24 = true;
     bool PrimApp_25 = PrimApp_24 ? false : true;
@@ -35,17 +35,17 @@ contract ALAContract {
     bool PrimApp_31 = PrimApp_25 ? false : true;
     bool PrimApp_32 = PrimApp_31 ? true : PrimApp_30;
     bool Assert_33 = require(PrimApp_32);
-    current_state = keccak256(api.encode(2, partA, partB, Declassify_13, Declassify_14, Declassify_15, Declassify_23));
+    current_state = keccak256(abi.encode(2, partA, partB, Declassify_13, Declassify_14, Declassify_15, Declassify_23));
     emit msg1_evt(Declassify_23); }
   
   event msg2_evt(bytes Declassify_34);
-  function msg2_m(address payable partA, address payable partB, int256 Declassify_13, int256 Declassify_14, bytes Declassify_15, int256 Declassify_23, bytes Declassify_34) external payable {
-    require(current_state == keccak256(api.encode(2, partA, partB, Declassify_13, Declassify_14, Declassify_15, Declassify_23)));
+  function msg2_m(address payable partA, address payable partB, uint256 Declassify_13, uint256 Declassify_14, bytes calldata Declassify_15, uint256 Declassify_23, bytes calldata Declassify_34) external payable {
+    require(current_state == keccak256(abi.encode(2, partA, partB, Declassify_13, Declassify_14, Declassify_15, Declassify_23)));
     require(msg.sender == partA);
-    bytes PrimApp_35 = keccak256(Declassify_34);
+    bytes memory PrimApp_35 = keccak256(Declassify_34);
     bool PrimApp_36 = Declassify_15 == PrimApp_35;
     bool Assert_37 = require(PrimApp_36);
-    bytes PrimApp_38 = ALA_BCAT_RIGHT(Declassify_34);
+    bytes memory PrimApp_38 = ALA_BCAT_RIGHT(Declassify_34);
     bool PrimApp_39 = true;
     bool PrimApp_40 = PrimApp_39 ? false : true;
     bool PrimApp_41 = PrimApp_38 == 0;
@@ -67,12 +67,12 @@ contract ALAContract {
     bool PrimApp_57 = PrimApp_55 ? true : PrimApp_56;
     bool PrimApp_58 = PrimApp_54 ? true : PrimApp_57;
     bool PrimApp_59 = PrimApp_53 ? PrimApp_58 : false;
-    int256 PrimApp_60 = 4 - Declassify_23;
-    int256 PrimApp_61 = PrimApp_38 + PrimApp_60;
-    int256 PrimApp_62 = PrimApp_61 % 3;
-    int256 PureIf_63 = PrimApp_58 ? 0 : 1;
-    int256 PureIf_64 = PrimApp_53 ? 2 : PureIf_63;
-    int256 PureIf_65 = PrimApp_59 ? PrimApp_62 : PureIf_64;
+    uint256 PrimApp_60 = 4 - Declassify_23;
+    uint256 PrimApp_61 = PrimApp_38 + PrimApp_60;
+    uint256 PrimApp_62 = PrimApp_61 % 3;
+    uint256 PureIf_63 = PrimApp_58 ? 0 : 1;
+    uint256 PureIf_64 = PrimApp_53 ? 2 : PureIf_63;
+    uint256 PureIf_65 = PrimApp_59 ? PrimApp_62 : PureIf_64;
     bool PrimApp_66 = PureIf_65 == 0;
     bool PrimApp_67 = PureIf_65 == 1;
     bool PrimApp_68 = PureIf_65 == 2;
@@ -98,15 +98,15 @@ contract ALAContract {
     bool PrimApp_88 = PrimApp_87 ? true : PrimApp_86;
     bool Assert_89 = require(PrimApp_88);
     bool PrimApp_90 = PureIf_65 == 2;
-    int256 PrimApp_91 = 2 * Declassify_13;
-    int256 PrimApp_92 = PrimApp_91 + Declassify_14;
+    uint256 PrimApp_91 = 2 * Declassify_13;
+    uint256 PrimApp_92 = PrimApp_91 + Declassify_14;
     bool PrimApp_93 = PureIf_65 == 0;
-    int256 PrimApp_94 = 2 * Declassify_13;
-    int256 PrimApp_95 = Declassify_13 + Declassify_14;
-    int256 PureIf_96 = PrimApp_93 ? Declassify_14 : PrimApp_95;
-    int256 PureIf_97 = PrimApp_93 ? PrimApp_94 : Declassify_13;
-    int256 PureIf_98 = PrimApp_90 ? PrimApp_92 : PureIf_96;
-    int256 PureIf_99 = PrimApp_90 ? 0 : PureIf_97;
+    uint256 PrimApp_94 = 2 * Declassify_13;
+    uint256 PrimApp_95 = Declassify_13 + Declassify_14;
+    uint256 PureIf_96 = PrimApp_93 ? Declassify_14 : PrimApp_95;
+    uint256 PureIf_97 = PrimApp_93 ? PrimApp_94 : Declassify_13;
+    uint256 PureIf_98 = PrimApp_90 ? PrimApp_92 : PureIf_96;
+    uint256 PureIf_99 = PrimApp_90 ? 0 : PureIf_97;
     bool Transfer_100 = partA.transfer(PureIf_98);
     bool Transfer_101 = partB.transfer(PureIf_99);
     selfdestruct();

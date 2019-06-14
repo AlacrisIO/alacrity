@@ -4,14 +4,9 @@ module Alacrity.EmitJS where
 --import qualified Data.Map.Strict as M
 --import Data.Foldable
 --import qualified Data.Sequence as S
---import Data.Text.Prettyprint.Doc
 import Language.JavaScript.Parser as JS
 import Language.JavaScript.Parser.Parser as JSParser
 import Language.JavaScript.Parser.AST as JSAST
---import Language.JavaScript.Pretty.Printer as JSPrinter
-
-
---import Language.JavaScript.Parser.SrcLocation as SrcLocation
 import System.IO
 
 import Alacrity.AST

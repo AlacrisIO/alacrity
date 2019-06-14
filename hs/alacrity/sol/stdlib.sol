@@ -1,9 +1,23 @@
-bytes ALA_INT_TO_BYTES ( int x ) { return abi.encode( x ); }
+pragma solidity ^0.5.0;
 
-bytes ALA_BCAT ( bytes l, bytes r ) { return abi.encode( l, r ); }
-bytes ALA_BCAT_LEFT ( bytes c ) {
-  ( bytes l, bytes r ) = abi.decode( c, (bytes, bytes) );
-  return l; }
-bytes ALA_BCAT_RIGHT ( bytes c ) {
-  ( bytes l, bytes r ) = abi.decode( c, (bytes, bytes) );
-  return r; }
+contract Stdlib {
+
+function ALA_INT_TO_BYTES (uint256 x)
+        public pure returns (bytes memory) {
+        return abi.encode(x); }
+
+function ALA_BCAT (bytes memory l, bytes memory r)
+        public pure returns (bytes memory) {
+        return abi.encode(l, r); }
+
+function ALA_BCAT_LEFT (bytes memory c)
+        public pure returns (bytes memory) {
+        (bytes memory l, bytes memory r ) = abi.decode( c, (bytes, bytes) );
+        return l; }
+
+function ALA_BCAT_RIGHT (bytes memory c)
+        public pure returns (bytes memory) {
+        (bytes memory l, bytes memory r ) = abi.decode( c, (bytes, bytes) );
+        return r; }
+
+}

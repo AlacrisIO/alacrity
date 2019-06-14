@@ -210,7 +210,7 @@ data XLInlinedProgram =
 
    It is essential that all participants agree on the number of times
    consensus is reached. This means that ANF has to do another complex
-   job: it must ensure that IFs are consensual. 
+   job: it must ensure that IFs are consensual.
  -}
 
 --- The string is just for debugging, it tracks where the variable was
@@ -481,7 +481,7 @@ prettyBLVars bs = parens $ hsep $ map prettyBLVar bs
 
 prettyBLPart :: (Participant, EProgram) -> Doc ann
 prettyBLPart (p, (EP_Prog args t)) =
-  group $ parens $ pretty "define-participant" <+> pretty p <+> (nest 2 $ hardline <> vsep [argp, emptyDoc, pretty t]) 
+  group $ parens $ pretty "define-participant" <+> pretty p <+> (nest 2 $ hardline <> vsep [argp, emptyDoc, pretty t])
   where argp = group $ parens $ vsep $ map prettyBLVar args
 
 prettyBLParts :: BLParts -> Doc ann
@@ -490,3 +490,11 @@ prettyBLParts ps =
 
 instance Pretty BLProgram where
   pretty (BL_Prog ps ctc) = vsep [pretty "#lang alacrity/bl", emptyDoc, pretty ctc, emptyDoc, prettyBLParts ps]
+
+idOfMsg :: Show i => i -> String
+idOfMsg i = "msg" ++ show i
+
+solType :: BaseType -> String
+solType AT_Bool = "bool"
+solType AT_Int = "uint256"
+solType AT_Bytes = "bytes"
