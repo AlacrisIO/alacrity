@@ -86,7 +86,7 @@ primType (CP PGE) = [tInt, tInt] --> tBool
 primType (CP PGT) = [tInt, tInt] --> tBool
 primType (CP IF_THEN_ELSE) = TY_Forall ["a"] ([tBool, TY_Var "a", TY_Var "a"] --> TY_Var "a")
 primType (CP INT_TO_BYTES) = [tInt] --> tBytes
-primType (CP DIGEST) = ([tBytes] --> tBytes)
+primType (CP DIGEST) = ([tBytes] --> tInt)
 primType (CP BYTES_EQ) = [tBytes, tBytes] --> tBool
 primType (CP BYTES_LEN) = [tBytes] --> tInt
 primType (CP BCAT)       = ([tBytes, tBytes] --> tBytes)
@@ -501,3 +501,6 @@ solType AT_Unit = "unit"
 solType AT_Int = "uint256"
 solType AT_Bool = "bool"
 solType AT_Bytes = "bytes"
+
+creatorAddress :: String
+creatorAddress = "0x02B463784Bc1a49f1647B47a19452aC420DFC65A"

@@ -99,13 +99,11 @@ solEq = solBinOp "=="
 solSet :: Doc a -> Doc a -> Doc a
 solSet = solBinOp "="
 
-solHash :: Doc ann -> Doc ann
-solHash a = solApply "keccak256" [ a ]
+solHash :: [Doc ann] -> Doc ann
+solHash a = pretty "uint256(keccak256(" <+> solApply "abi.encode" a <+> pretty "))"
 
 solHashState :: Int -> [Participant] -> [BLVar] -> Doc ann
-solHashState i ps svs = digestp
-  where digestp = solHash statep
-        statep = solApply "abi.encode" $ (pretty (show i)) : (map solPartVar ps) ++ (map solVar svs)
+solHashState i ps svs = solHash $ (pretty (show i)) : (map solPartVar ps) ++ (map solVar svs)
 
 solHandler :: [Participant] -> Int -> CHandler -> Doc ann
 solHandler ps i (C_Handler from svs msg body) = vsep [ evtp, funp ]
@@ -145,17 +143,17 @@ solPrimApply pr args =
     IF_THEN_ELSE -> case args of
                       [ c, t, f ] -> c <+> pretty "?" <+> t <+> pretty ":" <+> f
                       _ -> spa_error ()
-    INT_TO_BYTES -> solApply "ALA_INT_TO_BYTES" args
+    INT_TO_BYTES -> solApply "abi.encode" args
     DIGEST -> case args of
-                [ a ] -> solHash a
+                [ a ] -> solHash [a]
                 _ -> spa_error ()
     BYTES_EQ -> binOp "=="
     BYTES_LEN -> case args of
                    [ a ] -> a <> pretty ".length"
                    _ -> spa_error ()
-    BCAT -> solApply "ALA_BCAT" args
-    BCAT_LEFT -> solApply "ALA_BCAT_LEFT" args
-    BCAT_RIGHT -> solApply "ALA_BCAT_RIGHT" args
+    BCAT -> solApply "abi.encode" args
+    BCAT_LEFT -> solApply "ALA_BCAT_LEFT" args -- doesn't actually work!
+    BCAT_RIGHT -> solApply "ALA_BCAT_RIGHT" args -- doesn't actually work!
     DISHONEST -> case args of
                    [] -> solCon (Con_B True)
                    _ -> spa_error ()
@@ -170,7 +168,7 @@ solCExpr (C_Transfer p a) = solPartVar p <> pretty "." <> solApply "transfer" [ 
 solCExpr (C_PrimApp pr al) = solPrimApply pr $ map solArg al
 
 solCTail :: [Participant] -> CTail -> Doc ann
-solCTail _ (C_Halt) = pretty $ "selfdestruct();"
+solCTail _ (C_Halt) = pretty $ "selfdestruct(address(" ++ creatorAddress ++ "));"
 solCTail ps (C_Wait i svs) = (solSet (pretty "current_state") (solHashState i ps svs)) <> semi
 solCTail ps (C_If ca tt ft) =
   pretty "if" <+> parens (solArg ca) <> bp tt <> hardline <> pretty "else" <> bp ft
@@ -182,13 +180,15 @@ emit_sol :: BLProgram -> Doc ann
 emit_sol (BL_Prog _ (C_Prog _ [])) =
   error "emit_sol: Cannot create contract with no consensus"
 emit_sol (BL_Prog _ (C_Prog ps hs@(h1 : _))) =
-  vsep $ [ solVersion, emptyDoc, solStdLib, emptyDoc, factoryp, emptyDoc, ctcp ]
+  vsep $ [ solVersion, emptyDoc, -- solStdLib,
+           emptyDoc, factoryp, emptyDoc, ctcp ]
   where factoryp = solContract "ALAFactory" $ vsep [ createp ]
-        ctcp = solContract "ALAContract is Stdlib" $ ctcbody
+        ctcp = solContract "ALAContract" -- " is Stdlib"
+          $ ctcbody
         ctcbody = vsep $ [state_defn, emptyDoc, consp, emptyDoc, solHandlers ps hs]
         consp = solApply "constructor" p_ds <+> pretty "public payable" <+> solBraces consbody
         consbody = solCTail ps (C_Wait 0 [])
-        state_defn = pretty "bytes32 current_state;"
+        state_defn = pretty "uint256 current_state;"
         C_Handler _ _ msg _ = h1
         createp = solFunction "make" (p_ds ++ map solVarDecl msg) create_ret create_body
         create_ret = pretty "public payable returns (ALAContract _ctc)"
