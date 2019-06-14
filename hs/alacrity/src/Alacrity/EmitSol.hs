@@ -253,7 +253,7 @@ emit_sol :: BLProgram -> Doc a
 emit_sol (BL_Prog _ (C_Prog _ [])) =
   error "emit_sol: Cannot create contract with no consensus"
 emit_sol (BL_Prog _ cp) =
-  vsep $ [ solVersion, emptyDoc, --- XXX solStdLib,
+  vsep $ [ solVersion, --- XXX emptyDoc, solStdLib,
            emptyDoc, factoryp, emptyDoc, ctcp ]
   where (C_Prog ps hs@(h1 : _)) = usesCProgram cp
         factoryp = solContract "ALAFactory" $ vsep [ createp ]
