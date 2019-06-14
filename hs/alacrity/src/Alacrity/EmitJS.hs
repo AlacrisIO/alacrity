@@ -5,6 +5,7 @@ import Data.List (intersperse)
 import Data.Text.Prettyprint.Doc
 
 import Alacrity.AST
+import Alacrity.EmitSol (solMsg_evt, solMsg_fun, solType)
 
 {- Compilation to Javascript
 
@@ -21,17 +22,20 @@ import Alacrity.AST
    with the result.
   -}
 
+jsString :: String -> Doc a
+jsString s = dquotes $ pretty s
+
 jsVar :: BLVar -> Doc a
 jsVar (n, _, _) = pretty $ "v" ++ show n
 
 jsVarType :: BLVar -> Doc a
-jsVarType (_, _, bt) = pretty $ "\"" ++ solType bt ++ "\""
+jsVarType (_, _, bt) = jsString $ solType bt
 
 jsCon :: Constant -> Doc a
 jsCon (Con_I i) = pretty i
 jsCon (Con_B True) = pretty "true"
 jsCon (Con_B False) = pretty "false"
-jsCon (Con_BS s) = pretty $ "\"" ++ show s ++ "\""
+jsCon (Con_BS s) = jsString $ show s
 
 jsArg :: BLArg -> Doc a
 jsArg (BL_Var v) = jsVar v
@@ -112,7 +116,7 @@ jsEPExpr (EP_PrimApp pr al) = jsPrimApply pr $ map jsArg al
 
 jsEPStmt :: EPStmt -> Doc a
 jsEPStmt (EP_Assert a) = jsApply "stdlib.assert" [ jsArg a ]
-jsEPStmt (EP_Send i svs msg amt) = jsApply "net.send" [ pretty i, ts, vs, jsArg amt ]
+jsEPStmt (EP_Send i svs msg amt) = jsApply "net.send" [ jsString (solMsg_fun i), ts, vs, jsArg amt ]
   where args = svs ++ msg
         ts = jsArray $ map jsVarType args
         vs = jsArray $ map jsVar args
@@ -127,7 +131,7 @@ jsEPTail (EP_Let v (EP_PrimApp INTERACT al) kt) =
   where kp = jsLambda [ jsVar v ] $ jsEPTail kt
 jsEPTail (EP_Let bv ee kt) = vsep [ jsVarDecl bv <+> pretty "=" <+> jsEPExpr ee <> semi, jsEPTail kt ];
 jsEPTail (EP_Do es kt) = vsep [ jsEPStmt es <> semi, jsEPTail kt ];
-jsEPTail (EP_Recv i _ msg kt) = jsApply "net.recv" [ pretty i, msg_ts, kp ]
+jsEPTail (EP_Recv i _ msg kt) = jsApply "net.recv" [ jsString (solMsg_evt i), msg_ts, kp ]
   where kp = jsLambda msg_vs (jsEPTail kt)
         msg_ts = jsArray $ map jsVarType msg
         msg_vs = map jsVar msg

@@ -6,6 +6,24 @@ import qualified Data.Map.Strict as M
 
 import Alacrity.AST
 
+{- AST add-ons
+ -}
+
+solMsg_evt :: Show i => i -> String
+solMsg_evt i = "msg" ++ show i ++ "_evt"
+
+solMsg_fun :: Show i => i -> String
+solMsg_fun i = "msg" ++ show i ++ "_m"
+
+solType :: BaseType -> String
+solType AT_Int = "uint256"
+solType AT_Bool = "bool"
+solType AT_Bytes = "bytes"
+
+alacrisAddress :: String
+alacrisAddress = "0x02B463784Bc1a49f1647B47a19452aC420DFC65A"
+
+
 {- De-ANF information
  -}
 
@@ -215,14 +233,13 @@ solCTail ps emitp ρ (C_Do cs ct) = vsep [ solCStmt ρ cs <> semi, solCTail ps e
 
 solHandler :: [Participant] -> Int -> CHandler -> Doc a
 solHandler ps i (C_Handler from svs msg body) = vsep [ evtp, funp ]
-  where msgi = "msg" ++ show i
-        msg_rs = map solRawVar msg
+  where msg_rs = map solRawVar msg
         msg_ds = map solArgDecl msg
         msg_eds = map solFieldDecl msg
         arg_ds = map solPartDecl ps ++ map solArgDecl svs ++ msg_ds
-        evts = msgi ++ "_evt"
+        evts = solMsg_evt i
         evtp = solEvent evts msg_eds
-        funp = solFunction (msgi ++ "_m") arg_ds retp bodyp
+        funp = solFunction (solMsg_fun i) arg_ds retp bodyp
         retp = pretty "external payable"
         emitp = pretty "emit" <+> solApply evts msg_rs <> semi
         bodyp = vsep [ (solRequire $ solEq (pretty "current_state") (solHashState M.empty i ps svs)) <> semi,

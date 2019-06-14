@@ -514,14 +514,3 @@ prettyBLParts ps =
 
 instance Pretty BLProgram where
   pretty (BL_Prog ps ctc) = vsep [pretty "#lang alacrity/bl", emptyDoc, pretty ctc, emptyDoc, prettyBLParts ps]
-
-idOfMsg :: Show i => i -> String
-idOfMsg i = "msg" ++ show i
-
-solType :: BaseType -> String
-solType AT_Int = "uint256"
-solType AT_Bool = "bool"
-solType AT_Bytes = "bytes"
-
-alacrisAddress :: String
-alacrisAddress = "0x02B463784Bc1a49f1647B47a19452aC420DFC65A"
