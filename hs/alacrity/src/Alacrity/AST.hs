@@ -317,7 +317,7 @@ data CTail
   = C_Halt
   | C_Wait Int [BLVar]
   | C_If BLArg CTail CTail  
-  | C_Let BLVar CExpr CTail --- XXX Record use count for de-inlining.
+  | C_Let BLVar CExpr (Maybe Int) CTail
   | C_Do CStmt CTail
   deriving (Show,Eq)
 
@@ -485,7 +485,7 @@ instance Pretty CTail where
   pretty (C_Halt) = group $ parens $ pretty "halt!"
   pretty (C_Wait i svs) = group $ parens $ pretty "wait!" <+> pretty i <+> prettyBLVars svs
   pretty (C_If ca tt ft) = prettyIf ca tt ft
-  pretty (C_Let mv e bt) = prettyLet prettyBLVar (\x -> x) mv e bt
+  pretty (C_Let mv e _ bt) = prettyLet prettyBLVar (\x -> x) mv e bt
   pretty (C_Do s bt) = prettyDo (\x -> x) s bt
 
 prettyCHandler :: Int -> CHandler -> Doc ann

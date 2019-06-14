@@ -2,8 +2,56 @@ module Alacrity.EmitSol where
 
 import Data.List (intersperse)
 import Data.Text.Prettyprint.Doc
+import qualified Data.Map.Strict as M
 
 import Alacrity.AST
+
+{- De-ANF information
+ -}
+
+type CCounts = M.Map BLVar Int
+
+cmerge :: CCounts -> CCounts -> CCounts
+cmerge m1 m2 = M.unionWith (+) m1 m2
+
+cmerges :: [CCounts] -> CCounts
+cmerges [] = M.empty
+cmerges (m1:ms) = cmerge m1 $ cmerges ms
+
+usesBLArg :: BLArg -> CCounts
+usesBLArg (BL_Con _) = M.empty
+usesBLArg (BL_Var bv) = M.singleton bv 1
+
+usesCExpr :: CExpr -> CCounts
+usesCExpr (C_PrimApp _ al) = cmerges $ map usesBLArg al
+
+usesCStmt :: CStmt -> CCounts
+usesCStmt (C_Assert a) = usesBLArg a
+usesCStmt (C_Transfer _ a) = usesBLArg a
+
+usesCTail :: CTail -> (CCounts, CTail)
+usesCTail ct@(C_Halt) = (M.empty, ct)
+usesCTail ct@(C_Wait _ vs) = (cs, ct)
+  where cs = M.fromList $ map (\v->(v,1)) vs
+usesCTail (C_If ca tt ft) = (cmerges [ cs1, cs2, cs3 ], (C_If ca tt' ft'))
+  where cs1 = usesBLArg ca
+        (cs2, tt') = usesCTail tt
+        (cs3, ft') = usesCTail ft
+usesCTail (C_Let bv ce _ kt) = (cs3, (C_Let bv ce (M.lookup bv cs2) kt'))
+  where cs1 = usesCExpr ce
+        (cs2, kt') = usesCTail kt
+        cs3 = cmerge cs1 (M.delete bv cs2)
+usesCTail (C_Do cs kt) = (cs3, (C_Do cs kt'))
+  where cs1 = usesCStmt cs
+        (cs2, kt') = usesCTail kt
+        cs3 = cmerge cs1 cs2
+  
+usesCHandler :: CHandler -> CHandler
+usesCHandler (C_Handler p svs msg ct) = C_Handler p svs msg ct'
+  where (_, ct') = usesCTail ct
+
+usesCProgram :: CProgram -> CProgram
+usesCProgram (C_Prog ps hs) = C_Prog ps $ map usesCHandler hs
 
 {- Compilation to Solidity
 
@@ -16,6 +64,8 @@ import Alacrity.AST
    In the future, when we compile to EVM directly, it won't work that
    way though. Instead, we'll do dispatch ourselves.
  -}
+
+type SolRenaming a = M.Map BLVar (Doc a)
 
 solArgType :: BaseType -> String
 solArgType AT_Bytes = "bytes calldata"
@@ -39,8 +89,14 @@ solEvent name args =
 solDecl :: String -> Doc a -> Doc a
 solDecl ty n = pretty ty <+> n
 
-solVar :: BLVar -> Doc a
-solVar (n, _, _) = pretty $ "v" ++ show n
+solRawVar :: BLVar -> Doc a
+solRawVar (n, _, _) = pretty $ "v" ++ show n
+
+solVar :: SolRenaming a -> BLVar -> Doc a
+solVar ρ bv = p
+  where p = case M.lookup bv ρ of
+              Nothing -> solRawVar bv
+              Just v -> v
 
 solCon :: Constant -> Doc a
 solCon (Con_I i) = pretty i
@@ -48,21 +104,21 @@ solCon (Con_B True) = pretty "true"
 solCon (Con_B False) = pretty "false"
 solCon (Con_BS s) = pretty $ "\"" ++ show s ++ "\""
 
-solArg :: BLArg -> Doc a
-solArg (BL_Var v) = solVar v
-solArg (BL_Con c) = solCon c
+solArg :: SolRenaming a -> BLArg -> Doc a
+solArg ρ (BL_Var v) = solVar ρ v
+solArg _ (BL_Con c) = solCon c
 
 solPartVar :: Participant -> Doc a
 solPartVar p = pretty $ "p" ++ p
 
 solFieldDecl :: BLVar -> Doc a
-solFieldDecl bv@(_, _, bt) = solDecl (solType bt) (solVar bv)
+solFieldDecl bv@(_, _, bt) = solDecl (solType bt) (solRawVar bv)
 
 solArgDecl :: BLVar -> Doc a
-solArgDecl bv@(_, _, bt) = solDecl (solArgType bt) (solVar bv)
+solArgDecl bv@(_, _, bt) = solDecl (solArgType bt) (solRawVar bv)
 
 solVarDecl :: BLVar -> Doc a
-solVarDecl bv@(_, _, bt) = solDecl (solVarType bt) (solVar bv)
+solVarDecl bv@(_, _, bt) = solDecl (solVarType bt) (solRawVar bv)
 
 solPartDecl :: Participant -> Doc a
 solPartDecl p = solDecl "address payable" (solPartVar p)
@@ -94,27 +150,8 @@ solSet = solBinOp "="
 solHash :: [Doc a] -> Doc a
 solHash a = pretty "uint256(keccak256(" <+> solApply "abi.encode" a <+> pretty "))"
 
-solHashState :: Int -> [Participant] -> [BLVar] -> Doc a
-solHashState i ps svs = solHash $ (pretty (show i)) : (map solPartVar ps) ++ (map solVar svs)
-
-solHandler :: [Participant] -> Int -> CHandler -> Doc a
-solHandler ps i (C_Handler from svs msg body) = vsep [ evtp, funp ]
-  where msgi = "msg" ++ show i
-        msg_rs = map solVar msg
-        msg_ds = map solArgDecl msg
-        msg_eds = map solFieldDecl msg
-        arg_ds = map solPartDecl ps ++ map solArgDecl svs ++ msg_ds
-        evts = msgi ++ "_evt"
-        evtp = solEvent evts msg_eds
-        funp = solFunction (msgi ++ "_m") arg_ds retp bodyp
-        retp = pretty "external payable"
-        emitp = pretty "emit" <+> solApply evts msg_rs <> semi
-        bodyp = vsep [ (solRequire $ solEq (pretty "current_state") (solHashState i ps svs)) <> semi,
-                       solRequireSender from <> semi,
-                       solCTail ps emitp body ]
-
-solHandlers :: [Participant] -> [CHandler] -> Doc a
-solHandlers ps hs = vsep $ intersperse emptyDoc $ zipWith (solHandler ps) [0..] hs
+solHashState :: SolRenaming a -> Int -> [Participant] -> [BLVar] -> Doc a
+solHashState ρ i ps svs = solHash $ (pretty (show i)) : (map solPartVar ps) ++ (map (solVar ρ) svs)
 
 solRequireSender :: Participant -> Doc a
 solRequireSender from = solRequire $ solEq (pretty "msg.sender") (solPartVar from)
@@ -154,36 +191,60 @@ solPrimApply pr args =
           _ -> spa_error ()
         spa_error () = error "solPrimApply"
 
-solCExpr :: CExpr -> Doc a
-solCExpr (C_PrimApp pr al) = solPrimApply pr $ map solArg al
+solCExpr :: SolRenaming a -> CExpr -> Doc a
+solCExpr ρ (C_PrimApp pr al) = solPrimApply pr $ map (solArg ρ) al
 
-solCStmt :: CStmt -> Doc a
-solCStmt (C_Assert a) = solRequire $ solArg a
-solCStmt (C_Transfer p a) = solPartVar p <> pretty "." <> solApply "transfer" [ solArg a ]
+solCStmt :: SolRenaming a -> CStmt -> Doc a
+solCStmt ρ (C_Assert a) = solRequire $ solArg ρ a
+solCStmt ρ (C_Transfer p a) = solPartVar p <> pretty "." <> solApply "transfer" [ solArg ρ a ]
 
-solCTail :: [Participant] -> Doc a -> CTail -> Doc a
-solCTail _ emitp (C_Halt) = vsep [ emitp,
+solCTail :: [Participant] -> Doc a -> SolRenaming a -> CTail -> Doc a
+solCTail _ emitp _ (C_Halt) = vsep [ emitp,
                              solSet (pretty "current_state") (pretty "0x0") <> semi,
                              solApply "selfdestruct" [ solApply "address" [ pretty alacrisAddress ] ] <> semi ]
-solCTail ps emitp (C_Wait i svs) = vsep [ emitp, (solSet (pretty "current_state") (solHashState i ps svs)) <> semi ]
-solCTail ps emitp (C_If ca tt ft) =
-  pretty "if" <+> parens (solArg ca) <> bp tt <> hardline <> pretty "else" <> bp ft
-  where bp at = solBraces $ solCTail ps emitp at
-solCTail ps emitp (C_Let bv ce ct) = vsep [ solVarDecl bv <+> pretty "=" <+> solCExpr ce <> semi, solCTail ps emitp ct ];
-solCTail ps emitp (C_Do cs ct) = vsep [ solCStmt cs <> semi, solCTail ps emitp ct ];
+solCTail ps emitp ρ (C_Wait i svs) = vsep [ emitp, (solSet (pretty "current_state") (solHashState ρ i ps svs)) <> semi ]
+solCTail ps emitp ρ (C_If ca tt ft) =
+  pretty "if" <+> parens (solArg ρ ca) <> bp tt <> hardline <> pretty "else" <> bp ft
+  where bp at = solBraces $ solCTail ps emitp ρ at
+solCTail _ _ _ (C_Let _ _ Nothing _) = error "emit_sol: requires use counts to de-ANF"
+solCTail ps emitp ρ (C_Let _ _ (Just 0) ct) = solCTail ps emitp ρ ct
+solCTail ps emitp ρ (C_Let bv ce (Just 1) ct) = solCTail ps emitp ρ' ct
+  where ρ' = M.insert bv (parens (solCExpr ρ ce)) ρ 
+solCTail ps emitp ρ (C_Let bv ce _ ct) = vsep [ solVarDecl bv <+> pretty "=" <+> solCExpr ρ ce <> semi, solCTail ps emitp ρ ct ]
+solCTail ps emitp ρ (C_Do cs ct) = vsep [ solCStmt ρ cs <> semi, solCTail ps emitp ρ ct ]
+
+solHandler :: [Participant] -> Int -> CHandler -> Doc a
+solHandler ps i (C_Handler from svs msg body) = vsep [ evtp, funp ]
+  where msgi = "msg" ++ show i
+        msg_rs = map solRawVar msg
+        msg_ds = map solArgDecl msg
+        msg_eds = map solFieldDecl msg
+        arg_ds = map solPartDecl ps ++ map solArgDecl svs ++ msg_ds
+        evts = msgi ++ "_evt"
+        evtp = solEvent evts msg_eds
+        funp = solFunction (msgi ++ "_m") arg_ds retp bodyp
+        retp = pretty "external payable"
+        emitp = pretty "emit" <+> solApply evts msg_rs <> semi
+        bodyp = vsep [ (solRequire $ solEq (pretty "current_state") (solHashState M.empty i ps svs)) <> semi,
+                       solRequireSender from <> semi,
+                       solCTail ps emitp M.empty body ]
+
+solHandlers :: [Participant] -> [CHandler] -> Doc a
+solHandlers ps hs = vsep $ intersperse emptyDoc $ zipWith (solHandler ps) [0..] hs
 
 emit_sol :: BLProgram -> Doc a
 emit_sol (BL_Prog _ (C_Prog _ [])) =
   error "emit_sol: Cannot create contract with no consensus"
-emit_sol (BL_Prog _ (C_Prog ps hs@(h1 : _))) =
+emit_sol (BL_Prog _ cp) =
   vsep $ [ solVersion, emptyDoc, --- XXX solStdLib,
            emptyDoc, factoryp, emptyDoc, ctcp ]
-  where factoryp = solContract "ALAFactory" $ vsep [ createp ]
+  where (C_Prog ps hs@(h1 : _)) = usesCProgram cp
+        factoryp = solContract "ALAFactory" $ vsep [ createp ]
         ctcp = solContract "ALAContract" -- " is Stdlib"
           $ ctcbody
         ctcbody = vsep $ [state_defn, emptyDoc, consp, emptyDoc, solHandlers ps hs]
         consp = solApply "constructor" p_ds <+> pretty "public payable" <+> solBraces consbody
-        consbody = solCTail ps emptyDoc (C_Wait 0 [])
+        consbody = solCTail ps emptyDoc M.empty (C_Wait 0 [])
         state_defn = pretty "uint256 current_state;"
         C_Handler _ _ msg _ = h1
         createp = solFunction "make" (p_ds ++ map solVarDecl msg) create_ret create_body
@@ -192,5 +253,5 @@ emit_sol (BL_Prog _ (C_Prog ps hs@(h1 : _))) =
         p_rs = map solPartVar ps
         create_body =
           vsep [ pretty "ALAContract ctc = new " <> solApply "ALAContract" p_rs <> semi,
-                 pretty "ctc." <> solApply "msg0_m.value(msg.value)" (p_rs ++ map solVar msg) <> semi,
+                 pretty "ctc." <> solApply "msg0_m.value(msg.value)" (p_rs ++ map solRawVar msg) <> semi,
                  pretty "return ctc;" ]
