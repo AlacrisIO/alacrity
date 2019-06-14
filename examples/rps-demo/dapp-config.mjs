@@ -50,7 +50,7 @@ export const networkConfig =
     "17": /* devnet, a private Geth PoA testnet running on localhost */
     {networkName: "devnet",
      networkUrl: null, // TODO: deploy etherscan on the private network!
-     contract: {"address":"0x277b0baa7b86d5984946a05f176b25b8f2a0816a","codeHash":"0x3f330a91b66b61d6d14ec29ed8f74ddf8ebdbaf3b44d8d384d3899c2be765a90","creationHash":"0x9f1e144f11e36cfa00964275359fdaa8c00c88bd4126334f8863614a1c664620","creationBlock":9},
+     contract: {"address":"0xb07b096abce714f1e0088c9b772879fb55a47183","codeHash":"0x359a3aa65447d0167329774e7530eb309e994aa38ab184475a0ce9bf05361b84","creationHash":"0x689ce0ed40364045c9989519378bba930b444488884f0aaecc3354820a264651","creationBlock":1},
      timeoutInBlocks: 12,
      timeoutString: "after a dozen transactions are issued",
      confirmationsWantedInBlocks: 1,
