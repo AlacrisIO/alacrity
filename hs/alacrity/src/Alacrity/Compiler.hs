@@ -3,12 +3,14 @@ module Alacrity.Compiler where
 
 import Control.Monad.State.Lazy
 import qualified Data.Map.Strict as M
+import qualified Data.Set as Set
 import Data.FileEmbed
 import Data.Foldable
 import qualified Data.Sequence as S
 import Data.Text.Prettyprint.Doc
 import System.Exit
 import Z3.Monad as Z3
+import Data.List (intersperse)
 
 import Alacrity.AST
 import Alacrity.Parser
@@ -323,11 +325,18 @@ type SType = (BaseType, SecurityLevel)
 type EPPEnv = M.Map Role (M.Map ILVar SType)
 --- XXX Maybe the last two parameters should just be CTail and it
 --- should have them directly embedded.
-type EPPRes = (CTail, M.Map Participant EPTail, Int, [CHandler])
+type EPPRes = (Set.Set BLVar, CTail, M.Map Participant EPTail, Int, [CHandler])
 
 must_be_public :: (a, SType) -> (a, BaseType)
 must_be_public (v, (et, Public)) = (v, et)
 must_be_public (_, (_, Secret)) = error "EPP: Must be public"
+
+boundBLVar_m :: Maybe BLVar -> Set.Set BLVar
+boundBLVar_m Nothing = Set.empty
+boundBLVar_m (Just bv) = Set.singleton bv
+
+boundBLVars :: [BLVar] -> Set.Set BLVar
+boundBLVars vs = Set.fromList vs
 
 epp_expect :: SType -> (a, SType) -> a
 epp_expect est (a, ast) =
@@ -348,21 +357,27 @@ epp_var γ r iv = ((n, s, et), st)
 epp_vars :: EPPEnv -> Role -> [ILVar] -> [(BLVar, SType)]
 epp_vars γ r ivs = map (epp_var γ r) ivs
 
-epp_arg :: EPPEnv -> Role -> ILArg -> (BLArg, SType)
-epp_arg _ _ (IL_Con c) = (BL_Con c, (conType c, Public))
-epp_arg γ r (IL_Var iv) = (BL_Var bv, st)
+epp_arg :: EPPEnv -> Role -> ILArg -> ((Set.Set BLVar, BLArg), SType)
+epp_arg _ _ (IL_Con c) = ((Set.empty, BL_Con c), (conType c, Public))
+epp_arg γ r (IL_Var iv) = ((Set.singleton bv, BL_Var bv), st)
   where (bv, st) = epp_var γ r iv
 
-epp_args :: EPPEnv -> Role -> [ILArg] -> [(BLArg, SType)]
-epp_args γ r ivs = map (epp_arg γ r) ivs
+epp_args :: EPPEnv -> Role -> [ILArg] -> (Set.Set BLVar, [(BLArg, SType)])
+epp_args γ r ivs = (svs, args)
+  where cmb = map (epp_arg γ r) ivs
+        svs = Set.unions $ map (\((a,_),_) -> a) cmb
+        args = map (\((_,b),c) -> (b,c)) cmb
 
-epp_e_ctc :: EPPEnv -> ILExpr -> (SType, CExpr)
+epp_e_ctc :: EPPEnv -> ILExpr -> (SType, Set.Set BLVar, CExpr)
 epp_e_ctc γ e = case e of
   IL_Declassify _ -> error "EPP: Contract cannot declassify"
-  IL_Transfer r am -> (sBool, C_Transfer r $ eargt am AT_Int)
-  IL_Assert a -> (sBool, C_Assert $ eargt a AT_Bool)
-  IL_PrimApp p@(CP cp) args -> (sRet, C_PrimApp cp args')
-    where args'st = map must_be_public $ map earg args
+  IL_Transfer r am -> (sBool, fvs, C_Transfer r am')
+    where (fvs, am') = eargt am AT_Int
+  IL_Assert a -> (sBool, fvs, C_Assert a')
+    where (fvs, a') = eargt a AT_Bool
+  IL_PrimApp p@(CP cp) args -> (sRet, fvs, C_PrimApp cp args')
+    where (fvs, args0) = epp_args γ RoleContract args
+          args'st = map must_be_public $ args0
           args' = map fst args'st
           args't = map snd args'st
           ret = checkFun (primType p) args't
@@ -372,16 +387,16 @@ epp_e_ctc γ e = case e of
        earg = epp_arg γ RoleContract
        eargt a expected = epp_expect (expected, Public) $ earg a
 
-epp_e_loc :: EPPEnv -> Participant -> ILExpr -> (SType, EPExpr)
+epp_e_loc :: EPPEnv -> Participant -> ILExpr -> (SType, Set.Set BLVar, EPExpr)
 epp_e_loc γ p e = case e of
-  IL_Declassify a -> ((et, Public), EP_Arg a')
-    where (a', (et, _)) = earg a
+  IL_Declassify a -> ((et, Public), fvs, EP_Arg a')
+    where ((fvs, a'), (et, _)) = earg a
   IL_Transfer _ _ -> error "EPP: Local cannot transfer"
-  IL_Assert a -> (st', EP_Assert a')
-    where (a', st@(_, slvl)) = earg a
+  IL_Assert a -> (st', fvs, EP_Assert a')
+    where ((fvs, a'), st@(_, slvl)) = earg a
           st' = epp_expect (AT_Bool, slvl) (st, st)
-  IL_PrimApp pr args -> ((ret, slvl), EP_PrimApp pr args')
-    where args'st = map earg args
+  IL_PrimApp pr args -> ((ret, slvl), fvs, EP_PrimApp pr args')
+    where (fvs, args'st) = epp_args γ (RolePart p) args
           args't = map (fst . snd) args'st
           args' = map fst args'st
           --- XXX digest result should be public
@@ -399,22 +414,24 @@ epp_it_ctc :: [Participant] -> EPPEnv -> Int -> ILTail -> EPPRes
 epp_it_ctc ps γ hn0 it = case it of
   IL_Ret _ ->
     error "EPP: CTC cannot return"
-  IL_If ca tt ft -> (C_If cca' ctt' cft', ts3, hn3, hs3)
-    where cca' = epp_expect (AT_Bool, Public) $ epp_arg γ RoleContract ca
-          (ctt', ts1, hn1, hs1) = epp_it_ctc ps γ hn0 tt
-          (cft', ts2, hn2, hs2) = epp_it_ctc ps γ hn1 ft
+  IL_If ca tt ft -> (svs, C_If cca' ctt' cft', ts3, hn3, hs3)
+    where (svs_ca, cca') = epp_expect (AT_Bool, Public) $ epp_arg γ RoleContract ca
+          (svs_t, ctt', ts1, hn1, hs1) = epp_it_ctc ps γ hn0 tt
+          (svs_f, cft', ts2, hn2, hs2) = epp_it_ctc ps γ hn1 ft
+          svs = Set.unions [ svs_ca, svs_t, svs_f ]
           hn3 = hn2
           hs3 = hs1 ++ hs2
           ts3 = M.fromList $ map mkt ps
           mkt p = (p, EP_If ca' tt' ft')
-            where ca' = epp_expect (AT_Bool, Public) $ epp_arg γ (RolePart p) ca
+            where (_,ca') = epp_expect (AT_Bool, Public) $ epp_arg γ (RolePart p) ca
                   tt' = ts1 M.! p
                   ft' = ts2 M.! p
-  IL_Let RoleContract what how next -> (C_Let what' how_ctc next', ts2, hn2, hs2)
-    where (next', ts1, hn1, hs1) = epp_it_ctc ps γ' hn0 next
+  IL_Let RoleContract what how next -> (svs, C_Let what' how_ctc next', ts2, hn2, hs2)
+    where (svs1, next', ts1, hn1, hs1) = epp_it_ctc ps γ' hn0 next
+          svs = Set.union (Set.difference svs1 (boundBLVar_m what')) svs_how
           hn2 = hn1
           hs2 = hs1
-          (st, how_ctc) = epp_e_ctc γ how
+          (st, svs_how, how_ctc) = epp_e_ctc γ how
           (et, _) = st
           (what', what'env) = case what of
                     Nothing -> (Nothing, M.empty)
@@ -435,13 +452,13 @@ mep (RolePart x) (RolePart y) = x == y
 
 epp_it_loc :: [Participant] -> EPPEnv -> Int -> ILTail -> EPPRes
 epp_it_loc ps γ hn0 it = case it of
-  IL_Ret al -> ( C_Halt, ts, hn0, [] )
+  IL_Ret al -> ( Set.empty, C_Halt, ts, hn0, [] )
     where ts = M.fromList $ map mkt ps
-          mkt p = (p, EP_Ret $ map fst $ epp_args γ (RolePart p) al)
+          mkt p = (p, EP_Ret $ map fst $ snd $ epp_args γ (RolePart p) al)
   IL_If _ _ _ ->
     error "EPP: Ifs must be consensual"
-  IL_Let who what how next -> (ct1, ts2, hn1, hs1)
-    where (ct1, ts1, hn1, hs1) = epp_it_loc ps γ' hn0 next
+  IL_Let who what how next -> (svs1, ct1, ts2, hn1, hs1)
+    where (svs1, ct1, ts1, hn1, hs1) = epp_it_loc ps γ' hn0 next
           γ' = case what of
                  Nothing -> γ
                  Just iv ->
@@ -462,26 +479,28 @@ epp_it_loc ps γ hn0 it = case it of
               (mst', M.insert p t' ts)
               where t' = EP_Let mbv how' t
                     mst' = Just st
-                    (st, how') = epp_e_loc γ p how
+                    (st, _, how') = epp_e_loc γ p how
                     (et, _) = st
                     mbv = case what of
                       Nothing -> Nothing
                       Just (n, s) -> Just (n, s, et)
-  IL_ToConsensus from what howmuch next -> (ct2, ts2, hn2, hs2)
+  IL_ToConsensus from what howmuch next -> (svs2, ct2, ts2, hn2, hs2)
     where fromr = RolePart from
           what' = map fst $ map must_be_public $ epp_vars γ fromr what
-          howmuch' = epp_expect (AT_Int, Public) $ epp_arg γ fromr howmuch
+          (_, howmuch') = epp_expect (AT_Int, Public) $ epp_arg γ fromr howmuch
           what'env = M.fromList $ map (\(n, s, et) -> ((n,s),(et,Public))) what'
           γ' = M.map (M.union what'env) γ
           hn1 = hn0 + 1
-          (ct1, ts1, hn2, hs1) = epp_it_ctc ps γ' hn1 next
-          nh = C_Handler what' ct1
+          (svs1, ct1, ts1, hn2, hs1) = epp_it_ctc ps γ' hn1 next
+          svs2 = Set.difference svs1 (boundBLVars what')
+          svs2l = Set.toList svs2
+          nh = C_Handler from svs2l what' ct1
           hs2 = nh : hs1
           ts2 = M.mapWithKey addTail ts1
-          ct2 = C_Wait hn0
-          es = EP_Send hn0 what' howmuch'
+          ct2 = C_Wait hn0 svs2l
+          es = EP_Send hn0 svs2l what' howmuch'
           addTail p pt1 = pt3
-            where pt2 = EP_Recv hn0 what' pt1
+            where pt2 = EP_Recv hn0 svs2l what' pt1
                   pt3 = if p /= from then pt2
                         else EP_Let Nothing es pt2
   IL_FromConsensus _ ->
@@ -489,12 +508,12 @@ epp_it_loc ps γ hn0 it = case it of
 
 epp :: ILProgram -> BLProgram
 epp (IL_Prog ips it) = BL_Prog bps cp
-  where cp = C_Prog chs
+  where cp = C_Prog ps chs
         ps = M.keys ips
         bps = M.mapWithKey mkep ets
         mkep p ept = EP_Prog args ept
           where args = map (\((n, s), et) -> (n,s,et)) $ ips M.! p
-        (_, ets, _, chs) = epp_it_loc ps γ 0 it
+        (_, _, ets, _, chs) = epp_it_loc ps γ 0 it
         γi = M.fromList $ map initγ $ M.toList ips
         initγ (p, args) = (RolePart p, M.fromList $ map initarg args)
         initarg ((n, s), et) = ((n, s), (et, Secret))
@@ -512,8 +531,170 @@ epp (IL_Prog ips it) = BL_Prog bps cp
    way though. Instead, we'll do dispatch ourselves.
  -}
 
+solType :: BaseType -> String
+solType AT_Bool = "bool"
+solType AT_Int = "int256"
+solType AT_Bytes = "bytes"
+
+solBraces :: Doc ann -> Doc ann
+solBraces body = braces (nest 2 $ hardline <> body <> space)
+
+solFunction :: String -> [Doc ann] -> Doc ann -> Doc ann -> Doc ann
+solFunction name args ret body =
+  pretty "function" <+> solApply name args <+> ret <+> solBraces body
+
+solEvent :: String -> [Doc ann] -> Doc ann
+solEvent name args =
+  pretty "event" <+> solApply name args <> semi
+
+solDecl :: String -> Doc ann -> Doc ann
+solDecl ty n = pretty ty <+> n
+
+solVar :: BLVar -> Doc ann
+solVar (n, s, _) = pretty $ s ++ "_" ++ show n
+
+solCon :: Constant -> Doc ann
+solCon (Con_I i) = pretty i
+solCon (Con_B True) = pretty "true"
+solCon (Con_B False) = pretty "false"
+solCon (Con_BS s) = pretty $ "\"" ++ show s ++ "\""
+
+solArg :: BLArg -> Doc ann
+solArg (BL_Var v) = solVar v
+solArg (BL_Con c) = solCon c
+
+solPartVar :: Participant -> Doc a
+solPartVar p = pretty $ "part" ++ p
+
+solVarDecl :: BLVar -> Doc ann
+solVarDecl bv@(_, _, bt) = solDecl (solType bt) (solVar bv)
+
+solPartDecl :: Participant -> Doc ann
+solPartDecl p = solDecl "address payable" (solPartVar p)
+
+solContract :: String -> Doc ann -> Doc ann
+solContract s body = pretty "contract" <+> pretty s <+> solBraces body
+
+solVersion :: Doc ann
+solVersion = pretty "pragma solidity ^0.5.2;"
+
+solStdLib :: Doc ann
+solStdLib = pretty "import \"../sol/stdlib.sol\";"
+
+solApply :: String -> [Doc ann] -> Doc ann
+solApply f args = pretty f <> parens (hcat $ intersperse (comma <> space) args)
+
+solRequire :: Doc ann -> Doc ann
+solRequire a = solApply "require" [ a ]
+
+solBinOp :: String -> Doc ann -> Doc ann -> Doc ann
+solBinOp o l r = l <+> pretty o <+> r
+
+solEq :: Doc a -> Doc a -> Doc a
+solEq = solBinOp "=="
+
+solSet :: Doc a -> Doc a -> Doc a
+solSet = solBinOp "="
+
+solHash :: Doc ann -> Doc ann
+solHash a = solApply "keccak256" [ a ]
+
+solHashState :: Int -> [Participant] -> [BLVar] -> Doc ann
+solHashState i ps svs = digestp
+  where digestp = solHash statep
+        statep = solApply "api.encode" $ (pretty (show i)) : (map solPartVar ps) ++ (map solVar svs)
+
+solHandler :: [Participant] -> Int -> CHandler -> Doc ann
+solHandler ps i (C_Handler from svs msg body) = vsep [ evtp, funp ]
+  where msgi = "msg" ++ show i
+        msg_rs = map solVar msg
+        msg_ds = map solVarDecl msg
+        arg_ds = map solPartDecl ps ++ map solVarDecl svs ++ msg_ds
+        evts = msgi ++ "_evt"
+        evtp = solEvent evts msg_ds
+        funp = solFunction (msgi ++ "_m") arg_ds retp bodyp
+        retp = pretty "external payable"
+        bodyp = vsep [ (solRequire $ solEq (pretty "current_state") (solHashState i ps svs)) <> semi,
+                       solRequireSender from <> semi,
+                       solCTail ps body,
+                       pretty "emit" <+> solApply evts msg_rs <> semi]
+
+solHandlers :: [Participant] -> [CHandler] -> Doc ann
+solHandlers ps hs = vsep $ intersperse emptyDoc $ zipWith (solHandler ps) [0..] hs 
+
+solRequireSender :: Participant -> Doc ann
+solRequireSender from = solRequire $ solEq (pretty "msg.sender") (solPartVar from)
+
+solPrimApply :: C_Prim -> [Doc ann] -> Doc ann
+solPrimApply pr args =
+  case pr of
+    ADD -> binOp "+"
+    SUB -> binOp "-"
+    MUL -> binOp "*"
+    DIV -> binOp "/"
+    MOD -> binOp "%"
+    PLT -> binOp "<"
+    PLE -> binOp "<="
+    PEQ -> binOp "=="
+    PGE -> binOp ">="
+    PGT -> binOp ">"
+    IF_THEN_ELSE -> case args of
+                      [ c, t, f ] -> c <+> pretty "?" <+> t <+> pretty ":" <+> f
+                      _ -> spa_error ()
+    INT_TO_BYTES -> solApply "ALA_INT_TO_BYTES" args
+    DIGEST -> case args of
+                [ a ] -> solHash a
+                _ -> spa_error ()
+    BYTES_EQ -> binOp "=="
+    BYTES_LEN -> case args of
+                   [ a ] -> a <> pretty ".length"
+                   _ -> spa_error ()
+    BCAT -> solApply "ALA_BCAT" args
+    BCAT_LEFT -> solApply "ALA_BCAT_LEFT" args
+    BCAT_RIGHT -> solApply "ALA_BCAT_RIGHT" args
+    DISHONEST -> case args of
+                   [] -> solCon (Con_B True)
+                   _ -> spa_error ()
+  where binOp op = case args of
+          [ l, r ] -> solBinOp op l r
+          _ -> spa_error ()
+        spa_error () = error "solPrimApply"
+
+solCExpr :: CExpr -> Doc ann
+solCExpr (C_Assert a) = solRequire $ solArg a
+solCExpr (C_Transfer p a) = solPartVar p <> pretty "." <> solApply "transfer" [ solArg a ]
+solCExpr (C_PrimApp pr al) = solPrimApply pr $ map solArg al
+
+solCTail :: [Participant] -> CTail -> Doc ann
+solCTail _ (C_Halt) = pretty $ "selfdestruct();"
+solCTail ps (C_Wait i svs) = (solSet (pretty "current_state") (solHashState i ps svs)) <> semi
+solCTail ps (C_If ca tt ft) =
+  pretty "if" <+> parens (solArg ca) <> bp tt <> hardline <> pretty "else" <> bp ft
+  where bp at = solBraces $ solCTail ps at
+solCTail ps (C_Let Nothing ce ct) = vsep [ solCExpr ce <> semi, solCTail ps ct ];
+solCTail ps (C_Let (Just bv) ce ct) = vsep [ solVarDecl bv <+> pretty "=" <+> solCExpr ce <> semi, solCTail ps ct ];
+
 emit_sol :: BLProgram -> Doc ann
-emit_sol _ = pretty "pragma solidity ^0.5.2;" -- error $ "Solidity output is not implemented"
+emit_sol (BL_Prog _ (C_Prog _ [])) =
+  error "emit_sol: Cannot create contract with no consensus"
+emit_sol (BL_Prog _ (C_Prog ps hs@(h1 : _))) =
+  vsep $ [ solVersion, emptyDoc, solStdLib, emptyDoc, factoryp, emptyDoc, ctcp ]
+  where factoryp = solContract "ALAFactory" $ vsep [ createp ]
+        ctcp = solContract "ALAContract" $ ctcbody
+        ctcbody = vsep $ [state_defn, emptyDoc, consp, emptyDoc, solHandlers ps hs]
+        consp = solApply "constructor" p_ds <+> pretty "public payable" <+> solBraces consbody
+        consbody = solCTail ps (C_Wait 0 [])
+        state_defn = pretty "bytes32 current_state;"
+        C_Handler _ _ msg _ = h1
+        createp = solFunction "make" (p_ds ++ map solVarDecl msg) create_ret create_body
+        create_ret = pretty "public payable returns (ALAContract _ctc)"
+        p_ds = map solPartDecl ps
+        p_rs = map solPartVar ps
+        create_body =
+          vsep [ pretty "ALAContract ctc = new " <> solApply "ALAContract" p_rs <> semi,
+                 pretty "ctc.value(msg.value)." <> solApply "msg0_m" (p_rs ++ map solVar msg) <> semi,
+                 pretty "return ctc;" ]
+                             
 
 {- Z3 Theory Generation
 
@@ -542,7 +723,7 @@ emit_sol _ = pretty "pragma solidity ^0.5.2;" -- error $ "Solidity output is not
 
 primZ3Runtime :: Z3.Z3 Z3.AST
 primZ3Runtime =
-  parseSMTLib2String $(embedStringFile "../../z3/z3-runtime.smt2") [] [] [] []
+  parseSMTLib2String $(embedStringFile "z3/z3-runtime.smt2") [] [] [] []
 
 exprTypeZ3 :: ExprType -> Z3.Z3 Z3.Sort
 exprTypeZ3 (TY_Con AT_Int) = Z3.mkIntSort
@@ -652,7 +833,7 @@ compile srcp = do
   case z3res of
     [] -> do
       writeFile (srcp ++ ".sol") (show (emit_sol blp))
-      writeFile (srcp ++ ".js") (Alacrity.EmitJS.emit_js blp)
+      writeFile (srcp ++ ".js") (emit_js blp)
       exitSuccess
     ps -> do
       mapM_ (\x -> putStrLn $ ("Z3 error:" ++ x)) ps

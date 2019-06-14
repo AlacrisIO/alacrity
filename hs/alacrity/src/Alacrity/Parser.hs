@@ -13,7 +13,7 @@ import Alacrity.AST
 
 valid_id :: String -> Bool
 valid_id p = not (elem p rsw) && head p /= '#' && (Nothing == (decodePrim p))
-  where rsw = ["if", "cond", "else", "assert!", "transfer!", "declassify", "values", "@", "define", "define-values", "require"]
+  where rsw = ["if", "cond", "else", "assert!", "transfer!", "declassify", "values", "@", "define", "define-values", "require", "CTC"]
 
 decodeXLType :: SE.SExpr -> BaseType
 decodeXLType (SE.Atom "int") = AT_Int
@@ -27,6 +27,12 @@ decodeRole (SE.Atom p)
   | valid_id p = RolePart p
   | otherwise = error (p ++ " is reserved!")
 decodeRole se = invalid "decodeRole" se
+
+decodePart :: SE.SExpr -> Participant
+decodePart se =
+  case (decodeRole se) of
+    RolePart p -> p
+    RoleContract -> error "CTC is not a participant!"
 
 decodeXLVar :: SE.SExpr -> XLVar
 decodeXLVar (SE.Atom v)
@@ -92,7 +98,7 @@ decodeXLExpr1 (SE.List (SE.Atom "cond":SE.List (question:answer):more)) =
 decodeXLExpr1 (SE.List [SE.Atom "assert!", arg]) =
   XL_Assert (decodeXLExpr1 arg)
 decodeXLExpr1 (SE.List [SE.Atom "transfer!", to, amt]) =
-  XL_Transfer (decodeRole to) (decodeXLExpr1 amt)
+  XL_Transfer (decodePart to) (decodeXLExpr1 amt)
 decodeXLExpr1 (SE.List [SE.Atom "declassify", arg]) =
   XL_Declassify (decodeXLExpr1 arg)
 decodeXLExpr1 (SE.List (SE.Atom "values":args)) =

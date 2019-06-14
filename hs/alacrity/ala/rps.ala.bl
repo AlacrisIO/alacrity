@@ -1,9 +1,10 @@
 #lang alacrity/bl
 
 (define-contract 
-  [0 ([13/Declassify : int] [14/Declassify : int] [15/Declassify : bytes]) 
-    (wait! 1)]
-  [1 ([23/Declassify : int]) 
+  #:participants (A B)
+  [0 A () ([13/Declassify : int] [14/Declassify : int] [15/Declassify : bytes]) 
+    (wait! 1 ([13/Declassify : int] [14/Declassify : int] [15/Declassify : bytes]))]
+  [1 B ([13/Declassify : int] [14/Declassify : int] [15/Declassify : bytes]) ([23/Declassify : int]) 
     (define [24/PrimApp : bool] (DISHONEST))
     (define [25/PrimApp : bool] (IF_THEN_ELSE [24/PrimApp : bool] False True))
     (define [26/PrimApp : bool] (PEQ [23/Declassify : int] 0))
@@ -14,8 +15,8 @@
     (define [31/PrimApp : bool] (IF_THEN_ELSE [25/PrimApp : bool] False True))
     (define [32/PrimApp : bool] (IF_THEN_ELSE [31/PrimApp : bool] True [30/PrimApp : bool]))
     (define [33/Assert : bool] (assert! [32/PrimApp : bool]))
-    (wait! 2)]
-  [2 ([34/Declassify : bytes]) 
+    (wait! 2 ([13/Declassify : int] [14/Declassify : int] [15/Declassify : bytes] [23/Declassify : int]))]
+  [2 A ([13/Declassify : int] [14/Declassify : int] [15/Declassify : bytes] [23/Declassify : int]) ([34/Declassify : bytes]) 
     (define [35/PrimApp : bytes] (DIGEST [34/Declassify : bytes]))
     (define [36/PrimApp : bool] (BYTES_EQ [15/Declassify : bytes] [35/PrimApp : bytes]))
     (define [37/Assert : bool] (assert! [36/PrimApp : bool]))
@@ -101,9 +102,9 @@
   (define [14/Declassify : int] [1/Sescrow-amount : int])
   (define [15/Declassify : bytes] [12/PrimApp : bytes])
   (define [16/PrimApp : int] (ADD [13/Declassify : int] [14/Declassify : int]))
-  (send! 0 ([13/Declassify : int] [14/Declassify : int] [15/Declassify : bytes]) [16/PrimApp : int])
-  (define-values ([13/Declassify : int] [14/Declassify : int] [15/Declassify : bytes]) (recv! 0))
-  (define-values ([23/Declassify : int]) (recv! 1))
+  (send! 0 () ([13/Declassify : int] [14/Declassify : int] [15/Declassify : bytes]) [16/PrimApp : int])
+  (define-values () ([13/Declassify : int] [14/Declassify : int] [15/Declassify : bytes]) (recv! 0))
+  (define-values ([13/Declassify : int] [14/Declassify : int] [15/Declassify : bytes]) ([23/Declassify : int]) (recv! 1))
   (define [24/PrimApp : bool] (DISHONEST))
   (define [25/PrimApp : bool] (IF_THEN_ELSE [24/PrimApp : bool] False True))
   (define [26/PrimApp : bool] (PEQ [23/Declassify : int] 0))
@@ -115,8 +116,8 @@
   (define [32/PrimApp : bool] (IF_THEN_ELSE [31/PrimApp : bool] True [30/PrimApp : bool]))
   (define [33/Assert : bool] (assert! [32/PrimApp : bool]))
   (define [34/Declassify : bytes] [11/PrimApp : bytes])
-  (send! 2 ([34/Declassify : bytes]) 0)
-  (define-values ([34/Declassify : bytes]) (recv! 2))
+  (send! 2 ([13/Declassify : int] [14/Declassify : int] [15/Declassify : bytes] [23/Declassify : int]) ([34/Declassify : bytes]) 0)
+  (define-values ([13/Declassify : int] [14/Declassify : int] [15/Declassify : bytes] [23/Declassify : int]) ([34/Declassify : bytes]) (recv! 2))
   (define [35/PrimApp : bytes] (DIGEST [34/Declassify : bytes]))
   (define [36/PrimApp : bool] (BYTES_EQ [15/Declassify : bytes] [35/PrimApp : bytes]))
   (define [37/Assert : bool] (assert! [36/PrimApp : bool]))
@@ -189,7 +190,7 @@
 (define-participant B 
   ([3/SB-hand : int])
   
-  (define-values ([13/Declassify : int] [14/Declassify : int] [15/Declassify : bytes]) (recv! 0))
+  (define-values () ([13/Declassify : int] [14/Declassify : int] [15/Declassify : bytes]) (recv! 0))
   (define [17/PrimApp : bool] (PEQ [3/SB-hand : int] 0))
   (define [18/PrimApp : bool] (PEQ [3/SB-hand : int] 1))
   (define [19/PrimApp : bool] (PEQ [3/SB-hand : int] 2))
@@ -197,8 +198,8 @@
   (define [21/PrimApp : bool] (IF_THEN_ELSE [17/PrimApp : bool] True [20/PrimApp : bool]))
   (define [22/Assert : bool] (assert! [21/PrimApp : bool]))
   (define [23/Declassify : int] [3/SB-hand : int])
-  (send! 1 ([23/Declassify : int]) [13/Declassify : int])
-  (define-values ([23/Declassify : int]) (recv! 1))
+  (send! 1 ([13/Declassify : int] [14/Declassify : int] [15/Declassify : bytes]) ([23/Declassify : int]) [13/Declassify : int])
+  (define-values ([13/Declassify : int] [14/Declassify : int] [15/Declassify : bytes]) ([23/Declassify : int]) (recv! 1))
   (define [24/PrimApp : bool] (DISHONEST))
   (define [25/PrimApp : bool] (IF_THEN_ELSE [24/PrimApp : bool] False True))
   (define [26/PrimApp : bool] (PEQ [23/Declassify : int] 0))
@@ -209,7 +210,7 @@
   (define [31/PrimApp : bool] (IF_THEN_ELSE [25/PrimApp : bool] False True))
   (define [32/PrimApp : bool] (IF_THEN_ELSE [31/PrimApp : bool] True [30/PrimApp : bool]))
   (define [33/Assert : bool] (assert! [32/PrimApp : bool]))
-  (define-values ([34/Declassify : bytes]) (recv! 2))
+  (define-values ([13/Declassify : int] [14/Declassify : int] [15/Declassify : bytes] [23/Declassify : int]) ([34/Declassify : bytes]) (recv! 2))
   (define [35/PrimApp : bytes] (DIGEST [34/Declassify : bytes]))
   (define [36/PrimApp : bool] (BYTES_EQ [15/Declassify : bytes] [35/PrimApp : bytes]))
   (define [37/Assert : bool] (assert! [36/PrimApp : bool]))

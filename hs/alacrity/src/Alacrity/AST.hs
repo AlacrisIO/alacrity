@@ -11,7 +11,7 @@ data BaseType
   = AT_Int
   | AT_Bool
   | AT_Bytes
-  deriving (Show,Eq)
+  deriving (Show,Eq,Ord)
 data ExprType
   = TY_Var String
   | TY_Con BaseType
@@ -169,7 +169,7 @@ data XLExpr
   --- role. In the future, we could make something like mutable state
   --- on a local side of a transaction that collects all the transfers
   --- and puts them in the pay position.
-  | XL_Transfer Role XLExpr
+  | XL_Transfer Participant XLExpr
   | XL_Declassify XLExpr
   --- Where x Vars x Expression x Body
   | XL_LetValues (Maybe Participant) (Maybe [XLVar]) XLExpr XLExpr
@@ -225,7 +225,7 @@ data ILArg
 data ILExpr
   = IL_PrimApp EP_Prim [ILArg]
   | IL_Declassify ILArg
-  | IL_Transfer Role ILArg
+  | IL_Transfer Participant ILArg
   | IL_Assert ILArg
   deriving (Show,Eq)
 
@@ -279,7 +279,7 @@ data EPExpr
   = EP_Arg BLArg
   | EP_PrimApp EP_Prim [BLArg]
   | EP_Assert BLArg
-  | EP_Send Int [BLVar] BLArg
+  | EP_Send Int [BLVar] [BLVar] BLArg
   deriving (Show,Eq)
 
 data EPTail
@@ -288,7 +288,7 @@ data EPTail
   | EP_Let (Maybe BLVar) EPExpr EPTail
   {- This recv is what the sender sent; we will be doing the same
      computation as the contract. -}
-  | EP_Recv Int [BLVar] EPTail
+  | EP_Recv Int [BLVar] [BLVar] EPTail
   deriving (Show,Eq)
 
 data EProgram
@@ -299,12 +299,12 @@ data EProgram
 data CExpr
   = C_PrimApp C_Prim [BLArg]
   | C_Assert BLArg
-  | C_Transfer Role BLArg
+  | C_Transfer Participant BLArg
   deriving (Show,Eq)
 
 data CTail
   = C_Halt
-  | C_Wait Int
+  | C_Wait Int [BLVar]
   | C_If BLArg CTail CTail
   | C_Let (Maybe BLVar) CExpr CTail
   deriving (Show,Eq)
@@ -312,14 +312,12 @@ data CTail
 data CHandler
   --- Each handler has a message that it expects to receive
   --- XXX Maybe needs to know the transfer in amount
-  --- XXX Need to know the initiator identity
-  = C_Handler [BLVar] CTail
+  = C_Handler Participant [BLVar] [BLVar] CTail
   deriving (Show,Eq)
 
 --- A contract program is just a sequence of handlers.
 data CProgram
-  --- XXX Need to know all the participant addresses
-  = C_Prog [CHandler]
+  = C_Prog [Participant] [CHandler]
   deriving (Show,Eq)
 
 -- -- Backend
@@ -375,7 +373,7 @@ prettyApp p al = group $ parens $ pretty p <> ap
 prettyAssert :: Pretty a => a -> Doc ann
 prettyAssert a = group $ parens $ pretty "assert!" <+> pretty a
 
-prettyTransfer :: Pretty a => Role -> a -> Doc ann
+prettyTransfer :: Pretty a => Participant -> a -> Doc ann
 prettyTransfer to a = group $ parens $ pretty "transfer!" <+> pretty to <+> pretty a
 
 instance Pretty ILExpr where
@@ -444,8 +442,8 @@ instance Pretty EPExpr where
   pretty (EP_Arg a) = pretty a
   pretty (EP_PrimApp p al) = prettyApp p al
   pretty (EP_Assert a) = prettyAssert a
-  pretty (EP_Send hi vs pa) =
-    group $ parens $ pretty "send!" <+> pretty hi <+> prettyBLVars vs <+> pretty pa
+  pretty (EP_Send hi svs vs pa) =
+    group $ parens $ pretty "send!" <+> pretty hi <+> prettyBLVars svs <+> prettyBLVars vs <+> pretty pa
 
 instance Pretty CExpr where
   pretty (C_PrimApp p al) = prettyApp p al
@@ -456,23 +454,24 @@ instance Pretty EPTail where
   pretty (EP_Ret al) = prettyValues al
   pretty (EP_If ca tt ft) = prettyIf ca tt ft
   pretty (EP_Let mv e bt) = prettyLet prettyBLVar (\x -> x) mv e bt
-  pretty (EP_Recv hi vs bt) =
-    vsep [group $ parens $ pretty "define-values" <+> prettyBLVars vs <+> (parens $ pretty "recv!" <+> pretty hi),
+  pretty (EP_Recv hi svs vs bt) =
+    vsep [group $ parens $ pretty "define-values" <+> prettyBLVars svs <+> prettyBLVars vs <+> (parens $ pretty "recv!" <+> pretty hi),
           pretty bt]
 
 instance Pretty CTail where
-  pretty C_Halt = group $ parens $ pretty "halt!"
-  pretty (C_Wait i) = group $ parens $ pretty "wait!" <+> pretty i
+  pretty (C_Halt) = group $ parens $ pretty "halt!"
+  pretty (C_Wait i svs) = group $ parens $ pretty "wait!" <+> pretty i <+> prettyBLVars svs
   pretty (C_If ca tt ft) = prettyIf ca tt ft
   pretty (C_Let mv e bt) = prettyLet prettyBLVar (\x -> x) mv e bt
 
 prettyCHandler :: Int -> CHandler -> Doc ann
-prettyCHandler i (C_Handler args ct) =
-  group $ brackets $ pretty i <+> prettyBLVars args <+> (nest 2 $ hardline <> pretty ct)
+prettyCHandler i (C_Handler who svs args ct) =
+  group $ brackets $ pretty i <+> pretty who <+> prettyBLVars svs <+> prettyBLVars args <+> (nest 2 $ hardline <> pretty ct)
 
 instance Pretty CProgram where
-  pretty (C_Prog hs) = group $ parens $ pretty "define-contract" <+> (nest 2 $ hardline <> vsep hsp)
-    where hsp = zipWith prettyCHandler [0..] hs
+  pretty (C_Prog ps hs) = group $ parens $ pretty "define-contract" <+> (nest 2 $ hardline <> vsep (psp : hsp))
+    where psp = group $ pretty "#:participants" <+> (parens $ hsep $ map pretty ps)
+          hsp = zipWith prettyCHandler [0..] hs
 
 prettyBLVar :: BLVar -> Doc ann
 prettyBLVar (n, s, et) = group $ brackets $ prettyILVar (n,s) <+> pretty ":" <+> pretty et

@@ -32,7 +32,7 @@ import Alacrity.AST
   -}
 
 as_js :: BLProgram -> JS.JSAST
-as_js (BL_Prog _blparts (C_Prog _handlers)) = JS.JSAstModule
+as_js (BL_Prog _blparts (C_Prog _ _handlers)) = JS.JSAstModule
   (module_header ++ []) JSAnnotSpace
 
 emit_js :: BLProgram -> String
