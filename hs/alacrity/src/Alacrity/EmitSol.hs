@@ -194,5 +194,5 @@ emit_sol (BL_Prog _ (C_Prog ps hs@(h1 : _))) =
         p_rs = map solPartVar ps
         create_body =
           vsep [ pretty "ALAContract ctc = new " <> solApply "ALAContract" p_rs <> semi,
-                 pretty "ctc.value(msg.value)." <> solApply "msg0_m" (p_rs ++ map solVar msg) <> semi,
+                 pretty "ctc." <> solApply "msg0_m.value(msg.value)" (p_rs ++ map solVar msg) <> semi,
                  pretty "return ctc;" ]

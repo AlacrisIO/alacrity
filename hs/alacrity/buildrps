@@ -1,0 +1,3 @@
+#!/bin/sh
+stack run -- ala/rps.ala
+solc --allow-paths $PWD -o ala/_build ala/rps.ala.sol

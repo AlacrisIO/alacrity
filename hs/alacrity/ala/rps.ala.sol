@@ -5,7 +5,7 @@ import "../sol/stdlib.sol";
 contract ALAFactory {
   function make(address payable partA, address payable partB, uint256 Declassify_13, uint256 Declassify_14, bytes memory Declassify_15) public payable returns (ALAContract _ctc) {
     ALAContract ctc = new ALAContract(partA, partB);
-    ctc.value(msg.value).msg0_m(partA, partB, Declassify_13, Declassify_14, Declassify_15);
+    ctc.msg0_m.value(msg.value)(partA, partB, Declassify_13, Declassify_14, Declassify_15);
     return ctc; } }
 
 contract ALAContract is Stdlib {
