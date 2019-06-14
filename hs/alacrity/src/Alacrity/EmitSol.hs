@@ -147,9 +147,9 @@ solPrimApply pr args =
     BYTES_LEN -> case args of
                    [ a ] -> a <> pretty ".length"
                    _ -> spa_error ()
-    BCAT -> solApply "abi.encode" args
-    BCAT_LEFT -> solApply "ALA_BCAT_LEFT" args -- XXX doesn't actually work!
-    BCAT_RIGHT -> solApply "ALA_BCAT_RIGHT" args -- XXX doesn't actually work!
+    BCAT -> solApply "abi.encode" args --- XXX switch to ALA_BCAT after below
+    BCAT_LEFT -> solApply "ALA_BCAT_LEFT" args
+    BCAT_RIGHT -> solApply "ALA_BCAT_RIGHT" args
     DISHONEST -> case args of
                    [] -> solCon (Con_B True)
                    _ -> spa_error ()
