@@ -30,6 +30,7 @@ dependencies:
 - pretty-simple
 - text
 - language-javascript
+- debug
 
 ghc-options:
 - -Wall
