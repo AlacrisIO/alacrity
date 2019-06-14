@@ -106,30 +106,29 @@ jsPrimApply pr args =
           _ -> spa_error ()
         spa_error () = error "jsPrimApply"
 
-jsEPExpr :: [Participant] -> EPExpr -> Doc a
-jsEPExpr _ (EP_Arg a) = jsArg a
-jsEPExpr _ (EP_PrimApp pr al) = jsPrimApply pr $ map jsArg al
-jsEPExpr _ (EP_Assert a) = jsApply "stdlib.assert" [ jsArg a ]
-jsEPExpr _ (EP_Send i svs msg amt) = jsApply "net.send" [ pretty i, ts, vs, jsArg amt ]
+jsEPExpr :: EPExpr -> Doc a
+jsEPExpr (EP_Arg a) = jsArg a
+jsEPExpr (EP_PrimApp pr al) = jsPrimApply pr $ map jsArg al
+
+jsEPStmt :: EPStmt -> Doc a
+jsEPStmt (EP_Assert a) = jsApply "stdlib.assert" [ jsArg a ]
+jsEPStmt (EP_Send i svs msg amt) = jsApply "net.send" [ pretty i, ts, vs, jsArg amt ]
   where args = svs ++ msg
         ts = jsArray $ map jsVarType args
         vs = jsArray $ map jsVar args
 
-jsEPTail :: [Participant] -> EPTail -> Doc a
-jsEPTail _ (EP_Ret al) = (jsApply "kTop" $ map jsArg al) <> semi
-jsEPTail ps (EP_If ca tt ft) =
+jsEPTail :: EPTail -> Doc a
+jsEPTail (EP_Ret al) = (jsApply "kTop" $ map jsArg al) <> semi
+jsEPTail (EP_If ca tt ft) =
   pretty "if" <+> parens (jsArg ca) <> bp tt <> hardline <> pretty "else" <> bp ft
-  where bp at = jsBraces $ jsEPTail ps at
-jsEPTail ps (EP_Let mv (EP_PrimApp INTERACT al) kt) =
+  where bp at = jsBraces $ jsEPTail at
+jsEPTail (EP_Let v (EP_PrimApp INTERACT al) kt) =
   jsApply "interact" ((map jsArg al) ++ [ kp ])
-  where kp = jsLambda kargs $ jsEPTail ps kt
-        kargs = case mv of
-                  Nothing -> []
-                  Just bv -> [ jsVar bv ]
-jsEPTail ps (EP_Let Nothing ee kt) = vsep [ jsEPExpr ps ee <> semi, jsEPTail ps kt ];
-jsEPTail ps (EP_Let (Just bv) ee kt) = vsep [ jsVarDecl bv <+> pretty "=" <+> jsEPExpr ps ee <> semi, jsEPTail ps kt ];
-jsEPTail ps (EP_Recv i _ msg kt) = jsApply "net.recv" [ pretty i, msg_ts, kp ]
-  where kp = jsLambda msg_vs (jsEPTail ps kt)
+  where kp = jsLambda [ jsVar v ] $ jsEPTail kt
+jsEPTail (EP_Let bv ee kt) = vsep [ jsVarDecl bv <+> pretty "=" <+> jsEPExpr ee <> semi, jsEPTail kt ];
+jsEPTail (EP_Do es kt) = vsep [ jsEPStmt es <> semi, jsEPTail kt ];
+jsEPTail (EP_Recv i _ msg kt) = jsApply "net.recv" [ pretty i, msg_ts, kp ]
+  where kp = jsLambda msg_vs (jsEPTail kt)
         msg_ts = jsArray $ map jsVarType msg
         msg_vs = map jsVar msg
 
@@ -145,7 +144,7 @@ jsPart ps initiator (p, (EP_Prog pargs et)) = (p, partp)
         all_args = part_args ++ pargs_vs ++ [pretty "kTop"]
         first_call = jsReturn $ jsApply netcall ncargs
         partp = jsLambda all_args first_call
-        kp = jsLambda [] (jsEPTail ps et)
+        kp = jsLambda [] (jsEPTail et)
 
 emit_js :: BLProgram -> Doc a
 emit_js (BL_Prog _ (C_Prog _ [])) =

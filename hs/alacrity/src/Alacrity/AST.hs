@@ -8,9 +8,7 @@ import Data.List (intersperse)
 -- Shared types
 
 data BaseType
-  = AT_Unit --- XXX Remove and have ANF enforce the Assert/Transfer
-            --- can't be observed
-  | AT_Int
+  = AT_Int
   | AT_Bool
   | AT_Bytes
   deriving (Show,Eq,Ord)
@@ -227,8 +225,11 @@ data ILArg
 data ILExpr
   = IL_PrimApp EP_Prim [ILArg]
   | IL_Declassify ILArg
-  | IL_Transfer Participant ILArg --- XXX move to ILStmt/IL_Do
-  | IL_Assert ILArg --- XXX move to ILStmt/IL_Do
+  deriving (Show,Eq)
+
+data ILStmt
+  = IL_Transfer Participant ILArg
+  | IL_Assert ILArg
   deriving (Show,Eq)
 
 data ILTail
@@ -236,7 +237,8 @@ data ILTail
   | IL_If ILArg ILTail ILTail
   --- This role represents where the action happens. If it is
   --- RoleContract, then this means that everyone does it.
-  | IL_Let Role (Maybe ILVar) ILExpr ILTail
+  | IL_Let Role ILVar ILExpr ILTail
+  | IL_Do Role ILStmt ILTail
   --- As in XL, a ToConsensus is a transfer to the contract with
   --- (initiator, message, pay amount). The tail is inside of the
   --- contract.
@@ -280,15 +282,18 @@ data BLArg
 data EPExpr
   = EP_Arg BLArg
   | EP_PrimApp EP_Prim [BLArg]
-  | EP_Assert BLArg
+  deriving (Show,Eq)
+
+data EPStmt
+  = EP_Assert BLArg
   | EP_Send Int [BLVar] [BLVar] BLArg
   deriving (Show,Eq)
 
 data EPTail
   = EP_Ret [BLArg]
   | EP_If BLArg EPTail EPTail
-  --- XXX Remove Maybe and add Stmt
-  | EP_Let (Maybe BLVar) EPExpr EPTail
+  | EP_Let BLVar EPExpr EPTail
+  | EP_Do EPStmt EPTail
   {- This recv is what the sender sent; we will be doing the same
      computation as the contract. -}
   | EP_Recv Int [BLVar] [BLVar] EPTail
@@ -301,17 +306,19 @@ data EProgram
 -- -- Contracts
 data CExpr
   = C_PrimApp C_Prim [BLArg]
-  | C_Assert BLArg
+  deriving (Show,Eq)
+
+data CStmt
+  = C_Assert BLArg
   | C_Transfer Participant BLArg
   deriving (Show,Eq)
 
 data CTail
   = C_Halt
   | C_Wait Int [BLVar]
-  | C_If BLArg CTail CTail
-  --- XXX Remove Maybe and add Stmt
-  | C_Let (Maybe BLVar) CExpr CTail --- XXX Record use count for
-                                    --- de-inlining.
+  | C_If BLArg CTail CTail  
+  | C_Let BLVar CExpr CTail --- XXX Record use count for de-inlining.
+  | C_Do CStmt CTail
   deriving (Show,Eq)
 
 data CHandler
@@ -335,7 +342,6 @@ data BLProgram
 --- Emiting Code ---
 
 instance Pretty BaseType where
-  pretty AT_Unit = pretty "unit"
   pretty AT_Int = pretty "int"
   pretty AT_Bool = pretty "bool"
   pretty AT_Bytes = pretty "bytes"
@@ -385,6 +391,8 @@ prettyTransfer to a = group $ parens $ pretty "transfer!" <+> pretty to <+> pret
 instance Pretty ILExpr where
   pretty (IL_PrimApp p al) = prettyApp p al
   pretty (IL_Declassify a) = group $ parens $ pretty "declassify" <+> pretty a
+
+instance Pretty ILStmt where
   pretty (IL_Transfer to a) = prettyTransfer to a
   pretty (IL_Assert a) = prettyAssert a
 
@@ -396,17 +404,21 @@ prettyValues al = group $ parens $ (pretty "values") <+> (hsep $ map pretty al)
 prettyIf :: (Pretty a, Pretty b) => a -> b -> b -> Doc ann
 prettyIf ca tt ft = group $ parens $ pretty "cond" <+> (nest 2 $ hardline <> vsep [(group $ brackets $ (pretty ca) <+> pretty tt), (group $ brackets $ pretty "else" <+> pretty ft)])
 
-prettyLet :: (Pretty xe, Pretty bt) => (x -> Doc ann) -> (Doc ann -> Doc ann) -> Maybe x -> xe -> bt -> Doc ann
-prettyLet prettyVar at mv e bt =
+prettyLet :: (Pretty xe, Pretty bt) => (x -> Doc ann) -> (Doc ann -> Doc ann) -> x -> xe -> bt -> Doc ann
+prettyLet prettyVar at v e bt =
   vsep [(group $ at (ivp $ pretty e)), pretty bt]
-  where ivp ep = case mv of
-                Nothing -> ep
-                Just v -> parens $ pretty "define" <+> prettyVar v <> space <> ep
+  where ivp ep = parens $ pretty "define" <+> prettyVar v <> space <> ep
+
+prettyDo :: (Pretty xe, Pretty bt) => (Doc ann -> Doc ann) -> xe -> bt -> Doc ann
+prettyDo at e bt =
+  vsep [(group $ at $ pretty e), pretty bt]
 
 instance Pretty ILTail where
   pretty (IL_Ret al) = prettyValues al
   pretty (IL_If ca tt ft) = prettyIf ca tt ft
-  pretty (IL_Let r miv e bt) = prettyLet prettyILVar at miv e bt
+  pretty (IL_Let r iv e bt) = prettyLet prettyILVar at iv e bt
+    where at d = (group $ parens $ pretty "@" <+> pretty r <+> d)
+  pretty (IL_Do r s bt) = prettyDo at s bt
     where at d = (group $ parens $ pretty "@" <+> pretty r <+> d)
   pretty (IL_ToConsensus p svs pa ct) =
     vsep [(group $ parens $ pretty "@" <+> pretty p <+> (nest 2 $ hardline <> vsep [svsp, pap])),
@@ -447,19 +459,24 @@ instance Pretty BLArg where
 instance Pretty EPExpr where
   pretty (EP_Arg a) = pretty a
   pretty (EP_PrimApp p al) = prettyApp p al
+
+instance Pretty EPStmt where
   pretty (EP_Assert a) = prettyAssert a
   pretty (EP_Send hi svs vs pa) =
     group $ parens $ pretty "send!" <+> pretty hi <+> prettyBLVars svs <+> prettyBLVars vs <+> pretty pa
 
 instance Pretty CExpr where
   pretty (C_PrimApp p al) = prettyApp p al
+
+instance Pretty CStmt where
   pretty (C_Assert a) = prettyAssert a
   pretty (C_Transfer to a) = prettyTransfer to a
 
 instance Pretty EPTail where
   pretty (EP_Ret al) = prettyValues al
   pretty (EP_If ca tt ft) = prettyIf ca tt ft
-  pretty (EP_Let mv e bt) = prettyLet prettyBLVar (\x -> x) mv e bt
+  pretty (EP_Let v e bt) = prettyLet prettyBLVar (\x -> x) v e bt
+  pretty (EP_Do s bt) = prettyDo (\x -> x) s bt
   pretty (EP_Recv hi svs vs bt) =
     vsep [group $ parens $ pretty "define-values" <+> prettyBLVars svs <+> prettyBLVars vs <+> (parens $ pretty "recv!" <+> pretty hi),
           pretty bt]
@@ -469,6 +486,7 @@ instance Pretty CTail where
   pretty (C_Wait i svs) = group $ parens $ pretty "wait!" <+> pretty i <+> prettyBLVars svs
   pretty (C_If ca tt ft) = prettyIf ca tt ft
   pretty (C_Let mv e bt) = prettyLet prettyBLVar (\x -> x) mv e bt
+  pretty (C_Do s bt) = prettyDo (\x -> x) s bt
 
 prettyCHandler :: Int -> CHandler -> Doc ann
 prettyCHandler i (C_Handler who svs args ct) =
@@ -501,7 +519,6 @@ idOfMsg :: Show i => i -> String
 idOfMsg i = "msg" ++ show i
 
 solType :: BaseType -> String
-solType AT_Unit = "unit"
 solType AT_Int = "uint256"
 solType AT_Bool = "bool"
 solType AT_Bytes = "bytes"

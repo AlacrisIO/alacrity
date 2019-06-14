@@ -37,7 +37,6 @@ primZ3Runtime =
   parseSMTLib2String $(embedStringFile "../../z3/z3-runtime.smt2") [] [] [] []
 
 exprTypeZ3 :: ExprType -> Z3.Z3 Z3.Sort
-exprTypeZ3 (TY_Con AT_Unit) = error "z3 sort `Unit`"
 exprTypeZ3 (TY_Con AT_Int) = Z3.mkIntSort
 exprTypeZ3 (TY_Con AT_Bool) = Z3.mkBoolSort
 exprTypeZ3 (TY_Con AT_Bytes) = error "z3 sort `Bytes`"

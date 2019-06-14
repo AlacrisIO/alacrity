@@ -18,16 +18,12 @@ import Alacrity.AST
  -}
 
 solArgType :: BaseType -> String
-solArgType AT_Unit = error "unit type cannot be directly emitted in Solidity"
-solArgType AT_Int = "uint256"
-solArgType AT_Bool = "bool"
 solArgType AT_Bytes = "bytes calldata"
+solArgType t = solType t
 
 solVarType :: BaseType -> String
-solVarType AT_Unit = error "unit type cannot be directly emitted in Solidity"
-solVarType AT_Bool = "bool"
-solVarType AT_Int = "uint256"
 solVarType AT_Bytes = "bytes memory"
+solVarType t = solType t
 
 solBraces :: Doc a -> Doc a
 solBraces body = braces (nest 2 $ hardline <> body <> space)
@@ -159,9 +155,11 @@ solPrimApply pr args =
         spa_error () = error "solPrimApply"
 
 solCExpr :: CExpr -> Doc a
-solCExpr (C_Assert a) = solRequire $ solArg a
-solCExpr (C_Transfer p a) = solPartVar p <> pretty "." <> solApply "transfer" [ solArg a ]
 solCExpr (C_PrimApp pr al) = solPrimApply pr $ map solArg al
+
+solCStmt :: CStmt -> Doc a
+solCStmt (C_Assert a) = solRequire $ solArg a
+solCStmt (C_Transfer p a) = solPartVar p <> pretty "." <> solApply "transfer" [ solArg a ]
 
 solCTail :: [Participant] -> Doc a -> CTail -> Doc a
 solCTail _ emitp (C_Halt) = vsep [ emitp,
@@ -171,8 +169,8 @@ solCTail ps emitp (C_Wait i svs) = vsep [ emitp, (solSet (pretty "current_state"
 solCTail ps emitp (C_If ca tt ft) =
   pretty "if" <+> parens (solArg ca) <> bp tt <> hardline <> pretty "else" <> bp ft
   where bp at = solBraces $ solCTail ps emitp at
-solCTail ps emitp (C_Let Nothing ce ct) = vsep [ solCExpr ce <> semi, solCTail ps emitp ct ];
-solCTail ps emitp (C_Let (Just bv) ce ct) = vsep [ solVarDecl bv <+> pretty "=" <+> solCExpr ce <> semi, solCTail ps emitp ct ];
+solCTail ps emitp (C_Let bv ce ct) = vsep [ solVarDecl bv <+> pretty "=" <+> solCExpr ce <> semi, solCTail ps emitp ct ];
+solCTail ps emitp (C_Do cs ct) = vsep [ solCStmt cs <> semi, solCTail ps emitp ct ];
 
 emit_sol :: BLProgram -> Doc a
 emit_sol (BL_Prog _ (C_Prog _ [])) =

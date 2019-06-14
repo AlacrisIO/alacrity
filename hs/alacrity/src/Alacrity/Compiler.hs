@@ -108,7 +108,9 @@ inline (XL_Prog defs ps m) = XL_InlinedProg ps (inline_defs defs M.empty m)
 
  -}
 
-type ANFElem = (Role, ILVar, ILExpr)
+data ANFElem
+  = ANFExpr Role ILVar ILExpr
+  | ANFStmt Role ILStmt
 type ANFMonad a = State (Int, S.Seq ANFElem) a
 
 runANF :: ANFMonad a -> a
@@ -138,11 +140,17 @@ consumeANF_N n = do
   vs <- consumeANF_N (n - 1)
   return $ v : vs
 
+appendANF :: Role -> ILStmt -> ANFMonad ()
+appendANF r s = do
+  (nvi, vs) <- get
+  put (nvi, vs S.|> (ANFStmt r s))
+  return ()
+
 allocANF :: Role -> String -> ILExpr -> ANFMonad ILVar
-allocANF mp s e = do
+allocANF r s e = do
   (nvi, vs) <- get
   let nv = (nvi, s)
-  put (nvi + 1, vs S.|> (mp, nv, e))
+  put (nvi + 1, vs S.|> (ANFExpr r nv e))
   return nv
 
 allocANFs :: Role -> String -> [ILExpr] -> ANFMonad [ILVar]
@@ -228,7 +236,7 @@ anf_expr me ρ e mk =
                 return (tn, IL_If ca tt ft)
             k _ = error "anf_expr XL_If ce doesn't return 1"
     XL_Assert ae ->
-      anf_expr me ρ ae (\[ aa ] -> ret_expr "Assert" (IL_Assert aa))
+      anf_expr me ρ ae (\[ aa ] -> ret_stmt (IL_Assert aa))
     XL_FromConsensus le -> do
       (ln, lt) <- anf_tail RoleContract ρ le mk
       return (ln, IL_FromConsensus lt)
@@ -241,7 +249,7 @@ anf_expr me ρ e mk =
     XL_Values args ->
       anf_exprs me ρ args (\args' -> mk args')
     XL_Transfer to ae ->
-      anf_expr me ρ ae (\[ aa ] -> ret_expr "Transfer" (IL_Transfer to aa))
+      anf_expr me ρ ae (\[ aa ] -> ret_stmt (IL_Transfer to aa))
     XL_Declassify ae ->
       anf_expr me ρ ae (\[ aa ] -> ret_expr "Declassify" (IL_Declassify aa))
     XL_LetValues mwho mvs ve be ->
@@ -264,9 +272,13 @@ anf_expr me ρ e mk =
   where ret_expr s ne = do
           nv <- allocANF me s ne
           mk [ IL_Var nv ]
+        ret_stmt s = do
+          appendANF me s
+          mk [ IL_Con (Con_B True) ]
 
 anf_addVar :: ANFElem -> (Int, ILTail) -> (Int, ILTail)
-anf_addVar (mp, v, e) (c, t) = (c, IL_Let mp (Just v) e t)
+anf_addVar (ANFExpr mp v e) (c, t) = (c, IL_Let mp v e t)
+anf_addVar (ANFStmt mp s) (c, t) = (c, IL_Do mp s t)
 
 anf_tail :: Role -> XLRenaming -> XLExpr -> ([ILArg] -> ANFMonad (Int, ILTail)) -> ANFMonad (Int, ILTail)
 anf_tail me ρ e mk = do
@@ -330,9 +342,8 @@ must_be_public :: (a, SType) -> (a, BaseType)
 must_be_public (v, (et, Public)) = (v, et)
 must_be_public (_, (_, Secret)) = error "EPP: Must be public"
 
-boundBLVar_m :: Maybe BLVar -> Set.Set BLVar
-boundBLVar_m Nothing = Set.empty
-boundBLVar_m (Just bv) = Set.singleton bv
+boundBLVar :: BLVar -> Set.Set BLVar
+boundBLVar bv = Set.singleton bv
 
 boundBLVars :: [BLVar] -> Set.Set BLVar
 boundBLVars vs = Set.fromList vs
@@ -370,10 +381,6 @@ epp_args γ r ivs = (svs, args)
 epp_e_ctc :: EPPEnv -> ILExpr -> (SType, Set.Set BLVar, CExpr)
 epp_e_ctc γ e = case e of
   IL_Declassify _ -> error "EPP: Contract cannot declassify"
-  IL_Transfer r am -> (sUnit, fvs, C_Transfer r am')
-    where (fvs, am') = eargt am AT_Int
-  IL_Assert a -> (sUnit, fvs, C_Assert a')
-    where (fvs, a') = eargt a AT_Bool
   IL_PrimApp p@(CP cp) args -> (sRet, fvs, C_PrimApp cp args')
     where (fvs, args0) = epp_args γ RoleContract args
           args'st = map must_be_public $ args0
@@ -382,18 +389,11 @@ epp_e_ctc γ e = case e of
           ret = checkFun (primType p) args't
           sRet = (ret, Public)
   IL_PrimApp p _ -> error $ "EPP: Contract cannot execute: " ++ show p
- where sUnit = (AT_Unit, Public)
-       earg = epp_arg γ RoleContract
-       eargt a expected = epp_expect (expected, Public) $ earg a
 
 epp_e_loc :: EPPEnv -> Participant -> ILExpr -> (SType, Set.Set BLVar, EPExpr)
 epp_e_loc γ p e = case e of
   IL_Declassify a -> ((et, Public), fvs, EP_Arg a')
     where ((fvs, a'), (et, _)) = earg a
-  IL_Transfer _ _ -> error "EPP: Local cannot transfer"
-  IL_Assert a -> (st', fvs, EP_Assert a')
-    where ((fvs, a'), st@(_, slvl)) = earg a
-          st' = epp_expect (AT_Bool, slvl) (st, st)
   IL_PrimApp pr args -> ((ret, slvl), fvs, EP_PrimApp pr args')
     where (fvs, args'st) = epp_args γ (RolePart p) args
           args't = map (fst . snd) args'st
@@ -404,42 +404,69 @@ epp_e_loc γ p e = case e of
           slvl = mconcat $ map (snd . snd) args'st
  where earg = epp_arg γ (RolePart p)
 
+epp_s_ctc :: EPPEnv -> ILStmt -> (Set.Set BLVar, CStmt)
+epp_s_ctc γ e = case e of
+  IL_Transfer r am -> (fvs, C_Transfer r am')
+    where (fvs, am') = eargt am AT_Int
+  IL_Assert a -> (fvs, C_Assert a')
+    where (fvs, a') = eargt a AT_Bool
+ where earg = epp_arg γ RoleContract
+       eargt a expected = epp_expect (expected, Public) $ earg a
+
+epp_s_loc :: EPPEnv -> Participant -> ILStmt -> (Set.Set BLVar, EPStmt)
+epp_s_loc γ p e = case e of
+  IL_Transfer _ _ -> error "EPP: Local cannot transfer"
+  IL_Assert a -> case bt of
+                   AT_Bool -> (fvs, EP_Assert a')
+                   _ -> error "EPP: Assert argument not bool"
+    where ((fvs, a'), (bt, _)) = earg a
+          earg = epp_arg γ (RolePart p)
+
 epp_e_ctc2loc :: CExpr -> EPExpr
 epp_e_ctc2loc (C_PrimApp cp al) = (EP_PrimApp (CP cp) al)
-epp_e_ctc2loc (C_Assert a) = (EP_Assert a)
-epp_e_ctc2loc (C_Transfer _ _) = (EP_Arg (BL_Con (Con_B True)))
+
+epp_s_ctc2loc :: CStmt -> Maybe EPStmt
+epp_s_ctc2loc (C_Assert a) = Just (EP_Assert a)
+epp_s_ctc2loc (C_Transfer _ _) = Nothing
 
 epp_it_ctc :: [Participant] -> EPPEnv -> Int -> ILTail -> EPPRes
 epp_it_ctc ps γ hn0 it = case it of
   IL_Ret _ ->
     error "EPP: CTC cannot return"
-  IL_If ca tt ft -> (svs, C_If cca' ctt' cft', ts3, hn3, hs3)
+  IL_If ca tt ft -> (svs, C_If cca' ctt' cft', ts3, hn2, hs3)
     where (svs_ca, cca') = epp_expect (AT_Bool, Public) $ epp_arg γ RoleContract ca
           (svs_t, ctt', ts1, hn1, hs1) = epp_it_ctc ps γ hn0 tt
           (svs_f, cft', ts2, hn2, hs2) = epp_it_ctc ps γ hn1 ft
           svs = Set.unions [ svs_ca, svs_t, svs_f ]
-          hn3 = hn2
           hs3 = hs1 ++ hs2
           ts3 = M.fromList $ map mkt ps
           mkt p = (p, EP_If ca' tt' ft')
             where (_,ca') = epp_expect (AT_Bool, Public) $ epp_arg γ (RolePart p) ca
                   tt' = ts1 M.! p
                   ft' = ts2 M.! p
-  IL_Let RoleContract what how next -> (svs, C_Let what' how_ctc next', ts2, hn2, hs2)
+  IL_Let RoleContract what how next -> (svs, C_Let what' how_ctc next', ts2, hn1, hs1)
     where (svs1, next', ts1, hn1, hs1) = epp_it_ctc ps γ' hn0 next
-          svs = Set.union (Set.difference svs1 (boundBLVar_m what')) svs_how
-          hn2 = hn1
-          hs2 = hs1
+          svs = Set.union (Set.difference svs1 (boundBLVar what')) svs_how
           (st, svs_how, how_ctc) = epp_e_ctc γ how
           (et, _) = st
-          (what', what'env) = case what of
-                                Just (n, s) | not (et == AT_Unit) -> (Just (n, s, et), M.singleton (n,s) st)
-                                _ -> (Nothing, M.empty)
+          (n, s) = what
+          what' = (n, s, et)
+          what'env = M.singleton what st
           γ' = M.map (M.union what'env) γ
           how_ep = epp_e_ctc2loc how_ctc
           ts2 = M.map (EP_Let what' how_ep) ts1
   IL_Let (RolePart _) _ _ _ ->
     error "EPP: Cannot perform local binding in consensus"
+  IL_Do RoleContract how next -> (svs, ct2, ts2, hn1, hs1)
+    where (svs1, ct1, ts1, hn1, hs1) = epp_it_ctc ps γ hn0 next
+          (svs2, how') = epp_s_ctc γ how
+          svs = Set.union svs1 svs2
+          ct2 = C_Do how' ct1
+          ts2 = case epp_s_ctc2loc how' of
+                  Nothing -> ts1
+                  Just how'_ep -> M.map (EP_Do how'_ep) ts1
+  IL_Do (RolePart _) _ _ ->
+    error "EPP: Cannot perform local action in consensus"
   IL_ToConsensus _ _ _ _ ->
     error "EPP: Cannot transitions to consensus from consensus"
   IL_FromConsensus bt -> epp_it_loc ps γ hn0 bt
@@ -455,18 +482,15 @@ epp_it_loc ps γ hn0 it = case it of
     where ts = M.fromList $ map mkt ps
           mkt p = (p, EP_Ret $ map fst $ snd $ epp_args γ (RolePart p) al)
   IL_If _ _ _ ->
-    error "EPP: Ifs must be consensual"
+    error "EPP: Ifs must be consensual"    
   IL_Let who what how next -> (svs1, ct1, ts2, hn1, hs1)
     where (svs1, ct1, ts1, hn1, hs1) = epp_it_loc ps γ' hn0 next
-          γ' = case what of
-                 Nothing -> γ
-                 Just iv ->
-                   M.mapWithKey addwhat γ
-                   where addwhat r env =
-                           if mep r who then
-                             M.insert iv lst env
-                           else
-                             env
+          iv = what
+          γ' = M.mapWithKey addwhat γ
+          addwhat r env = if mep r who then
+                            M.insert iv lst env
+                          else
+                            env
           lst = case fmst of
             Nothing -> error "EPP: Let not local to any participant"
             Just v -> v
@@ -480,9 +504,15 @@ epp_it_loc ps γ hn0 it = case it of
                     mst' = Just st
                     (st, _, how') = epp_e_loc γ p how
                     (et, _) = st
-                    mbv = case what of
-                      Nothing -> Nothing
-                      Just (n, s) -> Just (n, s, et)
+                    (n,s) = what
+                    mbv = (n, s, et)
+  IL_Do who how next -> (svs1, ct1, ts2, hn1, hs1)
+    where (svs1, ct1, ts1, hn1, hs1) = epp_it_loc ps γ hn0 next
+          ts2 = M.mapWithKey addhow ts1
+          addhow p t =
+            if not (mep (RolePart p) who) then t
+            else EP_Do s' t
+            where (_, s') = epp_s_loc γ p how
   IL_ToConsensus from what howmuch next -> (svs2, ct2, ts2, hn2, hs2)
     where fromr = RolePart from
           what' = map fst $ map must_be_public $ epp_vars γ fromr what
@@ -501,7 +531,7 @@ epp_it_loc ps γ hn0 it = case it of
           addTail p pt1 = pt3
             where pt2 = EP_Recv hn0 svs2l what' pt1
                   pt3 = if p /= from then pt2
-                        else EP_Let Nothing es pt2
+                        else EP_Do es pt2
   IL_FromConsensus _ ->
     error "EPP: Cannot transition to local from local"
 
