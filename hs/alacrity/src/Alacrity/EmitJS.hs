@@ -116,7 +116,7 @@ jsEPExpr _ (EP_Send i svs msg amt) = jsApply "net.send" [ pretty i, ts, vs, jsAr
         vs = jsArray $ map jsVar args
 
 jsEPTail :: [Participant] -> EPTail -> Doc a
-jsEPTail _ (EP_Ret al) = jsApply "kTop" $ map jsArg al <> semi
+jsEPTail _ (EP_Ret al) = (jsApply "kTop" $ map jsArg al) <> semi
 jsEPTail ps (EP_If ca tt ft) =
   pretty "if" <+> parens (jsArg ca) <> bp tt <> hardline <> pretty "else" <> bp ft
   where bp at = jsBraces $ jsEPTail ps at

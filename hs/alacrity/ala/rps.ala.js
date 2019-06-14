@@ -102,7 +102,7 @@ export function initialize(net, interact) {
               var v100 = v91 ? 0 : v98;
               true;
               true;
-              kTop(v66) }) }) }) }); }
+              kTop(v66); }) }) }) }); }
     ,
     B:
     (ctc, pA, pB, v3, kTop) => {
@@ -195,4 +195,4 @@ export function initialize(net, interact) {
               var v100 = v91 ? 0 : v98;
               true;
               true;
-              kTop(v66) }) }) }) }); } }; }
+              kTop(v66); }) }) }) }); } }; }
