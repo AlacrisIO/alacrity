@@ -2,111 +2,113 @@ pragma solidity ^0.5.2;
 
 
 contract ALAFactory {
-  function make(address payable partA, address payable partB, uint256 Declassify_13, uint256 Declassify_14, uint256 Declassify_15) public payable returns (ALAContract _ctc) {
-    ALAContract ctc = new ALAContract(partA, partB);
-    ctc.msg0_m.value(msg.value)(partA, partB, Declassify_13, Declassify_14, Declassify_15);
+  function make(address payable pA, address payable pB, uint256 v13, uint256 v14, uint256 v15) public payable returns (ALAContract _ctc) {
+    ALAContract ctc = new ALAContract(pA, pB);
+    ctc.msg0_m.value(msg.value)(pA, pB, v13, v14, v15);
     return ctc; } }
 
 contract ALAContract {
   uint256 current_state;
   
-  constructor(address payable partA, address payable partB) public payable {
-    current_state = uint256(keccak256( abi.encode(0, partA, partB) )); }
+  constructor(address payable pA, address payable pB) public payable {
+    
+    current_state = uint256(keccak256( abi.encode(0, pA, pB) )); }
   
-  event msg0_evt(uint256 Declassify_13, uint256 Declassify_14, uint256 Declassify_15);
-  function msg0_m(address payable partA, address payable partB, uint256 Declassify_13, uint256 Declassify_14, uint256 Declassify_15) external payable {
-    require(current_state == uint256(keccak256( abi.encode(0, partA, partB) )));
-    require(msg.sender == partA);
-    current_state = uint256(keccak256( abi.encode(1, partA, partB, Declassify_13, Declassify_14, Declassify_15) ));
-    emit msg0_evt(Declassify_13, Declassify_14, Declassify_15); }
+  event msg0_evt(uint256 v13, uint256 v14, uint256 v15);
+  function msg0_m(address payable pA, address payable pB, uint256 v13, uint256 v14, uint256 v15) external payable {
+    require(current_state == uint256(keccak256( abi.encode(0, pA, pB) )));
+    require(msg.sender == pA);
+    emit msg0_evt(v13, v14, v15);
+    current_state = uint256(keccak256( abi.encode(1, pA, pB, v13, v14, v15) )); }
   
-  event msg1_evt(uint256 Declassify_23);
-  function msg1_m(address payable partA, address payable partB, uint256 Declassify_13, uint256 Declassify_14, uint256 Declassify_15, uint256 Declassify_23) external payable {
-    require(current_state == uint256(keccak256( abi.encode(1, partA, partB, Declassify_13, Declassify_14, Declassify_15) )));
-    require(msg.sender == partB);
-    bool PrimApp_24 = true;
-    bool PrimApp_25 = PrimApp_24 ? false : true;
-    bool PrimApp_26 = Declassify_23 == 0;
-    bool PrimApp_27 = Declassify_23 == 1;
-    bool PrimApp_28 = Declassify_23 == 2;
-    bool PrimApp_29 = PrimApp_27 ? true : PrimApp_28;
-    bool PrimApp_30 = PrimApp_26 ? true : PrimApp_29;
-    bool PrimApp_31 = PrimApp_25 ? false : true;
-    bool PrimApp_32 = PrimApp_31 ? true : PrimApp_30;
-    require(PrimApp_32);
-    current_state = uint256(keccak256( abi.encode(2, partA, partB, Declassify_13, Declassify_14, Declassify_15, Declassify_23) ));
-    emit msg1_evt(Declassify_23); }
+  event msg1_evt(uint256 v23);
+  function msg1_m(address payable pA, address payable pB, uint256 v13, uint256 v14, uint256 v15, uint256 v23) external payable {
+    require(current_state == uint256(keccak256( abi.encode(1, pA, pB, v13, v14, v15) )));
+    require(msg.sender == pB);
+    bool v24 = true;
+    bool v25 = v24 ? false : true;
+    bool v26 = v23 == 0;
+    bool v27 = v23 == 1;
+    bool v28 = v23 == 2;
+    bool v29 = v27 ? true : v28;
+    bool v30 = v26 ? true : v29;
+    bool v31 = v25 ? false : true;
+    bool v32 = v31 ? true : v30;
+    require(v32);
+    emit msg1_evt(v23);
+    current_state = uint256(keccak256( abi.encode(2, pA, pB, v13, v14, v15, v23) )); }
   
-  event msg2_evt(uint256 Declassify_34, uint256 Declassify_35);
-  function msg2_m(address payable partA, address payable partB, uint256 Declassify_13, uint256 Declassify_14, uint256 Declassify_15, uint256 Declassify_23, uint256 Declassify_34, uint256 Declassify_35) external payable {
-    require(current_state == uint256(keccak256( abi.encode(2, partA, partB, Declassify_13, Declassify_14, Declassify_15, Declassify_23) )));
-    require(msg.sender == partA);
-    bytes memory PrimApp_36 = abi.encode(Declassify_34, Declassify_35);
-    uint256 PrimApp_37 = uint256(keccak256( abi.encode(PrimApp_36) ));
-    bool PrimApp_38 = Declassify_15 == PrimApp_37;
-    require(PrimApp_38);
-    bool PrimApp_40 = true;
-    bool PrimApp_41 = PrimApp_40 ? false : true;
-    bool PrimApp_42 = Declassify_35 == 0;
-    bool PrimApp_43 = Declassify_35 == 1;
-    bool PrimApp_44 = Declassify_35 == 2;
-    bool PrimApp_45 = PrimApp_43 ? true : PrimApp_44;
-    bool PrimApp_46 = PrimApp_42 ? true : PrimApp_45;
-    bool PrimApp_47 = PrimApp_41 ? false : true;
-    bool PrimApp_48 = PrimApp_47 ? true : PrimApp_46;
-    require(PrimApp_48);
-    bool PrimApp_50 = Declassify_35 == 0;
-    bool PrimApp_51 = Declassify_35 == 1;
-    bool PrimApp_52 = Declassify_35 == 2;
-    bool PrimApp_53 = PrimApp_51 ? true : PrimApp_52;
-    bool PrimApp_54 = PrimApp_50 ? true : PrimApp_53;
-    bool PrimApp_55 = Declassify_23 == 0;
-    bool PrimApp_56 = Declassify_23 == 1;
-    bool PrimApp_57 = Declassify_23 == 2;
-    bool PrimApp_58 = PrimApp_56 ? true : PrimApp_57;
-    bool PrimApp_59 = PrimApp_55 ? true : PrimApp_58;
-    bool PrimApp_60 = PrimApp_54 ? PrimApp_59 : false;
-    uint256 PrimApp_61 = 4 - Declassify_23;
-    uint256 PrimApp_62 = Declassify_35 + PrimApp_61;
-    uint256 PrimApp_63 = PrimApp_62 % 3;
-    uint256 PureIf_64 = PrimApp_59 ? 0 : 1;
-    uint256 PureIf_65 = PrimApp_54 ? 2 : PureIf_64;
-    uint256 PureIf_66 = PrimApp_60 ? PrimApp_63 : PureIf_65;
-    bool PrimApp_67 = PureIf_66 == 0;
-    bool PrimApp_68 = PureIf_66 == 1;
-    bool PrimApp_69 = PureIf_66 == 2;
-    bool PrimApp_70 = PrimApp_68 ? true : PrimApp_69;
-    bool PrimApp_71 = PrimApp_67 ? true : PrimApp_70;
-    require(PrimApp_71);
-    bool PrimApp_73 = PureIf_66 == 2;
-    bool PrimApp_74 = Declassify_35 == 0;
-    bool PrimApp_75 = Declassify_35 == 1;
-    bool PrimApp_76 = Declassify_35 == 2;
-    bool PrimApp_77 = PrimApp_75 ? true : PrimApp_76;
-    bool PrimApp_78 = PrimApp_74 ? true : PrimApp_77;
-    bool PrimApp_79 = PrimApp_73 ? false : true;
-    bool PrimApp_80 = PrimApp_79 ? true : PrimApp_78;
-    require(PrimApp_80);
-    bool PrimApp_82 = PureIf_66 == 0;
-    bool PrimApp_83 = Declassify_23 == 0;
-    bool PrimApp_84 = Declassify_23 == 1;
-    bool PrimApp_85 = Declassify_23 == 2;
-    bool PrimApp_86 = PrimApp_84 ? true : PrimApp_85;
-    bool PrimApp_87 = PrimApp_83 ? true : PrimApp_86;
-    bool PrimApp_88 = PrimApp_82 ? false : true;
-    bool PrimApp_89 = PrimApp_88 ? true : PrimApp_87;
-    require(PrimApp_89);
-    bool PrimApp_91 = PureIf_66 == 2;
-    uint256 PrimApp_92 = 2 * Declassify_13;
-    uint256 PrimApp_93 = PrimApp_92 + Declassify_14;
-    bool PrimApp_94 = PureIf_66 == 0;
-    uint256 PrimApp_95 = 2 * Declassify_13;
-    uint256 PrimApp_96 = Declassify_13 + Declassify_14;
-    uint256 PureIf_97 = PrimApp_94 ? Declassify_14 : PrimApp_96;
-    uint256 PureIf_98 = PrimApp_94 ? PrimApp_95 : Declassify_13;
-    uint256 PureIf_99 = PrimApp_91 ? PrimApp_93 : PureIf_97;
-    uint256 PureIf_100 = PrimApp_91 ? 0 : PureIf_98;
-    partA.transfer(PureIf_99);
-    partB.transfer(PureIf_100);
-    selfdestruct(address(0x02B463784Bc1a49f1647B47a19452aC420DFC65A));
-    emit msg2_evt(Declassify_34, Declassify_35); } }
+  event msg2_evt(uint256 v34, uint256 v35);
+  function msg2_m(address payable pA, address payable pB, uint256 v13, uint256 v14, uint256 v15, uint256 v23, uint256 v34, uint256 v35) external payable {
+    require(current_state == uint256(keccak256( abi.encode(2, pA, pB, v13, v14, v15, v23) )));
+    require(msg.sender == pA);
+    bytes memory v36 = abi.encode(v34, v35);
+    uint256 v37 = uint256(keccak256( abi.encode(v36) ));
+    bool v38 = v15 == v37;
+    require(v38);
+    bool v40 = true;
+    bool v41 = v40 ? false : true;
+    bool v42 = v35 == 0;
+    bool v43 = v35 == 1;
+    bool v44 = v35 == 2;
+    bool v45 = v43 ? true : v44;
+    bool v46 = v42 ? true : v45;
+    bool v47 = v41 ? false : true;
+    bool v48 = v47 ? true : v46;
+    require(v48);
+    bool v50 = v35 == 0;
+    bool v51 = v35 == 1;
+    bool v52 = v35 == 2;
+    bool v53 = v51 ? true : v52;
+    bool v54 = v50 ? true : v53;
+    bool v55 = v23 == 0;
+    bool v56 = v23 == 1;
+    bool v57 = v23 == 2;
+    bool v58 = v56 ? true : v57;
+    bool v59 = v55 ? true : v58;
+    bool v60 = v54 ? v59 : false;
+    uint256 v61 = 4 - v23;
+    uint256 v62 = v35 + v61;
+    uint256 v63 = v62 % 3;
+    uint256 v64 = v59 ? 0 : 1;
+    uint256 v65 = v54 ? 2 : v64;
+    uint256 v66 = v60 ? v63 : v65;
+    bool v67 = v66 == 0;
+    bool v68 = v66 == 1;
+    bool v69 = v66 == 2;
+    bool v70 = v68 ? true : v69;
+    bool v71 = v67 ? true : v70;
+    require(v71);
+    bool v73 = v66 == 2;
+    bool v74 = v35 == 0;
+    bool v75 = v35 == 1;
+    bool v76 = v35 == 2;
+    bool v77 = v75 ? true : v76;
+    bool v78 = v74 ? true : v77;
+    bool v79 = v73 ? false : true;
+    bool v80 = v79 ? true : v78;
+    require(v80);
+    bool v82 = v66 == 0;
+    bool v83 = v23 == 0;
+    bool v84 = v23 == 1;
+    bool v85 = v23 == 2;
+    bool v86 = v84 ? true : v85;
+    bool v87 = v83 ? true : v86;
+    bool v88 = v82 ? false : true;
+    bool v89 = v88 ? true : v87;
+    require(v89);
+    bool v91 = v66 == 2;
+    uint256 v92 = 2 * v13;
+    uint256 v93 = v92 + v14;
+    bool v94 = v66 == 0;
+    uint256 v95 = 2 * v13;
+    uint256 v96 = v13 + v14;
+    uint256 v97 = v94 ? v14 : v96;
+    uint256 v98 = v94 ? v95 : v13;
+    uint256 v99 = v91 ? v93 : v97;
+    uint256 v100 = v91 ? 0 : v98;
+    pA.transfer(v99);
+    pB.transfer(v100);
+    emit msg2_evt(v34, v35);
+    current_state = 0x0;
+    selfdestruct(address(0x02B463784Bc1a49f1647B47a19452aC420DFC65A)); } }

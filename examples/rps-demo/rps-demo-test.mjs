@@ -6,11 +6,11 @@ import {initialize, initFunctions, registerInit,
 import {web3, networkId, userAddress} from "./web3-prelude.mjs";
 import "./local-storage.mjs";
 import "./tinyqueue.mjs";
-import {digestHex, confirmTransaction, config, checkContract} from "./common-runtime.mjs";
+import {digestHex, confirmTransaction, config, checkContract, deployContract} from "./common-runtime.mjs";
 import "./common-ui.mjs";
 import "./dapp-config.mjs";
 import {contractFactoryCode} from "./build/dapp-contract.mjs";
-import {deployFactory} from "./dsl-api.mjs";
+import "./dapp-backend.mjs";
 
 // TODO: implement a text "frontend". Have a flag to disable the auto-update daemon.
 // import "./dapp-frontend.mjs";
@@ -41,13 +41,13 @@ const deployCommand = (k = kLogResult, kError = kLogError) => {
     //console.log("Block has gas limit %s", block.gasLimit); // 6289319
 
     const kDeploy = () =>
-        deployFactory(creationHash => {
+        deployContract(creationHash => {
             console.log("Deploying the contract through transaction %s...", creationHash);
             return confirmTransaction(creationHash, 0)(() =>
             errbacK(web3.eth.getTransactionReceipt)(creationHash)(receipt => {
             assert(receipt.transactionHash === creationHash, "Bad tx hash");
             const address = receipt.contractAddress;
-            const codeHash = digestHex(rpsFactoryCode);
+            const codeHash = digestHex(contractFactoryCode);
             const creationBlock = receipt.blockNumber;
             // TODO: add it ourselves, atomically enough.
             console.log("PLEASE ADD THIS CONTRACT CREATION RECORD to dapp-config.js for network %s:\n%s",
@@ -56,7 +56,7 @@ const deployCommand = (k = kLogResult, kError = kLogError) => {
                         config.confirmationsWantedInBlocks, config.confirmationsString);
             return confirmTransaction(creationHash, config.confirmationsWantedInBlocks)(
                 k)}, kError))})
-    if (config.contract && digestHex(rpsFactoryCode) === config.contract.codeHash) {
+    if (config.contract && digestHex(contractFactoryCode) === config.contract.codeHash) {
         console.log("Contract already deployed at %s, not redeploying but checking it...",
                     config.contract.address);
         return checkContract(k, err => {console.log("Contract invalid: %s", err); return kDeploy()});

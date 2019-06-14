@@ -8,7 +8,8 @@ import Data.List (intersperse)
 -- Shared types
 
 data BaseType
-  = AT_Unit
+  = AT_Unit --- XXX Remove and have ANF enforce the Assert/Transfer
+            --- can't be observed
   | AT_Int
   | AT_Bool
   | AT_Bytes
@@ -226,8 +227,8 @@ data ILArg
 data ILExpr
   = IL_PrimApp EP_Prim [ILArg]
   | IL_Declassify ILArg
-  | IL_Transfer Participant ILArg
-  | IL_Assert ILArg
+  | IL_Transfer Participant ILArg --- XXX move to ILStmt/IL_Do
+  | IL_Assert ILArg --- XXX move to ILStmt/IL_Do
   deriving (Show,Eq)
 
 data ILTail
@@ -286,6 +287,7 @@ data EPExpr
 data EPTail
   = EP_Ret [BLArg]
   | EP_If BLArg EPTail EPTail
+  --- XXX Remove Maybe and add Stmt
   | EP_Let (Maybe BLVar) EPExpr EPTail
   {- This recv is what the sender sent; we will be doing the same
      computation as the contract. -}
@@ -307,7 +309,9 @@ data CTail
   = C_Halt
   | C_Wait Int [BLVar]
   | C_If BLArg CTail CTail
-  | C_Let (Maybe BLVar) CExpr CTail
+  --- XXX Remove Maybe and add Stmt
+  | C_Let (Maybe BLVar) CExpr CTail --- XXX Record use count for
+                                    --- de-inlining.
   deriving (Show,Eq)
 
 data CHandler
@@ -502,5 +506,5 @@ solType AT_Int = "uint256"
 solType AT_Bool = "bool"
 solType AT_Bytes = "bytes"
 
-creatorAddress :: String
-creatorAddress = "0x02B463784Bc1a49f1647B47a19452aC420DFC65A"
+alacrisAddress :: String
+alacrisAddress = "0x02B463784Bc1a49f1647B47a19452aC420DFC65A"

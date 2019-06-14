@@ -14,7 +14,7 @@ import Z3.Monad as Z3
 
 import Alacrity.AST
 import Alacrity.Parser
-import Alacrity.EmitJS
+import Alacrity.EmitJS2
 import Alacrity.EmitSol
 
 {- Inliner
@@ -659,7 +659,7 @@ compile srcp = do
   case z3res of
     [] -> do
       writeFile (srcp ++ ".sol") (show (emit_sol blp))
-      writeFile (srcp ++ ".js") (emit_js blp)
+      writeFile (srcp ++ ".js") (show (emit_js blp))
       exitSuccess
     ps -> do
       mapM_ (\x -> putStrLn $ ("Z3 error:" ++ x)) ps
