@@ -287,6 +287,7 @@ data EPExpr
 data EPTail
   = EP_Ret [BLArg]
   | EP_If BLArg EPTail EPTail
+  --- XXX Remove Maybe and add Stmt
   | EP_Let (Maybe BLVar) EPExpr EPTail
   {- This recv is what the sender sent; we will be doing the same
      computation as the contract. -}
@@ -308,6 +309,7 @@ data CTail
   = C_Halt
   | C_Wait Int [BLVar]
   | C_If BLArg CTail CTail
+  --- XXX Remove Maybe and add Stmt
   | C_Let (Maybe BLVar) CExpr CTail --- XXX Record use count for
                                     --- de-inlining.
   deriving (Show,Eq)
