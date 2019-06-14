@@ -148,8 +148,8 @@ solPrimApply pr args =
                    [ a ] -> a <> pretty ".length"
                    _ -> spa_error ()
     BCAT -> solApply "abi.encode" args
-    BCAT_LEFT -> solApply "ALA_BCAT_LEFT" args -- doesn't actually work!
-    BCAT_RIGHT -> solApply "ALA_BCAT_RIGHT" args -- doesn't actually work!
+    BCAT_LEFT -> solApply "ALA_BCAT_LEFT" args -- XXX doesn't actually work!
+    BCAT_RIGHT -> solApply "ALA_BCAT_RIGHT" args -- XXX doesn't actually work!
     DISHONEST -> case args of
                    [] -> solCon (Con_B True)
                    _ -> spa_error ()

@@ -548,7 +548,7 @@ epp (IL_Prog ips it) = BL_Prog bps cp
 
 primZ3Runtime :: Z3.Z3 Z3.AST
 primZ3Runtime =
-  parseSMTLib2String $(embedStringFile "z3/z3-runtime.smt2") [] [] [] []
+  parseSMTLib2String $(embedStringFile "../../z3/z3-runtime.smt2") [] [] [] []
 
 exprTypeZ3 :: ExprType -> Z3.Z3 Z3.Sort
 exprTypeZ3 (TY_Con AT_Unit) = error "z3 sort `Unit`"
