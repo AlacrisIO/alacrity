@@ -4,7 +4,7 @@ export function initialize(net, interact) {
   return {
     A:
     (pA, pB, v0, v1, v2, kTop) => {
-      net.make(pA, pB, () => {
+      return net.make(pA, pB, () => {
         var v4 = v0 == 0;
         var v5 = v0 == 1;
         var v6 = v0 == 2;
@@ -106,7 +106,7 @@ export function initialize(net, interact) {
     ,
     B:
     (ctc, pA, pB, v3, kTop) => {
-      net.attach(ctc, pA, pB, () => {
+      return net.attach(ctc, pA, pB, () => {
         net.recv(0, ["uint256", "uint256", "uint256"], (v13, v14, v15) => {
           var v17 = v3 == 0;
           var v18 = v3 == 1;

@@ -143,7 +143,7 @@ jsPart ps initiator (p, (EP_Prog pargs et)) = (p, partp)
         netcall = if initiator == p then "net.make" else "net.attach"
         ncargs = part_args ++ [ kp ]
         all_args = part_args ++ pargs_vs ++ [pretty "kTop"]
-        first_call = jsApply netcall ncargs <> semi
+        first_call = jsReturn $ jsApply netcall ncargs
         partp = jsLambda all_args first_call
         kp = jsLambda [] (jsEPTail ps et)
 
