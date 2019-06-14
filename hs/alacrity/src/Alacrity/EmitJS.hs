@@ -4,14 +4,9 @@ module Alacrity.EmitJS where
 --import qualified Data.Map.Strict as M
 --import Data.Foldable
 --import qualified Data.Sequence as S
---import Data.Text.Prettyprint.Doc
 import Language.JavaScript.Parser as JS
 import Language.JavaScript.Parser.Parser as JSParser
 import Language.JavaScript.Parser.AST as JSAST
---import Language.JavaScript.Pretty.Printer as JSPrinter
-
-
---import Language.JavaScript.Parser.SrcLocation as SrcLocation
 import System.IO
 
 import Alacrity.AST
@@ -32,7 +27,7 @@ import Alacrity.AST
   -}
 
 as_js :: BLProgram -> JS.JSAST
-as_js (BL_Prog _blparts (C_Prog _handlers)) = JS.JSAstModule
+as_js (BL_Prog _blparts (C_Prog _ _handlers)) = JS.JSAstModule
   (module_header ++ []) JSAnnotSpace
 
 emit_js :: BLProgram -> String
@@ -99,7 +94,7 @@ parseJS filename = do
   return (JSParser.parseModule x filename)
 
 dbj :: String
-dbj = "/home/fare/src/fare/alacrity/examples/rps-demo/dapp-backend.mjs.lj"
+dbj = "../../examples/rps-demo/dapp-backend.mjs.lj"
 
 pjb :: a -> IO ()
 pjb _ = do

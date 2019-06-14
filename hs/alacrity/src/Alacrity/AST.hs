@@ -8,10 +8,11 @@ import Data.List (intersperse)
 -- Shared types
 
 data BaseType
-  = AT_Int
+  = AT_Unit
+  | AT_Int
   | AT_Bool
   | AT_Bytes
-  deriving (Show,Eq)
+  deriving (Show,Eq,Ord)
 data ExprType
   = TY_Var String
   | TY_Con BaseType
@@ -85,7 +86,7 @@ primType (CP PGE) = [tInt, tInt] --> tBool
 primType (CP PGT) = [tInt, tInt] --> tBool
 primType (CP IF_THEN_ELSE) = TY_Forall ["a"] ([tBool, TY_Var "a", TY_Var "a"] --> TY_Var "a")
 primType (CP INT_TO_BYTES) = [tInt] --> tBytes
-primType (CP DIGEST) = ([tBytes] --> tBytes)
+primType (CP DIGEST) = ([tBytes] --> tInt)
 primType (CP BYTES_EQ) = [tBytes, tBytes] --> tBool
 primType (CP BYTES_LEN) = [tBytes] --> tInt
 primType (CP BCAT)       = ([tBytes, tBytes] --> tBytes)
@@ -169,7 +170,7 @@ data XLExpr
   --- role. In the future, we could make something like mutable state
   --- on a local side of a transaction that collects all the transfers
   --- and puts them in the pay position.
-  | XL_Transfer Role XLExpr
+  | XL_Transfer Participant XLExpr
   | XL_Declassify XLExpr
   --- Where x Vars x Expression x Body
   | XL_LetValues (Maybe Participant) (Maybe [XLVar]) XLExpr XLExpr
@@ -210,7 +211,7 @@ data XLInlinedProgram =
 
    It is essential that all participants agree on the number of times
    consensus is reached. This means that ANF has to do another complex
-   job: it must ensure that IFs are consensual. 
+   job: it must ensure that IFs are consensual.
  -}
 
 --- The string is just for debugging, it tracks where the variable was
@@ -225,7 +226,7 @@ data ILArg
 data ILExpr
   = IL_PrimApp EP_Prim [ILArg]
   | IL_Declassify ILArg
-  | IL_Transfer Role ILArg
+  | IL_Transfer Participant ILArg
   | IL_Assert ILArg
   deriving (Show,Eq)
 
@@ -279,7 +280,7 @@ data EPExpr
   = EP_Arg BLArg
   | EP_PrimApp EP_Prim [BLArg]
   | EP_Assert BLArg
-  | EP_Send Int [BLVar] BLArg
+  | EP_Send Int [BLVar] [BLVar] BLArg
   deriving (Show,Eq)
 
 data EPTail
@@ -288,7 +289,7 @@ data EPTail
   | EP_Let (Maybe BLVar) EPExpr EPTail
   {- This recv is what the sender sent; we will be doing the same
      computation as the contract. -}
-  | EP_Recv Int [BLVar] EPTail
+  | EP_Recv Int [BLVar] [BLVar] EPTail
   deriving (Show,Eq)
 
 data EProgram
@@ -299,12 +300,12 @@ data EProgram
 data CExpr
   = C_PrimApp C_Prim [BLArg]
   | C_Assert BLArg
-  | C_Transfer Role BLArg
+  | C_Transfer Participant BLArg
   deriving (Show,Eq)
 
 data CTail
   = C_Halt
-  | C_Wait Int
+  | C_Wait Int [BLVar]
   | C_If BLArg CTail CTail
   | C_Let (Maybe BLVar) CExpr CTail
   deriving (Show,Eq)
@@ -312,12 +313,12 @@ data CTail
 data CHandler
   --- Each handler has a message that it expects to receive
   --- XXX Maybe needs to know the transfer in amount
-  = C_Handler [BLVar] CTail
+  = C_Handler Participant [BLVar] [BLVar] CTail
   deriving (Show,Eq)
 
 --- A contract program is just a sequence of handlers.
 data CProgram
-  = C_Prog [CHandler]
+  = C_Prog [Participant] [CHandler]
   deriving (Show,Eq)
 
 -- -- Backend
@@ -330,6 +331,7 @@ data BLProgram
 --- Emiting Code ---
 
 instance Pretty BaseType where
+  pretty AT_Unit = pretty "unit"
   pretty AT_Int = pretty "int"
   pretty AT_Bool = pretty "bool"
   pretty AT_Bytes = pretty "bytes"
@@ -373,7 +375,7 @@ prettyApp p al = group $ parens $ pretty p <> ap
 prettyAssert :: Pretty a => a -> Doc ann
 prettyAssert a = group $ parens $ pretty "assert!" <+> pretty a
 
-prettyTransfer :: Pretty a => Role -> a -> Doc ann
+prettyTransfer :: Pretty a => Participant -> a -> Doc ann
 prettyTransfer to a = group $ parens $ pretty "transfer!" <+> pretty to <+> pretty a
 
 instance Pretty ILExpr where
@@ -442,8 +444,8 @@ instance Pretty EPExpr where
   pretty (EP_Arg a) = pretty a
   pretty (EP_PrimApp p al) = prettyApp p al
   pretty (EP_Assert a) = prettyAssert a
-  pretty (EP_Send hi vs pa) =
-    group $ parens $ pretty "send!" <+> pretty hi <+> prettyBLVars vs <+> pretty pa
+  pretty (EP_Send hi svs vs pa) =
+    group $ parens $ pretty "send!" <+> pretty hi <+> prettyBLVars svs <+> prettyBLVars vs <+> pretty pa
 
 instance Pretty CExpr where
   pretty (C_PrimApp p al) = prettyApp p al
@@ -454,23 +456,24 @@ instance Pretty EPTail where
   pretty (EP_Ret al) = prettyValues al
   pretty (EP_If ca tt ft) = prettyIf ca tt ft
   pretty (EP_Let mv e bt) = prettyLet prettyBLVar (\x -> x) mv e bt
-  pretty (EP_Recv hi vs bt) =
-    vsep [group $ parens $ pretty "define-values" <+> prettyBLVars vs <+> (parens $ pretty "recv!" <+> pretty hi),
+  pretty (EP_Recv hi svs vs bt) =
+    vsep [group $ parens $ pretty "define-values" <+> prettyBLVars svs <+> prettyBLVars vs <+> (parens $ pretty "recv!" <+> pretty hi),
           pretty bt]
 
 instance Pretty CTail where
-  pretty C_Halt = group $ parens $ pretty "halt!"
-  pretty (C_Wait i) = group $ parens $ pretty "wait!" <+> pretty i
+  pretty (C_Halt) = group $ parens $ pretty "halt!"
+  pretty (C_Wait i svs) = group $ parens $ pretty "wait!" <+> pretty i <+> prettyBLVars svs
   pretty (C_If ca tt ft) = prettyIf ca tt ft
   pretty (C_Let mv e bt) = prettyLet prettyBLVar (\x -> x) mv e bt
 
 prettyCHandler :: Int -> CHandler -> Doc ann
-prettyCHandler i (C_Handler args ct) =
-  group $ brackets $ pretty i <+> prettyBLVars args <+> (nest 2 $ hardline <> pretty ct)
+prettyCHandler i (C_Handler who svs args ct) =
+  group $ brackets $ pretty i <+> pretty who <+> prettyBLVars svs <+> prettyBLVars args <+> (nest 2 $ hardline <> pretty ct)
 
 instance Pretty CProgram where
-  pretty (C_Prog hs) = group $ parens $ pretty "define-contract" <+> (nest 2 $ hardline <> vsep hsp)
-    where hsp = zipWith prettyCHandler [0..] hs
+  pretty (C_Prog ps hs) = group $ parens $ pretty "define-contract" <+> (nest 2 $ hardline <> vsep (psp : hsp))
+    where psp = group $ pretty "#:participants" <+> (parens $ hsep $ map pretty ps)
+          hsp = zipWith prettyCHandler [0..] hs
 
 prettyBLVar :: BLVar -> Doc ann
 prettyBLVar (n, s, et) = group $ brackets $ prettyILVar (n,s) <+> pretty ":" <+> pretty et
@@ -480,7 +483,7 @@ prettyBLVars bs = parens $ hsep $ map prettyBLVar bs
 
 prettyBLPart :: (Participant, EProgram) -> Doc ann
 prettyBLPart (p, (EP_Prog args t)) =
-  group $ parens $ pretty "define-participant" <+> pretty p <+> (nest 2 $ hardline <> vsep [argp, emptyDoc, pretty t]) 
+  group $ parens $ pretty "define-participant" <+> pretty p <+> (nest 2 $ hardline <> vsep [argp, emptyDoc, pretty t])
   where argp = group $ parens $ vsep $ map prettyBLVar args
 
 prettyBLParts :: BLParts -> Doc ann
@@ -489,3 +492,15 @@ prettyBLParts ps =
 
 instance Pretty BLProgram where
   pretty (BL_Prog ps ctc) = vsep [pretty "#lang alacrity/bl", emptyDoc, pretty ctc, emptyDoc, prettyBLParts ps]
+
+idOfMsg :: Show i => i -> String
+idOfMsg i = "msg" ++ show i
+
+solType :: BaseType -> String
+solType AT_Unit = "unit"
+solType AT_Int = "uint256"
+solType AT_Bool = "bool"
+solType AT_Bytes = "bytes"
+
+creatorAddress :: String
+creatorAddress = "0x02B463784Bc1a49f1647B47a19452aC420DFC65A"
