@@ -94,7 +94,7 @@ parseJS filename = do
   return (JSParser.parseModule x filename)
 
 dbj :: String
-dbj = "/home/fare/src/fare/alacrity/examples/rps-demo/dapp-backend.mjs.lj"
+dbj = "../../examples/rps-demo/dapp-backend.mjs.lj"
 
 pjb :: a -> IO ()
 pjb _ = do
