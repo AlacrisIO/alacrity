@@ -504,7 +504,5 @@ solType AT_Int = "uint256"
 solType AT_Bool = "bool"
 solType AT_Bytes = "bytes"
 
---- XXX remove and give to first participant, given that the balance
---- will be 0 anyways.
-creatorAddress :: String
-creatorAddress = "0x02B463784Bc1a49f1647B47a19452aC420DFC65A"
+alacrisAddress :: String
+alacrisAddress = "0x02B463784Bc1a49f1647B47a19452aC420DFC65A"

@@ -116,10 +116,10 @@ solHandler ps i (C_Handler from svs msg body) = vsep [ evtp, funp ]
         evtp = solEvent evts msg_eds
         funp = solFunction (msgi ++ "_m") arg_ds retp bodyp
         retp = pretty "external payable"
+        emitp = pretty "emit" <+> solApply evts msg_rs <> semi
         bodyp = vsep [ (solRequire $ solEq (pretty "current_state") (solHashState i ps svs)) <> semi,
                        solRequireSender from <> semi,
-                       solCTail ps body,
-                       pretty "emit" <+> solApply evts msg_rs <> semi]
+                       solCTail ps emitp body ]
 
 solHandlers :: [Participant] -> [CHandler] -> Doc ann
 solHandlers ps hs = vsep $ intersperse emptyDoc $ zipWith (solHandler ps) [0..] hs
@@ -167,14 +167,16 @@ solCExpr (C_Assert a) = solRequire $ solArg a
 solCExpr (C_Transfer p a) = solPartVar p <> pretty "." <> solApply "transfer" [ solArg a ]
 solCExpr (C_PrimApp pr al) = solPrimApply pr $ map solArg al
 
-solCTail :: [Participant] -> CTail -> Doc ann
-solCTail _ (C_Halt) = pretty $ "selfdestruct(address(" ++ creatorAddress ++ "));"
-solCTail ps (C_Wait i svs) = (solSet (pretty "current_state") (solHashState i ps svs)) <> semi
-solCTail ps (C_If ca tt ft) =
+solCTail :: [Participant] -> Doc ann -> CTail -> Doc ann
+solCTail _ emitp (C_Halt) = vsep [ emitp,
+                             solSet (pretty "current_state") (pretty "0x0") <> semi,
+                             solApply "selfdestruct" [ solApply "address" [ pretty alacrisAddress ] ] <> semi ]
+solCTail ps emitp (C_Wait i svs) = vsep [ emitp, (solSet (pretty "current_state") (solHashState i ps svs)) <> semi ]
+solCTail ps emitp (C_If ca tt ft) =
   pretty "if" <+> parens (solArg ca) <> bp tt <> hardline <> pretty "else" <> bp ft
-  where bp at = solBraces $ solCTail ps at
-solCTail ps (C_Let Nothing ce ct) = vsep [ solCExpr ce <> semi, solCTail ps ct ];
-solCTail ps (C_Let (Just bv) ce ct) = vsep [ solVarDecl bv <+> pretty "=" <+> solCExpr ce <> semi, solCTail ps ct ];
+  where bp at = solBraces $ solCTail ps emitp at
+solCTail ps emitp (C_Let Nothing ce ct) = vsep [ solCExpr ce <> semi, solCTail ps emitp ct ];
+solCTail ps emitp (C_Let (Just bv) ce ct) = vsep [ solVarDecl bv <+> pretty "=" <+> solCExpr ce <> semi, solCTail ps emitp ct ];
 
 emit_sol :: BLProgram -> Doc ann
 emit_sol (BL_Prog _ (C_Prog _ [])) =
@@ -187,7 +189,7 @@ emit_sol (BL_Prog _ (C_Prog ps hs@(h1 : _))) =
           $ ctcbody
         ctcbody = vsep $ [state_defn, emptyDoc, consp, emptyDoc, solHandlers ps hs]
         consp = solApply "constructor" p_ds <+> pretty "public payable" <+> solBraces consbody
-        consbody = solCTail ps (C_Wait 0 [])
+        consbody = solCTail ps emptyDoc (C_Wait 0 [])
         state_defn = pretty "uint256 current_state;"
         C_Handler _ _ msg _ = h1
         createp = solFunction "make" (p_ds ++ map solVarDecl msg) create_ret create_body

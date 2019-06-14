@@ -11,14 +11,15 @@ contract ALAContract {
   uint256 current_state;
   
   constructor(address payable partA, address payable partB) public payable {
+    
     current_state = uint256(keccak256( abi.encode(0, partA, partB) )); }
   
   event msg0_evt(uint256 Declassify_13, uint256 Declassify_14, uint256 Declassify_15);
   function msg0_m(address payable partA, address payable partB, uint256 Declassify_13, uint256 Declassify_14, uint256 Declassify_15) external payable {
     require(current_state == uint256(keccak256( abi.encode(0, partA, partB) )));
     require(msg.sender == partA);
-    current_state = uint256(keccak256( abi.encode(1, partA, partB, Declassify_13, Declassify_14, Declassify_15) ));
-    emit msg0_evt(Declassify_13, Declassify_14, Declassify_15); }
+    emit msg0_evt(Declassify_13, Declassify_14, Declassify_15);
+    current_state = uint256(keccak256( abi.encode(1, partA, partB, Declassify_13, Declassify_14, Declassify_15) )); }
   
   event msg1_evt(uint256 Declassify_23);
   function msg1_m(address payable partA, address payable partB, uint256 Declassify_13, uint256 Declassify_14, uint256 Declassify_15, uint256 Declassify_23) external payable {
@@ -34,8 +35,8 @@ contract ALAContract {
     bool PrimApp_31 = PrimApp_25 ? false : true;
     bool PrimApp_32 = PrimApp_31 ? true : PrimApp_30;
     require(PrimApp_32);
-    current_state = uint256(keccak256( abi.encode(2, partA, partB, Declassify_13, Declassify_14, Declassify_15, Declassify_23) ));
-    emit msg1_evt(Declassify_23); }
+    emit msg1_evt(Declassify_23);
+    current_state = uint256(keccak256( abi.encode(2, partA, partB, Declassify_13, Declassify_14, Declassify_15, Declassify_23) )); }
   
   event msg2_evt(uint256 Declassify_34, uint256 Declassify_35);
   function msg2_m(address payable partA, address payable partB, uint256 Declassify_13, uint256 Declassify_14, uint256 Declassify_15, uint256 Declassify_23, uint256 Declassify_34, uint256 Declassify_35) external payable {
@@ -108,5 +109,6 @@ contract ALAContract {
     uint256 PureIf_100 = PrimApp_91 ? 0 : PureIf_98;
     partA.transfer(PureIf_99);
     partB.transfer(PureIf_100);
-    selfdestruct(address(0x02B463784Bc1a49f1647B47a19452aC420DFC65A));
-    emit msg2_evt(Declassify_34, Declassify_35); } }
+    emit msg2_evt(Declassify_34, Declassify_35);
+    current_state = 0x0;
+    selfdestruct(address(0x02B463784Bc1a49f1647B47a19452aC420DFC65A)); } }
