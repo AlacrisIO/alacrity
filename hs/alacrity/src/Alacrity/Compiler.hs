@@ -1,5 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Alacrity.Compiler where
+--import Debug.Trace
 
 import Control.Monad.State.Lazy
 import qualified Data.Map.Strict as M
@@ -371,9 +372,9 @@ epp_args γ r ivs = (svs, args)
 epp_e_ctc :: EPPEnv -> ILExpr -> (SType, Set.Set BLVar, CExpr)
 epp_e_ctc γ e = case e of
   IL_Declassify _ -> error "EPP: Contract cannot declassify"
-  IL_Transfer r am -> (sBool, fvs, C_Transfer r am')
+  IL_Transfer r am -> (sUnit, fvs, C_Transfer r am')
     where (fvs, am') = eargt am AT_Int
-  IL_Assert a -> (sBool, fvs, C_Assert a')
+  IL_Assert a -> (sUnit, fvs, C_Assert a')
     where (fvs, a') = eargt a AT_Bool
   IL_PrimApp p@(CP cp) args -> (sRet, fvs, C_PrimApp cp args')
     where (fvs, args0) = epp_args γ RoleContract args
@@ -381,9 +382,9 @@ epp_e_ctc γ e = case e of
           args' = map fst args'st
           args't = map snd args'st
           ret = checkFun (primType p) args't
-          sRet = (ret,Public)
+          sRet = (ret, Public)
   IL_PrimApp p _ -> error $ "EPP: Contract cannot execute: " ++ show p
- where sBool = (AT_Bool, Public)
+ where sUnit = (AT_Unit, Public)
        earg = epp_arg γ RoleContract
        eargt a expected = epp_expect (expected, Public) $ earg a
 
@@ -434,8 +435,8 @@ epp_it_ctc ps γ hn0 it = case it of
           (st, svs_how, how_ctc) = epp_e_ctc γ how
           (et, _) = st
           (what', what'env) = case what of
-                    Nothing -> (Nothing, M.empty)
-                    Just (n, s) -> (Just (n, s, et), M.singleton (n,s) st)
+                                Just (n, s) | not (et == AT_Unit) -> (Just (n, s, et), M.singleton (n,s) st)
+                                _ -> (Nothing, M.empty)
           γ' = M.map (M.union what'env) γ
           how_ep = epp_e_ctc2loc how_ctc
           ts2 = M.map (EP_Let what' how_ep) ts1
@@ -550,6 +551,7 @@ primZ3Runtime =
   parseSMTLib2String $(embedStringFile "z3/z3-runtime.smt2") [] [] [] []
 
 exprTypeZ3 :: ExprType -> Z3.Z3 Z3.Sort
+exprTypeZ3 (TY_Con AT_Unit) = error "z3 sort `Unit`"
 exprTypeZ3 (TY_Con AT_Int) = Z3.mkIntSort
 exprTypeZ3 (TY_Con AT_Bool) = Z3.mkBoolSort
 exprTypeZ3 (TY_Con AT_Bytes) = error "z3 sort `Bytes`"

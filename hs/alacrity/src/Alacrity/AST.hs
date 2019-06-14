@@ -8,7 +8,8 @@ import Data.List (intersperse)
 -- Shared types
 
 data BaseType
-  = AT_Int
+  = AT_Unit
+  | AT_Int
   | AT_Bool
   | AT_Bytes
   deriving (Show,Eq,Ord)
@@ -330,6 +331,7 @@ data BLProgram
 --- Emiting Code ---
 
 instance Pretty BaseType where
+  pretty AT_Unit = pretty "unit"
   pretty AT_Int = pretty "int"
   pretty AT_Bool = pretty "bool"
   pretty AT_Bytes = pretty "bytes"
@@ -495,6 +497,7 @@ idOfMsg :: Show i => i -> String
 idOfMsg i = "msg" ++ show i
 
 solType :: BaseType -> String
-solType AT_Bool = "bool"
+solType AT_Unit = "unit"
 solType AT_Int = "uint256"
+solType AT_Bool = "bool"
 solType AT_Bytes = "bytes"

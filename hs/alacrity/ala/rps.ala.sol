@@ -34,7 +34,7 @@ contract ALAContract is Stdlib {
     bool PrimApp_30 = PrimApp_26 ? true : PrimApp_29;
     bool PrimApp_31 = PrimApp_25 ? false : true;
     bool PrimApp_32 = PrimApp_31 ? true : PrimApp_30;
-    bool Assert_33 = require(PrimApp_32);
+    require(PrimApp_32);
     current_state = keccak256(abi.encode(2, partA, partB, Declassify_13, Declassify_14, Declassify_15, Declassify_23));
     emit msg1_evt(Declassify_23); }
   
@@ -44,7 +44,7 @@ contract ALAContract is Stdlib {
     require(msg.sender == partA);
     bytes memory PrimApp_35 = keccak256(Declassify_34);
     bool PrimApp_36 = Declassify_15 == PrimApp_35;
-    bool Assert_37 = require(PrimApp_36);
+    require(PrimApp_36);
     bytes memory PrimApp_38 = ALA_BCAT_RIGHT(Declassify_34);
     bool PrimApp_39 = true;
     bool PrimApp_40 = PrimApp_39 ? false : true;
@@ -55,7 +55,7 @@ contract ALAContract is Stdlib {
     bool PrimApp_45 = PrimApp_41 ? true : PrimApp_44;
     bool PrimApp_46 = PrimApp_40 ? false : true;
     bool PrimApp_47 = PrimApp_46 ? true : PrimApp_45;
-    bool Assert_48 = require(PrimApp_47);
+    require(PrimApp_47);
     bool PrimApp_49 = PrimApp_38 == 0;
     bool PrimApp_50 = PrimApp_38 == 1;
     bool PrimApp_51 = PrimApp_38 == 2;
@@ -78,7 +78,7 @@ contract ALAContract is Stdlib {
     bool PrimApp_68 = PureIf_65 == 2;
     bool PrimApp_69 = PrimApp_67 ? true : PrimApp_68;
     bool PrimApp_70 = PrimApp_66 ? true : PrimApp_69;
-    bool Assert_71 = require(PrimApp_70);
+    require(PrimApp_70);
     bool PrimApp_72 = PureIf_65 == 2;
     bool PrimApp_73 = PrimApp_38 == 0;
     bool PrimApp_74 = PrimApp_38 == 1;
@@ -87,7 +87,7 @@ contract ALAContract is Stdlib {
     bool PrimApp_77 = PrimApp_73 ? true : PrimApp_76;
     bool PrimApp_78 = PrimApp_72 ? false : true;
     bool PrimApp_79 = PrimApp_78 ? true : PrimApp_77;
-    bool Assert_80 = require(PrimApp_79);
+    require(PrimApp_79);
     bool PrimApp_81 = PureIf_65 == 0;
     bool PrimApp_82 = Declassify_23 == 0;
     bool PrimApp_83 = Declassify_23 == 1;
@@ -96,7 +96,7 @@ contract ALAContract is Stdlib {
     bool PrimApp_86 = PrimApp_82 ? true : PrimApp_85;
     bool PrimApp_87 = PrimApp_81 ? false : true;
     bool PrimApp_88 = PrimApp_87 ? true : PrimApp_86;
-    bool Assert_89 = require(PrimApp_88);
+    require(PrimApp_88);
     bool PrimApp_90 = PureIf_65 == 2;
     uint256 PrimApp_91 = 2 * Declassify_13;
     uint256 PrimApp_92 = PrimApp_91 + Declassify_14;
@@ -107,7 +107,7 @@ contract ALAContract is Stdlib {
     uint256 PureIf_97 = PrimApp_93 ? PrimApp_94 : Declassify_13;
     uint256 PureIf_98 = PrimApp_90 ? PrimApp_92 : PureIf_96;
     uint256 PureIf_99 = PrimApp_90 ? 0 : PureIf_97;
-    bool Transfer_100 = partA.transfer(PureIf_98);
-    bool Transfer_101 = partB.transfer(PureIf_99);
+    partA.transfer(PureIf_98);
+    partB.transfer(PureIf_99);
     selfdestruct();
     emit msg2_evt(Declassify_34); } }

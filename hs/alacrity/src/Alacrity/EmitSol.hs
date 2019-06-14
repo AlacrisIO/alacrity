@@ -22,11 +22,13 @@ import Alacrity.AST
  -}
 
 solArgType :: BaseType -> String
-solArgType AT_Bool = "bool"
+solArgType AT_Unit = error "unit type cannot be directly emitted in Solidity"
 solArgType AT_Int = "uint256"
+solArgType AT_Bool = "bool"
 solArgType AT_Bytes = "bytes calldata"
 
 solVarType :: BaseType -> String
+solVarType AT_Unit = error "unit type cannot be directly emitted in Solidity"
 solVarType AT_Bool = "bool"
 solVarType AT_Int = "uint256"
 solVarType AT_Bytes = "bytes memory"
