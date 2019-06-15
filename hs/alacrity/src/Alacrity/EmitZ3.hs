@@ -32,6 +32,9 @@ import Alacrity.AST
 
  -}
 
+---------------------------------------
+-- Primitives
+
 primZ3Runtime :: Z3.Z3 Z3.AST
 primZ3Runtime =
   parseSMTLib2String $(embedStringFile "../../z3/z3-runtime.smt2") [] [] [] []
@@ -111,6 +114,33 @@ primZ3 INTERACT _ [_] _ =
   -- no constraint
   return ()
 primZ3 _ _ _ _ = error "XXX fill in Z3 primitives"
+
+---------------------------------------
+-- End-Points
+
+ep_expr_emit_z3 :: BLVar -> EPExpr -> Bool -> Z3.Z3 ()
+ep_expr_emit_z3 x (EP_Arg a) _ =
+  do xeqa <- Z3.mkEq x a
+     Z3.assert xeqa
+
+ep_tail_emit_z3 :: EPTail -> Bool -> Z3.Z3 ()
+ep_tail_emit_z3 (EP_Let x a b) dishon =
+  do -- declare x
+     ep_expr_emit_z3 x a dishon
+     ep_tail_emit_z3 b dishon
+ep_tail_emit_z3 _ _ = error "XXX fill in Z3 output"
+
+ep_emit_z3 :: EProgram -> Bool -> Z3.Z3 ()
+ep_emit_z3 (EP_Prog _ t) = ep_tail_emit_z3 t
+
+---------------------------------------
+-- Contracts
+
+c_emit_z3 :: CProgram -> Bool -> Z3.Z3 ()
+c_emit_z3 (C_Prog _ _) = error "XXX fill in Z3 output"
+
+---------------------------------------
+-- Backend
 
 emit_z3 :: BLProgram -> Z3.Z3 [String]
 emit_z3 _
