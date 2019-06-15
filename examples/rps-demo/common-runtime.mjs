@@ -56,6 +56,7 @@ export let config;
 
 // Unit conversion
 export const toBN = Web3.prototype.toBigNumber;
+export const isBigInt = x => typeof x === "object" && typeof x.isInteger === "function" && x.isInteger();
 export const weiPerEth = toBN(1e18);
 export const ethToWei = e => toBN(e).mul(weiPerEth).floor();
 export const weiToEth = w => toBN(w).div(weiPerEth);
@@ -64,13 +65,31 @@ export const meth = x => toBN(1e15).mul(x);
 /** Convert a hex string to a BigNumber
     : string => BigNumber */
 export const hexToBigNumber = hex => toBN(hexTo0x(hex));
-export const uint32ToHex = u => web3.toHex(u + 0x100000000).slice(3);
+export const BNtoHex = (u, nBytes = 32) => {
+    const p = toBN(256).pow(nBytes);
+    return web3.toHex(p.add(toBN(u).mod(p))).slice(3);}
 export const hexToInt = x => parseInt(x, 16);
 
 export const digest = Web3.prototype.sha3;
 export const digestHex = x => Web3.prototype.sha3(x, {encoding: "hex"});
 export const saltedDigest = toHex => (salt, ...data) => digestHex(salt + toHex(...data));
-
+export const hexOf1 = x => {
+    if (typeof x === "integer") {
+        return BNtoHex(toBN(x));
+    }
+    if (isBigInt(x)) {
+        return BNtoHex(x);
+    }
+    if (typeof x !== "string") {
+        throw ["Cannot convert to hex:", x];
+    }
+    if (x.slice(0,2) === "0x") {
+        return x.slice(2);
+    }
+    return x; // NB: Assume x is already hexadecimal.
+}
+export const hexOf = (...x) => x.map(hexOf1).join("")
+export const keccak256 = (...x) => digestHex(hexOf(...x))
 
 
 /** For Apps with a "current user" that may change, making keys relative to a userId.

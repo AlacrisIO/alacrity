@@ -1,4 +1,4 @@
-import * as stdlib from 'stdlib.mjs';
+import * as stdlib from './alacrity-runtime.mjs';
 
 export function initialize(net, interact) {
   return {
@@ -11,10 +11,10 @@ export function initialize(net, interact) {
         var v7 = v5 ? true : v6;
         var v8 = v4 ? true : v7;
         stdlib.assert(v8);
-        var v9 = stdlib.random();
-        var v10 = stdlib.int2bytes(v9);
-        var v11 = stdlib.int2bytes(v0);
-        var v12 = stdlib.bytes_cat(v10, v11);
+        var v9 = stdlib.randomSalt();
+        var v10 = stdlib.hexOf(v9);
+        var v11 = stdlib.hexOf(v0);
+        var v12 = stdlib.hexOf(v10, v11);
         var v13 = stdlib.keccak256(v12);
         var v14 = v2;
         var v15 = v1;
@@ -37,9 +37,9 @@ export function initialize(net, interact) {
             var v34 = v0;
             net.send("msg2_m", ["uint256", "uint256", "bytes", "uint256", "uint256", "uint256"], [v14, v15, v16, v23, v33, v34], 0);
             net.recv("msg2_evt", ["uint256", "uint256"], (v33, v34) => {
-              var v35 = stdlib.int2bytes(v33);
-              var v36 = stdlib.int2bytes(v34);
-              var v37 = stdlib.bytes_cat(v35, v36);
+              var v35 = stdlib.hexOf(v33);
+              var v36 = stdlib.hexOf(v34);
+              var v37 = stdlib.hexOf(v35, v36);
               var v38 = stdlib.keccak256(v37);
               var v39 = v16 == v38;
               stdlib.assert(v39);
@@ -130,9 +130,9 @@ export function initialize(net, interact) {
             var v32 = v31 ? true : v30;
             stdlib.assert(v32);
             net.recv("msg2_evt", ["uint256", "uint256"], (v33, v34) => {
-              var v35 = stdlib.int2bytes(v33);
-              var v36 = stdlib.int2bytes(v34);
-              var v37 = stdlib.bytes_cat(v35, v36);
+              var v35 = stdlib.hexOf(v33);
+              var v36 = stdlib.hexOf(v34);
+              var v37 = stdlib.hexOf(v35, v36);
               var v38 = stdlib.keccak256(v37);
               var v39 = v16 == v38;
               stdlib.assert(v39);

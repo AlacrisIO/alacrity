@@ -1,17 +1,10 @@
 /** Various functions used while debugging */
-import * as common_utils from "./common-utils.mjs";
-import * as web3_prelude from "./web3-prelude.mjs";
-import * as local_storage from "./local-storage.mjs";
-import * as common_runtime from "./common-runtime.mjs";
-import * as dapp_config from "./dapp-config.mjs";
-import * as dapp_contract from "./build/dapp-contract.mjs";
-import * as dsl_api from "./dsl-api.mjs";
+import * as alacrity_runtime from "./alacrity-runtime.mjs";
 import * as dapp_backend from "./dapp-backend.mjs";
 import * as dapp_frontend from "./dapp-frontend.mjs";
 
-const {isInBrowser, seq, registerGlobals, globals, kLogError, errbacK, srf, logging, loggingK} = common_utils;
-const {web3} = web3_prelude;
-const {getGame, config, meth, newBlockHooks} = common_runtime;
+const {isInBrowser, seq, registerGlobals, globals, kLogError, errbacK, srf, logging, loggingK, web3,
+       getGame, config, meth, newBlockHooks} = alacrity_runtime;
 const {decodeGameCreationData, player0StartGame, makeCommitment, player1ShowHand,
       player1WinByDefault, queryConfirmedState, player0Reveal} = dapp_backend;
 
@@ -21,9 +14,7 @@ const magic = () =>
    ${Object.keys(globals).map(m=>Object.keys(window.globals[m]).map(s=>`var ${s} = globals.${m}.${s}`).join(";")).join(";")}`
 // const MAGIC = () => eval(magic()) // This does NOT work. You do have to type "eval" at the toplevel.
 
-registerGlobals({
-    common_utils, web3_prelude, local_storage, common_runtime,
-    dapp_config, dapp_contract, dsl_api, dapp_backend, dapp_frontend})
+registerGlobals({alacrity_runtime, dapp_backend, dapp_frontend})
 
 if (isInBrowser) {
    window.magic = magic;

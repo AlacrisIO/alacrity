@@ -54,8 +54,7 @@ import {byteToHex, registerInit, hexToAddress, hexTo0x, checkRequirement,
         isGameConfirmed, digestHex, sendTx,
         contractFactory, contractFactoryAbi, contract, contractAt,
         renderWei,
-       } from "./dsl-api.mjs";
-import {} from "./build/dapp-contract.mjs";
+       } from "./alacrity-runtime.mjs";
 
 /// TYPES INVOLVED
 

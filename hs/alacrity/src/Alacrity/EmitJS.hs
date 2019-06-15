@@ -89,21 +89,19 @@ jsPrimApply pr args =
     CP IF_THEN_ELSE -> case args of
                       [ c, t, f ] -> c <+> pretty "?" <+> t <+> pretty ":" <+> f
                       _ -> spa_error ()
-    CP INT_TO_BYTES -> jsApply "stdlib.int2bytes" args
-    CP DIGEST -> case args of
-                [ a ] -> jsApply "stdlib.keccak256" [a]
-                _ -> spa_error ()
+    CP INT_TO_BYTES -> jsApply "stdlib.hexOf" args
+    CP DIGEST -> jsApply "stdlib.keccak256" args
     CP BYTES_EQ -> binOp "=="
     CP BYTES_LEN -> case args of
                    [ a ] -> a <> pretty ".length"
                    _ -> spa_error ()
-    CP BCAT -> jsApply "stdlib.bytes_cat" args
-    CP BCAT_LEFT -> jsApply "stdlib.bytes_left" args
-    CP BCAT_RIGHT -> jsApply "stdlib.bytes_right" args
+    CP BCAT -> jsApply "stdlib.hexOf" args
+    CP BCAT_LEFT -> jsApply "stdlib.bytes_left" args -- not available for now
+    CP BCAT_RIGHT -> jsApply "stdlib.bytes_right" args -- now available for now
     CP DISHONEST -> case args of
                    [] -> jsCon (Con_B True)
                    _ -> spa_error ()
-    RANDOM -> jsApply "stdlib.random" args
+    RANDOM -> jsApply "stdlib.randomSalt" args
     INTERACT -> error "interact doesn't use jsPrimApply"
   where binOp op = case args of
           [ l, r ] -> jsBinOp op l r
@@ -142,7 +140,7 @@ jsPart ps initiator (p, (EP_Prog pargs et)) = (p, partp)
         pargs_vs = map jsVar pargs
         ctc_v = pretty "ctc"
         part_args = if initiator == p then ps_vs
-                    else ctc_v : ps_vs        
+                    else ctc_v : ps_vs
         netcall = if initiator == p then "net.make" else "net.attach"
         ncargs = part_args ++ [ kp ]
         all_args = part_args ++ pargs_vs ++ [pretty "kTop"]
@@ -154,7 +152,7 @@ emit_js :: BLProgram -> Doc a
 emit_js (BL_Prog _ (C_Prog _ [])) =
   error "emit_js: Cannot create contract with no consensus"
 emit_js (BL_Prog pm (C_Prog ps (C_Handler initiator _ _ _ : _))) = modp
-  where modp = vsep [ pretty "import * as stdlib from 'stdlib.mjs';", emptyDoc,
+  where modp = vsep [ pretty "import * as stdlib from './alacrity-runtime.mjs';", emptyDoc,
                       pretty "export" <+> jsFunction "initialize" [ pretty "net", pretty "interact" ] bodyp ]
         bodyp = jsReturn objp
         objp = jsObject $ map (jsPart ps initiator) $ M.toList pm
