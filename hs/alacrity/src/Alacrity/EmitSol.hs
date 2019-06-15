@@ -166,7 +166,7 @@ solSet :: Doc a -> Doc a -> Doc a
 solSet = solBinOp "="
 
 solHash :: [Doc a] -> Doc a
-solHash a = pretty "uint256(keccak256(" <+> solApply "abi.encode" a <+> pretty "))"
+solHash a = solApply "uint256" [ solApply "keccak256" [ solApply "abi.encode" a ] ]
 
 solHashState :: SolRenaming a -> Int -> [Participant] -> [BLVar] -> Doc a
 solHashState ρ i ps svs = solHash $ (pretty (show i)) : (map solPartVar ps) ++ (map (solVar ρ) svs)
@@ -217,10 +217,10 @@ solCStmt ρ (C_Assert a) = solRequire $ solArg ρ a
 solCStmt ρ (C_Transfer p a) = solPartVar p <> pretty "." <> solApply "transfer" [ solArg ρ a ]
 
 solCTail :: [Participant] -> Doc a -> SolRenaming a -> CTail -> Doc a
-solCTail _ emitp _ (C_Halt) = vsep [ emitp,
-                             solSet (pretty "current_state") (pretty "0x0") <> semi,
-                             solApply "selfdestruct" [ solApply "address" [ pretty alacrisAddress ] ] <> semi ]
-solCTail ps emitp ρ (C_Wait i svs) = vsep [ emitp, (solSet (pretty "current_state") (solHashState ρ i ps svs)) <> semi ]
+solCTail _ emitp _ (C_Halt) =
+  emitp <> vsep [ solSet (pretty "current_state") (pretty "0x0") <> semi,
+                  solApply "selfdestruct" [ solApply "address" [ pretty alacrisAddress ] ] <> semi ]
+solCTail ps emitp ρ (C_Wait i svs) = emitp <> (solSet (pretty "current_state") (solHashState ρ i ps svs)) <> semi
 solCTail ps emitp ρ (C_If ca tt ft) =
   pretty "if" <+> parens (solArg ρ ca) <> bp tt <> hardline <> pretty "else" <> bp ft
   where bp at = solBraces $ solCTail ps emitp ρ at
@@ -241,7 +241,7 @@ solHandler ps i (C_Handler from svs msg body) = vsep [ evtp, funp ]
         evtp = solEvent evts msg_eds
         funp = solFunction (solMsg_fun i) arg_ds retp bodyp
         retp = pretty "external payable"
-        emitp = pretty "emit" <+> solApply evts msg_rs <> semi
+        emitp = pretty "emit" <+> solApply evts msg_rs <> semi <> hardline
         bodyp = vsep [ (solRequire $ solEq (pretty "current_state") (solHashState M.empty i ps svs)) <> semi,
                        solRequireSender from <> semi,
                        solCTail ps emitp M.empty body ]
