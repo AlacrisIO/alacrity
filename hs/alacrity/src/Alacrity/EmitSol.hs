@@ -47,29 +47,19 @@ usesCStmt :: CStmt -> CCounts
 usesCStmt (C_Assert a) = usesBLArg a
 usesCStmt (C_Transfer _ a) = usesBLArg a
 
-usesCTail :: CTail -> (CCounts, CTail)
-usesCTail ct@(C_Halt) = (M.empty, ct)
-usesCTail ct@(C_Wait _ vs) = (cs, ct)
-  where cs = M.fromList $ map (\v->(v,1)) vs
-usesCTail (C_If ca tt ft) = (cmerges [ cs1, cs2, cs3 ], (C_If ca tt' ft'))
+usesCTail :: CTail -> CCounts
+usesCTail (C_Halt) = M.empty
+usesCTail (C_Wait _ vs) = M.fromList $ map (\v->(v,1)) vs
+usesCTail (C_If ca tt ft) = cmerges [ cs1, cs2, cs3 ]
   where cs1 = usesBLArg ca
-        (cs2, tt') = usesCTail tt
-        (cs3, ft') = usesCTail ft
-usesCTail (C_Let bv ce _ kt) = (cs3, (C_Let bv ce (M.lookup bv cs2) kt'))
+        cs2 = usesCTail tt
+        cs3 = usesCTail ft
+usesCTail (C_Let _ ce kt) = cmerge cs1 cs2
   where cs1 = usesCExpr ce
-        (cs2, kt') = usesCTail kt
-        cs3 = cmerge cs1 (M.delete bv cs2)
-usesCTail (C_Do cs kt) = (cs3, (C_Do cs kt'))
+        cs2 = usesCTail kt
+usesCTail (C_Do cs kt) = cmerge cs1 cs2
   where cs1 = usesCStmt cs
-        (cs2, kt') = usesCTail kt
-        cs3 = cmerge cs1 cs2
-  
-usesCHandler :: CHandler -> CHandler
-usesCHandler (C_Handler p svs msg ct) = C_Handler p svs msg ct'
-  where (_, ct') = usesCTail ct
-
-usesCProgram :: CProgram -> CProgram
-usesCProgram (C_Prog ps hs) = C_Prog ps $ map usesCHandler hs
+        cs2 = usesCTail kt
 
 {- Compilation to Solidity
 
@@ -216,20 +206,25 @@ solCStmt :: SolRenaming a -> CStmt -> Doc a
 solCStmt ρ (C_Assert a) = solRequire $ solArg ρ a
 solCStmt ρ (C_Transfer p a) = solPartVar p <> pretty "." <> solApply "transfer" [ solArg ρ a ]
 
-solCTail :: [Participant] -> Doc a -> SolRenaming a -> CTail -> Doc a
-solCTail _ emitp _ (C_Halt) =
-  emitp <> vsep [ solSet (pretty "current_state") (pretty "0x0") <> semi,
-                  solApply "selfdestruct" [ solApply "address" [ pretty alacrisAddress ] ] <> semi ]
-solCTail ps emitp ρ (C_Wait i svs) = emitp <> (solSet (pretty "current_state") (solHashState ρ i ps svs)) <> semi
-solCTail ps emitp ρ (C_If ca tt ft) =
-  pretty "if" <+> parens (solArg ρ ca) <> bp tt <> hardline <> pretty "else" <> bp ft
-  where bp at = solBraces $ solCTail ps emitp ρ at
-solCTail _ _ _ (C_Let _ _ Nothing _) = error "emit_sol: requires use counts to de-ANF"
-solCTail ps emitp ρ (C_Let _ _ (Just 0) ct) = solCTail ps emitp ρ ct
-solCTail ps emitp ρ (C_Let bv ce (Just 1) ct) = solCTail ps emitp ρ' ct
-  where ρ' = M.insert bv (parens (solCExpr ρ ce)) ρ 
-solCTail ps emitp ρ (C_Let bv ce _ ct) = vsep [ solVarDecl bv <+> pretty "=" <+> solCExpr ρ ce <> semi, solCTail ps emitp ρ ct ]
-solCTail ps emitp ρ (C_Do cs ct) = vsep [ solCStmt ρ cs <> semi, solCTail ps emitp ρ ct ]
+solCTail :: [Participant] -> Doc a -> SolRenaming a -> CCounts -> CTail -> Doc a
+solCTail ps emitp ρ ccs ct =
+  case ct of
+    C_Halt ->
+      emitp <> vsep [ solSet (pretty "current_state") (pretty "0x0") <> semi,
+                      solApply "selfdestruct" [ solApply "address" [ pretty alacrisAddress ] ] <> semi ]
+    C_Wait i svs ->
+      emitp <> (solSet (pretty "current_state") (solHashState ρ i ps svs)) <> semi
+    C_If ca tt ft ->
+      pretty "if" <+> parens (solArg ρ ca) <> bp tt <> hardline <> pretty "else" <> bp ft
+      where bp at = solBraces $ solCTail ps emitp ρ ccs at
+    C_Let bv ce kt ->
+      case M.lookup bv ccs of
+        Just 0 -> solCTail ps emitp ρ ccs kt
+        Just 1 -> solCTail ps emitp ρ' ccs kt
+          where ρ' = M.insert bv (parens (solCExpr ρ ce)) ρ
+        _ -> vsep [ solVarDecl bv <+> pretty "=" <+> solCExpr ρ ce <> semi,
+                    solCTail ps emitp ρ ccs kt ]
+    C_Do cs kt -> vsep [ solCStmt ρ cs <> semi, solCTail ps emitp ρ ccs kt ]
 
 solHandler :: [Participant] -> Int -> CHandler -> Doc a
 solHandler ps i (C_Handler from svs msg body) = vsep [ evtp, funp ]
@@ -242,9 +237,10 @@ solHandler ps i (C_Handler from svs msg body) = vsep [ evtp, funp ]
         funp = solFunction (solMsg_fun i) arg_ds retp bodyp
         retp = pretty "external payable"
         emitp = pretty "emit" <+> solApply evts msg_rs <> semi <> hardline
+        ccs = usesCTail body
         bodyp = vsep [ (solRequire $ solEq (pretty "current_state") (solHashState M.empty i ps svs)) <> semi,
                        solRequireSender from <> semi,
-                       solCTail ps emitp M.empty body ]
+                       solCTail ps emitp M.empty ccs body ]
 
 solHandlers :: [Participant] -> [CHandler] -> Doc a
 solHandlers ps hs = vsep $ intersperse emptyDoc $ zipWith (solHandler ps) [0..] hs
@@ -252,16 +248,15 @@ solHandlers ps hs = vsep $ intersperse emptyDoc $ zipWith (solHandler ps) [0..] 
 emit_sol :: BLProgram -> Doc a
 emit_sol (BL_Prog _ (C_Prog _ [])) =
   error "emit_sol: Cannot create contract with no consensus"
-emit_sol (BL_Prog _ cp) =
+emit_sol (BL_Prog _ (C_Prog ps hs@(h1 : _))) =
   vsep $ [ solVersion, --- XXX emptyDoc, solStdLib,
            emptyDoc, factoryp, emptyDoc, ctcp ]
-  where (C_Prog ps hs@(h1 : _)) = usesCProgram cp
-        factoryp = solContract "ALAFactory" $ vsep [ createp ]
+  where factoryp = solContract "ALAFactory" $ vsep [ createp ]
         ctcp = solContract "ALAContract" -- " is Stdlib"
           $ ctcbody
         ctcbody = vsep $ [state_defn, emptyDoc, consp, emptyDoc, solHandlers ps hs]
         consp = solApply "constructor" p_ds <+> pretty "public payable" <+> solBraces consbody
-        consbody = solCTail ps emptyDoc M.empty (C_Wait 0 [])
+        consbody = solCTail ps emptyDoc M.empty M.empty (C_Wait 0 [])
         state_defn = pretty "uint256 current_state;"
         C_Handler _ _ msg _ = h1
         createp = solFunction "make" (p_ds ++ map solVarDecl msg) create_ret create_body

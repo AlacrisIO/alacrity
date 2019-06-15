@@ -444,7 +444,7 @@ epp_it_ctc ps γ hn0 it = case it of
             where (_,ca') = epp_expect (AT_Bool, Public) $ epp_arg γ (RolePart p) ca
                   tt' = ts1 M.! p
                   ft' = ts2 M.! p
-  IL_Let RoleContract what how next -> (svs, C_Let what' how_ctc Nothing next', ts2, hn1, hs1)
+  IL_Let RoleContract what how next -> (svs, C_Let what' how_ctc next', ts2, hn1, hs1)
     where (svs1, next', ts1, hn1, hs1) = epp_it_ctc ps γ' hn0 next
           svs = Set.union (Set.difference svs1 (boundBLVar what')) svs_how
           (st, svs_how, how_ctc) = epp_e_ctc γ how
