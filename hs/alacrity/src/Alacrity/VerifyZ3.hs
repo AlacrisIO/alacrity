@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-module Alacrity.EmitZ3 where
+module Alacrity.VerifyZ3 where
 
 import Data.FileEmbed
 import Z3.Monad as Z3
@@ -112,7 +112,7 @@ primZ3 INTERACT _ [_] _ =
   return ()
 primZ3 _ _ _ _ = error "XXX fill in Z3 primitives"
 
-emit_z3 :: BLProgram -> Z3.Z3 [String]
+emit_z3 :: ILProgram -> Z3.Z3 [String]
 emit_z3 _
  = do
   Z3.push
@@ -140,3 +140,5 @@ check_z3 z3p = do
       die "Z3 failed to verify!"
 
 
+verify_z3 :: ILProgram -> IO ()
+verify_z3 p = check_z3 (emit_z3 p)
