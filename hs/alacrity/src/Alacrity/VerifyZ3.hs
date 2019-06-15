@@ -1,11 +1,86 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, FlexibleInstances #-}
 module Alacrity.VerifyZ3 where
 
+import qualified Data.Map.Strict as M
 import Data.FileEmbed
 import Z3.Monad as Z3
 import System.Exit
 
 import Alacrity.AST
+
+{- Recover types for IL variables from BL Program
+
+   The structure of IL is better for theory generation, but it isn't
+   type-checked and we don't know the types of all the variables. So,
+   we look at the BL to figure the types out and go from there. If the
+   IL program would fail in EPP, then the BL theorem will be false (or
+   meaningless.)
+
+ -}
+
+newtype ILTypeMap = ITM (M.Map ILVar BaseType)
+
+instance Semigroup ILTypeMap where
+  (ITM m1) <> (ITM m2) = ITM (M.union m1 m2)
+
+instance Monoid ILTypeMap where
+  mempty = ITM M.empty
+
+class RecoverTypes a where
+  rts :: a -> ILTypeMap
+
+instance (Foldable t, RecoverTypes a) => RecoverTypes (t a) where
+  rts = foldMap rts
+
+--- XXX Find some existing Haskell class that we can derive to
+--- automatically generate this stuff... maybe Data?
+instance {-# OVERLAPPING #-} RecoverTypes BLVar where
+  rts (n, s, bt) = ITM (M.singleton (n,s) bt)
+
+instance RecoverTypes BLArg where
+  rts (BL_Con _) = mempty
+  rts (BL_Var bv) = rts bv
+
+instance RecoverTypes EPExpr where
+  rts (EP_Arg a) = rts a
+  rts (EP_PrimApp _ al) = rts al
+
+instance RecoverTypes EPStmt where
+  rts (EP_Assert a) = rts a
+  rts (EP_Send _ svs msg am) = rts svs <> rts msg <> rts am
+
+instance RecoverTypes EPTail where
+  rts (EP_Ret al) = rts al
+  rts (EP_If ca tt ft) = rts ca <> rts tt <> rts ft
+  rts (EP_Let bv ce ct) = rts bv <> rts ce <> rts ct
+  rts (EP_Do cs ct) = rts cs <> rts ct
+  rts (EP_Recv _ svs msg kt) = rts svs <> rts msg <> rts kt
+
+instance RecoverTypes EProgram where
+  rts (EP_Prog vs et) = rts vs <> rts et
+
+instance RecoverTypes CExpr where
+  rts (C_PrimApp _ vs) = rts vs
+
+instance RecoverTypes CStmt where
+  rts (C_Assert a) = rts a
+  rts (C_Transfer _ a) = rts a
+
+instance RecoverTypes CTail where
+  rts (C_Halt) = mempty
+  rts (C_Wait _ vs) = rts vs
+  rts (C_If ca tt ft) = rts ca <> rts tt <> rts ft
+  rts (C_Let bv ce ct) = rts bv <> rts ce <> rts ct
+  rts (C_Do cs ct) = rts cs <> rts ct
+
+instance RecoverTypes CHandler where
+  rts (C_Handler _ svs msg ct) = rts svs <> rts msg <> rts ct
+
+instance RecoverTypes CProgram where
+  rts (C_Prog _ chs) = rts chs
+
+instance RecoverTypes BLProgram where
+  rts (BL_Prog bps cp) = rts bps <> rts cp
 
 {- Z3 Theory Generation
 
@@ -139,6 +214,6 @@ check_z3 z3p = do
       mapM_ (\x -> putStrLn $ ("Z3 error:" ++ x)) ps
       die "Z3 failed to verify!"
 
-
-verify_z3 :: ILProgram -> IO ()
-verify_z3 p = check_z3 (emit_z3 p)
+verify_z3 :: ILProgram -> BLProgram -> IO ()
+verify_z3 ip bp = check_z3 (emit_z3 ip)
+  where _ = rts bp
