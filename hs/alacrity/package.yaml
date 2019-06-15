@@ -25,12 +25,12 @@ dependencies:
 - mtl
 - filepath
 - directory
-- file-embed >= 0.0.9
+- file-embed >= 0.0.9 # XXX
 - process
 - pretty-simple
 - text
-- language-javascript
 - debug
+- extra
 
 ghc-options:
 - -Wall

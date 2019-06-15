@@ -4,6 +4,7 @@ import qualified Data.ByteString.Char8 as B
 import qualified Data.Map.Strict as M
 import Data.Text.Prettyprint.Doc
 import Data.List (intersperse)
+import Control.Monad.Except
 
 -- Shared types
 
@@ -85,7 +86,7 @@ primType (CP PGE) = [tInt, tInt] --> tBool
 primType (CP PGT) = [tInt, tInt] --> tBool
 primType (CP IF_THEN_ELSE) = TY_Forall ["a"] ([tBool, TY_Var "a", TY_Var "a"] --> TY_Var "a")
 primType (CP INT_TO_BYTES) = [tInt] --> tBytes
-primType (CP DIGEST) = ([tBytes] --> tInt)
+primType (CP DIGEST) = ([tBytes] --> tBytes)
 primType (CP BYTES_EQ) = [tBytes, tBytes] --> tBool
 primType (CP BYTES_LEN) = [tBytes] --> tInt
 primType (CP BCAT)       = ([tBytes, tBytes] --> tBytes)
@@ -95,38 +96,51 @@ primType (CP DISHONEST) = ([] --> tBool)
 primType RANDOM = ([] --> tInt)
 primType INTERACT = ([tBytes] --> tBytes)
 
+type TypeVarEnv = M.Map String BaseType
+
 checkFun :: FunctionType -> [BaseType] -> BaseType
-checkFun top topdom = hFun [] M.empty top topdom
+checkFun top topdom = toprng
   where
+    toprng = case runExcept mrng of
+      Left err -> error err
+      Right v -> v
+    mrng = hFun [] M.empty top topdom
+    hTy :: TypeVarEnv -> ExprType -> Except String BaseType
     hTy γ et = case et of
-      TY_Con bt -> bt
+      TY_Con bt -> return bt
       TY_Var v -> case M.lookup v γ of
-        Nothing -> error $ "checkFun: Unconstrained/bound type variable: " ++ show v
-        Just et' -> et'
+        Nothing -> throwError $ "checkFun: Unconstrained/bound type variable: " ++ show v
+        Just et' -> return et'
+    hExpr :: [String] -> TypeVarEnv -> ExprType -> BaseType -> Except String TypeVarEnv
     hExpr vs γ et at = case et of
       TY_Con bt ->
-        if at == bt then γ
-        else error $ "checkFun: Expected " ++ show bt ++ ", got: " ++ show at
+        if at == bt then return γ
+        else throwError $ "checkFun: Expected " ++ show bt ++ ", got: " ++ show at
       TY_Var v ->
         if not $ elem v vs then
-          error $ "checkFun: Unbound type variable: " ++ show v
+          throwError $ "checkFun: Unbound type variable: " ++ show v
         else
           case M.lookup v γ of
             Just bt -> hExpr vs γ (TY_Con bt) at
-            Nothing -> M.insert v at γ
+            Nothing -> return $ M.insert v at γ
+    hFun :: [String] -> TypeVarEnv -> FunctionType -> [BaseType] -> Except String BaseType
     hFun vs γ ft adom = case ft of
       TY_Forall nvs ft' -> hFun (vs ++ nvs) γ ft' adom
-      TY_Arrow edom rng -> hTy γ' rng
-        where γ' = hExprs vs γ edom adom
+      TY_Arrow edom rng -> do
+        γ' <- hExprs vs γ edom adom
+        hTy γ' rng
+    hExprs :: [String] -> TypeVarEnv -> [ExprType] -> [BaseType] -> Except String TypeVarEnv
     hExprs vs γ esl asl = case esl of
       [] ->
         case asl of
-          [] -> γ
-          _ -> error "checkFun: Received more than expected"
+          [] -> return γ
+          _ -> throwError $ "checkFun: Received more than expected"
       e1 : esl' ->
         case asl of
-          [] -> error "checkFun: Received fewer than expected"
-          a1 : asl' -> hExpr vs (hExprs vs γ esl' asl') e1 a1
+          [] -> throwError $ "checkFun: Received fewer than expected"
+          a1 : asl' -> do
+            γ' <- (hExprs vs γ esl' asl')
+            hExpr vs γ' e1 a1
 
 type Participant = String
 
@@ -134,6 +148,12 @@ data Role
   = RolePart Participant
   | RoleContract
   deriving (Show,Eq,Ord)
+
+role_me :: Role -> Role -> Bool
+role_me _ RoleContract = True
+role_me RoleContract _ = False
+role_me (RolePart x) (RolePart y) = x == y
+
 
 {- Surface Language
 
@@ -248,7 +268,8 @@ data ILTail
   | IL_FromConsensus ILTail
   deriving (Show,Eq)
 
-type ILPartInfo = (M.Map Participant [(ILVar, BaseType)])
+type ILPartArgs = [(ILVar, BaseType)]
+type ILPartInfo = (M.Map Participant ILPartArgs)
 
 data ILProgram =
   IL_Prog ILPartInfo ILTail
@@ -378,9 +399,9 @@ instance Pretty ILArg where
   pretty (IL_Con c) = pretty c
 
 prettyApp :: (Pretty p, Pretty a) => p -> [a] -> Doc ann
-prettyApp p al = group $ parens $ pretty p <> ap
-  where ap = case al of [] -> emptyDoc
-                        _ -> space <> (hsep $ map pretty al)
+prettyApp p al = group $ parens $ pretty p <> alp
+  where alp = case al of [] -> emptyDoc
+                         _ -> space <> (hsep $ map pretty al)
 
 prettyAssert :: Pretty a => a -> Doc ann
 prettyAssert a = group $ parens $ pretty "assert!" <+> pretty a

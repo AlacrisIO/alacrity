@@ -9,8 +9,12 @@
 
 (define (precommit x)
   (define salt (random))
-  (define commitment (digest (msg-cat salt x)))
+  (define commitment
+    (digest (msg-cat (integer->integer-bytes salt)
+                     (integer->integer-bytes x))))
   (values commitment salt))
 (define (check-commit! commitment salt x)
-  (assert! (bytes=? commitment (digest (msg-cat salt x))))
+  (assert! (bytes=? commitment
+                    (digest (msg-cat (integer->integer-bytes salt)
+                                     (integer->integer-bytes x)))))
   x)

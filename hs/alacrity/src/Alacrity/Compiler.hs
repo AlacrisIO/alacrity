@@ -471,11 +471,6 @@ epp_it_ctc ps γ hn0 it = case it of
     error "EPP: Cannot transitions to consensus from consensus"
   IL_FromConsensus bt -> epp_it_loc ps γ hn0 bt
 
-mep :: Role -> Role -> Bool
-mep _ RoleContract = True
-mep RoleContract _ = False
-mep (RolePart x) (RolePart y) = x == y
-
 epp_it_loc :: [Participant] -> EPPEnv -> Int -> ILTail -> EPPRes
 epp_it_loc ps γ hn0 it = case it of
   IL_Ret al -> ( Set.empty, C_Halt, ts, hn0, [] )
@@ -487,7 +482,7 @@ epp_it_loc ps γ hn0 it = case it of
     where (svs1, ct1, ts1, hn1, hs1) = epp_it_loc ps γ' hn0 next
           iv = what
           γ' = M.mapWithKey addwhat γ
-          addwhat r env = if mep r who then
+          addwhat r env = if role_me r who then
                             M.insert iv lst env
                           else
                             env
@@ -496,7 +491,7 @@ epp_it_loc ps γ hn0 it = case it of
             Just v -> v
           (fmst, ts2) = M.foldrWithKey addhow (Nothing, M.empty) ts1
           addhow p t (mst, ts) =
-            if not (mep (RolePart p) who) then
+            if not (role_me (RolePart p) who) then
               (mst, M.insert p t ts)
             else
               (mst', M.insert p t' ts)
@@ -510,7 +505,7 @@ epp_it_loc ps γ hn0 it = case it of
     where (svs1, ct1, ts1, hn1, hs1) = epp_it_loc ps γ hn0 next
           ts2 = M.mapWithKey addhow ts1
           addhow p t =
-            if not (mep (RolePart p) who) then t
+            if not (role_me (RolePart p) who) then t
             else EP_Do s' t
             where (_, s') = epp_s_loc γ p how
   IL_ToConsensus from what howmuch next -> (svs2, ct2, ts2, hn2, hs2)
@@ -558,8 +553,8 @@ compile srcp = do
   writeFile (srcp ++ ".il") (show (pretty ilp))
   let blp = epp ilp
   writeFile (srcp ++ ".bl") (show (pretty blp))
-  verify_z3 ilp blp
   writeFile (srcp ++ ".sol") (show (emit_sol blp))
   writeFile (srcp ++ ".js") (show (emit_js blp))
+  verify_z3 ilp blp
   exitSuccess
     
