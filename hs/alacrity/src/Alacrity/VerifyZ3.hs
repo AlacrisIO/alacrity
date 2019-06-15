@@ -131,7 +131,7 @@ z3_cprim σ honest cp =
     PGE -> bin Z3.mkGe
     PGT -> bin Z3.mkGt
     IF_THEN_ELSE -> ter Z3.mkIte
-    INT_TO_BYTES -> app "integer->integer-bytes"
+    UINT256_TO_BYTES -> app "uint256->bytes"
     DIGEST -> app "digest"
     BYTES_EQ -> bin Z3.mkEq
     BYTES_LEN -> app "bytes-length"
@@ -272,10 +272,10 @@ init_z3 = do
   raw_bytes_val_sym <- Z3.mkStringSymbol "raw-bytes-value"
   raw_bytes_con <- Z3.mkConstructor raw_bytes_sym raw_bytes_huh_sym [ (raw_bytes_val_sym, Just raw_sort, 0) ]
   int_sort <- Z3.mkIntSort
-  int2bytes_sym <- Z3.mkStringSymbol "integer->integer-bytes"
-  int2bytes_huh_sym <- Z3.mkStringSymbol "integer-bytes?"
-  int2bytes_val_sym <- Z3.mkStringSymbol "integer-bytes-int"
-  int2bytes_con <- Z3.mkConstructor int2bytes_sym int2bytes_huh_sym [ (int2bytes_val_sym, Just int_sort, 0) ]
+  uint2bytes_sym <- Z3.mkStringSymbol "uint256->bytes"
+  uint2bytes_huh_sym <- Z3.mkStringSymbol "integer-bytes?"
+  uint2bytes_val_sym <- Z3.mkStringSymbol "integer-bytes-int"
+  uint2bytes_con <- Z3.mkConstructor uint2bytes_sym uint2bytes_huh_sym [ (uint2bytes_val_sym, Just int_sort, 0) ]
   digest_sym <- Z3.mkStringSymbol "digest"
   digest_huh_sym <- Z3.mkStringSymbol "digest?"
   digest_val_sym <- Z3.mkStringSymbol "digest-value"
@@ -285,13 +285,13 @@ init_z3 = do
   msgcat_left_sym <- Z3.mkStringSymbol "msg-cat-left"
   msgcat_right_sym <- Z3.mkStringSymbol "msg-cat-right"
   msgcat_con <- Z3.mkConstructor msgcat_sym msgcat_huh_sym [ (msgcat_left_sym, Nothing, 0), (msgcat_right_sym, Nothing, 0) ]
-  let bytes_cons = [ raw_bytes_con, digest_con, int2bytes_con, msgcat_con ]
+  let bytes_cons = [ raw_bytes_con, digest_con, uint2bytes_con, msgcat_con ]
   bytes_sym <- Z3.mkStringSymbol "bytes"
   bytes_sort <- Z3.mkDatatype bytes_sym bytes_cons
   bytes_funcs <- Z3.getDatatypeSortConstructors bytes_sort
-  let [ _raw_bytes_func, digest_func, int2bytes_func, msgcat_func ] = bytes_funcs
+  let [ _raw_bytes_func, digest_func, uint2bytes_func, msgcat_func ] = bytes_funcs
       σ = M.fromList [ ("digest",digest_func)
-                     , ("integer->integer-bytes",int2bytes_func)
+                     , ("uint256->bytes",uint2bytes_func)
                      , ("msg-cat",msgcat_func)
                      --- XXX , ("msg-left",msgleft_func)
                      --- XXX , ("msg-right",msgright_func)
@@ -299,7 +299,7 @@ init_z3 = do
                      --- XXX , ("raw-bytes0",raw_bytes0_func)
                      ]
       z3_sortof :: BaseType -> Z3.Z3 Z3.Sort
-      z3_sortof AT_Int = Z3.mkIntSort
+      z3_sortof AT_UInt256 = Z3.mkIntSort
       z3_sortof AT_Bool = Z3.mkBoolSort
       z3_sortof AT_Bytes = return bytes_sort
   return (z3_sortof, σ)

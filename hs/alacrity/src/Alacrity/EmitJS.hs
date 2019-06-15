@@ -89,7 +89,7 @@ jsPrimApply pr args =
     CP IF_THEN_ELSE -> case args of
                       [ c, t, f ] -> c <+> pretty "?" <+> t <+> pretty ":" <+> f
                       _ -> spa_error ()
-    CP INT_TO_BYTES -> jsApply "stdlib.hexOf" args
+    CP UINT256_TO_BYTES -> jsApply "stdlib.hexOf" args
     CP DIGEST -> jsApply "stdlib.keccak256" args
     CP BYTES_EQ -> binOp "=="
     CP BYTES_LEN -> case args of
@@ -101,7 +101,7 @@ jsPrimApply pr args =
     CP DISHONEST -> case args of
                    [] -> jsCon (Con_B True)
                    _ -> spa_error ()
-    RANDOM -> jsApply "stdlib.randomSalt" args
+    RANDOM -> jsApply "stdlib.randomUInt256" args
     INTERACT -> error "interact doesn't use jsPrimApply"
   where binOp op = case args of
           [ l, r ] -> jsBinOp op l r

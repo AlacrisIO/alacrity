@@ -11,7 +11,7 @@ export function initialize(net, interact) {
         var v7 = v5 ? true : v6;
         var v8 = v4 ? true : v7;
         stdlib.assert(v8);
-        var v9 = stdlib.randomSalt();
+        var v9 = stdlib.randomUInt256();
         var v10 = stdlib.hexOf(v9);
         var v11 = stdlib.hexOf(v0);
         var v12 = stdlib.hexOf(v10, v11);
@@ -20,8 +20,8 @@ export function initialize(net, interact) {
         var v15 = v1;
         var v16 = v13;
         var v17 = v14 + v15;
-        net.send("msg0_m", ["uint256", "uint256", "bytes"], [v14, v15, v16], v17);
-        net.recv("msg0_evt", ["uint256", "uint256", "bytes"], (v14, v15, v16) => {
+        net.send("msg0_m", ["uint256", "uint256", "uint256"], [v14, v15, v16], v17);
+        net.recv("msg0_evt", ["uint256", "uint256", "uint256"], (v14, v15, v16) => {
           net.recv("msg1_evt", ["uint256"], (v23) => {
             var v24 = true;
             var v25 = v24 ? false : true;
@@ -35,7 +35,7 @@ export function initialize(net, interact) {
             stdlib.assert(v32);
             var v33 = v9;
             var v34 = v0;
-            net.send("msg2_m", ["uint256", "uint256", "bytes", "uint256", "uint256", "uint256"], [v14, v15, v16, v23, v33, v34], 0);
+            net.send("msg2_m", ["uint256", "uint256", "uint256", "uint256", "uint256", "uint256"], [v14, v15, v16, v23, v33, v34], 0);
             net.recv("msg2_evt", ["uint256", "uint256"], (v33, v34) => {
               var v35 = stdlib.hexOf(v33);
               var v36 = stdlib.hexOf(v34);
@@ -109,7 +109,7 @@ export function initialize(net, interact) {
     B:
     (ctc, pA, pB, v3, kTop) => {
       return net.attach(ctc, pA, pB, () => {
-        net.recv("msg0_evt", ["uint256", "uint256", "bytes"], (v14, v15, v16) => {
+        net.recv("msg0_evt", ["uint256", "uint256", "uint256"], (v14, v15, v16) => {
           var v18 = v3 == 0;
           var v19 = v3 == 1;
           var v20 = v3 == 2;
@@ -117,7 +117,7 @@ export function initialize(net, interact) {
           var v22 = v18 ? true : v21;
           stdlib.assert(v22);
           var v23 = v3;
-          net.send("msg1_m", ["uint256", "uint256", "bytes", "uint256"], [v14, v15, v16, v23], v14);
+          net.send("msg1_m", ["uint256", "uint256", "uint256", "uint256"], [v14, v15, v16, v23], v14);
           net.recv("msg1_evt", ["uint256"], (v23) => {
             var v24 = true;
             var v25 = v24 ? false : true;

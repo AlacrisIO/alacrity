@@ -128,12 +128,15 @@ export const stringToInt = parseDecimal
 export const anyToString = x => `${x}`
 export const intToString = anyToString
 
-/** Return a random salt
+/** Return a random salt as 0x number.
     : () => String0x */
 export const randomSalt = () => {
     const array = new Uint8Array(32);
     window.crypto.getRandomValues(array);
     return bytesTo0x(array);}
+
+/** Return a random UInt256 number */
+export const randomUInt256 = () => toBN(randomSalt());
 
 /** Create an array containing the integers from start to start + length - 1 (included).
    : (int, int) => Array */

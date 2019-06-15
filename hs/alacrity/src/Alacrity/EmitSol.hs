@@ -16,7 +16,7 @@ solMsg_fun :: Show i => i -> String
 solMsg_fun i = "msg" ++ show i ++ "_m"
 
 solType :: BaseType -> String
-solType AT_Int = "uint256"
+solType AT_UInt256 = "uint256"
 solType AT_Bool = "bool"
 solType AT_Bytes = "bytes"
 
@@ -180,7 +180,7 @@ solPrimApply pr args =
     IF_THEN_ELSE -> case args of
                       [ c, t, f ] -> c <+> pretty "?" <+> t <+> pretty ":" <+> f
                       _ -> spa_error ()
-    INT_TO_BYTES -> solApply "abi.encode" args
+    UINT256_TO_BYTES -> solApply "abi.encode" args
     DIGEST -> case args of
                 [ a ] -> solHash [a]
                 _ -> spa_error ()

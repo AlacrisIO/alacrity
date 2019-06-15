@@ -9,7 +9,7 @@ import Control.Monad.Except
 -- Shared types
 
 data BaseType
-  = AT_Int
+  = AT_UInt256
   | AT_Bool
   | AT_Bytes
   deriving (Show,Eq,Ord)
@@ -23,11 +23,11 @@ data FunctionType
   deriving (Show,Eq)
 
 tBool :: ExprType
-tInt :: ExprType
+tUInt256 :: ExprType
 tBytes :: ExprType
 (-->) :: [ExprType] -> ExprType -> FunctionType
 tBool = TY_Con AT_Bool
-tInt = TY_Con AT_Int
+tUInt256 = TY_Con AT_UInt256
 tBytes = TY_Con AT_Bytes
 ins --> out = TY_Arrow ins out
 
@@ -38,7 +38,7 @@ data Constant
   deriving (Show,Eq)
 
 conType :: Constant -> BaseType
-conType (Con_I _) = AT_Int
+conType (Con_I _) = AT_UInt256
 conType (Con_B _) = AT_Bool
 conType (Con_BS _) = AT_Bytes
 
@@ -57,7 +57,7 @@ data C_Prim
   | PGE
   | PGT
   | IF_THEN_ELSE
-  | INT_TO_BYTES
+  | UINT256_TO_BYTES
   | DIGEST
   | BYTES_EQ
   | BYTES_LEN
@@ -74,26 +74,26 @@ data EP_Prim
   deriving (Show,Eq)
 
 primType :: EP_Prim -> FunctionType
-primType (CP ADD) = [tInt, tInt] --> tInt
-primType (CP SUB) = [tInt, tInt] --> tInt
-primType (CP MUL) = [tInt, tInt] --> tInt
-primType (CP DIV) = [tInt, tInt] --> tInt
-primType (CP MOD) = [tInt, tInt] --> tInt
-primType (CP PLT) = [tInt, tInt] --> tBool
-primType (CP PLE) = [tInt, tInt] --> tBool
-primType (CP PEQ) = [tInt, tInt] --> tBool
-primType (CP PGE) = [tInt, tInt] --> tBool
-primType (CP PGT) = [tInt, tInt] --> tBool
+primType (CP ADD) = [tUInt256, tUInt256] --> tUInt256
+primType (CP SUB) = [tUInt256, tUInt256] --> tUInt256
+primType (CP MUL) = [tUInt256, tUInt256] --> tUInt256
+primType (CP DIV) = [tUInt256, tUInt256] --> tUInt256
+primType (CP MOD) = [tUInt256, tUInt256] --> tUInt256
+primType (CP PLT) = [tUInt256, tUInt256] --> tBool
+primType (CP PLE) = [tUInt256, tUInt256] --> tBool
+primType (CP PEQ) = [tUInt256, tUInt256] --> tBool
+primType (CP PGE) = [tUInt256, tUInt256] --> tBool
+primType (CP PGT) = [tUInt256, tUInt256] --> tBool
 primType (CP IF_THEN_ELSE) = TY_Forall ["a"] ([tBool, TY_Var "a", TY_Var "a"] --> TY_Var "a")
-primType (CP INT_TO_BYTES) = [tInt] --> tBytes
-primType (CP DIGEST) = ([tBytes] --> tBytes)
+primType (CP UINT256_TO_BYTES) = [tUInt256] --> tBytes
+primType (CP DIGEST) = ([tBytes] --> tUInt256)
 primType (CP BYTES_EQ) = [tBytes, tBytes] --> tBool
-primType (CP BYTES_LEN) = [tBytes] --> tInt
+primType (CP BYTES_LEN) = [tBytes] --> tUInt256
 primType (CP BCAT)       = ([tBytes, tBytes] --> tBytes)
 primType (CP BCAT_LEFT)  = ([tBytes] --> tBytes)
 primType (CP BCAT_RIGHT) = ([tBytes] --> tBytes)
 primType (CP DISHONEST) = ([] --> tBool)
-primType RANDOM = ([] --> tInt)
+primType RANDOM = ([] --> tUInt256)
 primType INTERACT = ([tBytes] --> tBytes)
 
 type TypeVarEnv = M.Map String BaseType
@@ -363,7 +363,7 @@ data BLProgram
 --- Emiting Code ---
 
 instance Pretty BaseType where
-  pretty AT_Int = pretty "int"
+  pretty AT_UInt256 = pretty "uint256"
   pretty AT_Bool = pretty "bool"
   pretty AT_Bytes = pretty "bytes"
 

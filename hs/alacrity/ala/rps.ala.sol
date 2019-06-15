@@ -1,7 +1,7 @@
 pragma solidity ^0.5.2;
 
 contract ALAFactory {
-  function make(address payable pA, address payable pB, uint256 v14, uint256 v15, bytes memory v16) public payable returns (ALAContract _ctc) {
+  function make(address payable pA, address payable pB, uint256 v14, uint256 v15, uint256 v16) public payable returns (ALAContract _ctc) {
     ALAContract ctc = new ALAContract(pA, pB);
     ctc.msg0_m.value(msg.value)(pA, pB, v14, v15, v16);
     return ctc; } }
@@ -12,15 +12,15 @@ contract ALAContract {
   constructor(address payable pA, address payable pB) public payable {
     current_state = uint256(keccak256(abi.encode(0, pA, pB))); }
   
-  event msg0_evt(uint256 v14, uint256 v15, bytes v16);
-  function msg0_m(address payable pA, address payable pB, uint256 v14, uint256 v15, bytes calldata v16) external payable {
+  event msg0_evt(uint256 v14, uint256 v15, uint256 v16);
+  function msg0_m(address payable pA, address payable pB, uint256 v14, uint256 v15, uint256 v16) external payable {
     require(current_state == uint256(keccak256(abi.encode(0, pA, pB))));
     require(msg.sender == pA);
     emit msg0_evt(v14, v15, v16);
     current_state = uint256(keccak256(abi.encode(1, pA, pB, v14, v15, v16))); }
   
   event msg1_evt(uint256 v23);
-  function msg1_m(address payable pA, address payable pB, uint256 v14, uint256 v15, bytes calldata v16, uint256 v23) external payable {
+  function msg1_m(address payable pA, address payable pB, uint256 v14, uint256 v15, uint256 v16, uint256 v23) external payable {
     require(current_state == uint256(keccak256(abi.encode(1, pA, pB, v14, v15, v16))));
     require(msg.sender == pB);
     require(((((true) ? false : true) ? false : true) ? true : ((v23 == 0) ? true : ((v23 == 1) ? true : (v23 == 2)))));
@@ -28,7 +28,7 @@ contract ALAContract {
     current_state = uint256(keccak256(abi.encode(2, pA, pB, v14, v15, v16, v23))); }
   
   event msg2_evt(uint256 v33, uint256 v34);
-  function msg2_m(address payable pA, address payable pB, uint256 v14, uint256 v15, bytes calldata v16, uint256 v23, uint256 v33, uint256 v34) external payable {
+  function msg2_m(address payable pA, address payable pB, uint256 v14, uint256 v15, uint256 v16, uint256 v23, uint256 v33, uint256 v34) external payable {
     require(current_state == uint256(keccak256(abi.encode(2, pA, pB, v14, v15, v16, v23))));
     require(msg.sender == pA);
     require((v16 == (uint256(keccak256(abi.encode((abi.encode((abi.encode(v33)), (abi.encode(v34))))))))));

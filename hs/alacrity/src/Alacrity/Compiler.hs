@@ -407,7 +407,7 @@ epp_e_loc γ p e = case e of
 epp_s_ctc :: EPPEnv -> ILStmt -> (Set.Set BLVar, CStmt)
 epp_s_ctc γ e = case e of
   IL_Transfer r am -> (fvs, C_Transfer r am')
-    where (fvs, am') = eargt am AT_Int
+    where (fvs, am') = eargt am AT_UInt256
   IL_Assert a -> (fvs, C_Assert a')
     where (fvs, a') = eargt a AT_Bool
  where earg = epp_arg γ RoleContract
@@ -511,7 +511,7 @@ epp_it_loc ps γ hn0 it = case it of
   IL_ToConsensus from what howmuch next -> (svs2, ct2, ts2, hn2, hs2)
     where fromr = RolePart from
           what' = map fst $ map must_be_public $ epp_vars γ fromr what
-          (_, howmuch') = epp_expect (AT_Int, Public) $ epp_arg γ fromr howmuch
+          (_, howmuch') = epp_expect (AT_UInt256, Public) $ epp_arg γ fromr howmuch
           what'env = M.fromList $ map (\(n, s, et) -> ((n,s),(et,Public))) what'
           γ' = M.map (M.union what'env) γ
           hn1 = hn0 + 1
