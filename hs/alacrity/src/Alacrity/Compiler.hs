@@ -1,10 +1,8 @@
 module Alacrity.Compiler where
---import Debug.Trace
 
 import Control.Monad.State.Lazy
 import qualified Data.Map.Strict as M
 import qualified Data.Set as Set
-import Data.Foldable
 import qualified Data.Sequence as S
 import Data.Text.Prettyprint.Doc
 import System.Exit
@@ -158,8 +156,8 @@ allocANFs mp s es = mapM (allocANF mp s) es
 
 type XLRenaming = M.Map XLVar ILArg
 
-anf_parg :: (XLVar, BaseType) -> (XLRenaming, [(ILVar, BaseType)]) -> ANFMonad (XLRenaming, [(ILVar, BaseType)])
-anf_parg (v, t) (ρ, args) =
+anf_parg :: (XLRenaming, [(ILVar, BaseType)]) -> (XLVar, BaseType) -> ANFMonad (XLRenaming, [(ILVar, BaseType)])
+anf_parg (ρ, args) (v, t) =
   case M.lookup v ρ of
     Nothing -> do
       nv <- consumeANF v
@@ -170,7 +168,7 @@ anf_parg (v, t) (ρ, args) =
 
 anf_part :: (XLRenaming, ILPartInfo) -> (Participant, [(XLVar, BaseType)]) -> ANFMonad (XLRenaming, ILPartInfo)
 anf_part (ρ, ips) (p, args) = do
-  (ρ', args') <- foldrM anf_parg (ρ, []) args
+  (ρ', args') <- foldM anf_parg (ρ, []) args
   let ips' = M.insert p args' ips
   return (ρ', ips')
 

@@ -2,25 +2,25 @@
 
 #:participants
 (define-participant A
-  [0/SA-hand : uint256]
+  [0/Swager-amount : uint256]
   [1/Sescrow-amount : uint256]
-  [2/Swager-amount : uint256])
+  [2/SA-hand : uint256])
 (define-participant B
   [3/SB-hand : uint256])
 
 #:main
-(@ A (define 4/PrimApp (PEQ 0/SA-hand 0)))
-(@ A (define 5/PrimApp (PEQ 0/SA-hand 1)))
-(@ A (define 6/PrimApp (PEQ 0/SA-hand 2)))
+(@ A (define 4/PrimApp (PEQ 2/SA-hand 0)))
+(@ A (define 5/PrimApp (PEQ 2/SA-hand 1)))
+(@ A (define 6/PrimApp (PEQ 2/SA-hand 2)))
 (@ A (define 7/PrimApp (IF_THEN_ELSE 5/PrimApp True 6/PrimApp)))
 (@ A (define 8/PrimApp (IF_THEN_ELSE 4/PrimApp True 7/PrimApp)))
 (@ A (assert! 8/PrimApp))
 (@ A (define 9/PrimApp (RANDOM)))
 (@ A (define 10/PrimApp (UINT256_TO_BYTES 9/PrimApp)))
-(@ A (define 11/PrimApp (UINT256_TO_BYTES 0/SA-hand)))
+(@ A (define 11/PrimApp (UINT256_TO_BYTES 2/SA-hand)))
 (@ A (define 12/PrimApp (BCAT 10/PrimApp 11/PrimApp)))
 (@ A (define 13/PrimApp (DIGEST 12/PrimApp)))
-(@ A (define 14/Declassify (declassify 2/Swager-amount)))
+(@ A (define 14/Declassify (declassify 0/Swager-amount)))
 (@ A (define 15/Declassify (declassify 1/Sescrow-amount)))
 (@ A (define 16/Declassify (declassify 13/PrimApp)))
 (@ A (define 17/PrimApp (ADD 14/Declassify 15/Declassify)))
@@ -50,7 +50,7 @@
 (@ CTC (assert! 32/PrimApp))
 (return!)
 (@ A (define 33/Declassify (declassify 9/PrimApp)))
-(@ A (define 34/Declassify (declassify 0/SA-hand)))
+(@ A (define 34/Declassify (declassify 2/SA-hand)))
 (@ A 
   (publish! (33/Declassify 34/Declassify))
   (pay! 0))

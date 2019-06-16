@@ -5,18 +5,18 @@ export function initialize(net, interact) {
     A:
     (pA, pB, v0, v1, v2, kTop) => {
       return net.make(pA, pB, () => {
-        var v4 = v0 == 0;
-        var v5 = v0 == 1;
-        var v6 = v0 == 2;
+        var v4 = v2 == 0;
+        var v5 = v2 == 1;
+        var v6 = v2 == 2;
         var v7 = v5 ? true : v6;
         var v8 = v4 ? true : v7;
         stdlib.assert(v8);
         var v9 = stdlib.randomUInt256();
         var v10 = stdlib.hexOf(v9);
-        var v11 = stdlib.hexOf(v0);
+        var v11 = stdlib.hexOf(v2);
         var v12 = stdlib.hexOf(v10, v11);
         var v13 = stdlib.keccak256(v12);
-        var v14 = v2;
+        var v14 = v0;
         var v15 = v1;
         var v16 = v13;
         var v17 = v14 + v15;
@@ -34,7 +34,7 @@ export function initialize(net, interact) {
             var v32 = v31 ? true : v30;
             stdlib.assert(v32);
             var v33 = v9;
-            var v34 = v0;
+            var v34 = v2;
             net.send("msg2_m", ["uint256", "uint256", "uint256", "uint256", "uint256", "uint256"], [v14, v15, v16, v23, v33, v34], 0);
             net.recv("msg2_evt", ["uint256", "uint256"], (v33, v34) => {
               var v35 = stdlib.hexOf(v33);

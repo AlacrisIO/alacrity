@@ -89,22 +89,22 @@
     (halt!)])
 
 (define-participant A 
-  ([0/SA-hand : uint256]
+  ([0/Swager-amount : uint256]
   [1/Sescrow-amount : uint256]
-  [2/Swager-amount : uint256])
+  [2/SA-hand : uint256])
   
-  (define [4/PrimApp : bool] (PEQ [0/SA-hand : uint256] 0))
-  (define [5/PrimApp : bool] (PEQ [0/SA-hand : uint256] 1))
-  (define [6/PrimApp : bool] (PEQ [0/SA-hand : uint256] 2))
+  (define [4/PrimApp : bool] (PEQ [2/SA-hand : uint256] 0))
+  (define [5/PrimApp : bool] (PEQ [2/SA-hand : uint256] 1))
+  (define [6/PrimApp : bool] (PEQ [2/SA-hand : uint256] 2))
   (define [7/PrimApp : bool] (IF_THEN_ELSE [5/PrimApp : bool] True [6/PrimApp : bool]))
   (define [8/PrimApp : bool] (IF_THEN_ELSE [4/PrimApp : bool] True [7/PrimApp : bool]))
   (assert! [8/PrimApp : bool])
   (define [9/PrimApp : uint256] (RANDOM))
   (define [10/PrimApp : bytes] (UINT256_TO_BYTES [9/PrimApp : uint256]))
-  (define [11/PrimApp : bytes] (UINT256_TO_BYTES [0/SA-hand : uint256]))
+  (define [11/PrimApp : bytes] (UINT256_TO_BYTES [2/SA-hand : uint256]))
   (define [12/PrimApp : bytes] (BCAT [10/PrimApp : bytes] [11/PrimApp : bytes]))
   (define [13/PrimApp : uint256] (DIGEST [12/PrimApp : bytes]))
-  (define [14/Declassify : uint256] [2/Swager-amount : uint256])
+  (define [14/Declassify : uint256] [0/Swager-amount : uint256])
   (define [15/Declassify : uint256] [1/Sescrow-amount : uint256])
   (define [16/Declassify : uint256] [13/PrimApp : uint256])
   (define [17/PrimApp : uint256] (ADD [14/Declassify : uint256] [15/Declassify : uint256]))
@@ -122,7 +122,7 @@
   (define [32/PrimApp : bool] (IF_THEN_ELSE [31/PrimApp : bool] True [30/PrimApp : bool]))
   (assert! [32/PrimApp : bool])
   (define [33/Declassify : uint256] [9/PrimApp : uint256])
-  (define [34/Declassify : uint256] [0/SA-hand : uint256])
+  (define [34/Declassify : uint256] [2/SA-hand : uint256])
   (send! 2 ([14/Declassify : uint256] [15/Declassify : uint256] [16/Declassify : uint256] [23/Declassify : uint256]) ([33/Declassify : uint256] [34/Declassify : uint256]) 0)
   (define-values ([14/Declassify : uint256] [15/Declassify : uint256] [16/Declassify : uint256] [23/Declassify : uint256]) ([33/Declassify : uint256] [34/Declassify : uint256]) (recv! 2))
   (define [35/PrimApp : bytes] (UINT256_TO_BYTES [33/Declassify : uint256]))
