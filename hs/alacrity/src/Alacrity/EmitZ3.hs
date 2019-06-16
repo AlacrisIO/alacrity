@@ -277,6 +277,7 @@ emit_z3_it_top tm it_top (honest, me) =
               iter cbi kt
           IL_ToConsensus _who _msg amount kt ->
             vsep [ this, iter cbi' kt ]
+            --- XXX This is only if honest
             where cbi' = cbi + 1
                   cb' = z3CTCBalance cbi'
                   amountt = emit_z3_arg amount
