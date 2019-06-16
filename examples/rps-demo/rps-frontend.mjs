@@ -26,9 +26,9 @@ import {web3, userAddress} from "./web3-prelude.mjs";
 import {registerFrontendHooks, toBN, config, weiToEth, ethToWei,
         getGame, updateGame, dismissGame, removeActiveGame, logGame, optionalAddressMatches
        } from "./common-runtime.mjs";
-import {registerRpsHooks, handName, isValidHand, randomHand, MsgType, Outcome, State, outcomeOfHands,
+import {registerRpsFrontendHooks, handName, isValidHand, randomHand, MsgType, Outcome, State, outcomeOfHands,
         createNewGame, acceptGame, isGameRelevantToUser
-       } from "./dapp-backend.mjs";
+       } from "./rps-backend.mjs";
 import {htmlToElement, setNodeBySelector, emptyNode,
        simpleNumberRegex, addressRegex, shorten0x,
        renderTransaction, renderAddress, renderWei, renderConfig, pronoun
@@ -424,7 +424,7 @@ const initFrontend = k => {
     return k()}
 
 registerFrontendHooks({renderGame})
-registerRpsHooks({player0RevealContext})
+registerRpsFrontendHooks({player0RevealContext})
 
 registerInit({
     Frontend: {fun: initFrontend, dependsOn: ["Backend"]},

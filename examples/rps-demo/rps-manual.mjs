@@ -1,10 +1,10 @@
 import {init, registerGlobals} from "./common-utils.mjs";
 
-import * as alacrity_runtime from "./alacrity-runtime.mjs";
-import * as dapp_backend from "./dapp-backend.mjs";
-import * as dapp_frontend from "./dapp-frontend.mjs";
+import * as runtime from "./alacrity-runtime.mjs";
+import * as backend from "./backend-manual.mjs";
+import * as frontend from "./rps-frontend.mjs";
 
-registerGlobals({alacrity_runtime, dapp_backend, dapp_frontend})
+registerGlobals({runtime, backend, frontend})
 
 init()
 

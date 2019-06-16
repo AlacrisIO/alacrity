@@ -6,7 +6,7 @@ import {callInitFunctions, initFunctions, registerInit,
         digestHex, confirmTransaction, config, checkContract, deployContract, contractFactoryCode
        } from "./alacrity-runtime.mjs";
 // TODO: dynamically import either the manual or auto backend depending on command-line flags.
-import "./dapp-backend.mjs";
+import "./backend-manual.mjs";
 
 // TODO: implement a text "frontend". Dynamically import it *after* the choice of manual or auto above.
 // TODO: rename this file to cli, or have it import a cli file?
@@ -42,8 +42,9 @@ const deployCommand = (k = kLogResult, kError = kLogError) => {
             const address = receipt.contractAddress;
             const codeHash = digestHex(contractFactoryCode);
             const creationBlock = receipt.blockNumber;
-            // TODO: add it ourselves, atomically enough.
-            console.log("PLEASE ADD THIS CONTRACT CREATION RECORD to dapp-config.js for network %s:\n%s",
+            // TODO: Add it ourselves, atomically enough.
+            // TODO: correctly pick the manual vs auto file as output.
+            console.log("PLEASE ADD THIS CONTRACT CREATION RECORD to config-manual.js for network %s:\n%s",
                         networkId, JSON.stringify({address, codeHash, creationHash, creationBlock}));
             console.log("Now waiting for %d confirmations (%s) — use Ctrl-C to interrupt earlier.",
                         config.confirmationsWantedInBlocks, config.confirmationsString);

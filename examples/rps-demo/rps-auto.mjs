@@ -1,10 +1,10 @@
 import {init, registerGlobals} from "./common-utils.mjs";
 
-import * as alacrity_runtime from "./alacrity-runtime.mjs";
-import * as rps_ala_backend from "./rps-ala-backend.mjs";
-import * as rps_ala_frontend from "./rps-ala-frontend.mjs";
+import * as runtime from "./alacrity-runtime.mjs";
+import * as backend from "./backend-auto.mjs";
+import * as frontend from "./rps-frontend.mjs";
 
-registerGlobals({alacrity_runtime, rps_ala_backend, rps_ala_frontend})
+registerGlobals({runtime, backend, frontend})
 
 init()
 

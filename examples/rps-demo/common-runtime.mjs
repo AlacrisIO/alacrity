@@ -7,7 +7,6 @@ import {
 import {TinyQueue} from "./tinyqueue.mjs";
 import {Storage} from "./local-storage.mjs";
 import {Web3, web3, networkId, userAddress} from "./web3-prelude.mjs";
-import {networkConfig} from "./dapp-config.mjs";
 
 /* TODO LATER:
 
@@ -53,6 +52,9 @@ export const optionalAddressMatches = (pattern, address) => !pattern || pattern 
     Suggested value: 5
 */
 export let config;
+
+export let networkConfig;
+export const registerNetworkConfig = n => networkConfig = n
 
 // Unit conversion
 export const toBN = Web3.prototype.toBigNumber;
