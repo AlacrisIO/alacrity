@@ -21,11 +21,10 @@ dependencies:
 - megaparsec
 - parser-combinators
 - bytestring
-- sexpr-parser
 - mtl
 - filepath
 - directory
-- file-embed >= 0.0.9 # XXX
+- file-embed >= 0.0.9
 - process
 - pretty-simple
 - text

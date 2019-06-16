@@ -11,8 +11,9 @@
 (declare-datatypes ()
   ((Bytes
     (integer->integer-bytes (bytes-integer Int))
-    (digest (digest-value Bytes))
     (msg-cat (msg-left Bytes) (msg-right Bytes)))))
+
+(declare-fun digest (Bytes) Int)
 
 ;; This definition only works in Z3 version >=4.8.5,
 ;; because `match` is broken in Z3 version <=4.8.4.

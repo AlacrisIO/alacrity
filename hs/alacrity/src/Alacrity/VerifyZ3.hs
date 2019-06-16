@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Alacrity.VerifyZ3 where
 
 import qualified Data.Map.Strict as M

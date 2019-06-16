@@ -12,4 +12,5 @@ main :: IO ()
 main = do
   maybeDie $ system "stack exec alacrityc ala/rps.ala"
   maybeDie $ system "solc --allow-paths $(basename \"$(basename \"$PWD\")\") -o ala/_build --bin ala/rps.ala.sol"
+  maybeDie $ system "z3 ala/rps.ala.z3"
   exitSuccess
