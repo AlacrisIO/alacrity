@@ -122,7 +122,7 @@ z3Echo :: String -> Doc a
 z3Echo s = z3Apply "echo" [ z3String s ]
 
 z3Local :: Doc a -> Doc a
-z3Local s = z3Apply "push" [] <> 
+z3Local s = z3Apply "push" [] <>
             (nest 2 $ hardline <> s) <>
             hardline <> z3Apply "pop" []
 
@@ -175,7 +175,7 @@ z3CTCBalance i = pretty $ "ctc_balance" ++ show i
 
 z3CPrim :: Bool -> C_Prim -> [Doc a] -> Doc a
 z3CPrim honest cp =
-  case cp of 
+  case cp of
     ADD -> app "+"
     SUB -> app "-"
     MUL -> app "*"
@@ -187,7 +187,7 @@ z3CPrim honest cp =
     PGE -> app ">="
     PGT -> app ">"
     IF_THEN_ELSE -> app "ite"
-    UINT256_TO_BYTES -> app "integer->integer-bytes"
+    UINT256_TO_BYTES -> app "uint256->bytes"
     DIGEST -> app "digest"
     BYTES_EQ -> app "="
     BYTES_LEN -> app "bytes-length"
@@ -202,7 +202,7 @@ z3PrimEq honest pr alt out = case pr of
   CP cp -> z3Assert (z3Eq (z3Var out) (z3CPrim honest cp alt))
   RANDOM -> emptyDoc
   INTERACT -> emptyDoc
-  
+
 data TheoremKind
   = TAssert
   | TBalanceZero
@@ -264,7 +264,7 @@ emit_z3_it_top tm it_top (honest, me) =
                     where cav = emit_z3_con (Con_B v)
           IL_Let who what how kt -> whatp <> this <> iter cbi kt
             where whatp = emit_z3_vardecl tm what <> hardline
-                  this = 
+                  this =
                     if (honest || role_me me who) then
                       emit_z3_expr honest what how <> hardline
                     else

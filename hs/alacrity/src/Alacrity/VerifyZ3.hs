@@ -119,7 +119,7 @@ lookie err k m = case M.lookup k m of
 
 z3_cprim :: Z3StdLib -> Bool -> C_Prim -> [Z3.AST] -> Z3.Z3 Z3.AST
 z3_cprim σ honest cp =
-  case cp of 
+  case cp of
     ADD -> Z3.mkAdd
     SUB -> Z3.mkSub
     MUL -> Z3.mkMul
@@ -162,7 +162,7 @@ z3_primeq σ honest pr alt out = case pr of
       Z3.assert zleoltx
     _ -> error "impossible"
   INTERACT -> return ()
-  
+
 
 data TheoremKind
   = TAssert
@@ -320,7 +320,7 @@ z3_eq x y = do
   Z3.assert eq
 
 z3_verify1 :: Theorem -> Z3.AST -> EmitRes
-z3_verify1 t a = do  
+z3_verify1 t a = do
   Z3.push
   f <- Z3.mkNot a
   Z3.assert f

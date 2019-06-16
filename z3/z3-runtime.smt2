@@ -1,5 +1,5 @@
 
-; (=> (= (integer->integer-bytes a) (integer->integer-bytes b))
+; (=> (= (uint256->bytes a) (uint256->bytes b))
 ;     (= a b))
 
 ; (=> (= (digest a) (digest b))
@@ -10,7 +10,7 @@
 
 (declare-datatypes ()
   ((Bytes
-    (integer->integer-bytes (bytes-integer Int))
+    (uint256->bytes (bytes-integer Int))
     (msg-cat (msg-left Bytes) (msg-right Bytes)))))
 
 (declare-fun digest (Bytes) Int)
@@ -19,12 +19,12 @@
 ;; because `match` is broken in Z3 version <=4.8.4.
 ; (define-fun-rec bytes-length ((bs Bytes)) Int
 ;   (match bs
-;     (((integer->integer-bytes _) 32)
+;     (((uint256->bytes _) 32)
 ;      ((digest _) 32)
 ;      ((msg-cat l r) (+ 32 (bytes-length l) (bytes-length r))))))
 
 (define-fun-rec bytes-length ((bs Bytes)) Int
-  (if ((_ is integer->integer-bytes) bs)
+  (if ((_ is uint256->bytes) bs)
       32
       (if ((_ is digest) bs)
           32
