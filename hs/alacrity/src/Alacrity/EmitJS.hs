@@ -45,7 +45,7 @@ jsPartVar :: Participant -> Doc a
 jsPartVar p = pretty $ "p" ++ p
 
 jsVarDecl :: BLVar -> Doc a
-jsVarDecl bv = pretty "var" <+> jsVar bv
+jsVarDecl bv = pretty "const" <+> jsVar bv
 
 jsBraces :: Doc a -> Doc a
 jsBraces body = braces (nest 2 $ hardline <> body <> space)
@@ -95,7 +95,7 @@ jsPrimApply pr args =
     CP BYTES_LEN -> case args of
                    [ a ] -> a <> pretty ".length"
                    _ -> spa_error ()
-    CP BCAT -> jsApply "stdlib.hexOf" args
+    CP BCAT -> jsApply "stdlib.hexCat" args
     CP BCAT_LEFT -> jsApply "stdlib.bytes_left" args -- not available for now
     CP BCAT_RIGHT -> jsApply "stdlib.bytes_right" args -- now available for now
     CP DISHONEST -> case args of

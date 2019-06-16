@@ -73,7 +73,7 @@ export const hexToInt = x => parseInt(x, 16);
 export const digest = Web3.prototype.sha3;
 export const digestHex = x => Web3.prototype.sha3(x, {encoding: "hex"});
 export const saltedDigest = toHex => (salt, ...data) => digestHex(salt + toHex(...data));
-export const hexOf1 = x => {
+export const hexOf = x => {
     if (typeof x === "integer") {
         return BNtoHex(toBN(x));
     }
@@ -88,7 +88,7 @@ export const hexOf1 = x => {
     }
     return x; // NB: Assume x is already hexadecimal.
 }
-export const hexOf = (...x) => x.map(hexOf1).join("")
+export const hexCat = (...x) => x.map(hexOf).join("")
 export const keccak256 = (...x) => digestHex(hexOf(...x))
 
 

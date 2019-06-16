@@ -20,11 +20,11 @@
 
 #:participants
 (define-participant A
-  [Swager-amount : int]
-  [Sescrow-amount : int]
-  [SA-hand : int])
+  [Swager-amount : uint256]
+  [Sescrow-amount : uint256]
+  [SA-hand : uint256])
 (define-participant B
-  [SB-hand : int])
+  [SB-hand : uint256])
 
 #:main
 (@ A (assert! (hand? SA-hand)))

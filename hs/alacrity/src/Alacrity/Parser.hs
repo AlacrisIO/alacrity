@@ -16,7 +16,7 @@ valid_id p = not (elem p rsw) && head p /= '#' && (Nothing == (decodePrim p))
   where rsw = ["if", "cond", "else", "assert!", "transfer!", "declassify", "values", "@", "define", "define-values", "require", "CTC"]
 
 decodeXLType :: SE.SExpr -> BaseType
-decodeXLType (SE.Atom "int") = AT_UInt256
+decodeXLType (SE.Atom "uint256") = AT_UInt256
 decodeXLType (SE.Atom "bool") = AT_Bool
 decodeXLType (SE.Atom "bytes") = AT_Bytes
 decodeXLType se = invalid "decodeXLType" se
