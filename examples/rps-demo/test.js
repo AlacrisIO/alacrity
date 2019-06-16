@@ -7,4 +7,4 @@
 // when running on nodejs.
 process.require = require;
 
-const foo = import("./rps-demo-test.mjs");
+const foo = import("./rps-test.mjs");

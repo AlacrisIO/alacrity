@@ -2,18 +2,6 @@
 /* eslint-disable no-alert, no-console */
 
 export const isInBrowser = typeof window === "object" && window !== null;
-export let require;
-export const globals = {}
-export const registerGlobals = x => Object.assign(globals, x);
-
-if (isInBrowser) {
-    window.globals = globals;
-    require = () => loggedAlert("Cannot use require in a browser");
-} else {
-    process.globals = globals;
-    require = process.require; // cheat the module system; must be set by an outer loader.
-}
-
 
 // Combinators for regular functions
 /** : 'a => 'a */
@@ -241,7 +229,7 @@ export const callInitFunctions = (what = Object.keys(initFunctions), done={}) =>
     inDependencyOrder(initFunctionFunction, initFunctions, "init:",
                       what, done)(k);
 
-export const initialize = (what = Object.keys(initFunctions), done={}) => {
+export const init = (what = Object.keys(initFunctions), done={}) => {
     if (isInBrowser) {
         window.addEventListener('load', () => {
             /* eslint-disable no-console */
@@ -299,6 +287,26 @@ export const setrk = result => k => k(setr(result));
 export const setrrk = seq(Array.of)(setrk);
 export const srf = func => {r = undefined; return func(setr);}
 export const srrf = func => {r = undefined; return func(setrr);}
+
+export let require;
+export const globals = {}
+export const registerGlobals = x => Object.assign(globals, x);
+export const magic = () =>
+   `var globals = ${isInBrowser ? "window" : "process"}.globals;
+   ${Object.keys(globals).map(m=>Object.keys(window.globals[m]).map(s=>`var ${s} = globals.${m}.${s}`).join(";")).join(";")}`
+
+logging(`To make all the program bindings available in the console, use:\neval(${isInBrowser ? "" : "process."}magic())`)();
+// const MAGIC = () => eval(magic()) // This does NOT work. You do have to call "eval" *at the toplevel*.
+
+if (isInBrowser) {
+    window.globals = globals;
+    window.magic = magic;
+    require = () => loggedAlert("Cannot use require in a browser");
+} else {
+    process.globals = globals;
+    process.magic = magic;
+    require = process.require; // cheat the module system; must be set by an outer loader.
+}
 
 // Local Variables:
 // mode: JavaScript

@@ -1,20 +1,15 @@
 /* eslint-disable no-console */
 
-import {initialize, initFunctions, registerInit,
-        identity, logging, errbacK, assert, kLogResult, kLogError
-       } from "./common-utils.mjs";
-import {web3, networkId, userAddress} from "./web3-prelude.mjs";
-import "./local-storage.mjs";
-import "./tinyqueue.mjs";
-import {digestHex, confirmTransaction, config, checkContract, deployContract, contractFactoryCode} from "./common-runtime.mjs";
-import "./common-ui.mjs";
-import "./dapp-config.mjs";
+import {callInitFunctions, initFunctions, registerInit,
+        identity, logging, errbacK, assert, kLogResult, kLogError,
+        web3, networkId, userAddress,
+        digestHex, confirmTransaction, config, checkContract, deployContract, contractFactoryCode
+       } from "./alacrity-runtime.mjs";
+// TODO: dynamically import either the manual or auto backend depending on command-line flags.
 import "./dapp-backend.mjs";
 
-// TODO: implement a text "frontend". Have a flag to disable the auto-update daemon.
-// import "./dapp-frontend.mjs";
-// import "./debug.mjs"
-// TODO: rename to cli, or have a cli file? import "./cli.mjs";
+// TODO: implement a text "frontend". Dynamically import it *after* the choice of manual or auto above.
+// TODO: rename this file to cli, or have it import a cli file?
 
 registerInit({
     Frontend: {fun: identity, dependsOn: ["Backend"]},
@@ -24,11 +19,10 @@ delete initFunctions.WatchNewGames;
 delete initFunctions.WatchActiveGames;
 
 
-
 const initialized = {};
 
 const deployCommand = (k = kLogResult, kError = kLogError) => {
-    initialize(["Backend"], initialized)(() => {
+    callInitFunctions(["Backend"], initialized)(() => {
     console.log("Connected to network %s (%s) as %s", networkId, config.networkName, userAddress);
     web3.eth.defaultAccount = userAddress;
     //errbacK(web3.eth.getBalance)(userAddress)(balance => {

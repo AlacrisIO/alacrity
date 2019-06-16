@@ -56,9 +56,8 @@ import {byteToHex, registerInit, hexToAddress, hexTo0x, checkRequirement,
         renderWei,
        } from "./alacrity-runtime.mjs";
 
-import {contractAbi, contractFactoryAbi, contractFactoryCode} from "./build/dapp-contract.mjs";
-
-registerContract(contractAbi, contractFactoryAbi, contractFactoryCode);
+import * as dc from "./build/dapp-contract.mjs";
+registerContract(dc.contractAbi, dc.contractFactoryAbi, dc.contractFactoryCode);
 
 /// TYPES INVOLVED
 
