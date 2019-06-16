@@ -6,10 +6,9 @@ import {initialize, initFunctions, registerInit,
 import {web3, networkId, userAddress} from "./web3-prelude.mjs";
 import "./local-storage.mjs";
 import "./tinyqueue.mjs";
-import {digestHex, confirmTransaction, config, checkContract, deployContract} from "./common-runtime.mjs";
+import {digestHex, confirmTransaction, config, checkContract, deployContract, contractFactoryCode} from "./common-runtime.mjs";
 import "./common-ui.mjs";
 import "./dapp-config.mjs";
-import {contractFactoryCode} from "./build/dapp-contract.mjs";
 import "./dapp-backend.mjs";
 
 // TODO: implement a text "frontend". Have a flag to disable the auto-update daemon.

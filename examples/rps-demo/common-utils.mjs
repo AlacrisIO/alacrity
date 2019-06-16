@@ -128,15 +128,12 @@ export const stringToInt = parseDecimal
 export const anyToString = x => `${x}`
 export const intToString = anyToString
 
-/** Return a random salt as 0x number.
+/** Return a random salt as 256-bit 0x-prefixed hex string.
     : () => String0x */
 export const randomSalt = () => {
     const array = new Uint8Array(32);
     window.crypto.getRandomValues(array);
     return bytesTo0x(array);}
-
-/** Return a random UInt256 number */
-export const randomUInt256 = () => toBN(randomSalt());
 
 /** Create an array containing the integers from start to start + length - 1 (included).
    : (int, int) => Array */
@@ -240,9 +237,17 @@ export const initFunctions = {}; // maps names to an object { dependsOn: [list o
 export const initFunctionFunction = name => { const f = initFunctions[name]; return f.fun || f }
 export const registerInit = init => Object.assign(initFunctions, init);
 export const initialized = {}
-export const initialize = (what = Object.keys(initFunctions), done={}) => (k = identity) =>
+export const callInitFunctions = (what = Object.keys(initFunctions), done={}) => (k = identity) =>
     inDependencyOrder(initFunctionFunction, initFunctions, "init:",
                       what, done)(k);
+
+export const initialize = (what = Object.keys(initFunctions), done={}) => {
+    if (isInBrowser) {
+        window.addEventListener('load', () => {
+            /* eslint-disable no-console */
+            console.log("Page loaded. Initializing...");
+            return callInitFunctions(what, done)()})}
+    else { return callInitFunctions(what, done)()}}
 
 // "places", the imperative alternative to lenses.
 // type place('a) = { get: () => 'a, set: 'a => () }

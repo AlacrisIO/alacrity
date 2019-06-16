@@ -1,21 +1,17 @@
-import {isInBrowser, initialize} from "./common-utils.mjs";
-import "./web3-prelude.mjs";
-import "./local-storage.mjs";
-import "./tinyqueue.mjs";
-import "./common-runtime.mjs";
-import "./common-ui.mjs";
-import "./dapp-config.mjs";
-import "./build/dapp-contract.mjs";
-import "./dapp-backend.mjs";
+import {initialize} from "./common-utils.mjs";
+// All these are indirectly imported already, implicitly
+//import "./web3-prelude.mjs";
+//import "./local-storage.mjs";
+//import "./tinyqueue.mjs";
+//import "./common-runtime.mjs";
+//import "./common-ui.mjs";
+//import "./dapp-config.mjs";
+//import "./build/dapp-contract.mjs";
+//import "./dapp-backend.mjs";
 import "./dapp-frontend.mjs";
 import "./debug.mjs"
 
-if (isInBrowser) {
-    window.addEventListener('load', () => {
-        /* eslint-disable no-console */
-        console.log("Page loaded. Initializing...");
-        return initialize()()})}
-else { initialize()() }
+initialize()
 
 // Local Variables:
 // mode: JavaScript

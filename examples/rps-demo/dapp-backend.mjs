@@ -46,15 +46,19 @@
     This would allow games to have a unique ID shareable with other users.
 */
 import {byteToHex, registerInit, hexToAddress, hexTo0x, checkRequirement,
-        loggedAlert, merge, flip, logErrorK, randomSalt, logging, kLogResult, kLogError,
+        loggedAlert, merge, flip, logErrorK, randomSalt,
         web3, crypto, userAddress,
         saltedDigest, registerBackendHooks, renderGame, config,
-        toBN, optionalAddressOf0x, optionalAddressMatches, hexToBigNumber, deployContract,
+        toBN, optionalAddressOf0x, optionalAddressMatches, hexToBigNumber,
         getGame, updateGame, removeActiveGame, queueGame, attemptGameCreation, optionalAddressTo0x,
-        isGameConfirmed, digestHex, sendTx,
-        contractFactory, contractFactoryAbi, contract, contractAt,
+        isGameConfirmed, sendTx,
+        registerContract, contractFactory, contractAt,
         renderWei,
        } from "./alacrity-runtime.mjs";
+
+import {contractAbi, contractFactoryAbi, contractFactoryCode} from "./build/dapp-contract.mjs";
+
+registerContract(contractAbi, contractFactoryAbi, contractFactoryCode);
 
 /// TYPES INVOLVED
 
