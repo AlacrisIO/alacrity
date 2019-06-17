@@ -95,9 +95,9 @@ jsPrimApply pr args =
     CP BYTES_LEN -> case args of
                    [ a ] -> a <> pretty ".length"
                    _ -> spa_error ()
-    CP BCAT -> jsApply "stdlib.hexCat" args
-    CP BCAT_LEFT -> jsApply "stdlib.bytes_left" args -- not available for now
-    CP BCAT_RIGHT -> jsApply "stdlib.bytes_right" args -- now available for now
+    CP BCAT -> jsApply "stdlib.msg_cat" args
+    CP BCAT_LEFT -> jsApply "stdlib.msg_left" args
+    CP BCAT_RIGHT -> jsApply "stdlib.msg_right" args
     CP DISHONEST -> case args of
                    [] -> jsCon (Con_B True)
                    _ -> spa_error ()
