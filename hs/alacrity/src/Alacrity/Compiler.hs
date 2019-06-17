@@ -59,10 +59,10 @@ inline_expr e =
       (tp, te') <- inline_expr te
       (fp, fe') <- inline_expr fe
       return (cp && tp && fp, XL_If (tp && fp) ce' te' fe')
-    XL_Assert ae -> do
+    XL_Claim ct ae -> do
       (_, ae') <- inline_expr ae
       --- Assert is impure because it could fail
-      return (False, XL_Assert ae')
+      return (False, XL_Claim ct ae')
     XL_ToConsensus p ins pe ce -> do
       (_, pe') <- inline_expr pe
       (_, ce') <- inline_expr ce
@@ -233,8 +233,8 @@ anf_expr me ρ e mk =
                 unless (tn == fn) $ error "ANF: If branches don't have same continuation arity"
                 return (tn, IL_If ca tt ft)
             k _ = error "anf_expr XL_If ce doesn't return 1"
-    XL_Assert ae ->
-      anf_expr me ρ ae (\[ aa ] -> ret_stmt (IL_Assert aa))
+    XL_Claim ct ae ->
+      anf_expr me ρ ae (\[ aa ] -> ret_stmt (IL_Claim ct aa))
     XL_FromConsensus le -> do
       (ln, lt) <- anf_tail RoleContract ρ le mk
       return (ln, IL_FromConsensus lt)
@@ -406,7 +406,7 @@ epp_s_ctc :: EPPEnv -> ILStmt -> (Set.Set BLVar, CStmt)
 epp_s_ctc γ e = case e of
   IL_Transfer r am -> (fvs, C_Transfer r am')
     where (fvs, am') = eargt am AT_UInt256
-  IL_Assert a -> (fvs, C_Assert a')
+  IL_Claim ct a -> (fvs, C_Claim ct a')
     where (fvs, a') = eargt a AT_Bool
  where earg = epp_arg γ RoleContract
        eargt a expected = epp_expect (expected, Public) $ earg a
@@ -414,8 +414,8 @@ epp_s_ctc γ e = case e of
 epp_s_loc :: EPPEnv -> Participant -> ILStmt -> (Set.Set BLVar, EPStmt)
 epp_s_loc γ p e = case e of
   IL_Transfer _ _ -> error "EPP: Local cannot transfer"
-  IL_Assert a -> case bt of
-                   AT_Bool -> (fvs, EP_Assert a')
+  IL_Claim ct a -> case bt of
+                   AT_Bool -> (fvs, EP_Claim ct a')
                    _ -> error "EPP: Assert argument not bool"
     where ((fvs, a'), (bt, _)) = earg a
           earg = epp_arg γ (RolePart p)
@@ -424,7 +424,7 @@ epp_e_ctc2loc :: CExpr -> EPExpr
 epp_e_ctc2loc (C_PrimApp cp al) = (EP_PrimApp (CP cp) al)
 
 epp_s_ctc2loc :: CStmt -> Maybe EPStmt
-epp_s_ctc2loc (C_Assert a) = Just (EP_Assert a)
+epp_s_ctc2loc (C_Claim ct a) = Just (EP_Claim ct a)
 epp_s_ctc2loc (C_Transfer _ _) = Nothing
 
 epp_it_ctc :: [Participant] -> EPPEnv -> Int -> ILTail -> EPPRes

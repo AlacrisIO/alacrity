@@ -48,7 +48,7 @@ instance RecoverTypes EPExpr where
   rts (EP_PrimApp _ al) = rts al
 
 instance RecoverTypes EPStmt where
-  rts (EP_Assert a) = rts a
+  rts (EP_Claim _ a) = rts a
   rts (EP_Send _ svs msg am) = rts svs <> rts msg <> rts am
 
 instance RecoverTypes EPTail where
@@ -65,7 +65,7 @@ instance RecoverTypes CExpr where
   rts (C_PrimApp _ vs) = rts vs
 
 instance RecoverTypes CStmt where
-  rts (C_Assert a) = rts a
+  rts (C_Claim _ a) = rts a
   rts (C_Transfer _ a) = rts a
 
 instance RecoverTypes CTail where
@@ -215,7 +215,7 @@ emit_z3_stmt σ honest r ρ cb how =
       sub <- Z3.mkSub [ cb, amountt ]
       z3_eq cb' sub
       return (cb', [])
-    IL_Assert a -> do
+    IL_Claim _ct a -> do --- XXX look at ct
       at <- emit_z3_arg σ ρ a
       res <- z3_verify1 (honest, r, TAssert) at --- XXX Add more information
       Z3.assert at

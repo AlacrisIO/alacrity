@@ -154,6 +154,11 @@ role_me _ RoleContract = True
 role_me RoleContract _ = False
 role_me (RolePart x) (RolePart y) = x == y
 
+data ClaimType
+  = CT_Assert  --- Verified on all paths
+  | CT_Assume  --- Always assumed true
+  | CT_Require --- Verified in honest, assumed in dishonest
+  deriving (Show,Eq,Ord)
 
 {- Surface Language
 
@@ -172,7 +177,7 @@ data XLExpr
   | XL_Var XLVar
   | XL_PrimApp EP_Prim [XLExpr]
   | XL_If Bool XLExpr XLExpr XLExpr
-  | XL_Assert XLExpr
+  | XL_Claim ClaimType XLExpr
   --- A ToConsensus transfers control to the contract. The arguments
   --- are (initiator, message, pay expression, contract body). The
   --- message is a sequence of variables, because it binds these in
@@ -249,7 +254,7 @@ data ILExpr
 
 data ILStmt
   = IL_Transfer Participant ILArg
-  | IL_Assert ILArg
+  | IL_Claim ClaimType ILArg
   deriving (Show,Eq)
 
 data ILTail
@@ -306,7 +311,7 @@ data EPExpr
   deriving (Show,Eq)
 
 data EPStmt
-  = EP_Assert BLArg
+  = EP_Claim ClaimType BLArg
   | EP_Send Int [BLVar] [BLVar] BLArg
   deriving (Show,Eq)
 
@@ -330,7 +335,7 @@ data CExpr
   deriving (Show,Eq)
 
 data CStmt
-  = C_Assert BLArg
+  = C_Claim ClaimType BLArg
   | C_Transfer Participant BLArg
   deriving (Show,Eq)
 
@@ -403,8 +408,12 @@ prettyApp p al = group $ parens $ pretty p <> alp
   where alp = case al of [] -> emptyDoc
                          _ -> space <> (hsep $ map pretty al)
 
-prettyAssert :: Pretty a => a -> Doc ann
-prettyAssert a = group $ parens $ pretty "assert!" <+> pretty a
+prettyClaim :: Pretty a => ClaimType -> a -> Doc ann
+prettyClaim ct a = group $ parens $ pretty cts <+> pretty a
+  where cts = case ct of
+          CT_Assert -> "assert!"
+          CT_Assume -> "assume!"
+          CT_Require -> "require!"
 
 prettyTransfer :: Pretty a => Participant -> a -> Doc ann
 prettyTransfer to a = group $ parens $ pretty "transfer!" <+> pretty to <+> pretty a
@@ -415,7 +424,7 @@ instance Pretty ILExpr where
 
 instance Pretty ILStmt where
   pretty (IL_Transfer to a) = prettyTransfer to a
-  pretty (IL_Assert a) = prettyAssert a
+  pretty (IL_Claim ct a) = prettyClaim ct a
 
 prettyValues :: Pretty a => [a] -> Doc ann
 prettyValues [ a ] = pretty a
@@ -482,7 +491,7 @@ instance Pretty EPExpr where
   pretty (EP_PrimApp p al) = prettyApp p al
 
 instance Pretty EPStmt where
-  pretty (EP_Assert a) = prettyAssert a
+  pretty (EP_Claim ct a) = prettyClaim ct a
   pretty (EP_Send hi svs vs pa) =
     group $ parens $ pretty "send!" <+> pretty hi <+> prettyBLVars svs <+> prettyBLVars vs <+> pretty pa
 
@@ -490,7 +499,7 @@ instance Pretty CExpr where
   pretty (C_PrimApp p al) = prettyApp p al
 
 instance Pretty CStmt where
-  pretty (C_Assert a) = prettyAssert a
+  pretty (C_Claim ct a) = prettyClaim ct a
   pretty (C_Transfer to a) = prettyTransfer to a
 
 instance Pretty EPTail where

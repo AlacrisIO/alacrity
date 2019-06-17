@@ -48,7 +48,7 @@ instance RecoverTypes EPExpr where
   rts (EP_PrimApp _ al) = rts al
 
 instance RecoverTypes EPStmt where
-  rts (EP_Assert a) = rts a
+  rts (EP_Claim _ a) = rts a
   rts (EP_Send _ svs msg am) = rts svs <> rts msg <> rts am
 
 instance RecoverTypes EPTail where
@@ -65,7 +65,7 @@ instance RecoverTypes CExpr where
   rts (C_PrimApp _ vs) = rts vs
 
 instance RecoverTypes CStmt where
-  rts (C_Assert a) = rts a
+  rts (C_Claim _ a) = rts a
   rts (C_Transfer _ a) = rts a
 
 instance RecoverTypes CTail where
@@ -239,11 +239,18 @@ emit_z3_stmt honest r cbi how =
             cb' = z3CTCBalance cbi'
             amountt = emit_z3_arg amount
             this = z3DeclareEq cb' z3IntSort (z3Sub (z3CTCBalance cbi) amountt)
-    IL_Assert a -> (cbi, this)
+    IL_Claim ct a -> (cbi, this)
       where at = emit_z3_arg a
             check = z3_verify1 (honest, r, TAssert) at --- XXX Add more information
             assert = z3Assert at
-            this = vsep [ check, assert ]
+            should_check = case ct of
+                             CT_Assert -> True
+                             CT_Assume -> False
+                             CT_Require -> honest
+            this = if should_check then
+                     vsep [ check, assert ]
+                   else
+                     assert
 
 emit_z3_it_top :: ILTypeMapm -> ILTail -> (Bool, Role) -> Doc a
 emit_z3_it_top tm it_top (honest, me) =
@@ -277,11 +284,16 @@ emit_z3_it_top tm it_top (honest, me) =
               iter cbi kt
           IL_ToConsensus _who _msg amount kt ->
             vsep [ this, iter cbi' kt ]
-            --- XXX This is only if honest
             where cbi' = cbi + 1
                   cb' = z3CTCBalance cbi'
+                  cb = z3CTCBalance cbi
                   amountt = emit_z3_arg amount
-                  this = z3DeclareEq cb' z3IntSort (z3Add (z3CTCBalance cbi) amountt)
+                  this = vsep [ z3Declare cb' z3IntSort, thisc ]
+                  thisc = if honest then
+                            z3Eq cb' (z3Add cb amountt)
+                          else
+                            --- The only thing we know is that the value didn't go down
+                            z3Apply "<=" [ cb, cb' ]
           IL_FromConsensus kt -> iter cbi kt
 
 vsep_with_blank :: [Doc a] -> Doc a

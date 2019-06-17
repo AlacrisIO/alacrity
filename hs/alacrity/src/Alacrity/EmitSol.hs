@@ -44,7 +44,7 @@ usesCExpr :: CExpr -> CCounts
 usesCExpr (C_PrimApp _ al) = cmerges $ map usesBLArg al
 
 usesCStmt :: CStmt -> CCounts
-usesCStmt (C_Assert a) = usesBLArg a
+usesCStmt (C_Claim _ a) = usesBLArg a
 usesCStmt (C_Transfer _ a) = usesBLArg a
 
 usesCTail :: CTail -> CCounts
@@ -203,7 +203,7 @@ solCExpr :: SolRenaming a -> CExpr -> Doc a
 solCExpr ρ (C_PrimApp pr al) = solPrimApply pr $ map (solArg ρ) al
 
 solCStmt :: SolRenaming a -> CStmt -> Doc a
-solCStmt ρ (C_Assert a) = solRequire $ solArg ρ a
+solCStmt ρ (C_Claim _ a) = solRequire $ solArg ρ a
 solCStmt ρ (C_Transfer p a) = solPartVar p <> pretty "." <> solApply "transfer" [ solArg ρ a ]
 
 solCTail :: [Participant] -> Doc a -> SolRenaming a -> CCounts -> CTail -> Doc a

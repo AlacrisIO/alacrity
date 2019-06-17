@@ -113,7 +113,7 @@ jsEPExpr (EP_Arg a) = jsArg a
 jsEPExpr (EP_PrimApp pr al) = jsPrimApply pr $ map jsArg al
 
 jsEPStmt :: EPStmt -> Doc a
-jsEPStmt (EP_Assert a) = jsApply "stdlib.assert" [ jsArg a ]
+jsEPStmt (EP_Claim _ a) = jsApply "stdlib.assert" [ jsArg a ]
 jsEPStmt (EP_Send i svs msg amt) = jsApply "ctc.send" [ jsString (solMsg_fun i), vs, jsArg amt ]
   where args = svs ++ msg
         vs = jsArray $ map jsVar args

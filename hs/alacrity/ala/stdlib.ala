@@ -14,7 +14,7 @@
                      (uint256->bytes x))))
   (values commitment salt))
 (define (check-commit! commitment salt x)
-  (assert! (= commitment
-                    (digest (msg-cat (uint256->bytes salt)
-                                     (uint256->bytes x)))))
+  (require! (= commitment
+               (digest (msg-cat (uint256->bytes salt)
+                                (uint256->bytes x)))))
   x)

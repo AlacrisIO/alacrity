@@ -13,7 +13,7 @@ import Alacrity.AST
 
 valid_id :: String -> Bool
 valid_id p = not (elem p rsw) && head p /= '#' && (Nothing == (decodePrim p))
-  where rsw = ["if", "cond", "else", "assert!", "transfer!", "declassify", "values", "@", "define", "define-values", "require", "CTC"]
+  where rsw = ["if", "cond", "else", "assert!", "assume!", "require!", "transfer!", "declassify!", "declassify", "values", "@", "define", "define-values", "require", "CTC"]
 
 decodeXLType :: SE.SExpr -> BaseType
 decodeXLType (SE.Atom "uint256") = AT_UInt256
@@ -96,7 +96,11 @@ decodeXLExpr1 (SE.List [SE.Atom "cond", SE.List (SE.Atom "else":answer)]) =
 decodeXLExpr1 (SE.List (SE.Atom "cond":SE.List (question:answer):more)) =
   XL_If False (decodeXLExpr1 question) (decodeXLExpr answer) (decodeXLExpr1 (SE.List (SE.Atom "cond" : more)))
 decodeXLExpr1 (SE.List [SE.Atom "assert!", arg]) =
-  XL_Assert (decodeXLExpr1 arg)
+  XL_Claim CT_Assert (decodeXLExpr1 arg)
+decodeXLExpr1 (SE.List [SE.Atom "assume!", arg]) =
+  XL_Claim CT_Assume (decodeXLExpr1 arg)
+decodeXLExpr1 (SE.List [SE.Atom "require!", arg]) =
+  XL_Claim CT_Require (decodeXLExpr1 arg)
 decodeXLExpr1 (SE.List [SE.Atom "transfer!", to, amt]) =
   XL_Transfer (decodePart to) (decodeXLExpr1 amt)
 decodeXLExpr1 (SE.List [SE.Atom "declassify", arg]) =
@@ -170,7 +174,8 @@ decodeXLDefs ((SE.List (SE.Atom "define":SE.List (fse:argse):ese)):more) = do
       args = decodeXLVars argse
       e = case ese of
         (SE.Atom ":" : predse : ese') ->
-          (XL_LetValues Nothing (Just ["result"]) (decodeXLExpr ese') (XL_LetValues Nothing Nothing (XL_Assert (XL_FunApp (decodeXLVar predse) [XL_Var "result"])) (XL_Var "result")))
+          --- XXX hygeine with Data.IORef
+          (XL_LetValues Nothing (Just ["result"]) (decodeXLExpr ese') (XL_LetValues Nothing Nothing (XL_Claim CT_Assert (XL_FunApp (decodeXLVar predse) [XL_Var "result"])) (XL_Var "result")))
         _ -> decodeXLExpr ese
   (defs2, m) <- decodeXLDefs more
   return ((XL_DefineFun f args e) : defs2, m)
