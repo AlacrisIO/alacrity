@@ -122,6 +122,8 @@ decodeXLExpr ((SE.List (SE.Atom "@" : fromse :
         bse' = bse ++ [(SE.List (SE.Atom "begin-local" : kse))]
         body = decodeXLExpr bse'
 --- define
+decodeXLExpr ((SE.List [SE.Atom "@", rs, (SE.List [SE.Atom "declassify!", v])]):kse) =
+  decodeXLExpr ((SE.List [SE.Atom "@", rs, (SE.List [SE.Atom "define", v, (SE.List [SE.Atom "declassify", v])])]):kse)
 decodeXLExpr ((SE.List [SE.Atom "@", rs, (SE.List [SE.Atom "define", vse, ese])]):kse) =
   XL_LetValues (Just p) (Just [(decodeXLVar vse)]) (decodeXLExpr1 ese) (decodeXLExpr kse)
   where RolePart p = (decodeRole rs)
