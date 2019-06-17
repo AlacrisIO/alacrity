@@ -69,7 +69,6 @@ decodePrim s =
     "msg-cat" -> Just (CP BCAT)
     "msg-left" -> Just (CP BCAT_LEFT)
     "msg-right" -> Just (CP BCAT_RIGHT)
-    "DISHONEST" -> Just (CP DISHONEST)
     "random" -> Just RANDOM
     "interact" -> Just INTERACT
     _ -> Nothing

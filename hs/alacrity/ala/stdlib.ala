@@ -5,8 +5,6 @@
 (define (and x y) (ite x y #f))
 (define (implies x y) (or (not x) y))
 
-(define (HONEST) (not (DISHONEST)))
-
 (define (precommit x)
   (define salt (random))
   (define commitment

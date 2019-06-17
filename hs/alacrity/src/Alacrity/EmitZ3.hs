@@ -152,16 +152,7 @@ z3_verify1 (honest, r, tk) a = z3Local check
    that it is 0 at the end. This ensure that the protocol doesn't
    "leave anything on the table".
 
-   2. For each assert! in the program, assuming that all previous
-   assert!s are true (including those in other participants and the
-   contract) and DISHONEST is FALSE, the assert is true.
-
-   3. For each assert! in the program, assuming that all previous
-   assert!s are true (EXCLUDING those in other participants, but
-   INCLUDING the contract) and DISHONEST is TRUE, the assert is true.
-
-   When #1 has to be done in both #2 and #3 modes, because the
-   transfer amounts may rely on participant data.
+   2. Verify claims (see ClaimType for details)
 
  -}
 
@@ -173,8 +164,8 @@ lookie err k m = case M.lookup k m of
 z3CTCBalance :: Int -> Doc a
 z3CTCBalance i = pretty $ "ctc_balance" ++ show i
 
-z3CPrim :: Bool -> C_Prim -> [Doc a] -> Doc a
-z3CPrim honest cp =
+z3CPrim :: C_Prim -> [Doc a] -> Doc a
+z3CPrim cp =
   case cp of
     ADD -> app "+"
     SUB -> app "-"
@@ -194,12 +185,11 @@ z3CPrim honest cp =
     BCAT -> app "msg-cat"
     BCAT_LEFT -> app "msg-left"
     BCAT_RIGHT -> app "msg-right"
-    DISHONEST -> \_ -> emit_z3_con (Con_B (not honest))
   where app n = z3Apply n
 
-z3PrimEq :: Bool -> EP_Prim -> [Doc a] -> ILVar -> Doc a
-z3PrimEq honest pr alt out = case pr of
-  CP cp -> z3Assert (z3Eq (z3Var out) (z3CPrim honest cp alt))
+z3PrimEq :: EP_Prim -> [Doc a] -> ILVar -> Doc a
+z3PrimEq pr alt out = case pr of
+  CP cp -> z3Assert (z3Eq (z3Var out) (z3CPrim cp alt))
   RANDOM -> emptyDoc
   INTERACT -> emptyDoc
 
@@ -225,10 +215,10 @@ emit_z3_vardecl tm iv = z3Declare (z3Var iv) s
   where bt = lookie "ILTypeMap" iv tm
         s = z3_sortof bt
 
-emit_z3_expr :: Bool -> ILVar -> ILExpr -> Doc a
-emit_z3_expr honest out how = case how of
+emit_z3_expr :: ILVar -> ILExpr -> Doc a
+emit_z3_expr out how = case how of
   IL_Declassify a -> z3Assert (z3Eq (z3Var out) (emit_z3_arg a))
-  IL_PrimApp pr al -> z3PrimEq honest pr alt out
+  IL_PrimApp pr al -> z3PrimEq pr alt out
     where alt = map emit_z3_arg al
 
 emit_z3_stmt :: Bool -> Role -> Int -> ILStmt -> (Int, Doc a)
@@ -273,7 +263,7 @@ emit_z3_it_top tm it_top (honest, me) =
             where whatp = emit_z3_vardecl tm what <> hardline
                   this =
                     if (honest || role_me me who) then
-                      emit_z3_expr honest what how <> hardline
+                      emit_z3_expr what how <> hardline
                     else
                       emptyDoc
           IL_Do who how kt ->

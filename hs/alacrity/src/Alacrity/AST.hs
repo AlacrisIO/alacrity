@@ -64,7 +64,6 @@ data C_Prim
   | BCAT
   | BCAT_LEFT
   | BCAT_RIGHT
-  | DISHONEST
   deriving (Show,Eq)
 
 data EP_Prim
@@ -92,7 +91,6 @@ primType (CP BYTES_LEN) = [tBytes] --> tUInt256
 primType (CP BCAT)       = ([tBytes, tBytes] --> tBytes)
 primType (CP BCAT_LEFT)  = ([tBytes] --> tBytes)
 primType (CP BCAT_RIGHT) = ([tBytes] --> tBytes)
-primType (CP DISHONEST) = ([] --> tBool)
 primType RANDOM = ([] --> tUInt256)
 primType INTERACT = ([tBytes] --> tBytes)
 
@@ -157,7 +155,11 @@ role_me (RolePart x) (RolePart y) = x == y
 data ClaimType
   = CT_Assert  --- Verified on all paths
   | CT_Assume  --- Always assumed true
-  | CT_Require --- Verified in honest, assumed in dishonest
+  | CT_Require --- Verified in honest, assumed in dishonest. (This may
+               --- sound backwards, but by verifying it in honest
+               --- mode, then we are checking that the other
+               --- participants fulfill the promise when acting
+               --- honestly.)
   deriving (Show,Eq,Ord)
 
 {- Surface Language

@@ -98,9 +98,6 @@ jsPrimApply pr args =
     CP BCAT -> jsApply "stdlib.msg_cat" args
     CP BCAT_LEFT -> jsApply "stdlib.msg_left" args
     CP BCAT_RIGHT -> jsApply "stdlib.msg_right" args
-    CP DISHONEST -> case args of
-                   [] -> jsCon (Con_B True)
-                   _ -> spa_error ()
     RANDOM -> jsApply "stdlib.randomUInt256" args
     INTERACT -> error "interact doesn't use jsPrimApply"
   where binOp op = case args of

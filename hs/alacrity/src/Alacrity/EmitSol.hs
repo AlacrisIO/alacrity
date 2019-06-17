@@ -191,9 +191,6 @@ solPrimApply pr args =
     BCAT -> solApply "abi.encode" args --- XXX switch to ALA_BCAT after below
     BCAT_LEFT -> solApply "ALA_BCAT_LEFT" args
     BCAT_RIGHT -> solApply "ALA_BCAT_RIGHT" args
-    DISHONEST -> case args of
-                   [] -> solCon (Con_B True)
-                   _ -> spa_error ()
   where binOp op = case args of
           [ l, r ] -> solBinOp op l r
           _ -> spa_error ()
