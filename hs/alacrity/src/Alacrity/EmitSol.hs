@@ -10,10 +10,10 @@ import Alacrity.AST
  -}
 
 solMsg_evt :: Show i => i -> String
-solMsg_evt i = "msg" ++ show i ++ "_evt"
+solMsg_evt i = "e" ++ show i
 
 solMsg_fun :: Show i => i -> String
-solMsg_fun i = "msg" ++ show i ++ "_m"
+solMsg_fun i = "m" ++ show i
 
 solType :: BaseType -> String
 solType AT_UInt256 = "uint256"

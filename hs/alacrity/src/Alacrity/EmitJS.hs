@@ -114,9 +114,8 @@ jsEPExpr (EP_PrimApp pr al) = jsPrimApply pr $ map jsArg al
 
 jsEPStmt :: EPStmt -> Doc a
 jsEPStmt (EP_Assert a) = jsApply "stdlib.assert" [ jsArg a ]
-jsEPStmt (EP_Send i svs msg amt) = jsApply "net.send" [ jsString (solMsg_fun i), ts, vs, jsArg amt ]
+jsEPStmt (EP_Send i svs msg amt) = jsApply "ctc.send" [ jsString (solMsg_fun i), vs, jsArg amt ]
   where args = svs ++ msg
-        ts = jsArray $ map jsVarType args
         vs = jsArray $ map jsVar args
 
 jsEPTail :: EPTail -> Doc a
@@ -129,30 +128,23 @@ jsEPTail (EP_Let v (EP_PrimApp INTERACT al) kt) =
   where kp = jsLambda [ jsVar v ] $ jsEPTail kt
 jsEPTail (EP_Let bv ee kt) = vsep [ jsVarDecl bv <+> pretty "=" <+> jsEPExpr ee <> semi, jsEPTail kt ];
 jsEPTail (EP_Do es kt) = vsep [ jsEPStmt es <> semi, jsEPTail kt ];
-jsEPTail (EP_Recv i _ msg kt) = jsApply "net.recv" [ jsString (solMsg_evt i), msg_ts, kp ]
+jsEPTail (EP_Recv i _ msg kt) = jsApply "ctc.recv" [ jsString (solMsg_evt i), kp ]
   where kp = jsLambda msg_vs (jsEPTail kt)
-        msg_ts = jsArray $ map jsVarType msg
         msg_vs = map jsVar msg
 
-jsPart :: [Participant] -> Participant -> (Participant, EProgram) -> (String, Doc a)
-jsPart ps initiator (p, (EP_Prog pargs et)) = (p, partp)
-  where ps_vs = map jsPartVar ps
-        pargs_vs = map jsVar pargs
-        ctc_v = pretty "ctc"
-        part_args = if initiator == p then ps_vs
-                    else ctc_v : ps_vs
-        netcall = if initiator == p then "net.make" else "net.attach"
-        ncargs = part_args ++ [ kp ]
-        all_args = part_args ++ pargs_vs ++ [pretty "kTop"]
-        first_call = jsReturn $ jsApply netcall ncargs
-        partp = jsLambda all_args first_call
-        kp = jsLambda [] (jsEPTail et)
+jsPart :: (Participant, EProgram) -> Doc a
+jsPart (p, (EP_Prog pargs et)) =
+  pretty "export" <+> jsFunction p ([ pretty "ctc", pretty "interact" ] ++ pargs_vs ++ [ pretty "kTop" ]) bodyp 
+  where pargs_vs = map jsVar pargs
+        bodyp = jsEPTail et
 
 emit_js :: BLProgram -> Doc a
-emit_js (BL_Prog _ (C_Prog _ [])) =
-  error "emit_js: Cannot create contract with no consensus"
-emit_js (BL_Prog pm (C_Prog ps (C_Handler initiator _ _ _ : _))) = modp
-  where modp = vsep [ pretty "import * as stdlib from './alacrity-runtime.mjs';", emptyDoc,
-                      pretty "export" <+> jsFunction "initialize" [ pretty "net", pretty "interact" ] bodyp ]
-        bodyp = jsReturn objp
-        objp = jsObject $ map (jsPart ps initiator) $ M.toList pm
+emit_js (BL_Prog pm _) = modp
+  where modp = vsep_with_blank ( pretty "import * as stdlib from './alacrity-runtime.mjs';"
+                                 : pretty "/* XXX Copy the ABI from the solc output */"
+                                 : pretty "/* XXX Copy the bytecode from the solc output */"
+                                 : partsp ) 
+        partsp = map jsPart $ M.toList pm
+
+vsep_with_blank :: [Doc a] -> Doc a
+vsep_with_blank l = vsep $ intersperse emptyDoc l
