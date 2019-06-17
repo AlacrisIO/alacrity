@@ -138,7 +138,7 @@ solVersion :: Doc a
 solVersion = pretty "pragma solidity ^0.5.2;"
 
 solStdLib :: Doc a
-solStdLib = pretty "import \"../sol/stdlib.sol\";"
+solStdLib = pretty "import \"../../../sol/stdlib.sol\";"
 
 solApply :: String -> [Doc a] -> Doc a
 solApply f args = pretty f <> parens (hcat $ intersperse (comma <> space) args)
@@ -245,25 +245,16 @@ solHandler ps i (C_Handler from svs msg body) = vsep [ evtp, funp ]
 solHandlers :: [Participant] -> [CHandler] -> Doc a
 solHandlers ps hs = vsep $ intersperse emptyDoc $ zipWith (solHandler ps) [0..] hs
 
+vsep_with_blank :: [Doc a] -> Doc a
+vsep_with_blank l = vsep $ intersperse emptyDoc l
+
 emit_sol :: BLProgram -> Doc a
-emit_sol (BL_Prog _ (C_Prog _ [])) =
-  error "emit_sol: Cannot create contract with no consensus"
-emit_sol (BL_Prog _ (C_Prog ps hs@(h1 : _))) =
-  vsep $ [ solVersion, --- XXX emptyDoc, solStdLib,
-           emptyDoc, factoryp, emptyDoc, ctcp ]
-  where factoryp = solContract "ALAFactory" $ vsep [ createp ]
-        ctcp = solContract "ALAContract" -- " is Stdlib"
-          $ ctcbody
+emit_sol (BL_Prog _ (C_Prog ps hs)) =
+  vsep_with_blank $ [ solVersion, {- solStdLib, -} ctcp ]
+  where ctcp = solContract "ALAContract" -- is Stdlib"
+               $ ctcbody
         ctcbody = vsep $ [state_defn, emptyDoc, consp, emptyDoc, solHandlers ps hs]
         consp = solApply "constructor" p_ds <+> pretty "public payable" <+> solBraces consbody
         consbody = solCTail ps emptyDoc M.empty M.empty (C_Wait 0 [])
         state_defn = pretty "uint256 current_state;"
-        C_Handler _ _ msg _ = h1
-        createp = solFunction "make" (p_ds ++ map solVarDecl msg) create_ret create_body
-        create_ret = pretty "public payable returns (ALAContract _ctc)"
         p_ds = map solPartDecl ps
-        p_rs = map solPartVar ps
-        create_body =
-          vsep [ pretty "ALAContract ctc = new " <> solApply "ALAContract" p_rs <> semi,
-                 pretty "ctc." <> solApply "msg0_m.value(msg.value)" (p_rs ++ map solRawVar msg) <> semi,
-                 pretty "return ctc;" ]

@@ -1,11 +1,5 @@
 pragma solidity ^0.5.2;
 
-contract ALAFactory {
-  function make(address payable pA, address payable pB, uint256 v14, uint256 v15, uint256 v16) public payable returns (ALAContract _ctc) {
-    ALAContract ctc = new ALAContract(pA, pB);
-    ctc.msg0_m.value(msg.value)(pA, pB, v14, v15, v16);
-    return ctc; } }
-
 contract ALAContract {
   uint256 current_state;
   
