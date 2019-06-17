@@ -56,7 +56,7 @@ instance RecoverTypes EPTail where
   rts (EP_If ca tt ft) = rts ca <> rts tt <> rts ft
   rts (EP_Let bv ce ct) = rts bv <> rts ce <> rts ct
   rts (EP_Do cs ct) = rts cs <> rts ct
-  rts (EP_Recv _ svs msg kt) = rts svs <> rts msg <> rts kt
+  rts (EP_Recv _ svs msg pv kt) = rts svs <> rts msg <> rts pv <> rts kt
 
 instance RecoverTypes EProgram where
   rts (EP_Prog vs et) = rts vs <> rts et
@@ -76,7 +76,7 @@ instance RecoverTypes CTail where
   rts (C_Do cs ct) = rts cs <> rts ct
 
 instance RecoverTypes CHandler where
-  rts (C_Handler _ svs msg ct) = rts svs <> rts msg <> rts ct
+  rts (C_Handler _ svs msg pv ct) = rts svs <> rts msg <> rts pv <> rts ct
 
 instance RecoverTypes CProgram where
   rts (C_Prog _ chs) = rts chs
@@ -272,18 +272,20 @@ emit_z3_it_top tm it_top (honest, me) =
                 vsep [ this, iter cbi' kt ]
             else
               iter cbi kt
-          IL_ToConsensus _who _msg amount kt ->
+          IL_ToConsensus _who _msg amount pv kt ->
             vsep [ this, iter cbi' kt ]
             where cbi' = cbi + 1
                   cb' = z3CTCBalance cbi'
                   cb = z3CTCBalance cbi
                   amountt = emit_z3_arg amount
-                  this = vsep [ z3Declare cb' z3IntSort, thisc ]
+                  pvp = z3Var pv
+                  this = vsep [ z3Declare pvp z3IntSort
+                              , z3DeclareEq cb' z3IntSort (z3Add cb pvp)
+                              , z3Assert thisc ]
                   thisc = if honest then
-                            z3Eq cb' (z3Add cb amountt)
+                            z3Eq pvp amountt
                           else
-                            --- The only thing we know is that the value didn't go down
-                            z3Apply "<=" [ cb, cb' ]
+                            z3Apply "<=" [ (z3Int 0), pvp ]
           IL_FromConsensus kt -> iter cbi kt
 
 vsep_with_blank :: [Doc a] -> Doc a

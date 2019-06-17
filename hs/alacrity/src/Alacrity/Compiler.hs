@@ -63,10 +63,10 @@ inline_expr e =
       (_, ae') <- inline_expr ae
       --- Assert is impure because it could fail
       return (False, XL_Claim ct ae')
-    XL_ToConsensus p ins pe ce -> do
+    XL_ToConsensus p ins pe pv ce -> do
       (_, pe') <- inline_expr pe
       (_, ce') <- inline_expr ce
-      return (False, XL_ToConsensus p ins pe' ce')
+      return (False, XL_ToConsensus p ins pe' pv ce')
     XL_FromConsensus be -> do
       (_, be') <- inline_expr be
       return (False, XL_FromConsensus be')
@@ -156,12 +156,17 @@ allocANFs mp s es = mapM (allocANF mp s) es
 
 type XLRenaming = M.Map XLVar ILArg
 
+makeRename :: XLRenaming -> XLVar -> ANFMonad (XLRenaming, ILVar)
+makeRename ρ v = do
+  nv <- consumeANF v
+  return (M.insert v (IL_Var nv) ρ, nv)
+
 anf_parg :: (XLRenaming, [(ILVar, BaseType)]) -> (XLVar, BaseType) -> ANFMonad (XLRenaming, [(ILVar, BaseType)])
 anf_parg (ρ, args) (v, t) =
   case M.lookup v ρ of
     Nothing -> do
-      nv <- consumeANF v
-      return (M.insert v (IL_Var nv) ρ, args' nv)
+      (ρ', nv) <- makeRename ρ v
+      return (ρ', args' nv)
     Just (IL_Var nv) -> return (ρ, args' nv)
     Just _ -> error $ "ANF: Participant argument not bound to variable: " ++ v
   where args' nv = args ++ [(nv,t)]
@@ -203,8 +208,8 @@ anf_out_rename ρ outs = foldM aor1 (ρ, []) (reverse outs)
             Just (IL_Var iv) -> return (ρ', iv:outs')
             Just (IL_Con _) -> return (ρ', outs')
             Nothing -> do
-              iv <- consumeANF "Consensus_Out"
-              return (M.insert ov (IL_Var iv) ρ', iv:outs')
+              (ρ'', iv) <- makeRename ρ ov
+              return (ρ'', iv:outs')
 
 anf_expr :: Role -> XLRenaming -> XLExpr -> ([ILArg] -> ANFMonad (Int, ILTail)) -> ANFMonad (Int, ILTail)
 anf_expr me ρ e mk =
@@ -238,12 +243,13 @@ anf_expr me ρ e mk =
     XL_FromConsensus le -> do
       (ln, lt) <- anf_tail RoleContract ρ le mk
       return (ln, IL_FromConsensus lt)
-    XL_ToConsensus from ins pe ce ->
+    XL_ToConsensus from ins pe pv ce ->
       anf_expr (RolePart from) ρ pe
       (\ [ pa ] -> do
          let ins' = vsOnly $ map (anf_renamed_to ρ) ins
-         (cn, ct) <- anf_tail RoleContract ρ ce mk
-         return (cn, IL_ToConsensus from ins' pa ct))
+         (ρ', pv') <- makeRename ρ pv
+         (cn, ct) <- anf_tail RoleContract ρ' ce mk
+         return (cn, IL_ToConsensus from ins' pa pv' ct))
     XL_Values args ->
       anf_exprs me ρ args (\args' -> mk args')
     XL_Transfer to ae ->
@@ -465,7 +471,7 @@ epp_it_ctc ps γ hn0 it = case it of
                   Just how'_ep -> M.map (EP_Do how'_ep) ts1
   IL_Do (RolePart _) _ _ ->
     error "EPP: Cannot perform local action in consensus"
-  IL_ToConsensus _ _ _ _ ->
+  IL_ToConsensus _ _ _ _ _ ->
     error "EPP: Cannot transitions to consensus from consensus"
   IL_FromConsensus bt -> epp_it_loc ps γ hn0 bt
 
@@ -506,23 +512,27 @@ epp_it_loc ps γ hn0 it = case it of
             if not (role_me (RolePart p) who) then t
             else EP_Do s' t
             where (_, s') = epp_s_loc γ p how
-  IL_ToConsensus from what howmuch next -> (svs2, ct2, ts2, hn2, hs2)
+  IL_ToConsensus from what howmuch pv next -> (svs2, ct2, ts2, hn2, hs2)
     where fromr = RolePart from
           what' = map fst $ map must_be_public $ epp_vars γ fromr what
           (_, howmuch') = epp_expect (AT_UInt256, Public) $ epp_arg γ fromr howmuch
           what'env = M.fromList $ map (\(n, s, et) -> ((n,s),(et,Public))) what'
-          γ' = M.map (M.union what'env) γ
+          (pv_n, pv_s) = pv
+          (pv_t, pv_slvl) = (AT_UInt256, Public)
+          pv' = (pv_n, pv_s, pv_t)
+          addl_env = M.insert pv (pv_t, pv_slvl) what'env
+          γ' = M.map (M.union addl_env) γ
           hn1 = hn0 + 1
           (svs1, ct1, ts1, hn2, hs1) = epp_it_ctc ps γ' hn1 next
-          svs2 = Set.difference svs1 (boundBLVars what')
+          svs2 = Set.difference svs1 (Set.insert pv' (boundBLVars what'))
           svs2l = Set.toList svs2
-          nh = C_Handler from svs2l what' ct1
+          nh = C_Handler from svs2l what' pv' ct1
           hs2 = nh : hs1
           ts2 = M.mapWithKey addTail ts1
           ct2 = C_Wait hn0 svs2l
           es = EP_Send hn0 svs2l what' howmuch'
           addTail p pt1 = pt3
-            where pt2 = EP_Recv hn0 svs2l what' pt1
+            where pt2 = EP_Recv hn0 svs2l what' pv' pt1
                   pt3 = if p /= from then pt2
                         else EP_Do es pt2
   IL_FromConsensus _ ->

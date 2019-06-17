@@ -181,11 +181,11 @@ data XLExpr
   | XL_If Bool XLExpr XLExpr XLExpr
   | XL_Claim ClaimType XLExpr
   --- A ToConsensus transfers control to the contract. The arguments
-  --- are (initiator, message, pay expression, contract body). The
-  --- message is a sequence of variables, because it binds these in
-  --- the contract body. The contract body is expected to end in a
-  --- FromConsensus that will switch back.
-  | XL_ToConsensus Participant [XLVar] XLExpr XLExpr
+  --- are (initiator, message, pay expression, pay amount var,
+  --- contract body). The message is a sequence of variables, because
+  --- it binds these in the contract body. The contract body is
+  --- expected to end in a FromConsensus that will switch back.
+  | XL_ToConsensus Participant [XLVar] XLExpr XLVar XLExpr
   --- A FromConsensus expression is a terminator inside of a contract
   --- block that switches the context back away from the consensus,
   --- while still retaining all of the bindings established during the
@@ -269,7 +269,7 @@ data ILTail
   --- As in XL, a ToConsensus is a transfer to the contract with
   --- (initiator, message, pay amount). The tail is inside of the
   --- contract.
-  | IL_ToConsensus Participant [ILVar] ILArg ILTail
+  | IL_ToConsensus Participant [ILVar] ILArg ILVar ILTail
   --- A FromConsensus moves back from the consensus; the tail is
   --- "local" again.
   | IL_FromConsensus ILTail
@@ -324,7 +324,7 @@ data EPTail
   | EP_Do EPStmt EPTail
   {- This recv is what the sender sent; we will be doing the same
      computation as the contract. -}
-  | EP_Recv Int [BLVar] [BLVar] EPTail
+  | EP_Recv Int [BLVar] [BLVar] BLVar EPTail
   deriving (Show,Eq)
 
 data EProgram
@@ -351,8 +351,7 @@ data CTail
 
 data CHandler
   --- Each handler has a message that it expects to receive
-  --- XXX Maybe needs to know the transfer in amount
-  = C_Handler Participant [BLVar] [BLVar] CTail
+  = C_Handler Participant [BLVar] [BLVar] BLVar CTail
   deriving (Show,Eq)
 
 --- A contract program is just a sequence of handlers.
@@ -452,11 +451,11 @@ instance Pretty ILTail where
     where at d = (group $ parens $ pretty "@" <+> pretty r <+> d)
   pretty (IL_Do r s bt) = prettyDo at s bt
     where at d = (group $ parens $ pretty "@" <+> pretty r <+> d)
-  pretty (IL_ToConsensus p svs pa ct) =
+  pretty (IL_ToConsensus p svs pa pv ct) =
     vsep [(group $ parens $ pretty "@" <+> pretty p <+> (nest 2 $ hardline <> vsep [svsp, pap])),
           pretty ct]
     where svsp = parens $ pretty "publish!" <+> prettyILVars svs
-          pap = parens $ pretty "pay!" <+> pretty pa
+          pap = parens $ pretty "pay!" <+> pretty pv <+> pretty pa
   pretty (IL_FromConsensus lt) =
     vsep [(group $ parens $ pretty "return!"),
           pretty lt]
@@ -509,8 +508,8 @@ instance Pretty EPTail where
   pretty (EP_If ca tt ft) = prettyIf ca tt ft
   pretty (EP_Let v e bt) = prettyLet prettyBLVar (\x -> x) v e bt
   pretty (EP_Do s bt) = prettyDo (\x -> x) s bt
-  pretty (EP_Recv hi svs vs bt) =
-    vsep [group $ parens $ pretty "define-values" <+> prettyBLVars svs <+> prettyBLVars vs <+> (parens $ pretty "recv!" <+> pretty hi),
+  pretty (EP_Recv hi svs vs pv bt) =
+    vsep [group $ parens $ pretty "define-values" <+> prettyBLVars svs <+> prettyBLVars vs <+> prettyBLVar pv <+> (parens $ pretty "recv!" <+> pretty hi),
           pretty bt]
 
 instance Pretty CTail where
@@ -521,8 +520,8 @@ instance Pretty CTail where
   pretty (C_Do s bt) = prettyDo (\x -> x) s bt
 
 prettyCHandler :: Int -> CHandler -> Doc ann
-prettyCHandler i (C_Handler who svs args ct) =
-  group $ brackets $ pretty i <+> pretty who <+> prettyBLVars svs <+> prettyBLVars args <+> (nest 2 $ hardline <> pretty ct)
+prettyCHandler i (C_Handler who svs args pv ct) =
+  group $ brackets $ pretty i <+> pretty who <+> prettyBLVars svs <+> prettyBLVars args <+> prettyBLVar pv <+> (nest 2 $ hardline <> pretty ct)
 
 instance Pretty CProgram where
   pretty (C_Prog ps hs) = group $ parens $ pretty "define-contract" <+> (nest 2 $ hardline <> vsep (psp : hsp))

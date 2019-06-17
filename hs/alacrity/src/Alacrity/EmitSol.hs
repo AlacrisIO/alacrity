@@ -224,7 +224,7 @@ solCTail ps emitp ρ ccs ct =
     C_Do cs kt -> vsep [ solCStmt ρ cs <> semi, solCTail ps emitp ρ ccs kt ]
 
 solHandler :: [Participant] -> Int -> CHandler -> Doc a
-solHandler ps i (C_Handler from svs msg body) = vsep [ evtp, funp ]
+solHandler ps i (C_Handler from svs msg pv body) = vsep [ evtp, funp ]
   where msg_rs = map solRawVar msg
         msg_ds = map solArgDecl msg
         msg_eds = map solFieldDecl msg
@@ -235,9 +235,10 @@ solHandler ps i (C_Handler from svs msg body) = vsep [ evtp, funp ]
         retp = pretty "external payable"
         emitp = pretty "emit" <+> solApply evts msg_rs <> semi <> hardline
         ccs = usesCTail body
-        bodyp = vsep [ (solRequire $ solEq (pretty "current_state") (solHashState M.empty i ps svs)) <> semi,
+        ρ = M.insert pv (pretty "msg.value") M.empty
+        bodyp = vsep [ (solRequire $ solEq (pretty "current_state") (solHashState ρ i ps svs)) <> semi,
                        solRequireSender from <> semi,
-                       solCTail ps emitp M.empty ccs body ]
+                       solCTail ps emitp ρ ccs body ]
 
 solHandlers :: [Participant] -> [CHandler] -> Doc a
 solHandlers ps hs = vsep $ intersperse emptyDoc $ zipWith (solHandler ps) [0..] hs

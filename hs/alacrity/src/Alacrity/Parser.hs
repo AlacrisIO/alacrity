@@ -116,13 +116,19 @@ decodeXLExpr [SE.List (SE.Atom "begin-local" : kse)] =
   XL_FromConsensus (decodeXLExpr kse)
 decodeXLExpr ((SE.List (SE.Atom "@" : fromse :
                         SE.List (SE.Atom "publish!" : inse) :
+                        --- XXX Make variant that allows choice about
+                        --- what payvse is and doesn't assume should
+                        --- be exactly equal to payse
                         SE.List [SE.Atom "pay!", payse] :
                         bse)):kse) =
-  XL_ToConsensus p ins pay body
+  XL_ToConsensus p ins pay payv body
   where RolePart p = decodeRole fromse
+        --- XXX
+        payvse = SE.Atom "pay-amount"
+        payv = decodeXLVar payvse
         ins = decodeXLVars inse
         pay = decodeXLExpr1 payse
-        bse' = bse ++ [(SE.List (SE.Atom "begin-local" : kse))]
+        bse' = [(SE.List [SE.Atom "require!", (SE.List [SE.Atom "=", payvse, payse])])] ++ bse ++ [(SE.List (SE.Atom "begin-local" : kse))]
         body = decodeXLExpr bse'
 --- define
 decodeXLExpr ((SE.List [SE.Atom "@", rs, (SE.List [SE.Atom "declassify!", v])]):kse) =

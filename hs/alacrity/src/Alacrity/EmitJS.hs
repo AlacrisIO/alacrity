@@ -125,9 +125,9 @@ jsEPTail (EP_Let v (EP_PrimApp INTERACT al) kt) =
   where kp = jsLambda [ jsVar v ] $ jsEPTail kt
 jsEPTail (EP_Let bv ee kt) = vsep [ jsVarDecl bv <+> pretty "=" <+> jsEPExpr ee <> semi, jsEPTail kt ];
 jsEPTail (EP_Do es kt) = vsep [ jsEPStmt es <> semi, jsEPTail kt ];
-jsEPTail (EP_Recv i _ msg kt) = jsApply "ctc.recv" [ jsString (solMsg_evt i), kp ]
+jsEPTail (EP_Recv i _ msg pv kt) = jsApply "ctc.recv" [ jsString (solMsg_evt i), kp ]
   where kp = jsLambda msg_vs (jsEPTail kt)
-        msg_vs = map jsVar msg
+        msg_vs = map jsVar $ msg ++ [pv]
 
 jsPart :: (Participant, EProgram) -> Doc a
 jsPart (p, (EP_Prog pargs et)) =
