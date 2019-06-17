@@ -135,12 +135,11 @@ z3_sortof AT_Bool = pretty "Bool"
 z3_sortof AT_Bytes = pretty "Bytes"
 
 z3_verify1 :: (Bool, Role, TheoremKind) -> Doc a -> Doc a
-z3_verify1 (honest, r, tk) a = z3Local check
+z3_verify1 (_honest, _r, _tk) a = z3Local check
   where check = vsep
           [ z3Assert (z3Apply "not" [ a ])
-          , z3Echo $ "Verifying honest = " ++ show honest ++ ", role = " ++ show r ++ ", tk = " ++ show tk ++ ", a = " ++ show a
-          , z3Apply "check-sat" []
-          , z3Apply "get-model" [] ]
+          -- , z3Echo $ "Verifying honest = " ++ show honest ++ ", role = " ++ show r ++ ", tk = " ++ show tk ++ ", a = " ++ show a
+          , z3Apply "check-sat" [] ]
 
 {- Z3 Theory Generation
 
