@@ -1,7 +1,7 @@
 # Alacrity
 
 Alacrity is a domain-specific language for trustworthy decentralized
-applications. We use uses a cascading style of verification to
+applications. We use a cascading style of verification to
 help establish trust by users, by allowing an application's
 trusted code base to be very small,
 while enabling the application to be deployed in a wide variety of contexts.
