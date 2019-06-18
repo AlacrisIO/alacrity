@@ -116,6 +116,9 @@ export const un0x = s => {
     : string => String0x */
 export const hexToAddress = hex => hexTo0x(hex.slice(-40));
 
+/** Given a hex string, what it the length of the represented bytes array */
+export const bytes_length = s => s.length / 2;
+
 /** Parse a decimal number */
 export const parseDecimal = x => parseInt(x, 10);
 export const stringToInt = parseDecimal

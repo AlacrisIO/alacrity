@@ -106,6 +106,7 @@ export const msgCdr = c => msg.substring(4 + msgCarLength(msg))
     because we can only use web3 0.20.x at this time (which is what metamask provides)
     and we only need uint256 for the rps-demo (although we may want to add bytes soon
     to complete support for the DSL).
+    NB: they are meant as the JS analogues to Solidity's abi.encode.
   */
 export const encodeParameter = (type, parameter) => {
     assert(type === "uint256");
