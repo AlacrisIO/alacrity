@@ -153,13 +153,15 @@ role_me RoleContract _ = False
 role_me (RolePart x) (RolePart y) = x == y
 
 data ClaimType
-  = CT_Assert  --- Verified on all paths
-  | CT_Assume  --- Always assumed true
-  | CT_Require --- Verified in honest, assumed in dishonest. (This may
-               --- sound backwards, but by verifying it in honest
-               --- mode, then we are checking that the other
-               --- participants fulfill the promise when acting
-               --- honestly.)
+  = CT_Assert   --- Verified on all paths
+  | CT_Assume   --- Always assumed true
+  | CT_Require  --- Verified in honest, assumed in dishonest. (This may
+                --- sound backwards, but by verifying it in honest
+                --- mode, then we are checking that the other
+                --- participants fulfill the promise when acting
+                --- honestly.)
+  | CT_Possible --- Check if an assignment of variables exists to make
+                --- this true.
   deriving (Show,Eq,Ord)
 
 {- Surface Language
@@ -415,6 +417,7 @@ prettyClaim ct a = group $ parens $ pretty cts <+> pretty a
           CT_Assert -> "assert!"
           CT_Assume -> "assume!"
           CT_Require -> "require!"
+          CT_Possible -> "possible?"
 
 prettyTransfer :: Pretty a => Participant -> a -> Doc ann
 prettyTransfer to a = group $ parens $ pretty "transfer!" <+> pretty to <+> pretty a

@@ -203,6 +203,7 @@ solCExpr :: SolRenaming a -> CExpr -> Doc a
 solCExpr ρ (C_PrimApp pr al) = solPrimApply pr $ map (solArg ρ) al
 
 solCStmt :: SolRenaming a -> CStmt -> Doc a
+solCStmt _ (C_Claim CT_Possible _) = emptyDoc
 solCStmt ρ (C_Claim _ a) = solRequire $ solArg ρ a
 solCStmt ρ (C_Transfer p a) = solPartVar p <> pretty "." <> solApply "transfer" [ solArg ρ a ]
 

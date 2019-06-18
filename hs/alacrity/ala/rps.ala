@@ -59,4 +59,6 @@
      (transfer! A A-gets)
      (transfer! B B-gets))
 
+(possible? (= outcome A_WINS))
+(possible? (= outcome B_WINS))
 outcome

@@ -123,4 +123,8 @@
 (@ CTC (transfer! A 94/PureIf))
 (@ CTC (transfer! B 95/PureIf))
 (return!)
+(@ CTC (define 96/PrimApp (PEQ 64/PureIf 2)))
+(@ CTC (possible? 96/PrimApp))
+(@ CTC (define 97/PrimApp (PEQ 64/PureIf 0)))
+(@ CTC (possible? 97/PrimApp))
 64/PureIf

@@ -13,7 +13,7 @@ import Alacrity.AST
 
 valid_id :: String -> Bool
 valid_id p = not (elem p rsw) && head p /= '#' && (Nothing == (decodePrim p))
-  where rsw = ["if", "cond", "else", "assert!", "assume!", "require!", "transfer!", "declassify!", "declassify", "values", "@", "define", "define-values", "require", "CTC"]
+  where rsw = ["if", "cond", "else", "assert!", "assume!", "require!", "possible?", "transfer!", "declassify!", "declassify", "values", "@", "define", "define-values", "require", "CTC"]
 
 decodeXLType :: SE.SExpr -> BaseType
 decodeXLType (SE.Atom "uint256") = AT_UInt256
@@ -100,6 +100,8 @@ decodeXLExpr1 (SE.List [SE.Atom "assume!", arg]) =
   XL_Claim CT_Assume (decodeXLExpr1 arg)
 decodeXLExpr1 (SE.List [SE.Atom "require!", arg]) =
   XL_Claim CT_Require (decodeXLExpr1 arg)
+decodeXLExpr1 (SE.List [SE.Atom "possible?", arg]) =
+  XL_Claim CT_Possible (decodeXLExpr1 arg)
 decodeXLExpr1 (SE.List [SE.Atom "transfer!", to, amt]) =
   XL_Transfer (decodePart to) (decodeXLExpr1 amt)
 decodeXLExpr1 (SE.List [SE.Atom "declassify", arg]) =

@@ -188,6 +188,10 @@
   (define [93/PureIf : uint256] (IF_THEN_ELSE [89/PrimApp : bool] [90/PrimApp : uint256] [19/Declassify : uint256]))
   (define [94/PureIf : uint256] (IF_THEN_ELSE [86/PrimApp : bool] [88/PrimApp : uint256] [92/PureIf : uint256]))
   (define [95/PureIf : uint256] (IF_THEN_ELSE [86/PrimApp : bool] 0 [93/PureIf : uint256]))
+  (define [96/PrimApp : bool] (PEQ [64/PureIf : uint256] 2))
+  (possible? [96/PrimApp : bool])
+  (define [97/PrimApp : bool] (PEQ [64/PureIf : uint256] 0))
+  (possible? [97/PrimApp : bool])
   [64/PureIf : uint256])
 
 (define-participant B 
@@ -280,4 +284,8 @@
   (define [93/PureIf : uint256] (IF_THEN_ELSE [89/PrimApp : bool] [90/PrimApp : uint256] [19/Declassify : uint256]))
   (define [94/PureIf : uint256] (IF_THEN_ELSE [86/PrimApp : bool] [88/PrimApp : uint256] [92/PureIf : uint256]))
   (define [95/PureIf : uint256] (IF_THEN_ELSE [86/PrimApp : bool] 0 [93/PureIf : uint256]))
+  (define [96/PrimApp : bool] (PEQ [64/PureIf : uint256] 2))
+  (possible? [96/PrimApp : bool])
+  (define [97/PrimApp : bool] (PEQ [64/PureIf : uint256] 0))
+  (possible? [97/PrimApp : bool])
   [64/PureIf : uint256])

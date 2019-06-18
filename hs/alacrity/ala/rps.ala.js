@@ -103,6 +103,10 @@ export function A(ctc, interact, v0, v1, v2, kTop) {
         const v93 = v89 ? v90 : v19;
         const v94 = v86 ? v88 : v92;
         const v95 = v86 ? 0 : v93;
+        const v96 = v64 == 2;
+        true;
+        const v97 = v64 == 0;
+        true;
         kTop(v64); }) }) }) }
 
 export function B(ctc, interact, v3, kTop) {
@@ -193,4 +197,8 @@ export function B(ctc, interact, v3, kTop) {
         const v93 = v89 ? v90 : v19;
         const v94 = v86 ? v88 : v92;
         const v95 = v86 ? 0 : v93;
+        const v96 = v64 == 2;
+        true;
+        const v97 = v64 == 0;
+        true;
         kTop(v64); }) }) }) }

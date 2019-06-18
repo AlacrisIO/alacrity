@@ -141,6 +141,20 @@ z3_verify1 z3 (_honest, _r, _tk) a = inNewScope z3 $ do
       putStrLn $ show $ pretty_se_top m
       return $ VR 0 1
 
+z3_sat1 :: Solver -> (Bool, Role, TheoremKind) -> SExpr -> IO VerifyResult
+z3_sat1 z3 (_honest, _r, _tk) a = inNewScope z3 $ do
+  assert z3 a
+  r <- check z3
+  case r of
+    Unknown -> error "Z3 inconclusive result"
+    Sat -> return $ VR 1 0
+    Unsat -> do
+      --- XXX Display useful information about a
+      putStrLn $ "Failed to verify! " ++ showsSExpr a ":"
+      uc <- getUnsatCore z3
+      mapM_ putStrLn uc
+      return $ VR 0 1
+
 {- Z3 Theory Generation
 
    The Z3 theory has to prove a few different things.
@@ -191,6 +205,8 @@ z3PrimEq z3 pr alt out = case pr of
 
 data TheoremKind
   = TAssert
+  | TRequire
+  | TPossible
   | TBalanceZero
   deriving (Show)
 
@@ -233,15 +249,22 @@ z3_stmt z3 honest r cbi how =
       where cbi' = cbi + 1
             cb' = z3CTCBalance cbi'
             amountt = emit_z3_arg amount
-    IL_Claim ct a -> do vr <- if should_check then checkp else return mempty
+    IL_Claim CT_Possible a -> do vr <- z3_sat1 z3 (honest, r, TPossible) at
+                                 return ( cbi, vr )
+      where at = emit_z3_arg a
+    IL_Claim ct a -> do vr <- this_check
                         assert z3 at
                         return ( cbi, vr )                        
       where at = emit_z3_arg a
-            checkp = z3_verify1 z3 (honest, r, TAssert) at
-            should_check = case ct of
-                             CT_Assert -> True
-                             CT_Assume -> False
-                             CT_Require -> honest
+            this_check = case mct of
+              Just tk -> z3_verify1 z3 (honest, r, tk) at
+              Nothing -> return mempty
+            mct = case ct of
+              CT_Assert -> Just TAssert
+              CT_Assume -> Nothing
+              CT_Require | honest -> Just TRequire
+              CT_Require -> Nothing
+              CT_Possible -> error "Impossible"
 
 z3_it_top :: Solver -> ILTypeMapm -> ILTail -> (Bool, Role) -> IO VerifyResult
 z3_it_top z3 tm it_top (honest, me) = inNewScope z3 $ do
@@ -323,6 +346,7 @@ verify_z3 :: String -> ILProgram -> BLProgram -> IO ()
 verify_z3 logp tp bp = do
   (close, logpl) <- newFileLogger logp
   z3 <- newSolver "z3" ["-smt2", "-in"] (Just logpl)
+  unlessM (produceUnsatCores z3) $ error "Prover doesn't support possible?"
   ec <- _verify_z3 z3 tp bp
   maybeDie $ stop z3
   close
