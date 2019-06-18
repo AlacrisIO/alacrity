@@ -2,22 +2,6 @@
 /* eslint-disable no-alert, no-console */
 
 export const isInBrowser = typeof window === "object" && window !== null;
-export const globals = {}
-export const registerGlobals = x => Object.assign(globals, x);
-
-export let require;
-export let crypto;
-
-if (isInBrowser) {
-    window.globals = globals;
-    require = () => loggedAlert("Cannot use require in a browser");
-    crypto = window.crypto;
-} else {
-    process.globals = globals;
-    require = process.require; // cheat the module system; must be set by an outer loader.
-    crypto = require("crypto");
-}
-
 
 // Combinators for regular functions
 /** : 'a => 'a */
@@ -103,7 +87,7 @@ export const composeK = (...fa) => {
     else { const f = l.pop(); return komposeK(composeK(...fa))(f)}}
 
 /** : Uint8 => string */
-export const byteToHex = byte => ('0' + (byte & 0xFF).toString(16)).slice(-2);
+export const byteToHex = byte => (byte & 0xFF).toString(16).padStart(2, "0");
 
 /** : Uint8Array => string */
 export const bytesToHex = bytes => Array.from(bytes, byteToHex).join('');
@@ -113,6 +97,14 @@ export const hexTo0x = hex => "0x" + hex;
 
 /** : Uint8Array => String0x */
 export const bytesTo0x = bytes => hexTo0x(bytesToHex(bytes));
+
+/** : int => Hex */
+export const intToHex = (u, nBytes = 4) => {
+    const p = Math.pow(256,nBytes); // v--- *2 so it works on negative numbers, too.
+    return ((u % p) + 2*p).toString(16).slice(1)}
+
+/** : Hex => int */
+export const hexToInt = x => parseInt(x, 16);
 
 /** Strip the 0x prefix
     : String0x => string */
@@ -124,6 +116,9 @@ export const un0x = s => {
     : string => String0x */
 export const hexToAddress = hex => hexTo0x(hex.slice(-40));
 
+/** Given a hex string, what it the length of the represented bytes array */
+export const bytes_length = s => s.length / 2;
+
 /** Parse a decimal number */
 export const parseDecimal = x => parseInt(x, 10);
 export const stringToInt = parseDecimal
@@ -132,7 +127,7 @@ export const stringToInt = parseDecimal
 export const anyToString = x => `${x}`
 export const intToString = anyToString
 
-/** Return a random salt
+/** Return a random salt as 256-bit 0x-prefixed hex string.
     : () => String0x */
 // export const randomSalt = () => {
 //     const array = new Uint8Array(32);
@@ -245,9 +240,17 @@ export const initFunctions = {}; // maps names to an object { dependsOn: [list o
 export const initFunctionFunction = name => { const f = initFunctions[name]; return f.fun || f }
 export const registerInit = init => Object.assign(initFunctions, init);
 export const initialized = {}
-export const initialize = (what = Object.keys(initFunctions), done={}) => (k = identity) =>
+export const callInitFunctions = (what = Object.keys(initFunctions), done={}) => (k = identity) =>
     inDependencyOrder(initFunctionFunction, initFunctions, "init:",
                       what, done)(k);
+
+export const init = (what = Object.keys(initFunctions), done={}) => {
+    if (isInBrowser) {
+        window.addEventListener('load', () => {
+            /* eslint-disable no-console */
+            console.log("Page loaded. Initializing...");
+            return callInitFunctions(what, done)()})}
+    else { return callInitFunctions(what, done)()}}
 
 // "places", the imperative alternative to lenses.
 // type place('a) = { get: () => 'a, set: 'a => () }
@@ -299,6 +302,26 @@ export const setrk = result => k => k(setr(result));
 export const setrrk = seq(Array.of)(setrk);
 export const srf = func => {r = undefined; return func(setr);}
 export const srrf = func => {r = undefined; return func(setrr);}
+
+export let require;
+export const globals = {}
+export const registerGlobals = x => Object.assign(globals, x);
+export const magic = () =>
+   `var globals = ${isInBrowser ? "window" : "process"}.globals;
+   ${Object.keys(globals).map(m=>Object.keys(window.globals[m]).map(s=>`var ${s} = globals.${m}.${s}`).join(";")).join(";")}`
+
+logging(`To make all the program bindings available in the console, use:\neval(${isInBrowser ? "" : "process."}magic())`)();
+// const MAGIC = () => eval(magic()) // This does NOT work. You do have to call "eval" *at the toplevel*.
+
+if (isInBrowser) {
+    window.globals = globals;
+    window.magic = magic;
+    require = () => loggedAlert("Cannot use require in a browser");
+} else {
+    process.globals = globals;
+    process.magic = magic;
+    require = process.require; // cheat the module system; must be set by an outer loader.
+}
 
 // vim: filetype=javascript
 // Local Variables:

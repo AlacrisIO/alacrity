@@ -5,7 +5,7 @@ with (import <nixpkgs> {});
 haskell.lib.buildStackProject {
   inherit ghc;
   name = "alacrity";
-  buildInputs = [ z3 ];
+  buildInputs = [ z3 solc ];
   shellHook = if glibcLocales != null then ''
     export LOCALE_ARCHIVE="${glibcLocales}/lib/locale/locale-archive"
     export LC_ALL=C.UTF-8

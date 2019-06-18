@@ -1,0 +1,133 @@
+<!doctype html public "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+  <head>
+    <title>Rock, Paper, Scissors — by Alacris (Manually Written)</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta charset="utf-8" />
+    <link rel="stylesheet" type="text/css" href="alacris.css" />
+    <script type="module" src="rps-manual.mjs"></script> <!-- load all the damn stuff -->
+  </head>
+  <body>
+    <a name="top"></a>
+    <h1>Rock, Paper, Scissors - by Alacris (Manually Written)</h1>
+    <p>This game of Rock, Paper, Scissors is based on a manually written
+      Solidity and JavaScript code for the contract & client backend, respectively.</p>
+    <div id="Configuration">
+      <h2>Prerequisites</h2>
+      <p>To run <i>Rock, Paper, Scissors</i> you need
+        to use a Web3-compatible browser and grant us permission to use Web3.</p>
+      <p>If your browser does not support Web3 natively,
+        consider downloading the <a href="https://metamask.io/">MetaMask</a> extension.</p>
+    </div>
+    <div id="Play">
+      <h2>Start a New Game</h2>
+      <div id="NewGame">
+        <div id="NoNewGames">(Playing Rock-Paper-Scissors requires Web3 enabled.)</div>
+      </div>
+      <h2>Active Games</h2>
+      <div id="ActiveGames">
+        <div id="NoActiveGames">(Playing Rock-Paper-Scissors requires Web3 enabled.)</div>
+    </div>
+    <div id="How to play">
+      <h2>How to play</h2>
+      <p>
+        Start a new game, or play an existing game.
+      </p><p>
+        Your actions may have to wait until the previous action by the other player are confirmed,
+        which can take many seconds on the test network, many minutes on the production network.
+        When running this code on the Rinkeby test network,
+        we use a confirmation depth of 1 blocks,
+        which will typically take about 20 to 30 seconds after a transaction is posted.
+        On the production network (aka Metropolis),
+        we use a confirmation depth of 100 blocks,
+        which will typically take about 25 minutes after a transaction is posted.
+      </p><p>
+        This game supposes that you will be able to connect to the blockchain reliably
+        within the alloted timeout deadline, especially so as the first player of the game,
+        who is on notice to reveal their hand after the second player shows theirs.
+        When running this code on the Rinkeby test network,
+        we use a timeout of 12 blocks (about 3 minutes).
+        On the production network, we use a timeout of 11520 blocks (about 2 days).
+      </p><p>
+        Note that game numbers are local to your client.
+        Other players do not have the same game numbers.
+        To discuss a particular game with other players, look at the transaction hash, e.g.
+        tx <a href="https://rinkeby.etherscan.io/tx/0x679cc03e63fd7b2d429810205259ccbb934839e07a873cc4d98acafa5b579256">0x679c…9256</a>—unlike the game number,
+        this uniquely identifies the game in a global fashion.
+      </p>
+    </div>
+    <div id="WARNING">
+      <h2>WARNING</h2>
+      <p>
+      </p><p>
+        If you play first (as "player0"), you <em>have</em> to remain connected, or reconnect regularly,
+        so as to reveal your hand after the other player (as "player1") accepts your challenge;
+        otherwise they can claim that you timed out and collect your escrow as well as your wager.
+        In particular, this means you are subject to the following attack:
+        <em>If you play first and the opponent can deny you access to the Internet via a DDoS attack
+          or otherwise cut your access to the Ethereum blockchain,
+          they can steal your wager and your escrow.</em>
+        To defend against this attack, you must have a good Internet connection, a good power grid,
+        and a fallback Internet connection and power source in case the former are attacked;
+        in some extreme cases, you may have to take your laptop to a different city to finish the game.
+        To prevent FOMO3D-style attacks, you may also have to re-post a transaction with increased gas.
+        To prevent eclipse attacks, you need a way to trust your entry points to the Ethereum network.
+        The latter two attacks will require future improvement in Ethereum client software.
+      </p><p>
+        Note that if you play second (as "player1"),
+        you also have to remain connected or reconnect at some point,
+        to collect the other player's wager and escrow if they fail to reveal their hand.
+        However, the other player cannot cheat or deny you what you are owed from a win or a draw.
+      </p><p>
+        <u>Other warning</u>:
+        Be careful to not leave or reload the page immediately after you start a new game,
+        but wait for a few seconds for your browser's localStorage to save its salt and hand;
+        if your browser fails to save that data, you may find yourself unable to reveal your hand,
+        and will lose by default after you timeout.
+        In particular, this means you are subject to the following attack:
+        <em>If you play first and the opponent can somehow cause your browser or entire machine to crash
+          at the wrong moment, they can steal your wager and your escrow.</em>
+        To properly defend against data loss may require future improvement in browser technology
+        as well as in Ethereum client software.
+      </p>
+    </div>
+    <div id="related_works">
+      <h2>Related Works</h2>
+      <p>
+        This demo is being written by <a href="https://alacris.io">Alacris.io</a>.
+      </p>
+      <p>Other implementations of this simple game include:</p>
+      <ul>
+        <li>A variant by Peter M. Phillips, based on Enigma.co by Guy Zyskind,
+          who also has a general system for Multi-Party Computations (MPC):
+          <a href="https://kauri.io/article/468b49fcd2ef48feaada3a4399d0b2a6/secret-rock-paper-scissors"
+             >Secret Rock, Paper, Scissors</a>
+          [<a href="https://github.com/PeterMPhillips/Enigma-Rock-Paper-Scissors/">github</a>]
+        </li>
+        <li>A variant made for Raiden:
+          <a href="https://medium.com/@loredana.cirstea/cryptobotwars-part-2-conclusions-ebde6fa716f6"
+             >CryptoBotWars — Part 2: Conclusions</a>
+          [<a href="https://github.com/cryptoplayerone/cryptobotwars">github</a>]
+        </li>
+        <li><a href="https://0xfair.com/">0xfair</a> by ikirch, with a nice UI,
+          but it is not clear where the source code is:
+          <a href="https://www.reddit.com/r/ethereum/comments/990tfi/i_make_a_funny_dapp_that_can_play/"
+             >announce on reddit</a>,
+          <a href="https://www.stateofthedapps.com/dapps/0xfair">link on stateofthedapps</a>.
+        </li>
+        <li><a href="http://roshambo.io/">Roshambo</a> by Ibex, using with a RNG for tie breaks:
+          <a href="https://www.stateofthedapps.com/dapps/roshambo">link on stateofthedapps</a>.
+        </li>
+        <li>A variant of <a href="https://cooloud.com/dapp/rock-paper-scissors">rock paper scissors</a>
+          by Yossi Pik:
+          <a href="https://www.stateofthedapps.com/dapps/rock-paper-scissors">link on stateofthedapps</a>.
+        </li>
+        <li>EthDevRPS [<a href="https://github.com/jpantunes/Ethdev-RPS">github</a>]
+        </li>
+        <li><a href="http://ethrps.com">EthRPS</a>:
+          <a href="https://www.reddit.com/r/EthRPS">reddit section</a>
+        </li>
+      </ul>
+    </footer>
+  </body>
+</html>

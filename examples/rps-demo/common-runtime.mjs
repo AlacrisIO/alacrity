@@ -2,12 +2,11 @@
 import {
     rekeyContainer, intToString, stringToInt, registerInit, keyValuePair, assert,
     handlerK, handlerThenK, errbacK, runHooks, kLogError, kLogResult, hexTo0x, range,
-    logging, loggingK, logErrorK, loggedAlert, merge, popEntry, forEachK
+    logging, loggingK, logErrorK, loggedAlert, merge, popEntry, forEachK, randomSalt
 } from "./common-utils.mjs";
 import {TinyQueue} from "./tinyqueue.mjs";
 import {Storage} from "./local-storage.mjs";
 import {Web3, web3, networkId, userAddress} from "./web3-prelude.mjs";
-import {networkConfig} from "./dapp-config.mjs";
 
 /* TODO LATER:
 
@@ -54,8 +53,12 @@ export const optionalAddressMatches = (pattern, address) => !pattern || pattern 
 */
 export let config;
 
+export let networkConfig;
+export const registerNetworkConfig = n => networkConfig = n
+
 // Unit conversion
 export const toBN = Web3.prototype.toBigNumber;
+export const isBigInt = x => typeof x === "object" && typeof x.isInteger === "function" && x.isInteger();
 export const weiPerEth = toBN(1e18);
 export const ethToWei = e => toBN(e).mul(weiPerEth).floor();
 export const weiToEth = w => toBN(w).div(weiPerEth);
@@ -64,13 +67,57 @@ export const meth = x => toBN(1e15).mul(x);
 /** Convert a hex string to a BigNumber
     : string => BigNumber */
 export const hexToBigNumber = hex => toBN(hexTo0x(hex));
-export const uint32ToHex = u => web3.toHex(u + 0x100000000).slice(3);
-export const hexToInt = x => parseInt(x, 16);
+export const BNtoHex = (u, nBytes = 32) => {
+    const p = toBN(256).pow(nBytes); // v--- p.mul(2) so it works on negative numbers, too.
+    return web3.toHex(toBN(u).mod(p).add(p.mul(2))).slice(3);}
 
 export const digest = Web3.prototype.sha3;
 export const digestHex = x => Web3.prototype.sha3(x, {encoding: "hex"});
 export const saltedDigest = toHex => (salt, ...data) => digestHex(salt + toHex(...data));
+export const hexOf = x => {
+    if (typeof x === "number") {
+        return BNtoHex(toBN(x));
+    }
+    if (isBigInt(x)) {
+        return BNtoHex(x);
+    }
+    if (typeof x !== "string") {
+        throw ["Cannot convert to hex:", x];
+    }
+    if (x.slice(0,2) === "0x") {
+        return x.slice(2);
+    }
+    return x; // NB: Assume x is already hexadecimal.
+}
+export const hexCat = (...x) => x.map(hexOf).join("")
+export const keccak256 = (...x) => digestHex(hexOf(...x))
 
+// Used by both msgCar and msgCdr to see when the left stops and the right starts
+// 16 bits = 2 bytes = 4 hex characters
+export const msgCarLength = msg => hexToInt(msg.substring(0,4))
+
+// ∀ a b, msgCar(msgCons(a, b)) = a
+// ∀ a b, msgCdr(msgCons(a, b)) = b
+export const msgCons = (a, b) => hexCat(intToHex(a.length/2, 2), a, b)
+export const msgCar = c => msg.substring(4, 4 + msgCarLength(msg))
+export const msgCdr = c => msg.substring(4 + msgCarLength(msg))
+
+/** minimal variants of web3.js's web3.eth.abi functions that only support uint256,
+    because we can only use web3 0.20.x at this time (which is what metamask provides)
+    and we only need uint256 for the rps-demo (although we may want to add bytes soon
+    to complete support for the DSL).
+    NB: they are meant as the JS analogues to Solidity's abi.encode.
+  */
+export const encodeParameter = (type, parameter) => {
+    assert(type === "uint256");
+    return BNtoHex(parameter)}
+export const encodeParameters = (types, parameters) => {
+    assert(types.length === parameters.length);
+    return types.map((t, i) => encodeParameter(t, parameters[i])).join("")}
+
+
+/** Return a random UInt256 number */
+export const randomUInt256 = () => toBN(randomSalt());
 
 
 /** For Apps with a "current user" that may change, making keys relative to a userId.
@@ -524,11 +571,20 @@ export const initGames = k => { for(let i=previousUnconfirmedId;i<nextId;i++) {i
 
 export const resumeGames = k => forEachK(processGame)(range(previousUnconfirmedId, nextId-previousUnconfirmedId))(k);
 
-import {contractAbi, contractFactoryAbi, contractFactoryCode} from "./build/dapp-contract.mjs";
+// The contract object, to be fulfilled from config after initialization.
+export let contractFactoryCode;
+export let contractFactoryAbi;
+export let contractFactory;
+export let contractAbi;
+export let contract;
 
 // The contract object, to be fulfilled from config after initialization.
-export let contractFactory;
-export const contract = web3.eth.contract(contractAbi);
+export const registerContract = (_contractAbi, _contractFactoryAbi, _contractFactoryCode) => {
+    contractAbi = _contractAbi;
+    contractFactoryAbi = _contractFactoryAbi;
+    contractFactoryCode = _contractFactoryCode;
+    contract = web3.eth.contract(contractAbi);}
+
 export const contractAt = contractAddress => contract.at(contractAddress);
 
 /** Given some code in 0x form (.bin output from solc), deploy a contract with that code
@@ -560,11 +616,14 @@ export const checkContract = (k = kLogResult, kError = kLogError) => {
         kError)})}
 
 const initContract = k => {
-    if (config && config.contract) { // Avoid erroring on an unconfigured network
+    if (config && config.contract && contractFactoryAbi) { // Avoid erroring on an unconfigured network
         contractFactory = web3.eth.contract(contractFactoryAbi).at(config.contract.address);
         if (digestHex(contractFactoryCode) !== config.contract.codeHash) {
             logging(`Warning: deployed contract has code hash ${config.contract.codeHash} \
-but the latest version of the contract has code hash ${digestHex(contractFactoryCode)}`)();}}
+but the latest version of the contract has code hash ${digestHex(contractFactoryCode)}`)();}
+    } else {
+        loggedAlert("Cannot initialize contract: missing configuration or registration");
+    }
     return k()}
 
 /** : Kont() */

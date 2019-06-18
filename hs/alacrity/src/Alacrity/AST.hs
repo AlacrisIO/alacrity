@@ -4,13 +4,12 @@ import qualified Data.ByteString.Char8 as B
 import qualified Data.Map.Strict as M
 import Data.Text.Prettyprint.Doc
 import Data.List (intersperse)
+import Control.Monad.Except
 
 -- Shared types
 
 data BaseType
-  = AT_Unit --- XXX Remove and have ANF enforce the Assert/Transfer
-            --- can't be observed
-  | AT_Int
+  = AT_UInt256
   | AT_Bool
   | AT_Bytes
   deriving (Show,Eq,Ord)
@@ -24,11 +23,11 @@ data FunctionType
   deriving (Show,Eq)
 
 tBool :: ExprType
-tInt :: ExprType
+tUInt256 :: ExprType
 tBytes :: ExprType
 (-->) :: [ExprType] -> ExprType -> FunctionType
 tBool = TY_Con AT_Bool
-tInt = TY_Con AT_Int
+tUInt256 = TY_Con AT_UInt256
 tBytes = TY_Con AT_Bytes
 ins --> out = TY_Arrow ins out
 
@@ -39,7 +38,7 @@ data Constant
   deriving (Show,Eq)
 
 conType :: Constant -> BaseType
-conType (Con_I _) = AT_Int
+conType (Con_I _) = AT_UInt256
 conType (Con_B _) = AT_Bool
 conType (Con_BS _) = AT_Bytes
 
@@ -58,14 +57,13 @@ data C_Prim
   | PGE
   | PGT
   | IF_THEN_ELSE
-  | INT_TO_BYTES
+  | UINT256_TO_BYTES
   | DIGEST
   | BYTES_EQ
   | BYTES_LEN
   | BCAT
   | BCAT_LEFT
   | BCAT_RIGHT
-  | DISHONEST
   deriving (Show,Eq)
 
 data EP_Prim
@@ -75,66 +73,95 @@ data EP_Prim
   deriving (Show,Eq)
 
 primType :: EP_Prim -> FunctionType
-primType (CP ADD) = [tInt, tInt] --> tInt
-primType (CP SUB) = [tInt, tInt] --> tInt
-primType (CP MUL) = [tInt, tInt] --> tInt
-primType (CP DIV) = [tInt, tInt] --> tInt
-primType (CP MOD) = [tInt, tInt] --> tInt
-primType (CP PLT) = [tInt, tInt] --> tBool
-primType (CP PLE) = [tInt, tInt] --> tBool
-primType (CP PEQ) = [tInt, tInt] --> tBool
-primType (CP PGE) = [tInt, tInt] --> tBool
-primType (CP PGT) = [tInt, tInt] --> tBool
+primType (CP ADD) = [tUInt256, tUInt256] --> tUInt256
+primType (CP SUB) = [tUInt256, tUInt256] --> tUInt256
+primType (CP MUL) = [tUInt256, tUInt256] --> tUInt256
+primType (CP DIV) = [tUInt256, tUInt256] --> tUInt256
+primType (CP MOD) = [tUInt256, tUInt256] --> tUInt256
+primType (CP PLT) = [tUInt256, tUInt256] --> tBool
+primType (CP PLE) = [tUInt256, tUInt256] --> tBool
+primType (CP PEQ) = [tUInt256, tUInt256] --> tBool
+primType (CP PGE) = [tUInt256, tUInt256] --> tBool
+primType (CP PGT) = [tUInt256, tUInt256] --> tBool
 primType (CP IF_THEN_ELSE) = TY_Forall ["a"] ([tBool, TY_Var "a", TY_Var "a"] --> TY_Var "a")
-primType (CP INT_TO_BYTES) = [tInt] --> tBytes
-primType (CP DIGEST) = ([tBytes] --> tInt)
+primType (CP UINT256_TO_BYTES) = [tUInt256] --> tBytes
+primType (CP DIGEST) = ([tBytes] --> tUInt256)
 primType (CP BYTES_EQ) = [tBytes, tBytes] --> tBool
-primType (CP BYTES_LEN) = [tBytes] --> tInt
+primType (CP BYTES_LEN) = [tBytes] --> tUInt256
 primType (CP BCAT)       = ([tBytes, tBytes] --> tBytes)
 primType (CP BCAT_LEFT)  = ([tBytes] --> tBytes)
 primType (CP BCAT_RIGHT) = ([tBytes] --> tBytes)
-primType (CP DISHONEST) = ([] --> tBool)
-primType RANDOM = ([] --> tInt)
+primType RANDOM = ([] --> tUInt256)
 primType INTERACT = ([tBytes] --> tBytes)
 
+type TypeVarEnv = M.Map String BaseType
+
 checkFun :: FunctionType -> [BaseType] -> BaseType
-checkFun top topdom = hFun [] M.empty top topdom
+checkFun top topdom = toprng
   where
+    toprng = case runExcept mrng of
+      Left err -> error err
+      Right v -> v
+    mrng = hFun [] M.empty top topdom
+    hTy :: TypeVarEnv -> ExprType -> Except String BaseType
     hTy γ et = case et of
-      TY_Con bt -> bt
+      TY_Con bt -> return bt
       TY_Var v -> case M.lookup v γ of
-        Nothing -> error $ "checkFun: Unconstrained/bound type variable: " ++ show v
-        Just et' -> et'
+        Nothing -> throwError $ "checkFun: Unconstrained/bound type variable: " ++ show v
+        Just et' -> return et'
+    hExpr :: [String] -> TypeVarEnv -> ExprType -> BaseType -> Except String TypeVarEnv
     hExpr vs γ et at = case et of
       TY_Con bt ->
-        if at == bt then γ
-        else error $ "checkFun: Expected " ++ show bt ++ ", got: " ++ show at
+        if at == bt then return γ
+        else throwError $ "checkFun: Expected " ++ show bt ++ ", got: " ++ show at
       TY_Var v ->
         if not $ elem v vs then
-          error $ "checkFun: Unbound type variable: " ++ show v
+          throwError $ "checkFun: Unbound type variable: " ++ show v
         else
           case M.lookup v γ of
             Just bt -> hExpr vs γ (TY_Con bt) at
-            Nothing -> M.insert v at γ
+            Nothing -> return $ M.insert v at γ
+    hFun :: [String] -> TypeVarEnv -> FunctionType -> [BaseType] -> Except String BaseType
     hFun vs γ ft adom = case ft of
       TY_Forall nvs ft' -> hFun (vs ++ nvs) γ ft' adom
-      TY_Arrow edom rng -> hTy γ' rng
-        where γ' = hExprs vs γ edom adom
+      TY_Arrow edom rng -> do
+        γ' <- hExprs vs γ edom adom
+        hTy γ' rng
+    hExprs :: [String] -> TypeVarEnv -> [ExprType] -> [BaseType] -> Except String TypeVarEnv
     hExprs vs γ esl asl = case esl of
       [] ->
         case asl of
-          [] -> γ
-          _ -> error "checkFun: Received more than expected"
+          [] -> return γ
+          _ -> throwError $ "checkFun: Received more than expected"
       e1 : esl' ->
         case asl of
-          [] -> error "checkFun: Received fewer than expected"
-          a1 : asl' -> hExpr vs (hExprs vs γ esl' asl') e1 a1
+          [] -> throwError $ "checkFun: Received fewer than expected"
+          a1 : asl' -> do
+            γ' <- (hExprs vs γ esl' asl')
+            hExpr vs γ' e1 a1
 
 type Participant = String
 
 data Role
   = RolePart Participant
   | RoleContract
+  deriving (Show,Eq,Ord)
+
+role_me :: Role -> Role -> Bool
+role_me _ RoleContract = True
+role_me RoleContract _ = False
+role_me (RolePart x) (RolePart y) = x == y
+
+data ClaimType
+  = CT_Assert   --- Verified on all paths
+  | CT_Assume   --- Always assumed true
+  | CT_Require  --- Verified in honest, assumed in dishonest. (This may
+                --- sound backwards, but by verifying it in honest
+                --- mode, then we are checking that the other
+                --- participants fulfill the promise when acting
+                --- honestly.)
+  | CT_Possible --- Check if an assignment of variables exists to make
+                --- this true.
   deriving (Show,Eq,Ord)
 
 {- Surface Language
@@ -154,13 +181,13 @@ data XLExpr
   | XL_Var XLVar
   | XL_PrimApp EP_Prim [XLExpr]
   | XL_If Bool XLExpr XLExpr XLExpr
-  | XL_Assert XLExpr
+  | XL_Claim ClaimType XLExpr
   --- A ToConsensus transfers control to the contract. The arguments
-  --- are (initiator, message, pay expression, contract body). The
-  --- message is a sequence of variables, because it binds these in
-  --- the contract body. The contract body is expected to end in a
-  --- FromConsensus that will switch back.
-  | XL_ToConsensus Participant [XLVar] XLExpr XLExpr
+  --- are (initiator, message, pay expression, pay amount var,
+  --- contract body). The message is a sequence of variables, because
+  --- it binds these in the contract body. The contract body is
+  --- expected to end in a FromConsensus that will switch back.
+  | XL_ToConsensus Participant [XLVar] XLExpr XLVar XLExpr
   --- A FromConsensus expression is a terminator inside of a contract
   --- block that switches the context back away from the consensus,
   --- while still retaining all of the bindings established during the
@@ -227,8 +254,11 @@ data ILArg
 data ILExpr
   = IL_PrimApp EP_Prim [ILArg]
   | IL_Declassify ILArg
-  | IL_Transfer Participant ILArg --- XXX move to ILStmt/IL_Do
-  | IL_Assert ILArg --- XXX move to ILStmt/IL_Do
+  deriving (Show,Eq)
+
+data ILStmt
+  = IL_Transfer Participant ILArg
+  | IL_Claim ClaimType ILArg
   deriving (Show,Eq)
 
 data ILTail
@@ -236,17 +266,19 @@ data ILTail
   | IL_If ILArg ILTail ILTail
   --- This role represents where the action happens. If it is
   --- RoleContract, then this means that everyone does it.
-  | IL_Let Role (Maybe ILVar) ILExpr ILTail
+  | IL_Let Role ILVar ILExpr ILTail
+  | IL_Do Role ILStmt ILTail
   --- As in XL, a ToConsensus is a transfer to the contract with
   --- (initiator, message, pay amount). The tail is inside of the
   --- contract.
-  | IL_ToConsensus Participant [ILVar] ILArg ILTail
+  | IL_ToConsensus Participant [ILVar] ILArg ILVar ILTail
   --- A FromConsensus moves back from the consensus; the tail is
   --- "local" again.
   | IL_FromConsensus ILTail
   deriving (Show,Eq)
 
-type ILPartInfo = (M.Map Participant [(ILVar, BaseType)])
+type ILPartArgs = [(ILVar, BaseType)]
+type ILPartInfo = (M.Map Participant ILPartArgs)
 
 data ILProgram =
   IL_Prog ILPartInfo ILTail
@@ -280,18 +312,21 @@ data BLArg
 data EPExpr
   = EP_Arg BLArg
   | EP_PrimApp EP_Prim [BLArg]
-  | EP_Assert BLArg
+  deriving (Show,Eq)
+
+data EPStmt
+  = EP_Claim ClaimType BLArg
   | EP_Send Int [BLVar] [BLVar] BLArg
   deriving (Show,Eq)
 
 data EPTail
   = EP_Ret [BLArg]
   | EP_If BLArg EPTail EPTail
-  --- XXX Remove Maybe and add Stmt
-  | EP_Let (Maybe BLVar) EPExpr EPTail
+  | EP_Let BLVar EPExpr EPTail
+  | EP_Do EPStmt EPTail
   {- This recv is what the sender sent; we will be doing the same
      computation as the contract. -}
-  | EP_Recv Int [BLVar] [BLVar] EPTail
+  | EP_Recv Int [BLVar] [BLVar] BLVar EPTail
   deriving (Show,Eq)
 
 data EProgram
@@ -301,23 +336,24 @@ data EProgram
 -- -- Contracts
 data CExpr
   = C_PrimApp C_Prim [BLArg]
-  | C_Assert BLArg
+  deriving (Show,Eq)
+
+data CStmt
+  = C_Claim ClaimType BLArg
   | C_Transfer Participant BLArg
   deriving (Show,Eq)
 
 data CTail
   = C_Halt
   | C_Wait Int [BLVar]
-  | C_If BLArg CTail CTail
-  --- XXX Remove Maybe and add Stmt
-  | C_Let (Maybe BLVar) CExpr CTail --- XXX Record use count for
-                                    --- de-inlining.
+  | C_If BLArg CTail CTail  
+  | C_Let BLVar CExpr CTail
+  | C_Do CStmt CTail
   deriving (Show,Eq)
 
 data CHandler
   --- Each handler has a message that it expects to receive
-  --- XXX Maybe needs to know the transfer in amount
-  = C_Handler Participant [BLVar] [BLVar] CTail
+  = C_Handler Participant [BLVar] [BLVar] BLVar CTail
   deriving (Show,Eq)
 
 --- A contract program is just a sequence of handlers.
@@ -335,8 +371,7 @@ data BLProgram
 --- Emiting Code ---
 
 instance Pretty BaseType where
-  pretty AT_Unit = pretty "unit"
-  pretty AT_Int = pretty "int"
+  pretty AT_UInt256 = pretty "uint256"
   pretty AT_Bool = pretty "bool"
   pretty AT_Bytes = pretty "bytes"
 
@@ -372,12 +407,17 @@ instance Pretty ILArg where
   pretty (IL_Con c) = pretty c
 
 prettyApp :: (Pretty p, Pretty a) => p -> [a] -> Doc ann
-prettyApp p al = group $ parens $ pretty p <> ap
-  where ap = case al of [] -> emptyDoc
-                        _ -> space <> (hsep $ map pretty al)
+prettyApp p al = group $ parens $ pretty p <> alp
+  where alp = case al of [] -> emptyDoc
+                         _ -> space <> (hsep $ map pretty al)
 
-prettyAssert :: Pretty a => a -> Doc ann
-prettyAssert a = group $ parens $ pretty "assert!" <+> pretty a
+prettyClaim :: Pretty a => ClaimType -> a -> Doc ann
+prettyClaim ct a = group $ parens $ pretty cts <+> pretty a
+  where cts = case ct of
+          CT_Assert -> "assert!"
+          CT_Assume -> "assume!"
+          CT_Require -> "require!"
+          CT_Possible -> "possible?"
 
 prettyTransfer :: Pretty a => Participant -> a -> Doc ann
 prettyTransfer to a = group $ parens $ pretty "transfer!" <+> pretty to <+> pretty a
@@ -385,8 +425,10 @@ prettyTransfer to a = group $ parens $ pretty "transfer!" <+> pretty to <+> pret
 instance Pretty ILExpr where
   pretty (IL_PrimApp p al) = prettyApp p al
   pretty (IL_Declassify a) = group $ parens $ pretty "declassify" <+> pretty a
+
+instance Pretty ILStmt where
   pretty (IL_Transfer to a) = prettyTransfer to a
-  pretty (IL_Assert a) = prettyAssert a
+  pretty (IL_Claim ct a) = prettyClaim ct a
 
 prettyValues :: Pretty a => [a] -> Doc ann
 prettyValues [ a ] = pretty a
@@ -396,23 +438,27 @@ prettyValues al = group $ parens $ (pretty "values") <+> (hsep $ map pretty al)
 prettyIf :: (Pretty a, Pretty b) => a -> b -> b -> Doc ann
 prettyIf ca tt ft = group $ parens $ pretty "cond" <+> (nest 2 $ hardline <> vsep [(group $ brackets $ (pretty ca) <+> pretty tt), (group $ brackets $ pretty "else" <+> pretty ft)])
 
-prettyLet :: (Pretty xe, Pretty bt) => (x -> Doc ann) -> (Doc ann -> Doc ann) -> Maybe x -> xe -> bt -> Doc ann
-prettyLet prettyVar at mv e bt =
+prettyLet :: (Pretty xe, Pretty bt) => (x -> Doc ann) -> (Doc ann -> Doc ann) -> x -> xe -> bt -> Doc ann
+prettyLet prettyVar at v e bt =
   vsep [(group $ at (ivp $ pretty e)), pretty bt]
-  where ivp ep = case mv of
-                Nothing -> ep
-                Just v -> parens $ pretty "define" <+> prettyVar v <> space <> ep
+  where ivp ep = parens $ pretty "define" <+> prettyVar v <> space <> ep
+
+prettyDo :: (Pretty xe, Pretty bt) => (Doc ann -> Doc ann) -> xe -> bt -> Doc ann
+prettyDo at e bt =
+  vsep [(group $ at $ pretty e), pretty bt]
 
 instance Pretty ILTail where
   pretty (IL_Ret al) = prettyValues al
   pretty (IL_If ca tt ft) = prettyIf ca tt ft
-  pretty (IL_Let r miv e bt) = prettyLet prettyILVar at miv e bt
+  pretty (IL_Let r iv e bt) = prettyLet prettyILVar at iv e bt
     where at d = (group $ parens $ pretty "@" <+> pretty r <+> d)
-  pretty (IL_ToConsensus p svs pa ct) =
+  pretty (IL_Do r s bt) = prettyDo at s bt
+    where at d = (group $ parens $ pretty "@" <+> pretty r <+> d)
+  pretty (IL_ToConsensus p svs pa pv ct) =
     vsep [(group $ parens $ pretty "@" <+> pretty p <+> (nest 2 $ hardline <> vsep [svsp, pap])),
           pretty ct]
     where svsp = parens $ pretty "publish!" <+> prettyILVars svs
-          pap = parens $ pretty "pay!" <+> pretty pa
+          pap = parens $ pretty "pay!" <+> pretty pv <+> pretty pa
   pretty (IL_FromConsensus lt) =
     vsep [(group $ parens $ pretty "return!"),
           pretty lt]
@@ -447,21 +493,26 @@ instance Pretty BLArg where
 instance Pretty EPExpr where
   pretty (EP_Arg a) = pretty a
   pretty (EP_PrimApp p al) = prettyApp p al
-  pretty (EP_Assert a) = prettyAssert a
+
+instance Pretty EPStmt where
+  pretty (EP_Claim ct a) = prettyClaim ct a
   pretty (EP_Send hi svs vs pa) =
     group $ parens $ pretty "send!" <+> pretty hi <+> prettyBLVars svs <+> prettyBLVars vs <+> pretty pa
 
 instance Pretty CExpr where
   pretty (C_PrimApp p al) = prettyApp p al
-  pretty (C_Assert a) = prettyAssert a
+
+instance Pretty CStmt where
+  pretty (C_Claim ct a) = prettyClaim ct a
   pretty (C_Transfer to a) = prettyTransfer to a
 
 instance Pretty EPTail where
   pretty (EP_Ret al) = prettyValues al
   pretty (EP_If ca tt ft) = prettyIf ca tt ft
-  pretty (EP_Let mv e bt) = prettyLet prettyBLVar (\x -> x) mv e bt
-  pretty (EP_Recv hi svs vs bt) =
-    vsep [group $ parens $ pretty "define-values" <+> prettyBLVars svs <+> prettyBLVars vs <+> (parens $ pretty "recv!" <+> pretty hi),
+  pretty (EP_Let v e bt) = prettyLet prettyBLVar (\x -> x) v e bt
+  pretty (EP_Do s bt) = prettyDo (\x -> x) s bt
+  pretty (EP_Recv hi svs vs pv bt) =
+    vsep [group $ parens $ pretty "define-values" <+> prettyBLVars svs <+> prettyBLVars vs <+> prettyBLVar pv <+> (parens $ pretty "recv!" <+> pretty hi),
           pretty bt]
 
 instance Pretty CTail where
@@ -469,10 +520,11 @@ instance Pretty CTail where
   pretty (C_Wait i svs) = group $ parens $ pretty "wait!" <+> pretty i <+> prettyBLVars svs
   pretty (C_If ca tt ft) = prettyIf ca tt ft
   pretty (C_Let mv e bt) = prettyLet prettyBLVar (\x -> x) mv e bt
+  pretty (C_Do s bt) = prettyDo (\x -> x) s bt
 
 prettyCHandler :: Int -> CHandler -> Doc ann
-prettyCHandler i (C_Handler who svs args ct) =
-  group $ brackets $ pretty i <+> pretty who <+> prettyBLVars svs <+> prettyBLVars args <+> (nest 2 $ hardline <> pretty ct)
+prettyCHandler i (C_Handler who svs args pv ct) =
+  group $ brackets $ pretty i <+> pretty who <+> prettyBLVars svs <+> prettyBLVars args <+> prettyBLVar pv <+> (nest 2 $ hardline <> pretty ct)
 
 instance Pretty CProgram where
   pretty (C_Prog ps hs) = group $ parens $ pretty "define-contract" <+> (nest 2 $ hardline <> vsep (psp : hsp))
@@ -496,15 +548,3 @@ prettyBLParts ps =
 
 instance Pretty BLProgram where
   pretty (BL_Prog ps ctc) = vsep [pretty "#lang alacrity/bl", emptyDoc, pretty ctc, emptyDoc, prettyBLParts ps]
-
-idOfMsg :: Show i => i -> String
-idOfMsg i = "msg" ++ show i
-
-solType :: BaseType -> String
-solType AT_Unit = "unit"
-solType AT_Int = "uint256"
-solType AT_Bool = "bool"
-solType AT_Bytes = "bytes"
-
-alacrisAddress :: String
-alacrisAddress = "0x02B463784Bc1a49f1647B47a19452aC420DFC65A"

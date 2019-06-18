@@ -1,21 +1,15 @@
 /* eslint-disable no-console */
 
-import {initialize, initFunctions, registerInit,
-        identity, logging, errbacK, assert, kLogResult, kLogError
-       } from "./common-utils.mjs";
-import {web3, networkId, userAddress} from "./web3-prelude.mjs";
-import "./local-storage.mjs";
-import "./tinyqueue.mjs";
-import {digestHex, confirmTransaction, config, checkContract, deployContract} from "./common-runtime.mjs";
-import "./common-ui.mjs";
-import "./dapp-config.mjs";
-import {contractFactoryCode} from "./build/dapp-contract.mjs";
-import "./dapp-backend.mjs";
+import {callInitFunctions, initFunctions, registerInit,
+        identity, logging, errbacK, assert, kLogResult, kLogError,
+        web3, networkId, userAddress,
+        digestHex, confirmTransaction, config, checkContract, deployContract, contractFactoryCode
+       } from "./alacrity-runtime.mjs";
+// TODO: dynamically import either the manual or auto backend depending on command-line flags.
+import "./backend-manual.mjs";
 
-// TODO: implement a text "frontend". Have a flag to disable the auto-update daemon.
-// import "./dapp-frontend.mjs";
-// import "./debug.mjs"
-// TODO: rename to cli, or have a cli file? import "./cli.mjs";
+// TODO: implement a text "frontend". Dynamically import it *after* the choice of manual or auto above.
+// TODO: rename this file to cli, or have it import a cli file?
 
 registerInit({
     Frontend: {fun: identity, dependsOn: ["Backend"]},
@@ -25,11 +19,10 @@ delete initFunctions.WatchNewGames;
 delete initFunctions.WatchActiveGames;
 
 
-
 const initialized = {};
 
 const deployCommand = (k = kLogResult, kError = kLogError) => {
-    initialize(["Backend"], initialized)(() => {
+    callInitFunctions(["Backend"], initialized)(() => {
     console.log("Connected to network %s (%s) as %s", networkId, config.networkName, userAddress);
     web3.eth.defaultAccount = userAddress;
     //errbacK(web3.eth.getBalance)(userAddress)(balance => {
@@ -49,8 +42,9 @@ const deployCommand = (k = kLogResult, kError = kLogError) => {
             const address = receipt.contractAddress;
             const codeHash = digestHex(contractFactoryCode);
             const creationBlock = receipt.blockNumber;
-            // TODO: add it ourselves, atomically enough.
-            console.log("PLEASE ADD THIS CONTRACT CREATION RECORD to dapp-config.js for network %s:\n%s",
+            // TODO: Add it ourselves, atomically enough.
+            // TODO: correctly pick the manual vs auto file as output.
+            console.log("PLEASE ADD THIS CONTRACT CREATION RECORD to config-manual.js for network %s:\n%s",
                         networkId, JSON.stringify({address, codeHash, creationHash, creationBlock}));
             console.log("Now waiting for %d confirmations (%s) — use Ctrl-C to interrupt earlier.",
                         config.confirmationsWantedInBlocks, config.confirmationsString);

@@ -1,21 +1,17 @@
-{-# LANGUAGE TemplateHaskell #-}
 module Alacrity.Compiler where
---import Debug.Trace
 
 import Control.Monad.State.Lazy
 import qualified Data.Map.Strict as M
 import qualified Data.Set as Set
-import Data.FileEmbed
-import Data.Foldable
 import qualified Data.Sequence as S
 import Data.Text.Prettyprint.Doc
 import System.Exit
-import Z3.Monad as Z3
 
 import Alacrity.AST
 import Alacrity.Parser
-import Alacrity.EmitJS2
+import Alacrity.EmitJS
 import Alacrity.EmitSol
+import Alacrity.VerifyZ3
 
 {- Inliner
 
@@ -63,14 +59,14 @@ inline_expr e =
       (tp, te') <- inline_expr te
       (fp, fe') <- inline_expr fe
       return (cp && tp && fp, XL_If (tp && fp) ce' te' fe')
-    XL_Assert ae -> do
+    XL_Claim ct ae -> do
       (_, ae') <- inline_expr ae
       --- Assert is impure because it could fail
-      return (False, XL_Assert ae')
-    XL_ToConsensus p ins pe ce -> do
+      return (False, XL_Claim ct ae')
+    XL_ToConsensus p ins pe pv ce -> do
       (_, pe') <- inline_expr pe
       (_, ce') <- inline_expr ce
-      return (False, XL_ToConsensus p ins pe' ce')
+      return (False, XL_ToConsensus p ins pe' pv ce')
     XL_FromConsensus be -> do
       (_, be') <- inline_expr be
       return (False, XL_FromConsensus be')
@@ -110,7 +106,9 @@ inline (XL_Prog defs ps m) = XL_InlinedProg ps (inline_defs defs M.empty m)
 
  -}
 
-type ANFElem = (Role, ILVar, ILExpr)
+data ANFElem
+  = ANFExpr Role ILVar ILExpr
+  | ANFStmt Role ILStmt
 type ANFMonad a = State (Int, S.Seq ANFElem) a
 
 runANF :: ANFMonad a -> a
@@ -140,11 +138,17 @@ consumeANF_N n = do
   vs <- consumeANF_N (n - 1)
   return $ v : vs
 
+appendANF :: Role -> ILStmt -> ANFMonad ()
+appendANF r s = do
+  (nvi, vs) <- get
+  put (nvi, vs S.|> (ANFStmt r s))
+  return ()
+
 allocANF :: Role -> String -> ILExpr -> ANFMonad ILVar
-allocANF mp s e = do
+allocANF r s e = do
   (nvi, vs) <- get
   let nv = (nvi, s)
-  put (nvi + 1, vs S.|> (mp, nv, e))
+  put (nvi + 1, vs S.|> (ANFExpr r nv e))
   return nv
 
 allocANFs :: Role -> String -> [ILExpr] -> ANFMonad [ILVar]
@@ -152,19 +156,24 @@ allocANFs mp s es = mapM (allocANF mp s) es
 
 type XLRenaming = M.Map XLVar ILArg
 
-anf_parg :: (XLVar, BaseType) -> (XLRenaming, [(ILVar, BaseType)]) -> ANFMonad (XLRenaming, [(ILVar, BaseType)])
-anf_parg (v, t) (ρ, args) =
+makeRename :: XLRenaming -> XLVar -> ANFMonad (XLRenaming, ILVar)
+makeRename ρ v = do
+  nv <- consumeANF v
+  return (M.insert v (IL_Var nv) ρ, nv)
+
+anf_parg :: (XLRenaming, [(ILVar, BaseType)]) -> (XLVar, BaseType) -> ANFMonad (XLRenaming, [(ILVar, BaseType)])
+anf_parg (ρ, args) (v, t) =
   case M.lookup v ρ of
     Nothing -> do
-      nv <- consumeANF v
-      return (M.insert v (IL_Var nv) ρ, args' nv)
+      (ρ', nv) <- makeRename ρ v
+      return (ρ', args' nv)
     Just (IL_Var nv) -> return (ρ, args' nv)
     Just _ -> error $ "ANF: Participant argument not bound to variable: " ++ v
   where args' nv = args ++ [(nv,t)]
 
 anf_part :: (XLRenaming, ILPartInfo) -> (Participant, [(XLVar, BaseType)]) -> ANFMonad (XLRenaming, ILPartInfo)
 anf_part (ρ, ips) (p, args) = do
-  (ρ', args') <- foldrM anf_parg (ρ, []) args
+  (ρ', args') <- foldM anf_parg (ρ, []) args
   let ips' = M.insert p args' ips
   return (ρ', ips')
 
@@ -199,8 +208,8 @@ anf_out_rename ρ outs = foldM aor1 (ρ, []) (reverse outs)
             Just (IL_Var iv) -> return (ρ', iv:outs')
             Just (IL_Con _) -> return (ρ', outs')
             Nothing -> do
-              iv <- consumeANF "Consensus_Out"
-              return (M.insert ov (IL_Var iv) ρ', iv:outs')
+              (ρ'', iv) <- makeRename ρ ov
+              return (ρ'', iv:outs')
 
 anf_expr :: Role -> XLRenaming -> XLExpr -> ([ILArg] -> ANFMonad (Int, ILTail)) -> ANFMonad (Int, ILTail)
 anf_expr me ρ e mk =
@@ -229,21 +238,22 @@ anf_expr me ρ e mk =
                 unless (tn == fn) $ error "ANF: If branches don't have same continuation arity"
                 return (tn, IL_If ca tt ft)
             k _ = error "anf_expr XL_If ce doesn't return 1"
-    XL_Assert ae ->
-      anf_expr me ρ ae (\[ aa ] -> ret_expr "Assert" (IL_Assert aa))
+    XL_Claim ct ae ->
+      anf_expr me ρ ae (\[ aa ] -> ret_stmt (IL_Claim ct aa))
     XL_FromConsensus le -> do
       (ln, lt) <- anf_tail RoleContract ρ le mk
       return (ln, IL_FromConsensus lt)
-    XL_ToConsensus from ins pe ce ->
+    XL_ToConsensus from ins pe pv ce ->
       anf_expr (RolePart from) ρ pe
       (\ [ pa ] -> do
          let ins' = vsOnly $ map (anf_renamed_to ρ) ins
-         (cn, ct) <- anf_tail RoleContract ρ ce mk
-         return (cn, IL_ToConsensus from ins' pa ct))
+         (ρ', pv') <- makeRename ρ pv
+         (cn, ct) <- anf_tail RoleContract ρ' ce mk
+         return (cn, IL_ToConsensus from ins' pa pv' ct))
     XL_Values args ->
       anf_exprs me ρ args (\args' -> mk args')
     XL_Transfer to ae ->
-      anf_expr me ρ ae (\[ aa ] -> ret_expr "Transfer" (IL_Transfer to aa))
+      anf_expr me ρ ae (\[ aa ] -> ret_stmt (IL_Transfer to aa))
     XL_Declassify ae ->
       anf_expr me ρ ae (\[ aa ] -> ret_expr "Declassify" (IL_Declassify aa))
     XL_LetValues mwho mvs ve be ->
@@ -266,9 +276,13 @@ anf_expr me ρ e mk =
   where ret_expr s ne = do
           nv <- allocANF me s ne
           mk [ IL_Var nv ]
+        ret_stmt s = do
+          appendANF me s
+          mk [ IL_Con (Con_B True) ]
 
 anf_addVar :: ANFElem -> (Int, ILTail) -> (Int, ILTail)
-anf_addVar (mp, v, e) (c, t) = (c, IL_Let mp (Just v) e t)
+anf_addVar (ANFExpr mp v e) (c, t) = (c, IL_Let mp v e t)
+anf_addVar (ANFStmt mp s) (c, t) = (c, IL_Do mp s t)
 
 anf_tail :: Role -> XLRenaming -> XLExpr -> ([ILArg] -> ANFMonad (Int, ILTail)) -> ANFMonad (Int, ILTail)
 anf_tail me ρ e mk = do
@@ -332,9 +346,8 @@ must_be_public :: (a, SType) -> (a, BaseType)
 must_be_public (v, (et, Public)) = (v, et)
 must_be_public (_, (_, Secret)) = error "EPP: Must be public"
 
-boundBLVar_m :: Maybe BLVar -> Set.Set BLVar
-boundBLVar_m Nothing = Set.empty
-boundBLVar_m (Just bv) = Set.singleton bv
+boundBLVar :: BLVar -> Set.Set BLVar
+boundBLVar bv = Set.singleton bv
 
 boundBLVars :: [BLVar] -> Set.Set BLVar
 boundBLVars vs = Set.fromList vs
@@ -372,10 +385,6 @@ epp_args γ r ivs = (svs, args)
 epp_e_ctc :: EPPEnv -> ILExpr -> (SType, Set.Set BLVar, CExpr)
 epp_e_ctc γ e = case e of
   IL_Declassify _ -> error "EPP: Contract cannot declassify"
-  IL_Transfer r am -> (sUnit, fvs, C_Transfer r am')
-    where (fvs, am') = eargt am AT_Int
-  IL_Assert a -> (sUnit, fvs, C_Assert a')
-    where (fvs, a') = eargt a AT_Bool
   IL_PrimApp p@(CP cp) args -> (sRet, fvs, C_PrimApp cp args')
     where (fvs, args0) = epp_args γ RoleContract args
           args'st = map must_be_public $ args0
@@ -384,18 +393,11 @@ epp_e_ctc γ e = case e of
           ret = checkFun (primType p) args't
           sRet = (ret, Public)
   IL_PrimApp p _ -> error $ "EPP: Contract cannot execute: " ++ show p
- where sUnit = (AT_Unit, Public)
-       earg = epp_arg γ RoleContract
-       eargt a expected = epp_expect (expected, Public) $ earg a
 
 epp_e_loc :: EPPEnv -> Participant -> ILExpr -> (SType, Set.Set BLVar, EPExpr)
 epp_e_loc γ p e = case e of
   IL_Declassify a -> ((et, Public), fvs, EP_Arg a')
     where ((fvs, a'), (et, _)) = earg a
-  IL_Transfer _ _ -> error "EPP: Local cannot transfer"
-  IL_Assert a -> (st', fvs, EP_Assert a')
-    where ((fvs, a'), st@(_, slvl)) = earg a
-          st' = epp_expect (AT_Bool, slvl) (st, st)
   IL_PrimApp pr args -> ((ret, slvl), fvs, EP_PrimApp pr args')
     where (fvs, args'st) = epp_args γ (RolePart p) args
           args't = map (fst . snd) args'st
@@ -406,50 +408,72 @@ epp_e_loc γ p e = case e of
           slvl = mconcat $ map (snd . snd) args'st
  where earg = epp_arg γ (RolePart p)
 
+epp_s_ctc :: EPPEnv -> ILStmt -> (Set.Set BLVar, CStmt)
+epp_s_ctc γ e = case e of
+  IL_Transfer r am -> (fvs, C_Transfer r am')
+    where (fvs, am') = eargt am AT_UInt256
+  IL_Claim ct a -> (fvs, C_Claim ct a')
+    where (fvs, a') = eargt a AT_Bool
+ where earg = epp_arg γ RoleContract
+       eargt a expected = epp_expect (expected, Public) $ earg a
+
+epp_s_loc :: EPPEnv -> Participant -> ILStmt -> (Set.Set BLVar, EPStmt)
+epp_s_loc γ p e = case e of
+  IL_Transfer _ _ -> error "EPP: Local cannot transfer"
+  IL_Claim ct a -> case bt of
+                   AT_Bool -> (fvs, EP_Claim ct a')
+                   _ -> error "EPP: Assert argument not bool"
+    where ((fvs, a'), (bt, _)) = earg a
+          earg = epp_arg γ (RolePart p)
+
 epp_e_ctc2loc :: CExpr -> EPExpr
 epp_e_ctc2loc (C_PrimApp cp al) = (EP_PrimApp (CP cp) al)
-epp_e_ctc2loc (C_Assert a) = (EP_Assert a)
-epp_e_ctc2loc (C_Transfer _ _) = (EP_Arg (BL_Con (Con_B True)))
+
+epp_s_ctc2loc :: CStmt -> Maybe EPStmt
+epp_s_ctc2loc (C_Claim ct a) = Just (EP_Claim ct a)
+epp_s_ctc2loc (C_Transfer _ _) = Nothing
 
 epp_it_ctc :: [Participant] -> EPPEnv -> Int -> ILTail -> EPPRes
 epp_it_ctc ps γ hn0 it = case it of
   IL_Ret _ ->
     error "EPP: CTC cannot return"
-  IL_If ca tt ft -> (svs, C_If cca' ctt' cft', ts3, hn3, hs3)
+  IL_If ca tt ft -> (svs, C_If cca' ctt' cft', ts3, hn2, hs3)
     where (svs_ca, cca') = epp_expect (AT_Bool, Public) $ epp_arg γ RoleContract ca
           (svs_t, ctt', ts1, hn1, hs1) = epp_it_ctc ps γ hn0 tt
           (svs_f, cft', ts2, hn2, hs2) = epp_it_ctc ps γ hn1 ft
           svs = Set.unions [ svs_ca, svs_t, svs_f ]
-          hn3 = hn2
           hs3 = hs1 ++ hs2
           ts3 = M.fromList $ map mkt ps
           mkt p = (p, EP_If ca' tt' ft')
             where (_,ca') = epp_expect (AT_Bool, Public) $ epp_arg γ (RolePart p) ca
                   tt' = ts1 M.! p
                   ft' = ts2 M.! p
-  IL_Let RoleContract what how next -> (svs, C_Let what' how_ctc next', ts2, hn2, hs2)
+  IL_Let RoleContract what how next -> (svs, C_Let what' how_ctc next', ts2, hn1, hs1)
     where (svs1, next', ts1, hn1, hs1) = epp_it_ctc ps γ' hn0 next
-          svs = Set.union (Set.difference svs1 (boundBLVar_m what')) svs_how
-          hn2 = hn1
-          hs2 = hs1
+          svs = Set.union (Set.difference svs1 (boundBLVar what')) svs_how
           (st, svs_how, how_ctc) = epp_e_ctc γ how
           (et, _) = st
-          (what', what'env) = case what of
-                                Just (n, s) | not (et == AT_Unit) -> (Just (n, s, et), M.singleton (n,s) st)
-                                _ -> (Nothing, M.empty)
+          (n, s) = what
+          what' = (n, s, et)
+          what'env = M.singleton what st
           γ' = M.map (M.union what'env) γ
           how_ep = epp_e_ctc2loc how_ctc
           ts2 = M.map (EP_Let what' how_ep) ts1
   IL_Let (RolePart _) _ _ _ ->
     error "EPP: Cannot perform local binding in consensus"
-  IL_ToConsensus _ _ _ _ ->
+  IL_Do RoleContract how next -> (svs, ct2, ts2, hn1, hs1)
+    where (svs1, ct1, ts1, hn1, hs1) = epp_it_ctc ps γ hn0 next
+          (svs2, how') = epp_s_ctc γ how
+          svs = Set.union svs1 svs2
+          ct2 = C_Do how' ct1
+          ts2 = case epp_s_ctc2loc how' of
+                  Nothing -> ts1
+                  Just how'_ep -> M.map (EP_Do how'_ep) ts1
+  IL_Do (RolePart _) _ _ ->
+    error "EPP: Cannot perform local action in consensus"
+  IL_ToConsensus _ _ _ _ _ ->
     error "EPP: Cannot transitions to consensus from consensus"
   IL_FromConsensus bt -> epp_it_loc ps γ hn0 bt
-
-mep :: Role -> Role -> Bool
-mep _ RoleContract = True
-mep RoleContract _ = False
-mep (RolePart x) (RolePart y) = x == y
 
 epp_it_loc :: [Participant] -> EPPEnv -> Int -> ILTail -> EPPRes
 epp_it_loc ps γ hn0 it = case it of
@@ -457,24 +481,21 @@ epp_it_loc ps γ hn0 it = case it of
     where ts = M.fromList $ map mkt ps
           mkt p = (p, EP_Ret $ map fst $ snd $ epp_args γ (RolePart p) al)
   IL_If _ _ _ ->
-    error "EPP: Ifs must be consensual"
+    error "EPP: Ifs must be consensual"    
   IL_Let who what how next -> (svs1, ct1, ts2, hn1, hs1)
     where (svs1, ct1, ts1, hn1, hs1) = epp_it_loc ps γ' hn0 next
-          γ' = case what of
-                 Nothing -> γ
-                 Just iv ->
-                   M.mapWithKey addwhat γ
-                   where addwhat r env =
-                           if mep r who then
-                             M.insert iv lst env
-                           else
-                             env
+          iv = what
+          γ' = M.mapWithKey addwhat γ
+          addwhat r env = if role_me r who then
+                            M.insert iv lst env
+                          else
+                            env
           lst = case fmst of
             Nothing -> error "EPP: Let not local to any participant"
             Just v -> v
           (fmst, ts2) = M.foldrWithKey addhow (Nothing, M.empty) ts1
           addhow p t (mst, ts) =
-            if not (mep (RolePart p) who) then
+            if not (role_me (RolePart p) who) then
               (mst, M.insert p t ts)
             else
               (mst', M.insert p t' ts)
@@ -482,28 +503,38 @@ epp_it_loc ps γ hn0 it = case it of
                     mst' = Just st
                     (st, _, how') = epp_e_loc γ p how
                     (et, _) = st
-                    mbv = case what of
-                      Nothing -> Nothing
-                      Just (n, s) -> Just (n, s, et)
-  IL_ToConsensus from what howmuch next -> (svs2, ct2, ts2, hn2, hs2)
+                    (n,s) = what
+                    mbv = (n, s, et)
+  IL_Do who how next -> (svs1, ct1, ts2, hn1, hs1)
+    where (svs1, ct1, ts1, hn1, hs1) = epp_it_loc ps γ hn0 next
+          ts2 = M.mapWithKey addhow ts1
+          addhow p t =
+            if not (role_me (RolePart p) who) then t
+            else EP_Do s' t
+            where (_, s') = epp_s_loc γ p how
+  IL_ToConsensus from what howmuch pv next -> (svs2, ct2, ts2, hn2, hs2)
     where fromr = RolePart from
           what' = map fst $ map must_be_public $ epp_vars γ fromr what
-          (_, howmuch') = epp_expect (AT_Int, Public) $ epp_arg γ fromr howmuch
+          (_, howmuch') = epp_expect (AT_UInt256, Public) $ epp_arg γ fromr howmuch
           what'env = M.fromList $ map (\(n, s, et) -> ((n,s),(et,Public))) what'
-          γ' = M.map (M.union what'env) γ
+          (pv_n, pv_s) = pv
+          (pv_t, pv_slvl) = (AT_UInt256, Public)
+          pv' = (pv_n, pv_s, pv_t)
+          addl_env = M.insert pv (pv_t, pv_slvl) what'env
+          γ' = M.map (M.union addl_env) γ
           hn1 = hn0 + 1
           (svs1, ct1, ts1, hn2, hs1) = epp_it_ctc ps γ' hn1 next
-          svs2 = Set.difference svs1 (boundBLVars what')
+          svs2 = Set.difference svs1 (Set.insert pv' (boundBLVars what'))
           svs2l = Set.toList svs2
-          nh = C_Handler from svs2l what' ct1
+          nh = C_Handler from svs2l what' pv' ct1
           hs2 = nh : hs1
           ts2 = M.mapWithKey addTail ts1
           ct2 = C_Wait hn0 svs2l
           es = EP_Send hn0 svs2l what' howmuch'
           addTail p pt1 = pt3
-            where pt2 = EP_Recv hn0 svs2l what' pt1
+            where pt2 = EP_Recv hn0 svs2l what' pv' pt1
                   pt3 = if p /= from then pt2
-                        else EP_Let Nothing es pt2
+                        else EP_Do es pt2
   IL_FromConsensus _ ->
     error "EPP: Cannot transition to local from local"
 
@@ -520,131 +551,6 @@ epp (IL_Prog ips it) = BL_Prog bps cp
         initarg ((n, s), et) = ((n, s), (et, Secret))
         γ = M.insert RoleContract M.empty γi
 
-
-{- Z3 Theory Generation
-
-   The Z3 theory has to prove a few different things.
-
-   1. The balance of CTC at the end of the protocol is 0. It will have
-   to do this by employing something like the State monad to represent
-   all the various modifications to the CTC value overtime and assert
-   that it is 0 at the end. This ensure that the protocol doesn't
-   "leave anything on the table".
-
-   2. For each assert! in the program, assuming that all previous
-   assert!s are true (including those in other participants and the
-   contract) and DISHONEST is FALSE, the assert is true.
-
-   3. For each assert! in the program, assuming that all previous
-   assert!s are true (EXCLUDING those in other participants, but
-   INCLUDING the contract) and DISHONEST is TRUE, the assert is true.
-
-   When
-
-   #1 has to be done in both #2 and #3 modes, because the transfer
-   amounts may rely on participant data.
-
- -}
-
-primZ3Runtime :: Z3.Z3 Z3.AST
-primZ3Runtime =
-  parseSMTLib2String $(embedStringFile "z3/z3-runtime.smt2") [] [] [] []
-
-exprTypeZ3 :: ExprType -> Z3.Z3 Z3.Sort
-exprTypeZ3 (TY_Con AT_Unit) = error "z3 sort `Unit`"
-exprTypeZ3 (TY_Con AT_Int) = Z3.mkIntSort
-exprTypeZ3 (TY_Con AT_Bool) = Z3.mkBoolSort
-exprTypeZ3 (TY_Con AT_Bytes) = error "z3 sort `Bytes`"
-exprTypeZ3 (TY_Var _) = error "type variables not yet supported"
-
-cPrimZ3NoargOp :: (Z3.Z3 Z3.AST) -> ([Z3.AST] -> Z3.Z3 Z3.AST)
-cPrimZ3NoargOp op [] = op
-cPrimZ3NoargOp _ lst =
-  error ("no-arg operation: expected 0 arguments, received " ++ show (length lst))
-
-cPrimZ3BinOp :: (Z3.AST -> Z3.AST -> Z3.Z3 Z3.AST) -> ([Z3.AST] -> Z3.Z3 Z3.AST)
-cPrimZ3BinOp op [a, b] = op a b
-cPrimZ3BinOp _ lst =
-  error ("binary operation: expected 2 arguments, received " ++ show (length lst))
-
-cPrimZ3TernOp :: (Z3.AST -> Z3.AST -> Z3.AST -> Z3.Z3 Z3.AST) -> ([Z3.AST] -> Z3.Z3 Z3.AST)
-cPrimZ3TernOp op [a, b, c] = op a b c
-cPrimZ3TernOp _ lst =
-  error ("ternary operation: expected 3 arguments, received " ++ show (length lst))
-
-cPrimZ3Fun :: String -> FunctionType -> ([Z3.AST] -> Z3.Z3 Z3.AST)
-cPrimZ3Fun fstr (TY_Arrow intys outty) ins =
-  do fsym <- Z3.mkStringSymbol fstr
-     insorts <- mapM exprTypeZ3 intys
-     outsort <- exprTypeZ3 outty
-     f <- Z3.mkFuncDecl fsym insorts outsort
-     Z3.mkApp f ins
-cPrimZ3Fun _ (TY_Forall _ _) _ =
-  error "forall not yet supported"
-
-cPrimZ3 :: C_Prim -> Bool -> [Z3.AST] -> Z3.Z3 Z3.AST
--- cPrimZ3 op dishon ins = out
--- relies on the declarations from `primZ3Runtime` being available
-cPrimZ3 ADD _ = mkAdd
-cPrimZ3 SUB _ = mkSub
-cPrimZ3 MUL _ = mkMul
-cPrimZ3 DIV _ = cPrimZ3BinOp mkDiv
-cPrimZ3 MOD _ = cPrimZ3BinOp mkMod
-cPrimZ3 PLT _ = cPrimZ3BinOp mkLt
-cPrimZ3 PLE _ = cPrimZ3BinOp mkLe
-cPrimZ3 PEQ _ = cPrimZ3BinOp mkEq
-cPrimZ3 PGE _ = cPrimZ3BinOp mkGe
-cPrimZ3 PGT _ = cPrimZ3BinOp mkGt
-cPrimZ3 IF_THEN_ELSE _ = cPrimZ3TernOp mkIte
-cPrimZ3 INT_TO_BYTES _ = cPrimZ3Fun "integer->integer-bytes" (primType (CP INT_TO_BYTES))
-cPrimZ3 DIGEST _ = cPrimZ3Fun "digest" (primType (CP DIGEST))
-cPrimZ3 BYTES_EQ _ = cPrimZ3BinOp mkEq
-cPrimZ3 BYTES_LEN _ = cPrimZ3Fun "bytes-length" (primType (CP BYTES_LEN))
-cPrimZ3 BCAT _ = cPrimZ3Fun "msg-cat" (primType (CP BCAT))
-cPrimZ3 BCAT_LEFT _ = cPrimZ3Fun "msg-left" (primType (CP BCAT_LEFT))
-cPrimZ3 BCAT_RIGHT _ = cPrimZ3Fun "msg-right" (primType (CP BCAT_RIGHT))
-cPrimZ3 DISHONEST dishon = cPrimZ3NoargOp (mkBool dishon)
-
-primZ3 :: EP_Prim -> Bool -> [Z3.AST] -> Z3.AST -> Z3.Z3 ()
--- primZ3 op dishon ins out = assertion
--- relies on the declarations from `primZ3Runtime` being available
-primZ3 (CP op) dishon ins out =
-  do op_call <- cPrimZ3 op dishon ins
-     eq_call <- Z3.mkEq op_call out
-     Z3.assert eq_call
-primZ3 RANDOM _ [] _ =
-  -- the arguments don't specify any constraint
-  return ()
-primZ3 RANDOM _ [x] o =
-  -- the arguments specify 0 <= o < x
-  do z <- Z3.mkInteger 0
-     zleo <- Z3.mkLe z o
-     oltx <- Z3.mkLt o x
-     zleoltx <- Z3.mkAnd [zleo, oltx]
-     Z3.assert zleoltx
-primZ3 INTERACT _ [_] _ =
-  -- no constraint
-  return ()
-primZ3 _ _ _ _ = error "XXX fill in Z3 primitives"
-
-emit_z3 :: BLProgram -> Z3.Z3 [String]
-emit_z3 _
- = do
-  Z3.push
-  f <- Z3.mkFalse
-  Z3.assert f
-  (res, mm) <- Z3.solverCheckAndGetModel
-  Z3.pop 1
-  case res of
-    Z3.Unsat -> return []
-    Z3.Sat ->
-      case mm of
-        Nothing -> return ["Problem; no model!"]
-        Just m -> do
-          s <- modelToString m
-          return [s]
-    Z3.Undef -> return []
-
 compile :: FilePath -> IO ()
 compile srcp = do
   xlp <- readAlacrityFile srcp
@@ -655,14 +561,8 @@ compile srcp = do
   writeFile (srcp ++ ".il") (show (pretty ilp))
   let blp = epp ilp
   writeFile (srcp ++ ".bl") (show (pretty blp))
-  z3res <- evalZ3 (emit_z3 blp)
-  case z3res of
-    [] -> do
-      writeFile (srcp ++ ".sol") (show (emit_sol blp))
-      writeFile (srcp ++ ".js") (show (emit_js blp))
-      exitSuccess
-    ps -> do
-      mapM_ (\x -> putStrLn $ ("Z3 error:" ++ x)) ps
-      die "Z3 failed to verify!"
-
-
+  verify_z3 (srcp ++ ".z3") ilp blp
+  writeFile (srcp ++ ".sol") (show (emit_sol blp))
+  writeFile (srcp ++ ".js") (show (emit_js blp))
+  exitSuccess
+    

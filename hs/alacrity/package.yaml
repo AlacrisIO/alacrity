@@ -17,11 +17,9 @@ dependencies:
 - base >= 4.7 && < 5
 - containers
 - prettyprinter
-- z3 >= 408.0
 - megaparsec
 - parser-combinators
 - bytestring
-- sexpr-parser
 - mtl
 - filepath
 - directory
@@ -29,8 +27,9 @@ dependencies:
 - process
 - pretty-simple
 - text
-- language-javascript
 - debug
+- extra
+- simple-smt
 
 ghc-options:
 - -Wall

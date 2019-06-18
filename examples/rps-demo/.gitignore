@@ -1,4 +1,4 @@
 .eslintrc.js
 node_modules
 scratch
-build
+/build

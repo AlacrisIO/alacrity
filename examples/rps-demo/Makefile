@@ -1,7 +1,7 @@
 # Makefile for Alacrity Rock-Paper-Scissors demo
 #
 # Requirements: you need to install the solidity compiler, version 0.5.2 or later
-# (see dapp-contract.sol for the authoritative version we need).
+# (see contract-manual.sol for the authoritative version we need).
 #
 
 # make VERBOSE nonempty to see raw commands (or provide on command line)
@@ -27,10 +27,11 @@ all: build_all
 
 build_all: contract
 
-CONTRACT_OUTPUTS:=build/dapp-contract.mjs $(BUILD_DIR)/RockPaperScissors.abi $(BUILD_DIR)/RockPaperScissors.bin $(BUILD_DIR)/RockPaperScissorsFactory.abi $(BUILD_DIR)/RockPaperScissorsFactory.bin
+contract: manual_contract auto_contract
 
-contract: $(CONTRACT_OUTPUTS)
-$(CONTRACT_OUTPUTS): dapp-contract.sol
+MANUAL_CONTRACT_OUTPUTS:=build/contract-manual.mjs $(BUILD_DIR)/RockPaperScissors.abi $(BUILD_DIR)/RockPaperScissors.bin $(BUILD_DIR)/RockPaperScissorsFactory.abi $(BUILD_DIR)/RockPaperScissorsFactory.bin
+manual_contract: $(MANUAL_CONTRACT_OUTPUTS)
+$(MANUAL_CONTRACT_OUTPUTS): contract-manual.sol
 	$(HIDE) mkdir -p build $(BUILD_DIR)
 	$(HIDE) solc --bin --abi -o $(BUILD_DIR) --overwrite $< > $(BUILD_DIR)/solc.out
 	$(HIDE) (echo "export const contractAbi = `cat $(BUILD_DIR)/RockPaperScissors.abi`;"; \
@@ -40,6 +41,16 @@ $(CONTRACT_OUTPUTS): dapp-contract.sol
 # To extract function signatures, add the --hashes to solc and use:
 #	echo; echo "const rpsSignatures = {`sed -e 's/^\(.*\): \(.*\)(.*)/"\2": "\1",/' $(BUILD_DIR)/RockPaperScissors.signatures`};" ; \
 #	echo; echo "const rpsFactorySignatures = {`sed -e 's/^\(.*\): \(.*\)(.*)/"\2": "\1"/' $(BUILD_DIR)/RockPaperScissorsFactory.signatures`};" ; \
+
+AUTO_CONTRACT_OUTPUTS:=build/contract-auto.mjs
+ALAB=../../hs/alacrity/ala/_build
+auto_contract: $(AUTO_CONTRACT_OUTPUTS)
+$(AUTO_CONTRACT_OUTPUTS): $(ALAB)/ALAFactory.bin $(ALAB)/ALAFactory.abi $(ALAB)/ALAContract.abi
+	$(HIDE) mkdir -p build $(BUILD_DIR)
+	$(HIDE) (echo "export const contractAbi = `cat $(ALAB)/ALAContract.abi`;"; \
+	echo; echo "export const contractFactoryAbi = `cat $(ALAB)/ALAFactory.abi`;"; \
+	echo; echo "export const contractFactoryCode = \"0x`cat $(ALAB)/ALAFactory.bin`\";"; \
+	) > $@
 
 start_nginx:
 	$(HIDE) ../nginx/start.sh

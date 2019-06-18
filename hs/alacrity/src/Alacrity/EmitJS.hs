@@ -1,15 +1,11 @@
 module Alacrity.EmitJS where
 
---import Control.Monad.State.Lazy
---import qualified Data.Map.Strict as M
---import Data.Foldable
---import qualified Data.Sequence as S
-import Language.JavaScript.Parser as JS
-import Language.JavaScript.Parser.Parser as JSParser
-import Language.JavaScript.Parser.AST as JSAST
-import System.IO
+import qualified Data.Map.Strict as M
+import Data.List (intersperse)
+import Data.Text.Prettyprint.Doc
 
 import Alacrity.AST
+import Alacrity.EmitSol (solMsg_evt, solMsg_fun, solType)
 
 {- Compilation to Javascript
 
@@ -26,83 +22,126 @@ import Alacrity.AST
    with the result.
   -}
 
-as_js :: BLProgram -> JS.JSAST
-as_js (BL_Prog _blparts (C_Prog _ _handlers)) = JS.JSAstModule
-  (module_header ++ []) JSAnnotSpace
+jsString :: String -> Doc a
+jsString s = dquotes $ pretty s
 
-emit_js :: BLProgram -> String
-emit_js blp = JS.renderToString $ as_js blp
+jsVar :: BLVar -> Doc a
+jsVar (n, _, _) = pretty $ "v" ++ show n
 
-toJsl :: [a] -> JSAST.JSCommaList a
-toJsl = toJsl' . reverse
+jsVarType :: BLVar -> Doc a
+jsVarType (_, _, bt) = jsString $ solType bt
 
-toJsl' :: [a] -> JSAST.JSCommaList a
-toJsl' [] = JSAST.JSLNil
-toJsl' [a] = JSAST.JSLOne a
-toJsl' (a:as) = JSAST.JSLCons (toJsl' as) JSAST.JSNoAnnot a
+jsCon :: Constant -> Doc a
+jsCon (Con_I i) = pretty i
+jsCon (Con_B True) = pretty "true"
+jsCon (Con_B False) = pretty "false"
+jsCon (Con_BS s) = jsString $ show s
 
-js_import_names :: [String] -> JSAST.JSImportClause
-js_import_names =
-  (\x -> JSAST.JSImportClauseNamed (JSAST.JSImportsNamed JS.JSNoAnnot x JS.JSNoAnnot)) .
-  toJsl .
-  map (\name -> JSAST.JSImportSpecifier (JSAST.JSIdentName JSAST.JSNoAnnot name))
+jsArg :: BLArg -> Doc a
+jsArg (BL_Var v) = jsVar v
+jsArg (BL_Con c) = jsCon c
 
-js_imports :: String -> [String] -> JSAST.JSModuleItem
-js_imports module_name identifiers =
-  JSAST.JSModuleImportDeclaration JS.JSNoAnnot
-    (JSAST.JSImportDeclaration
-     (js_import_names identifiers)
-     (JSAST.JSFromClause JS.JSAnnotSpace JS.JSAnnotSpace module_name)
-     (JS.JSSemi JS.JSNoAnnot))
+jsPartVar :: Participant -> Doc a
+jsPartVar p = pretty $ "p" ++ p
 
-local_module_name :: String -> String
-local_module_name s = "\"./" ++ s ++ ".mjs\""
+jsVarDecl :: BLVar -> Doc a
+jsVarDecl bv = pretty "const" <+> jsVar bv
 
-js_imports_local :: String -> [String] -> JSAST.JSModuleItem
-js_imports_local = js_imports . local_module_name
+jsBraces :: Doc a -> Doc a
+jsBraces body = braces (nest 2 $ hardline <> body <> space)
 
-module_header :: [JSAST.JSModuleItem]
-module_header =
-  [js_imports_local "dsl-api"
-    ["byteToHex", "registerInit", "hexToAddress", "hexTo0x", "checkRequirement",
-     "loggedAlert", "merge", "flip", "logErrorK", "randomSalt", "logging", "kLogResult", "kLogError",
-     "web3", "crypto", "userAddress",
-     "saltedDigest", "registerBackendHooks", "renderGame", "config",
-     "toBN", "optionalAddressOf0x", "optionalAddressMatches", "hexToBigNumber", "deployContract",
-     "getGame", "updateGame", "removeActiveGame", "queueGame", "attemptGameCreation",
-     "optionalAddressTo0x", "isGameConfirmed", "digestHex", "sendTx",
-     "renderWei",
-     "contract", "contractAt", "contractFactory"]]
+jsArray :: [Doc a] -> Doc a
+jsArray elems = brackets $ hcat $ intersperse (comma <> space) elems
 
---jsconst :: String -> -> JSAST.JSModuleItem
---jsconst :: JSAST.JSModuleItem
---    JSModuleExportDeclaration JSNoAnnot (JSExport (JSConst JSNoAnnot (JSLOne (JSVarInitExpression (JSIdentifier JSNoAnnot "rpsFactory") JSVarInitNone)) (JSSemi JSNoAnnot)) JSSemiAuto),
+jsApply :: String -> [Doc a] -> Doc a
+jsApply f args = pretty f <> parens (hcat $ intersperse (comma <> space) args)
 
+jsFunction :: String -> [Doc a] -> Doc a -> Doc a
+jsFunction name args body =
+  pretty "function" <+> jsApply name args <+> jsBraces body
 
+jsLambda :: [Doc a] -> Doc a -> Doc a
+jsLambda args body = jsApply "" args <+> pretty "=>" <+> jsBraces body
 
--- Below stuff for debug purposes (Fare)
--- | Parse JavaScript Module (Script)
--- Parse one compound statement, or a sequence of simple statements.
--- Generally used for interactive input, such as from the command line of an interpreter.
--- Return comments in addition to the parsed statements.
-parseJS :: String -- ^ The name of the Javascript source (filename or input device).
-     -> IO (Either String JS.JSAST)
-        -- ^ An error or maybe the abstract syntax tree (AST) of zero
-        -- or more Javascript statements, plus comments.
-parseJS filename = do
-  x <- System.IO.readFile filename
-  return (JSParser.parseModule x filename)
+jsReturn :: Doc a -> Doc a
+jsReturn a = pretty "return" <+> a <> semi
 
-dbj :: String
-dbj = "../../examples/rps-demo/dapp-backend.mjs.lj"
+jsObject :: [(String, Doc a)] -> Doc a
+jsObject kvs = jsBraces $ vsep $ (intersperse comma) $ map jsObjField kvs
+  where jsObjField (k, v) = pretty (k ++ ":") <> hardline <> v
 
-pjb :: a -> IO ()
-pjb _ = do
-  x <- parseJS dbj
-  writeFile (dbj ++ ".jsast") (show x)
+jsBinOp :: String -> Doc a -> Doc a -> Doc a
+jsBinOp o l r = l <+> pretty o <+> r
 
-pjf :: a -> IO (Either String JS.JSAST)
-pjf _ = parseJS "/tmp/foo.mjs"
+jsPrimApply :: EP_Prim -> [Doc a] -> Doc a
+jsPrimApply pr args =
+  case pr of
+    CP ADD -> binOp "+"
+    CP SUB -> binOp "-"
+    CP MUL -> binOp "*"
+    CP DIV -> binOp "/"
+    CP MOD -> binOp "%"
+    CP PLT -> binOp "<"
+    CP PLE -> binOp "<="
+    CP PEQ -> binOp "=="
+    CP PGE -> binOp ">="
+    CP PGT -> binOp ">"
+    CP IF_THEN_ELSE -> case args of
+                      [ c, t, f ] -> c <+> pretty "?" <+> t <+> pretty ":" <+> f
+                      _ -> spa_error ()
+    -- TODO: normalize names in JS and Solidity stdlib to match names of the compiler abstractions?
+    CP UINT256_TO_BYTES -> jsApply "stdlib.hexOf" args
+    CP DIGEST -> jsApply "stdlib.keccak256" args
+    CP BYTES_EQ -> binOp "=="
+    CP BYTES_LEN -> jsApply "stdlib.bytes_len" args
+    CP BCAT -> jsApply "stdlib.msgCons" args
+    CP BCAT_LEFT -> jsApply "stdlib.msgCar" args
+    CP BCAT_RIGHT -> jsApply "stdlib.msgCdr" args
+    RANDOM -> jsApply "stdlib.randomUInt256" args
+    INTERACT -> error "interact doesn't use jsPrimApply"
+  where binOp op = case args of
+          [ l, r ] -> jsBinOp op l r
+          _ -> spa_error ()
+        spa_error () = error "jsPrimApply"
 
-pjs :: String -> Either String JS.JSAST
-pjs x = JSParser.parseModule x "stdin"
+jsEPExpr :: EPExpr -> Doc a
+jsEPExpr (EP_Arg a) = jsArg a
+jsEPExpr (EP_PrimApp pr al) = jsPrimApply pr $ map jsArg al
+
+jsEPStmt :: EPStmt -> Doc a
+jsEPStmt (EP_Claim CT_Possible _) = pretty "true"
+jsEPStmt (EP_Claim _ a) = jsApply "stdlib.assert" [ jsArg a ]
+jsEPStmt (EP_Send i svs msg amt) = jsApply "ctc.send" [ jsString (solMsg_fun i), vs, jsArg amt ]
+  where args = svs ++ msg
+        vs = jsArray $ map jsVar args
+
+jsEPTail :: EPTail -> Doc a
+jsEPTail (EP_Ret al) = (jsApply "kTop" $ map jsArg al) <> semi
+jsEPTail (EP_If ca tt ft) =
+  pretty "if" <+> parens (jsArg ca) <> bp tt <> hardline <> pretty "else" <> bp ft
+  where bp at = jsBraces $ jsEPTail at
+jsEPTail (EP_Let v (EP_PrimApp INTERACT al) kt) =
+  jsApply "interact" ((map jsArg al) ++ [ kp ])
+  where kp = jsLambda [ jsVar v ] $ jsEPTail kt
+jsEPTail (EP_Let bv ee kt) = vsep [ jsVarDecl bv <+> pretty "=" <+> jsEPExpr ee <> semi, jsEPTail kt ];
+jsEPTail (EP_Do es kt) = vsep [ jsEPStmt es <> semi, jsEPTail kt ];
+jsEPTail (EP_Recv i _ msg pv kt) = jsApply "ctc.recv" [ jsString (solMsg_evt i), kp ]
+  where kp = jsLambda msg_vs (jsEPTail kt)
+        msg_vs = map jsVar $ msg ++ [pv]
+
+jsPart :: (Participant, EProgram) -> Doc a
+jsPart (p, (EP_Prog pargs et)) =
+  pretty "export" <+> jsFunction p ([ pretty "ctc", pretty "interact" ] ++ pargs_vs ++ [ pretty "kTop" ]) bodyp
+  where pargs_vs = map jsVar pargs
+        bodyp = jsEPTail et
+
+emit_js :: BLProgram -> Doc a
+emit_js (BL_Prog pm _) = modp
+  where modp = vsep_with_blank ( pretty "import * as stdlib from './alacrity-runtime.mjs';"
+                                 : pretty "/* XXX Copy the ABI from the solc output */"
+                                 : pretty "/* XXX Copy the bytecode from the solc output */"
+                                 : partsp )
+        partsp = map jsPart $ M.toList pm
+
+vsep_with_blank :: [Doc a] -> Doc a
+vsep_with_blank l = vsep $ intersperse emptyDoc l

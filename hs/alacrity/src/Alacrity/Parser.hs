@@ -13,10 +13,10 @@ import Alacrity.AST
 
 valid_id :: String -> Bool
 valid_id p = not (elem p rsw) && head p /= '#' && (Nothing == (decodePrim p))
-  where rsw = ["if", "cond", "else", "assert!", "transfer!", "declassify", "values", "@", "define", "define-values", "require", "CTC"]
+  where rsw = ["if", "cond", "else", "assert!", "assume!", "require!", "possible?", "transfer!", "declassify!", "declassify", "values", "@", "define", "define-values", "require", "CTC"]
 
 decodeXLType :: SE.SExpr -> BaseType
-decodeXLType (SE.Atom "int") = AT_Int
+decodeXLType (SE.Atom "uint256") = AT_UInt256
 decodeXLType (SE.Atom "bool") = AT_Bool
 decodeXLType (SE.Atom "bytes") = AT_Bytes
 decodeXLType se = invalid "decodeXLType" se
@@ -62,14 +62,13 @@ decodePrim s =
     ">=" -> Just (CP PGE)
     ">" -> Just (CP PGT)
     "ite" -> Just (CP IF_THEN_ELSE)
-    "integer->integer-bytes" -> Just (CP INT_TO_BYTES)
+    "uint256->bytes" -> Just (CP UINT256_TO_BYTES)
     "digest" -> Just (CP DIGEST)
     "bytes=?" -> Just (CP BYTES_EQ)
     "bytes-length" -> Just (CP BYTES_LEN)
     "msg-cat" -> Just (CP BCAT)
     "msg-left" -> Just (CP BCAT_LEFT)
     "msg-right" -> Just (CP BCAT_RIGHT)
-    "DISHONEST" -> Just (CP DISHONEST)
     "random" -> Just RANDOM
     "interact" -> Just INTERACT
     _ -> Nothing
@@ -96,7 +95,13 @@ decodeXLExpr1 (SE.List [SE.Atom "cond", SE.List (SE.Atom "else":answer)]) =
 decodeXLExpr1 (SE.List (SE.Atom "cond":SE.List (question:answer):more)) =
   XL_If False (decodeXLExpr1 question) (decodeXLExpr answer) (decodeXLExpr1 (SE.List (SE.Atom "cond" : more)))
 decodeXLExpr1 (SE.List [SE.Atom "assert!", arg]) =
-  XL_Assert (decodeXLExpr1 arg)
+  XL_Claim CT_Assert (decodeXLExpr1 arg)
+decodeXLExpr1 (SE.List [SE.Atom "assume!", arg]) =
+  XL_Claim CT_Assume (decodeXLExpr1 arg)
+decodeXLExpr1 (SE.List [SE.Atom "require!", arg]) =
+  XL_Claim CT_Require (decodeXLExpr1 arg)
+decodeXLExpr1 (SE.List [SE.Atom "possible?", arg]) =
+  XL_Claim CT_Possible (decodeXLExpr1 arg)
 decodeXLExpr1 (SE.List [SE.Atom "transfer!", to, amt]) =
   XL_Transfer (decodePart to) (decodeXLExpr1 amt)
 decodeXLExpr1 (SE.List [SE.Atom "declassify", arg]) =
@@ -113,15 +118,23 @@ decodeXLExpr [SE.List (SE.Atom "begin-local" : kse)] =
   XL_FromConsensus (decodeXLExpr kse)
 decodeXLExpr ((SE.List (SE.Atom "@" : fromse :
                         SE.List (SE.Atom "publish!" : inse) :
+                        --- XXX Make variant that allows choice about
+                        --- what payvse is and doesn't assume should
+                        --- be exactly equal to payse
                         SE.List [SE.Atom "pay!", payse] :
                         bse)):kse) =
-  XL_ToConsensus p ins pay body
+  XL_ToConsensus p ins pay payv body
   where RolePart p = decodeRole fromse
+        --- XXX
+        payvse = SE.Atom "pay-amount"
+        payv = decodeXLVar payvse
         ins = decodeXLVars inse
         pay = decodeXLExpr1 payse
-        bse' = bse ++ [(SE.List (SE.Atom "begin-local" : kse))]
+        bse' = [(SE.List [SE.Atom "require!", (SE.List [SE.Atom "=", payvse, payse])])] ++ bse ++ [(SE.List (SE.Atom "begin-local" : kse))]
         body = decodeXLExpr bse'
 --- define
+decodeXLExpr ((SE.List [SE.Atom "@", rs, (SE.List [SE.Atom "declassify!", v])]):kse) =
+  decodeXLExpr ((SE.List [SE.Atom "@", rs, (SE.List [SE.Atom "define", v, (SE.List [SE.Atom "declassify", v])])]):kse)
 decodeXLExpr ((SE.List [SE.Atom "@", rs, (SE.List [SE.Atom "define", vse, ese])]):kse) =
   XL_LetValues (Just p) (Just [(decodeXLVar vse)]) (decodeXLExpr1 ese) (decodeXLExpr kse)
   where RolePart p = (decodeRole rs)
@@ -168,7 +181,8 @@ decodeXLDefs ((SE.List (SE.Atom "define":SE.List (fse:argse):ese)):more) = do
       args = decodeXLVars argse
       e = case ese of
         (SE.Atom ":" : predse : ese') ->
-          (XL_LetValues Nothing (Just ["result"]) (decodeXLExpr ese') (XL_LetValues Nothing Nothing (XL_Assert (XL_FunApp (decodeXLVar predse) [XL_Var "result"])) (XL_Var "result")))
+          --- XXX hygeine with Data.IORef
+          (XL_LetValues Nothing (Just ["result"]) (decodeXLExpr ese') (XL_LetValues Nothing Nothing (XL_Claim CT_Assert (XL_FunApp (decodeXLVar predse) [XL_Var "result"])) (XL_Var "result")))
         _ -> decodeXLExpr ese
   (defs2, m) <- decodeXLDefs more
   return ((XL_DefineFun f args e) : defs2, m)
