@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances, RecordWildCards #-}
 module Alacrity.VerifyZ3 where
 
 import qualified Data.Map.Strict as M
@@ -306,22 +306,24 @@ _verify_z3 z3 tp bp = do
         IL_Prog ipi it = tp
         ps = RoleContract : (map RolePart $ M.keys ipi)
 
-newTeeLogger :: String -> Logger -> IO (IO (), Logger)
-newTeeLogger p l = do
+newFileLogger :: String -> IO (IO (), Logger)
+newFileLogger p = do
   logh <- openFile p WriteMode
-  let thisLogMessage m = do
-        logMessage l m
-        hPutStr logh m
+  let logLevel = return 0
+      logSetLevel _ = return ()
+      logTab = return ()
+      logUntab = return ()
+      logMessage m = do
+        hPutStrLn logh m
         hFlush logh
       close = hClose logh
-  return (close, l { logMessage = thisLogMessage })
+  return (close, Logger { .. })
 
 verify_z3 :: String -> ILProgram -> BLProgram -> IO ()
-verify_z3 _logp tp bp = do
-  --- stdl <- newLogger 1
-  --- (close, logpl) <- newTeeLogger logp stdl
-  z3 <- newSolver "z3" ["-smt2", "-in"] Nothing
+verify_z3 logp tp bp = do
+  (close, logpl) <- newFileLogger logp
+  z3 <- newSolver "z3" ["-smt2", "-in"] (Just logpl)
   ec <- _verify_z3 z3 tp bp
   maybeDie $ stop z3
-  --- close
+  close
   maybeDie $ return ec
