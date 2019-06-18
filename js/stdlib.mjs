@@ -2,6 +2,19 @@ export function assert(cond) { XXX; }
 export function int2bytes(i) { XXX; }
 export function keccak256(b) { XXX; }
 
+export function bytes_len(b) {
+    let bh = hexOf(b);
+    // In our JS representation of byte strings, a byte
+    // is a pair of hex chars, so the "js length" is twice
+    // the "logical length". So we divide by 2 to convert
+    // js length -> logical length
+    let n = bh.length / 2;
+    if (!Number.isInteger(n)) {
+        console.error("bytes_len: byte-string has an incomplete hex-digit pair");
+    }
+    return n;
+}
+
 // Used by msg_cat to encode the left_length 16-bit unsigned integer
 // as 2 hex bytes or 4 hex characters
 function nat16_to_fixed_size_hex(n) {
@@ -24,11 +37,7 @@ function msg_left_length(msg) {
 export function msg_cat(a, b) {
     let ah = hexOf(a);
     let bh = hexOf(b);
-    // In our JS representation of byte strings, a byte
-    // is a pair of hex chars, so the "js length" is twice
-    // the "logical length". So we divide by 2 to convert
-    // js length -> logical length
-    let n = nat16_to_fixed_size_hex(ah.length / 2);
+    let n = nat16_to_fixed_size_hex(bytes_len(ah));
     return n + ah + bh;
 }
 

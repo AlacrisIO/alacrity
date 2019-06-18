@@ -93,9 +93,7 @@ jsPrimApply pr args =
     CP UINT256_TO_BYTES -> jsApply "stdlib.hexOf" args
     CP DIGEST -> jsApply "stdlib.keccak256" args
     CP BYTES_EQ -> binOp "=="
-    CP BYTES_LEN -> case args of
-                   [ a ] -> a <> pretty ".length"
-                   _ -> spa_error ()
+    CP BYTES_LEN -> jsApply "stdlib.bytes_len" args
     CP BCAT -> jsApply "stdlib.msgCons" args
     CP BCAT_LEFT -> jsApply "stdlib.msgCar" args
     CP BCAT_RIGHT -> jsApply "stdlib.msgCdr" args
