@@ -4,9 +4,10 @@ module Alacrity.VerifyZ3 where
 import qualified Data.Map.Strict as M
 import Control.Monad
 import Control.Monad.Extra
-import SimpleSMT
+import SimpleSMT --- Maybe use Language.SMTLib2 in future
 import System.IO
 import System.Exit
+import Data.Text.Prettyprint.Doc
 
 import Alacrity.AST
 import Alacrity.Util
@@ -114,6 +115,16 @@ z3CTCBalanceRef i = Atom $ z3CTCBalance i
 z3IntSort :: SExpr
 z3IntSort = z3_sortof AT_UInt256
 
+{- Model Rendering -}
+
+pretty_se :: SExpr -> Doc a
+pretty_se (List l) = group $ parens $ hsep $ map pretty_se l
+pretty_se (Atom a) = pretty a
+
+pretty_se_top :: SExpr -> Doc a
+pretty_se_top (List l) = group $ parens $ nest 2 $ vsep $ map pretty_se l
+pretty_se_top (Atom a) = pretty a
+
 {- Z3 Interaction -}
 
 z3_verify1 :: Solver -> (Bool, Role, TheoremKind) -> SExpr -> IO VerifyResult
@@ -125,7 +136,9 @@ z3_verify1 z3 (_honest, _r, _tk) a = inNewScope z3 $ do
     Unsat -> return $ VR 1 0
     Sat -> do
       --- XXX Display useful information about a
-      putStrLn $ "Failed to verify! " ++ showsSExpr a ""
+      putStrLn $ "Failed to verify! " ++ showsSExpr a ":"
+      m <- command z3 $ List [ Atom "get-model" ]
+      putStrLn $ show $ pretty_se_top m
       return $ VR 0 1
 
 {- Z3 Theory Generation
