@@ -89,6 +89,7 @@ jsPrimApply pr args =
     CP IF_THEN_ELSE -> case args of
                       [ c, t, f ] -> c <+> pretty "?" <+> t <+> pretty ":" <+> f
                       _ -> spa_error ()
+    -- TODO: normalize names in JS and Solidity stdlib to match names of the compiler abstractions?
     CP UINT256_TO_BYTES -> jsApply "stdlib.hexOf" args
     CP DIGEST -> jsApply "stdlib.keccak256" args
     CP BYTES_EQ -> binOp "=="
@@ -131,7 +132,7 @@ jsEPTail (EP_Recv i _ msg pv kt) = jsApply "ctc.recv" [ jsString (solMsg_evt i),
 
 jsPart :: (Participant, EProgram) -> Doc a
 jsPart (p, (EP_Prog pargs et)) =
-  pretty "export" <+> jsFunction p ([ pretty "ctc", pretty "interact" ] ++ pargs_vs ++ [ pretty "kTop" ]) bodyp 
+  pretty "export" <+> jsFunction p ([ pretty "ctc", pretty "interact" ] ++ pargs_vs ++ [ pretty "kTop" ]) bodyp
   where pargs_vs = map jsVar pargs
         bodyp = jsEPTail et
 
@@ -140,7 +141,7 @@ emit_js (BL_Prog pm _) = modp
   where modp = vsep_with_blank ( pretty "import * as stdlib from './alacrity-runtime.mjs';"
                                  : pretty "/* XXX Copy the ABI from the solc output */"
                                  : pretty "/* XXX Copy the bytecode from the solc output */"
-                                 : partsp ) 
+                                 : partsp )
         partsp = map jsPart $ M.toList pm
 
 vsep_with_blank :: [Doc a] -> Doc a

@@ -156,7 +156,7 @@ solSet :: Doc a -> Doc a -> Doc a
 solSet = solBinOp "="
 
 solHash :: [Doc a] -> Doc a
-solHash a = solApply "uint256" [ solApply "keccak256" [ solApply "abi.encode" a ] ]
+solHash a = solApply "uint256" [ solApply "keccak256" [ solApply "abi.encodePacked" a ] ]
 
 solHashState :: SolRenaming a -> Int -> [Participant] -> [BLVar] -> Doc a
 solHashState ρ i ps svs = solHash $ (pretty (show i)) : (map solPartVar ps) ++ (map (solVar ρ) svs)
@@ -180,7 +180,7 @@ solPrimApply pr args =
     IF_THEN_ELSE -> case args of
                       [ c, t, f ] -> c <+> pretty "?" <+> t <+> pretty ":" <+> f
                       _ -> spa_error ()
-    UINT256_TO_BYTES -> solApply "abi.encode" args
+    UINT256_TO_BYTES -> solApply "abi.encodePacked" args
     DIGEST -> case args of
                 [ a ] -> solHash [a]
                 _ -> spa_error ()
