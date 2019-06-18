@@ -24,17 +24,29 @@ function msg_left_length(msg) {
 export function msg_cat(a, b) {
     let ah = hexOf(a);
     let bh = hexOf(b);
-    let n = nat16_to_fixed_size_hex(ah.length);
+    // In our JS representation of byte strings, a byte
+    // is a pair of hex chars, so the "js length" is twice
+    // the "logical length". So we divide by 2 to convert
+    // js length -> logical length
+    let n = nat16_to_fixed_size_hex(ah.length / 2);
     return n + ah + bh;
 }
 
 export function msg_left(msg) {
     let n = msg_left_length(msg);
-    return msg.substring(4, 4 + n);
+    // In our JS representation of byte strings, a byte
+    // is a pair of hex chars, so the "js length" is twice
+    // the "logical length". So we multiply by 2 to convert
+    // logical length -> js length
+    return msg.substring(4, 4 + (2 * n));
 }
 export function msg_right(msg) {
     let n = msg_left_length(msg);
-    return msg.substring(4 + n);
+    // In our JS representation of byte strings, a byte
+    // is a pair of hex chars, so the "js length" is twice
+    // the "logical length". So we multiply by 2 to convert
+    // logical length -> js length
+    return msg.substring(4 + (2 * n));
 }
 
 
