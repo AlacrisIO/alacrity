@@ -4,6 +4,10 @@ import '../monkey-patch-require.js';
 import * as A   from '../dsl-api.mjs';
 import { web3 } from '../web3-prelude.mjs';
 
+
+jasmine.DEFAULT_TIMEOUT_INTERVAL = 60 * 1000;
+
+
 const panic = m =>
   console.error(m) || process.exit(1);
 
@@ -17,7 +21,8 @@ const balanceOf = a =>
 const PREFUNDED_PRIVATE_NET_ACCT =
   web3.personal.listAccounts[0] || panic('Cannot infer prefunded account!');
 
-const accts = {};
+const accts    = {};
+const contract = {};
 
 
 // Upserts (nickname, hex ID) record
@@ -51,12 +56,47 @@ const prefundTestAccounts = () => {
 };
 
 
+// TODO FIXME
+const deployContractFactory = () =>
+  new Promise((resolve, reject) => {
+
+    const gatherContractInfo = txHash =>
+      web3.eth.getTransactionReceipt(txHash, receipt => {
+        debugger;
+        if (receipt.transactionHash !== txHash)
+          return reject(`Bad txHash; ${txHash} !== ${receipt.transactionHash}`);
+
+        contract.address       = receipt.contractAddress;
+        contract.codeHash      = A.digestHex(A.contractFactoryCode);
+        contract.creationBlock = receipt.blockNumber;
+        contract.creationHash  = receipt.transactionHash;
+
+        return resolve(contract);
+      });
+
+    // TODO Fare allowed this to be configurable before; reimplement?
+    const BLOCK_POLLING_PERIOD_IN_SECONDS = 1;
+
+    const awaitConfirmation = txHash => {
+      const query = () => web3.eth.getTransaction(txHash, t => {
+        !!t && !!t.blockNumber ? clearInterval(i) || gatherContractInfo(txHash)
+                               : null
+      });
+
+      const i = setInterval(query, BLOCK_POLLING_PERIOD_IN_SECONDS * 1000);
+    };
+
+    return A.deployContract(awaitConfirmation, reject);
+  });
+
+
 const runPrep = done => {
   // Web3's internals will break without this:
   web3.eth.defaultAccount = PREFUNDED_PRIVATE_NET_ACCT;
 
   return createAndUnlock([ 'alice', 'bob' ])
     .then(prefundTestAccounts)
+    // .then(deployContractFactory)
     .then(done)
     .catch(panic)
 };
@@ -75,11 +115,8 @@ describe('The test suite can easily', () => {
       const tx    = { from: accts.alice, to: accts.bob, value };
 
       web3.eth.sendTransaction(tx, () => {
-        const balanceEndAlice = balanceOf(accts.alice);
-        const balanceEndBob   = balanceOf(accts.bob);
-
-        expect(balanceEndAlice).toBeLessThan(balanceStartAlice - value);
-        expect(balanceEndBob).toBeGreaterThan(balanceStartBob + value);
+        expect(balanceOf(accts.alice)).toBeLessThan(balanceStartAlice - value);
+        expect(balanceOf(accts.bob)).toBeGreaterThan(balanceStartBob + value);
 
         done();
       });
