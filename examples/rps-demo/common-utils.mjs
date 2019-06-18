@@ -87,7 +87,7 @@ export const composeK = (...fa) => {
     else { const f = l.pop(); return komposeK(composeK(...fa))(f)}}
 
 /** : Uint8 => string */
-export const byteToHex = byte => ('0' + (byte & 0xFF).toString(16)).slice(-2);
+export const byteToHex = byte => (byte & 0xFF).toString(16).padStart(2, "0");
 
 /** : Uint8Array => string */
 export const bytesToHex = bytes => Array.from(bytes, byteToHex).join('');
@@ -97,6 +97,13 @@ export const hexTo0x = hex => "0x" + hex;
 
 /** : Uint8Array => String0x */
 export const bytesTo0x = bytes => hexTo0x(bytesToHex(bytes));
+
+/** : int => Hex */
+export const intToHex = (u, nBytes = 4) =>
+    u.toString(16).padStart(nBytes*2, "0");
+
+/** : Hex => int */
+export const hexToInt = x => parseInt(x, 16);
 
 /** Strip the 0x prefix
     : String0x => string */

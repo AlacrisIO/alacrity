@@ -14,7 +14,7 @@ export function A(ctc, interact, v0, v1, v2, kTop) {
   const v14 = stdlib.randomUInt256();
   const v15 = stdlib.hexOf(v14);
   const v16 = stdlib.hexOf(v2);
-  const v17 = stdlib.msg_cat(v15, v16);
+  const v17 = stdlib.msgCons(v15, v16);
   const v18 = stdlib.keccak256(v17);
   const v19 = v0;
   const v20 = v1;
@@ -42,7 +42,7 @@ export function A(ctc, interact, v0, v1, v2, kTop) {
         stdlib.assert(v37);
         const v38 = stdlib.hexOf(v34);
         const v39 = stdlib.hexOf(v35);
-        const v40 = stdlib.msg_cat(v38, v39);
+        const v40 = stdlib.msgCons(v38, v39);
         const v41 = stdlib.keccak256(v40);
         const v42 = v21 == v41;
         stdlib.assert(v42);
@@ -132,7 +132,7 @@ export function B(ctc, interact, v3, kTop) {
         stdlib.assert(v37);
         const v38 = stdlib.hexOf(v34);
         const v39 = stdlib.hexOf(v35);
-        const v40 = stdlib.msg_cat(v38, v39);
+        const v40 = stdlib.msgCons(v38, v39);
         const v41 = stdlib.keccak256(v40);
         const v42 = v21 == v41;
         stdlib.assert(v42);

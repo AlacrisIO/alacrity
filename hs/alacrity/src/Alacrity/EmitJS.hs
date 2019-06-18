@@ -95,9 +95,9 @@ jsPrimApply pr args =
     CP BYTES_LEN -> case args of
                    [ a ] -> a <> pretty ".length"
                    _ -> spa_error ()
-    CP BCAT -> jsApply "stdlib.msg_cat" args
-    CP BCAT_LEFT -> jsApply "stdlib.msg_left" args
-    CP BCAT_RIGHT -> jsApply "stdlib.msg_right" args
+    CP BCAT -> jsApply "stdlib.msgCons" args
+    CP BCAT_LEFT -> jsApply "stdlib.msgCar" args
+    CP BCAT_RIGHT -> jsApply "stdlib.msgCdr" args
     RANDOM -> jsApply "stdlib.randomUInt256" args
     INTERACT -> error "interact doesn't use jsPrimApply"
   where binOp op = case args of

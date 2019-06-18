@@ -138,7 +138,7 @@ solVersion :: Doc a
 solVersion = pretty "pragma solidity ^0.5.2;"
 
 solStdLib :: Doc a
-solStdLib = pretty "import \"../../../sol/stdlib.sol\";"
+solStdLib = pretty "import \"sol/stdlib.sol\";"
 
 solApply :: String -> [Doc a] -> Doc a
 solApply f args = pretty f <> parens (hcat $ intersperse (comma <> space) args)
@@ -188,7 +188,7 @@ solPrimApply pr args =
     BYTES_LEN -> case args of
                    [ a ] -> a <> pretty ".length"
                    _ -> spa_error ()
-    BCAT -> solApply "abi.encode" args --- XXX switch to ALA_BCAT after below
+    BCAT -> solApply "ALA_BCAT" args
     BCAT_LEFT -> solApply "ALA_BCAT_LEFT" args
     BCAT_RIGHT -> solApply "ALA_BCAT_RIGHT" args
   where binOp op = case args of
@@ -248,8 +248,8 @@ vsep_with_blank l = vsep $ intersperse emptyDoc l
 
 emit_sol :: BLProgram -> Doc a
 emit_sol (BL_Prog _ (C_Prog ps hs)) =
-  vsep_with_blank $ [ solVersion, {- solStdLib, -} ctcp ]
-  where ctcp = solContract "ALAContract" -- is Stdlib"
+  vsep_with_blank $ [ solVersion, solStdLib, ctcp ]
+  where ctcp = solContract "ALAContract is Stdlib"
                $ ctcbody
         ctcbody = vsep $ [state_defn, emptyDoc, consp, emptyDoc, solHandlers ps hs]
         consp = solApply "constructor" p_ds <+> pretty "public payable" <+> solBraces consbody

@@ -1,6 +1,8 @@
 pragma solidity ^0.5.2;
 
-contract ALAContract {
+import "sol/stdlib.sol";
+
+contract ALAContract is Stdlib {
   uint256 current_state;
   
   constructor(address payable pA, address payable pB) public payable {
@@ -28,7 +30,7 @@ contract ALAContract {
     require(current_state == uint256(keccak256(abi.encode(2, pA, pB, v19, v20, v21, v26))));
     require(msg.sender == pA);
     require((msg.value == 0));
-    require((v21 == (uint256(keccak256(abi.encode((abi.encode((abi.encode(v34)), (abi.encode(v35))))))))));
+    require((v21 == (uint256(keccak256(abi.encode((ALA_BCAT((abi.encode(v34)), (abi.encode(v35))))))))));
     require(((v35 == 0) ? true : ((v35 == 1) ? true : (v35 == 2))));
     bool v52 = (v35 == 0) ? true : ((v35 == 1) ? true : (v35 == 2));
     bool v57 = (v26 == 0) ? true : ((v26 == 1) ? true : (v26 == 2));

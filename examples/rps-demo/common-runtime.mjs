@@ -67,10 +67,8 @@ export const meth = x => toBN(1e15).mul(x);
 /** Convert a hex string to a BigNumber
     : string => BigNumber */
 export const hexToBigNumber = hex => toBN(hexTo0x(hex));
-export const BNtoHex = (u, nBytes = 32) => {
-    const p = toBN(256).pow(nBytes);
-    return web3.toHex(p.add(toBN(u).mod(p))).slice(3);}
-export const hexToInt = x => parseInt(x, 16);
+export const BNtoHex = (u, nBytes = 32) =>
+    web3.toHex(toBN(u)).slice(Math.max(2, -2*nBytes)).padStart(nBytes*2, "0")
 
 export const digest = Web3.prototype.sha3;
 export const digestHex = x => Web3.prototype.sha3(x, {encoding: "hex"});
@@ -92,6 +90,18 @@ export const hexOf = x => {
 }
 export const hexCat = (...x) => x.map(hexOf).join("")
 export const keccak256 = (...x) => digestHex(hexOf(...x))
+
+// Used by both msgCar and msgCdr to see when the left stops and the right starts
+// 16 bits = 2 bytes = 4 hex characters
+export const msgCarLength = msg => hexToInt(msg.substring(0,4))
+
+// ∀ a b, msgCar(msgCons(a, b)) = a
+// ∀ a b, msgCdr(msgCons(a, b)) = b
+export const msgCons = (a, b) => hexCat(intToHex(a.length/2, 2), a, b)
+export const msgCar = c => msg.substring(4, 4 + msgCarLength(msg))
+export const msgCdr = c => msg.substring(4 + msgCarLength(msg))
+
+
 
 /** Return a random UInt256 number */
 export const randomUInt256 = () => toBN(randomSalt());
