@@ -106,8 +106,11 @@ solVar ρ bv = p
               Nothing -> solRawVar bv
               Just v -> v
 
+solNum :: Show n => n -> Doc a
+solNum i = pretty $ "uint256(" ++ show i ++ ")"
+
 solCon :: Constant -> Doc a
-solCon (Con_I i) = pretty i
+solCon (Con_I i) = solNum i
 solCon (Con_B True) = pretty "true"
 solCon (Con_B False) = pretty "false"
 solCon (Con_BS s) = pretty $ "\"" ++ show s ++ "\""
@@ -159,7 +162,7 @@ solHash :: [Doc a] -> Doc a
 solHash a = solApply "uint256" [ solApply "keccak256" [ solApply "abi.encodePacked" a ] ]
 
 solHashState :: SolRenaming a -> Int -> [Participant] -> [BLVar] -> Doc a
-solHashState ρ i ps svs = solHash $ (pretty (show i)) : (map solPartVar ps) ++ (map (solVar ρ) svs)
+solHashState ρ i ps svs = solHash $ (solNum i) : (map solPartVar ps) ++ (map (solVar ρ) svs)
 
 solRequireSender :: Participant -> Doc a
 solRequireSender from = solRequire $ solEq (pretty "msg.sender") (solPartVar from)
