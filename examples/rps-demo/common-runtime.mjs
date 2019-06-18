@@ -67,8 +67,9 @@ export const meth = x => toBN(1e15).mul(x);
 /** Convert a hex string to a BigNumber
     : string => BigNumber */
 export const hexToBigNumber = hex => toBN(hexTo0x(hex));
-export const BNtoHex = (u, nBytes = 32) =>
-    web3.toHex(toBN(u)).slice(Math.max(2, -2*nBytes)).padStart(nBytes*2, "0")
+export const BNtoHex = (u, nBytes = 32) => {
+    const p = toBN(256).pow(nBytes); // v--- p.mul(2) so it works on negative numbers, too.
+    return web3.toHex(toBN(u).mod(p).add(p.mul(2))).slice(3);}
 
 export const digest = Web3.prototype.sha3;
 export const digestHex = x => Web3.prototype.sha3(x, {encoding: "hex"});
@@ -101,6 +102,17 @@ export const msgCons = (a, b) => hexCat(intToHex(a.length/2, 2), a, b)
 export const msgCar = c => msg.substring(4, 4 + msgCarLength(msg))
 export const msgCdr = c => msg.substring(4 + msgCarLength(msg))
 
+/** minimal variants of web3.js's web3.eth.abi functions that only support uint256,
+    because we can only use web3 0.20.x at this time (which is what metamask provides)
+    and we only need uint256 for the rps-demo (although we may want to add bytes soon
+    to complete support for the DSL).
+  */
+export const encodeParameter = (type, parameter) => {
+    assert(type === "uint256");
+    return BNtoHex(parameter)}
+export const encodeParameters = (types, parameters) => {
+    assert(types.length === parameters.length);
+    return types.map((t, i) => encodeParameter(t, parameters[i])).join("")}
 
 
 /** Return a random UInt256 number */

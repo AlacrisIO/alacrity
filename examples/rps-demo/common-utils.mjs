@@ -99,8 +99,9 @@ export const hexTo0x = hex => "0x" + hex;
 export const bytesTo0x = bytes => hexTo0x(bytesToHex(bytes));
 
 /** : int => Hex */
-export const intToHex = (u, nBytes = 4) =>
-    u.toString(16).padStart(nBytes*2, "0");
+export const intToHex = (u, nBytes = 4) => {
+    const p = Math.pow(256,nBytes); // v--- *2 so it works on negative numbers, too.
+    return ((u % p) + 2*p).toString(16).slice(1)}
 
 /** : Hex => int */
 export const hexToInt = x => parseInt(x, 16);
