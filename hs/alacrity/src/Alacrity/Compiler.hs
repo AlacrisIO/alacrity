@@ -11,7 +11,7 @@ import Alacrity.AST
 import Alacrity.Parser
 import Alacrity.EmitJS
 import Alacrity.EmitSol
-import Alacrity.EmitZ3
+import Alacrity.VerifyZ3
 
 {- Inliner
 
@@ -561,7 +561,7 @@ compile srcp = do
   writeFile (srcp ++ ".il") (show (pretty ilp))
   let blp = epp ilp
   writeFile (srcp ++ ".bl") (show (pretty blp))
-  writeFile (srcp ++ ".z3") (show (emit_z3 ilp blp))
+  verify_z3 (srcp ++ ".z3") ilp blp
   writeFile (srcp ++ ".sol") (show (emit_sol blp))
   writeFile (srcp ++ ".js") (show (emit_js blp))
   exitSuccess

@@ -1,13 +1,3 @@
-
-; (=> (= (uint256->bytes a) (uint256->bytes b))
-;     (= a b))
-
-; (=> (= (digest a) (digest b))
-;     (= a b))
-
-; (=> (= (msg-cat a1 a2) (msg-cat b1 b2))
-;     (&& (= a1 b1) (= a2 b2)))
-
 (declare-datatypes ()
   ((Bytes
     (uint256->bytes (bytes-integer Int))
