@@ -2,7 +2,8 @@
 import {
     rekeyContainer, intToString, stringToInt, registerInit, keyValuePair, assert,
     handlerK, handlerThenK, errbacK, runHooks, kLogError, kLogResult, hexTo0x, range,
-    logging, loggingK, logErrorK, loggedAlert, merge, popEntry, forEachK, randomSalt
+    logging, loggingK, logErrorK, loggedAlert, merge, popEntry, forEachK,
+    hexToInt, intToHex, bytesTo0x
 } from "./common-utils.mjs";
 import {TinyQueue} from "./tinyqueue.mjs";
 import {Storage} from "./local-storage.mjs";
@@ -99,8 +100,8 @@ export const msgCarLength = msg => hexToInt(msg.substring(0,4))
 // ∀ a b, msgCar(msgCons(a, b)) = a
 // ∀ a b, msgCdr(msgCons(a, b)) = b
 export const msgCons = (a, b) => hexCat(intToHex(a.length/2, 2), a, b)
-export const msgCar = c => msg.substring(4, 4 + msgCarLength(msg))
-export const msgCdr = c => msg.substring(4 + msgCarLength(msg))
+export const msgCar = msg => msg.substring(4, 4 + msgCarLength(msg))
+export const msgCdr = msg => msg.substring(4 + msgCarLength(msg))
 
 /** minimal variants of web3.js's web3.eth.abi functions that only support uint256,
     because we can only use web3 0.20.x at this time (which is what metamask provides)
@@ -118,12 +119,8 @@ export const encodeParameters = (types, parameters) => {
 export const parametrizedContractCode = (code, types, parameters) =>
     code + encodeParameters(types, parameters)
 
-
-
-
 /** Return a random UInt256 number */
-export const randomUInt256 = () => toBN(randomSalt());
-
+export const randomUInt256 = () => toBN(bytesTo0x(random32Bytes()));
 
 /** For Apps with a "current user" that may change, making keys relative to a userId.
 TODO: decide a good naming policy wrt delete and remove.

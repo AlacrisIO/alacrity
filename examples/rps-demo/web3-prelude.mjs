@@ -1,3 +1,5 @@
+/** Uniform interface to web3 and crypto whether or not we are running in the browser. */
+
 import {registerInit, isInBrowser, require, loggedAlert
        } from "./common-utils.mjs";
 

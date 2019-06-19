@@ -98,9 +98,6 @@ export const hexTo0x = hex => "0x" + hex;
 /** : Uint8Array => String0x */
 export const bytesTo0x = bytes => hexTo0x(bytesToHex(bytes));
 
-/** : () => String0x */
-export const randomSalt = () => bytesTo0x(random32Bytes())
-
 /** : int => Hex */
 export const intToHex = (u, nBytes = 4) => {
     const p = Math.pow(256,nBytes); // v--- *2 so it works on negative numbers, too.
