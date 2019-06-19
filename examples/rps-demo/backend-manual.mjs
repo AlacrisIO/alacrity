@@ -52,14 +52,14 @@ import {byteToHex, registerInit, hexToAddress, hexTo0x, checkRequirement,
         toBN, optionalAddressOf0x, optionalAddressMatches, hexToBigNumber,
         getGame, updateGame, removeActiveGame, queueGame, attemptGameCreation, optionalAddressTo0x,
         isGameConfirmed, sendTx,
-        registerContract, contractFactory, contractAt,
+        registerFactoryContract, contractFactory, contractAt,
         renderWei, registerNetworkConfig
        } from "./alacrity-runtime.mjs";
 import {isValidHand, Outcome, outcomeOfHands, State,
         registerRpsBackendHooks, player0RevealContext} from "./rps-backend.mjs";
 
 import * as Contract from "./build/contract-manual.mjs";
-registerContract(Contract.contractAbi, Contract.contractFactoryAbi, Contract.contractFactoryCode);
+registerFactoryContract(Contract.contractAbi, Contract.contractFactoryAbi, Contract.contractFactoryCode);
 import * as Config from "./config-manual.mjs";
 registerNetworkConfig(Config.networkConfig);
 

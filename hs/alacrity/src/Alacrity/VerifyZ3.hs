@@ -347,7 +347,8 @@ verify_z3 logp tp bp = do
   (close, logpl) <- newFileLogger logp
   z3 <- newSolver "z3" ["-smt2", "-in"] (Just logpl)
   unlessM (produceUnsatCores z3) $ error "Prover doesn't support possible?"
-  ec <- _verify_z3 z3 tp bp
-  maybeDie $ stop z3
+  vec <- _verify_z3 z3 tp bp
+  zec <- stop z3
   close
-  maybeDie $ return ec
+  maybeDie $ return zec
+  maybeDie $ return vec
