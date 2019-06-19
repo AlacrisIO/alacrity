@@ -27,7 +27,7 @@ all: build_all
 
 build_all: contract
 
-contract: manual_contract auto_contract
+contract: manual_contract
 
 MANUAL_CONTRACT_OUTPUTS:=build/contract-manual.mjs $(BUILD_DIR)/RockPaperScissors.abi $(BUILD_DIR)/RockPaperScissors.bin $(BUILD_DIR)/RockPaperScissorsFactory.abi $(BUILD_DIR)/RockPaperScissorsFactory.bin
 manual_contract: $(MANUAL_CONTRACT_OUTPUTS)
