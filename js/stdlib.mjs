@@ -1,10 +1,24 @@
-export function equal(x, y) { XXX; }
+export function equal(x, y) {
+    return x == y;
+}
 
-export function assert(cond) { XXX; }
-export function uint256_to_bytes(i) { XXX; }
-export function keccak256(b) { XXX; }
+export function assert(cond) {
+    if (!cond) {
+        console.error("assertion failed")
+    }
+}
 
-export function bytes_eq(x, y) { XXX; }
+export function uint256_to_bytes(i) {
+    return BNtoHex(i);
+}
+
+export function keccak256(b) {
+    return digestHex(hexOf(b));
+}
+
+export function bytes_eq(x, y) {
+    return hexOf(x) == hexOf(y);
+}
 
 export function bytes_len(b) {
     let bh = hexOf(b);
@@ -63,4 +77,6 @@ export function bytes_right(msg) {
 }
 
 
-export function random_uint256() { XXX; }
+export function random_uint256() {
+    return toBN(bytesTo0x(random32Bytes()));
+}
