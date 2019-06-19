@@ -1,8 +1,9 @@
 // vim: filetype=javascript
 
 import '../monkey-patch-require.js';
-import * as A   from '../dsl-api.mjs';
-import { web3 } from '../web3-prelude.mjs';
+import * as A                  from '../alacrity-runtime.mjs';
+import { web3 }                from '../web3-prelude.mjs';
+import { contractFactoryCode } from '../build/contract-manual.mjs';
 
 
 jasmine.DEFAULT_TIMEOUT_INTERVAL = 60 * 1000;
@@ -56,37 +57,52 @@ const prefundTestAccounts = () => {
 };
 
 
-// TODO FIXME
 const deployContractFactory = () =>
   new Promise((resolve, reject) => {
-
-    const gatherContractInfo = txHash =>
-      web3.eth.getTransactionReceipt(txHash, receipt => {
-        debugger;
-        if (receipt.transactionHash !== txHash)
-          return reject(`Bad txHash; ${txHash} !== ${receipt.transactionHash}`);
-
-        contract.address       = receipt.contractAddress;
-        contract.codeHash      = A.digestHex(A.contractFactoryCode);
-        contract.creationBlock = receipt.blockNumber;
-        contract.creationHash  = receipt.transactionHash;
-
-        return resolve(contract);
-      });
 
     // TODO Fare allowed this to be configurable before; reimplement?
     const BLOCK_POLLING_PERIOD_IN_SECONDS = 1;
 
+    const o =
+      { from: PREFUNDED_PRIVATE_NET_ACCT
+      , data: contractFactoryCode
+      , gas:  web3.eth.estimateGas({ data: contractFactoryCode })
+      };
+
+    const k = f => (err, ...d) =>
+      !!err ? reject(err)
+            : f(...d);
+
+    const gatherContractInfo = txHash =>
+      web3.eth.getTransactionReceipt(txHash, k(receipt => {
+        if (receipt.transactionHash !== txHash)
+          return reject(`Bad txHash; ${txHash} !== ${receipt.transactionHash}`);
+
+        contract.address       = receipt.contractAddress;
+        contract.codeHash      = A.digestHex(contractFactoryCode);
+        contract.creationBlock = receipt.blockNumber;
+        contract.creationHash  = receipt.transactionHash;
+
+        return resolve(contract);
+      }));
+
     const awaitConfirmation = txHash => {
-      const query = () => web3.eth.getTransaction(txHash, t => {
-        !!t && !!t.blockNumber ? clearInterval(i) || gatherContractInfo(txHash)
-                               : null
-      });
+      const clearAndReject = err =>
+        clearInterval(i) || reject(err);
+
+      const clearAndGather = () =>
+        clearInterval(i) || gatherContractInfo(txHash);
+
+      // A null `t` or `t.blockNumber` means the tx hasn't been confirmed yet
+      const query = () => web3.eth.getTransaction(txHash, (err, t) =>
+          !!err                  ? clearAndReject(err)
+        : !!t && !!t.blockNumber ? clearAndGather()
+        : null);
 
       const i = setInterval(query, BLOCK_POLLING_PERIOD_IN_SECONDS * 1000);
     };
 
-    return A.deployContract(awaitConfirmation, reject);
+    return web3.eth.sendTransaction(o, k(awaitConfirmation));
   });
 
 
@@ -96,7 +112,7 @@ const runPrep = done => {
 
   return createAndUnlock([ 'alice', 'bob' ])
     .then(prefundTestAccounts)
-    // .then(deployContractFactory)
+    .then(deployContractFactory)
     .then(done)
     .catch(panic)
 };
