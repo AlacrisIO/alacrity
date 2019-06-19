@@ -2,7 +2,7 @@
 import {
     rekeyContainer, intToString, stringToInt, registerInit, keyValuePair, assert,
     handlerK, handlerThenK, errbacK, runHooks, kLogError, kLogResult, hexTo0x, range,
-    logging, loggingK, logErrorK, loggedAlert, merge, popEntry, forEachK
+    logging, loggingK, logErrorK, loggedAlert, merge, popEntry, forEachK, randomSalt
 } from "./common-utils.mjs";
 import {TinyQueue} from "./tinyqueue.mjs";
 import {Storage} from "./local-storage.mjs";
