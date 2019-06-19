@@ -532,9 +532,9 @@ epp_it_loc ps γ hn0 it = case it of
           ct2 = C_Wait hn0 svs2l
           es = EP_Send hn0 svs2l what' howmuch'
           addTail p pt1 = pt3
-            where pt2 = EP_Recv hn0 svs2l what' pv' pt1
-                  pt3 = if p /= from then pt2
-                        else EP_Do es pt2
+            where pt2 me = EP_Recv me hn0 svs2l what' pv' pt1
+                  pt3 = if p /= from then pt2 False
+                        else EP_Do es $ pt2 True
   IL_FromConsensus _ ->
     error "EPP: Cannot transition to local from local"
 

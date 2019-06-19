@@ -1,6 +1,10 @@
+export function equal(x, y) { XXX; }
+
 export function assert(cond) { XXX; }
-export function int2bytes(i) { XXX; }
+export function uint256_to_bytes(i) { XXX; }
 export function keccak256(b) { XXX; }
+
+export function bytes_eq(x, y) { XXX; }
 
 export function bytes_len(b) {
     let bh = hexOf(b);
@@ -27,30 +31,30 @@ function nat16_to_fixed_size_hex(n) {
 }
 
 // Used by both msg_left and msg_right to see when the left stops and the right starts
-function msg_left_length(msg) {
+function bytes_left_length(msg) {
     // 16 bits = 2 bytes = 4 hex characters
     return parseInt(msg.substring(0,4), 16);
 }
 
 // ∀ a b, msg_left(msg_cat(a, b)) = a
 // ∀ a b, msg_right(msg_cat(a, b)) = b
-export function msg_cat(a, b) {
+export function bytes_cat(a, b) {
     let ah = hexOf(a);
     let bh = hexOf(b);
     let n = nat16_to_fixed_size_hex(bytes_len(ah));
     return n + ah + bh;
 }
 
-export function msg_left(msg) {
-    let n = msg_left_length(msg);
+export function bytes_left(msg) {
+    let n = bytes_left_length(msg);
     // In our JS representation of byte strings, a byte
     // is a pair of hex chars, so the "js length" is twice
     // the "logical length". So we multiply by 2 to convert
     // logical length -> js length
     return msg.substring(4, 4 + (2 * n));
 }
-export function msg_right(msg) {
-    let n = msg_left_length(msg);
+export function bytes_right(msg) {
+    let n = bytes_left_length(msg);
     // In our JS representation of byte strings, a byte
     // is a pair of hex chars, so the "js length" is twice
     // the "logical length". So we multiply by 2 to convert
@@ -59,4 +63,4 @@ export function msg_right(msg) {
 }
 
 
-export function random() { XXX; }
+export function random_uint256() { XXX; }
