@@ -6,7 +6,7 @@ import {
 } from "./common-utils.mjs";
 import {TinyQueue} from "./tinyqueue.mjs";
 import {Storage} from "./local-storage.mjs";
-import {Web3, web3, networkId, userAddress} from "./web3-prelude.mjs";
+import {Web3, web3, networkId, userAddress, random32Bytes} from "./web3-prelude.mjs";
 
 /* TODO LATER:
 
@@ -603,9 +603,6 @@ export const contractAt = contractAddress => contract.at(contractAddress);
     and CPS-return its transactionHash
     : String0x => KontE(txHash) */
 export const deployCode = code => sendTx(null)({data: code});
-
-export const deployFactoryContract = (k = kLogResult, kError = kLogError) =>
-    deployCode(contractFactoryCode)(k, kError)
 
 export const deployFactoryContract = (k = kLogResult, kError = kLogError) =>
     deployCode(contractFactoryCode)(k, kError)

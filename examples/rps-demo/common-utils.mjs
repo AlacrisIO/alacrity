@@ -98,6 +98,9 @@ export const hexTo0x = hex => "0x" + hex;
 /** : Uint8Array => String0x */
 export const bytesTo0x = bytes => hexTo0x(bytesToHex(bytes));
 
+/** : () => String0x */
+export const randomSalt = () => bytesTo0x(random32Bytes())
+
 /** : int => Hex */
 export const intToHex = (u, nBytes = 4) => {
     const p = Math.pow(256,nBytes); // v--- *2 so it works on negative numbers, too.
@@ -126,17 +129,6 @@ export const stringToInt = parseDecimal
 /** Any object to a string */
 export const anyToString = x => `${x}`
 export const intToString = anyToString
-
-/** Return a random salt as 256-bit 0x-prefixed hex string.
-    : () => String0x */
-// export const randomSalt = () => {
-//     const array = new Uint8Array(32);
-//     crypto.getRandomValues(array);
-//     return bytesTo0x(array);}
-// TODO FIXME - node's `crypto` library doesn't export a `getRandomValues`
-// method so we're temporarily stubbing this with a fixed salt
-export const randomSalt = () =>
-  '0x4bc9788d9f289c0bcd1104233f2c087f4f499a08c1b8eeb2c9311140b9244abd';
 
 /** Create an array containing the integers from start to start + length - 1 (included).
    : (int, int) => Array */

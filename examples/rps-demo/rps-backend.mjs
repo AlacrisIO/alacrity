@@ -1,17 +1,13 @@
 // Abstraction layer between manual and automatic backends
 
-import {crypto} from "./alacrity-runtime.mjs";
+import {random32Bytes} from "./web3-prelude.mjs";
 
 // The things below should be automatically generated from the type declaration,
 // plus optionally a few trivial deriving macros.
 export const Hand = Object.freeze({Rock: 0, Paper: 1, Scissors: 2});
 export const handName = hand => ["Rock", "Paper", "Scissors"][hand];
 export const isValidHand = x => Number.isInteger(x) && (x == 0 || x == 1 || x == 2);
-export const randomHand = () => {
-    const array = new Uint8Array(6);
-    crypto.getRandomValues(array);
-    return (array[0]+array[1]+array[2]+array[3]+array[4]+array[5]) % 3; // NB: 256 % 3 == 1
-};
+export const randomHand = () => random32Bytes().reduce((a,b) => a+b) % 3 // NB: 256 % 3 == 1
 
 export const Outcome = Object.freeze({
     Player1Wins: 0,

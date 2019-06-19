@@ -326,7 +326,7 @@ data EPTail
   | EP_Do EPStmt EPTail
   {- This recv is what the sender sent; we will be doing the same
      computation as the contract. -}
-  | EP_Recv Int [BLVar] [BLVar] BLVar EPTail
+  | EP_Recv Bool Int [BLVar] [BLVar] BLVar EPTail
   deriving (Show,Eq)
 
 data EProgram
@@ -511,8 +511,8 @@ instance Pretty EPTail where
   pretty (EP_If ca tt ft) = prettyIf ca tt ft
   pretty (EP_Let v e bt) = prettyLet prettyBLVar (\x -> x) v e bt
   pretty (EP_Do s bt) = prettyDo (\x -> x) s bt
-  pretty (EP_Recv hi svs vs pv bt) =
-    vsep [group $ parens $ pretty "define-values" <+> prettyBLVars svs <+> prettyBLVars vs <+> prettyBLVar pv <+> (parens $ pretty "recv!" <+> pretty hi),
+  pretty (EP_Recv fromme hi svs vs pv bt) =
+    vsep [group $ parens $ pretty "define-values" <+> pretty fromme <+> prettyBLVars svs <+> prettyBLVars vs <+> prettyBLVar pv <+> (parens $ pretty "recv!" <+> pretty hi),
           pretty bt]
 
 instance Pretty CTail where

@@ -28,6 +28,9 @@ jsString s = dquotes $ pretty s
 jsVar :: BLVar -> Doc a
 jsVar (n, _, _) = pretty $ "v" ++ show n
 
+jsVar' :: BLVar -> Doc a
+jsVar' (n, _, _) = pretty $ "p" ++ show n
+
 jsVarType :: BLVar -> Doc a
 jsVarType (_, _, bt) = jsString $ solType bt
 
@@ -89,15 +92,14 @@ jsPrimApply pr args =
     CP IF_THEN_ELSE -> case args of
                       [ c, t, f ] -> c <+> pretty "?" <+> t <+> pretty ":" <+> f
                       _ -> spa_error ()
-    -- TODO: normalize names in JS and Solidity stdlib to match names of the compiler abstractions?
-    CP UINT256_TO_BYTES -> jsApply "stdlib.hexOf" args
+    CP UINT256_TO_BYTES -> jsApply "stdlib.uint256_to_bytes" args
     CP DIGEST -> jsApply "stdlib.keccak256" args
-    CP BYTES_EQ -> binOp "=="
+    CP BYTES_EQ -> jsApply "stdlib.bytes_eq" args
     CP BYTES_LEN -> jsApply "stdlib.bytes_len" args
-    CP BCAT -> jsApply "stdlib.msgCons" args
-    CP BCAT_LEFT -> jsApply "stdlib.msgCar" args
-    CP BCAT_RIGHT -> jsApply "stdlib.msgCdr" args
-    RANDOM -> jsApply "stdlib.randomUInt256" args
+    CP BCAT -> jsApply "stdlib.bytes_cat" args
+    CP BCAT_LEFT -> jsApply "stdlib.bytes_left" args
+    CP BCAT_RIGHT -> jsApply "stdlib.bytes_right" args
+    RANDOM -> jsApply "stdlib.random_uint256" args
     INTERACT -> error "interact doesn't use jsPrimApply"
   where binOp op = case args of
           [ l, r ] -> jsBinOp op l r
@@ -108,10 +110,13 @@ jsEPExpr :: EPExpr -> Doc a
 jsEPExpr (EP_Arg a) = jsArg a
 jsEPExpr (EP_PrimApp pr al) = jsPrimApply pr $ map jsArg al
 
-jsEPStmt :: EPStmt -> Doc a
-jsEPStmt (EP_Claim CT_Possible _) = pretty "true"
-jsEPStmt (EP_Claim _ a) = jsApply "stdlib.assert" [ jsArg a ]
-jsEPStmt (EP_Send i svs msg amt) = jsApply "ctc.send" [ jsString (solMsg_fun i), vs, jsArg amt ]
+jsAssert :: Doc a -> Doc a
+jsAssert a = jsApply "stdlib.assert" [ a ] <> semi
+
+jsEPStmt :: EPStmt -> Doc a -> Doc a
+jsEPStmt (EP_Claim CT_Possible _) kp = kp
+jsEPStmt (EP_Claim _ a) kp = vsep [ jsAssert (jsArg a), kp ]
+jsEPStmt (EP_Send i svs msg amt) kp = jsApply "ctc.send" [ jsString (solMsg_fun i), vs, jsArg amt, jsLambda [] kp ]
   where args = svs ++ msg
         vs = jsArray $ map jsVar args
 
@@ -123,11 +128,16 @@ jsEPTail (EP_If ca tt ft) =
 jsEPTail (EP_Let v (EP_PrimApp INTERACT al) kt) =
   jsApply "interact" ((map jsArg al) ++ [ kp ])
   where kp = jsLambda [ jsVar v ] $ jsEPTail kt
-jsEPTail (EP_Let bv ee kt) = vsep [ jsVarDecl bv <+> pretty "=" <+> jsEPExpr ee <> semi, jsEPTail kt ];
-jsEPTail (EP_Do es kt) = vsep [ jsEPStmt es <> semi, jsEPTail kt ];
-jsEPTail (EP_Recv i _ msg pv kt) = jsApply "ctc.recv" [ jsString (solMsg_evt i), kp ]
-  where kp = jsLambda msg_vs (jsEPTail kt)
-        msg_vs = map jsVar $ msg ++ [pv]
+jsEPTail (EP_Let bv ee kt) = vsep [ jsVarDecl bv <+> pretty "=" <+> jsEPExpr ee <> semi, jsEPTail kt ]
+jsEPTail (EP_Do es kt) = jsEPStmt es $ jsEPTail kt
+jsEPTail (EP_Recv fromme i _ msg pv kt) = jsApply "ctc.recv" [ jsString (solMsg_evt i), kp ]
+  where kp = jsLambda (the_vs ++ [jsVar pv]) ktp
+        msg_vs = map jsVar msg
+        msg'_vs = map jsVar' msg
+        the_vs = if fromme then msg'_vs else msg_vs
+        require_and_kt = vsep $ zipWith require_match msg_vs msg'_vs
+        require_match mvp mv'p = jsAssert $ jsApply "stdlib.equal" [ mvp, mv'p ]
+        ktp = (if fromme then require_and_kt <> hardline else emptyDoc) <> jsEPTail kt
 
 jsPart :: (Participant, EProgram) -> Doc a
 jsPart (p, (EP_Prog pargs et)) =
@@ -138,8 +148,8 @@ jsPart (p, (EP_Prog pargs et)) =
 emit_js :: BLProgram -> Doc a
 emit_js (BL_Prog pm _) = modp
   where modp = vsep_with_blank ( pretty "import * as stdlib from './alacrity-runtime.mjs';"
-                                 : pretty "/* XXX Copy the ABI from the solc output */"
-                                 : pretty "/* XXX Copy the bytecode from the solc output */"
+                                 : pretty "/* XXX export const ABI = Copy the ABI from the solc output; */"
+                                 : pretty "/* XXX export const Bytecode = \"0x Copy the bytecode from the solc output\"; */"
                                  : partsp )
         partsp = map jsPart $ M.toList pm
 

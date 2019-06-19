@@ -59,7 +59,7 @@ instance RecoverTypes EPTail where
   rts (EP_If ca tt ft) = rts ca <> rts tt <> rts ft
   rts (EP_Let bv ce ct) = rts bv <> rts ce <> rts ct
   rts (EP_Do cs ct) = rts cs <> rts ct
-  rts (EP_Recv _ svs msg pv kt) = rts svs <> rts msg <> rts pv <> rts kt
+  rts (EP_Recv _ _ svs msg pv kt) = rts svs <> rts msg <> rts pv <> rts kt
 
 instance RecoverTypes EProgram where
   rts (EP_Prog vs et) = rts vs <> rts et
