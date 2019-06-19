@@ -21,11 +21,10 @@
 
   * On frontend, have a list of common playing partners, with short aliases.
 */
-import {registerInit, kLogError, isEmpty, loggedAlert} from "./common-utils.mjs";
-import {web3, userAddress} from "./web3-prelude.mjs";
-import {registerFrontendHooks, toBN, config, weiToEth, ethToWei,
-        getGame, updateGame, dismissGame, removeActiveGame, logGame, optionalAddressMatches
-       } from "./common-runtime.mjs";
+import {registerInit, kLogError, isEmpty, loggedAlert, web3, userAddress,
+        registerFrontendHooks, toBN, config, weiToEth, ethToWei,
+        getGame, updateGame, dismissGame, removeActiveGame, logGame, optionalAddressMatches,
+       } from "./alacrity-runtime.mjs";
 import {registerRpsFrontendHooks, handName, isValidHand, randomHand, MsgType, Outcome, State, outcomeOfHands,
         createNewGame, acceptGame, isGameRelevantToUser
        } from "./rps-backend.mjs";
@@ -429,7 +428,3 @@ registerRpsFrontendHooks({player0RevealContext})
 registerInit({
     Frontend: {fun: initFrontend, dependsOn: ["Backend"]},
 });
-
-// Local Variables:
-// mode: JavaScript
-// End:

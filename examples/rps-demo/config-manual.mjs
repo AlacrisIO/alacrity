@@ -60,7 +60,3 @@ export const networkConfig =
      addressExplorerUrl: null, // TODO: deploy etherscan on the private network!
     }
   };
-
-// Local Variables:
-// mode: JavaScript
-// End:

@@ -1,7 +1,7 @@
 /** Uniform interface to web3 and crypto whether or not we are running in the browser. */
 
-import {registerInit, isInBrowser, require, loggedAlert
-       } from "./common-utils.mjs";
+import {isInBrowser, isInNode, require, loggedAlert} from "./common-prelude.mjs";
+import {registerInit} from "./common-utils.mjs";
 
 export let Web3;
 export let web3; // a variable to store local web3 object
@@ -22,14 +22,14 @@ export let random32Bytes;
    : () => string */
 export const getNetworkId = () => web3.version.network;
 
-if (!isInBrowser) {
+if (isInNode) {
     Web3 = require("web3");
     crypto = require("crypto");
     random32Bytes = () => crypto.randomBytes(32);
     const providerUrl = process.env.WEB3_PROVIDER || "http://localhost:8545"
     web3Provider = new Web3.providers.HttpProvider(providerUrl);
 } else if (typeof window.web3 == 'undefined' || typeof window.ethereum == 'undefined') {
-    alert('You need a Web3-compatible browser. Consider downloading the MetaMask extension.');
+    loggedAlert('You need a Web3-compatible browser. Consider downloading the MetaMask extension.');
 } else {
     crypto = window.crypto;
     random32Bytes = () => {
@@ -58,7 +58,3 @@ Please reload this page with metamask enabled and an account selected.`);}
     return k()})}
 
 registerInit({"Web3": {fun: initWeb3}})
-
-// Local Variables:
-// mode: JavaScript
-// End:

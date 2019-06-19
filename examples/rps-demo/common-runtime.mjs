@@ -1,13 +1,13 @@
 /** Common runtime for Alacris DApps when targetting Ethereum using web3 */
+import {loggedAlert} from "./common-prelude.mjs"
 import {
-    rekeyContainer, intToString, stringToInt, registerInit, keyValuePair, assert,
+    rekeyContainer, intToString, stringToInt, registerInit, keyValuePair, throw_if_false,
     handlerK, handlerThenK, errbacK, runHooks, kLogError, kLogResult, hexTo0x, range,
-    logging, loggingK, logErrorK, loggedAlert, merge, popEntry, forEachK,
-    hexToInt, intToHex, bytesTo0x
+    logging, loggingK, logErrorK, merge, popEntry, forEachK
 } from "./common-utils.mjs";
 import {TinyQueue} from "./tinyqueue.mjs";
 import {Storage} from "./local-storage.mjs";
-import {Web3, web3, networkId, userAddress, random32Bytes} from "./web3-prelude.mjs";
+import {Web3, web3, networkId, userAddress} from "./web3-prelude.mjs";
 
 /* TODO LATER:
 
@@ -20,6 +20,7 @@ import {Web3, web3, networkId, userAddress, random32Bytes} from "./web3-prelude.
  * Handle "query returned more than 1000 results" when too many contracts created in interval!!!
  */
 
+const assert = throw_if_false
 
 export const zeroAddress = "0x0000000000000000000000000000000000000000";
 export const optionalAddressOf0x = x => x == zeroAddress ? undefined : x;
@@ -91,17 +92,6 @@ export const hexOf = x => {
     return x; // NB: Assume x is already hexadecimal.
 }
 export const hexCat = (...x) => x.map(hexOf).join("")
-export const keccak256 = (...x) => digestHex(hexOf(...x))
-
-// Used by both msgCar and msgCdr to see when the left stops and the right starts
-// 16 bits = 2 bytes = 4 hex characters
-export const msgCarLength = msg => hexToInt(msg.substring(0,4))
-
-// ∀ a b, msgCar(msgCons(a, b)) = a
-// ∀ a b, msgCdr(msgCons(a, b)) = b
-export const msgCons = (a, b) => hexCat(intToHex(a.length/2, 2), a, b)
-export const msgCar = msg => msg.substring(4, 4 + msgCarLength(msg))
-export const msgCdr = msg => msg.substring(4 + msgCarLength(msg))
 
 /** minimal variants of web3.js's web3.eth.abi functions that only support uint256,
     because we can only use web3 0.20.x at this time (which is what metamask provides)
@@ -119,8 +109,6 @@ export const encodeParameters = (types, parameters) => {
 export const parametrizedContractCode = (code, types, parameters) =>
     code + encodeParameters(types, parameters)
 
-/** Return a random UInt256 number */
-export const randomUInt256 = () => toBN(bytesTo0x(random32Bytes()));
 
 /** For Apps with a "current user" that may change, making keys relative to a userId.
 TODO: decide a good naming policy wrt delete and remove.
@@ -654,7 +642,3 @@ registerInit({
     ResumeGames: {fun: resumeGames, dependsOn: ["Games"]},
     WatchNewGames: {fun: watchNewGames, dependsOn: ["ResumeGames", "WatchBlockchain"]},
     WatchActiveGames: {fun: watchActiveGames, dependsOn: ["WatchNewGames"]}});
-
-// Local Variables:
-// mode: JavaScript
-// End:

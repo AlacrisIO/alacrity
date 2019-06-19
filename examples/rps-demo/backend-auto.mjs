@@ -239,7 +239,3 @@ const initBackend = k => {
 
 registerInit({
     Backend: {fun: initBackend, dependsOn: ["Contract"]}})
-
-// Local Variables:
-// mode: JavaScript
-// End:

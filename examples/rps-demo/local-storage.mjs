@@ -2,7 +2,8 @@
 // or libraries that abstract over it (e.g. PouchDB):
 // See https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API
 
-import {defaultIfNull, require} from './common-utils.mjs';
+import {require} from './common-prelude.mjs';
+import {defaultIfNull} from './common-utils.mjs';
 
 let _localStorage;
 if (typeof localStorage === "object") {
@@ -24,7 +25,3 @@ export const Storage = {
     set: setStorage,
     modify: (key, func) => setStorage(key, func(getStorage(key))),
     remove: key => _localStorage.removeItem(key)};
-
-// Local Variables:
-// mode: JavaScript
-// End:

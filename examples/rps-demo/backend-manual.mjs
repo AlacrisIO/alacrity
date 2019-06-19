@@ -45,8 +45,8 @@
   * Have a serial number for the factory contract, and inside it a serial number for the game?
     This would allow games to have a unique ID shareable with other users.
 */
-import {byteToHex, registerInit, hexToAddress, hexTo0x, checkRequirement,
-        loggedAlert, merge, flip, logErrorK, randomSalt,
+import {loggedAlert, byteToHex, registerInit, hexToAddress, hexTo0x, checkRequirement,
+        merge, flip, logErrorK, random_uint256,
         web3, userAddress,
         saltedDigest, registerBackendHooks, renderGame, config,
         toBN, optionalAddressOf0x, optionalAddressMatches, hexToBigNumber,
@@ -287,7 +287,7 @@ and their ${renderWei(stakeInWei)} stake`);
     return k()}
 
 export const createNewGame = (wagerInWei, escrowInWei, player1, hand0) => {
-    const salt = randomSalt();
+    const salt = random_uint256();
     const player0Commitment = makeCommitment(salt, hand0);
     const player0 = userAddress;
     const timeoutInBlocks = config.timeoutInBlocks;
@@ -360,7 +360,3 @@ registerRpsBackendHooks({
 
 registerInit({
     Backend: {fun: initBackend, dependsOn: ["Contract"]}})
-
-// Local Variables:
-// mode: JavaScript
-// End:

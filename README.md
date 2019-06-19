@@ -27,3 +27,11 @@ what we are currently working on.
 
 As of June 2019, see notably the [compiler we are writing in Haskell](hs/alacrity/)
 and the [Rock, Papers, Scissors demo](examples/rps-demo/) we are using as a benchmark application.
+
+
+### Tips for Developers
+
+If you're using Emacs:
+```
+(add-to-list 'auto-mode-alist '(("\\.mjs$" . javascript-mode) ("\\.ala$" . javascript-mode)))
+```

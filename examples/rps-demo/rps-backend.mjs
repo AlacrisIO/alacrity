@@ -46,9 +46,3 @@ export let player0RevealContext;
 export const registerRpsFrontendHooks = hooks => {
     player0RevealContext = hooks.player0RevealContext
 }
-
-
-
-// Local Variables:
-// mode: JavaScript
-// End:
