@@ -45,11 +45,10 @@ $(MANUAL_CONTRACT_OUTPUTS): contract-manual.sol
 AUTO_CONTRACT_OUTPUTS:=build/contract-auto.mjs
 ALAB=../../hs/alacrity/ala/_build
 auto_contract: $(AUTO_CONTRACT_OUTPUTS)
-$(AUTO_CONTRACT_OUTPUTS): $(ALAB)/ALAFactory.bin $(ALAB)/ALAFactory.abi $(ALAB)/ALAContract.abi
+$(AUTO_CONTRACT_OUTPUTS): $(ALAB)/ALAContract.bin $(ALAB)/ALAContract.abi
 	$(HIDE) mkdir -p build $(BUILD_DIR)
 	$(HIDE) (echo "export const contractAbi = `cat $(ALAB)/ALAContract.abi`;"; \
-	echo; echo "export const contractFactoryAbi = `cat $(ALAB)/ALAFactory.abi`;"; \
-	echo; echo "export const contractFactoryCode = \"0x`cat $(ALAB)/ALAFactory.bin`\";"; \
+	echo; echo "export const contractCode = \"0x`cat $(ALAB)/ALAContract.bin`\";"; \
 	) > $@
 
 start_nginx:

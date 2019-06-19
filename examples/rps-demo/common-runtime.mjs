@@ -107,6 +107,7 @@ export const msgCdr = c => msg.substring(4 + msgCarLength(msg))
     and we only need uint256 for the rps-demo (although we may want to add bytes soon
     to complete support for the DSL).
     NB: they are meant as the JS analogues to Solidity's abi.encode.
+    TODO: support at least bytes as well as uint256, to complete the Alacrity JS backend.
   */
 export const encodeParameter = (type, parameter) => {
     assert(type === "uint256");
@@ -114,6 +115,10 @@ export const encodeParameter = (type, parameter) => {
 export const encodeParameters = (types, parameters) => {
     assert(types.length === parameters.length);
     return types.map((t, i) => encodeParameter(t, parameters[i])).join("")}
+export const parametrizedContractCode = (code, types, parameters) =>
+    code + encodeParameters(types, parameters)
+
+
 
 
 /** Return a random UInt256 number */
@@ -575,11 +580,18 @@ export const resumeGames = k => forEachK(processGame)(range(previousUnconfirmedI
 export let contractFactoryCode;
 export let contractFactoryAbi;
 export let contractFactory;
+export let contractCode;
 export let contractAbi;
 export let contract;
 
 // The contract object, to be fulfilled from config after initialization.
-export const registerContract = (_contractAbi, _contractFactoryAbi, _contractFactoryCode) => {
+export const registerContract = (_contractAbi, _contractCode) => {
+    contractAbi = _contractAbi;
+    contractCode = _contractCode;
+    contract = web3.eth.contract(contractAbi);}
+
+// The contract object, to be fulfilled from config after initialization.
+export const registerFactoryContract = (_contractAbi, _contractFactoryAbi, _contractFactoryCode) => {
     contractAbi = _contractAbi;
     contractFactoryAbi = _contractFactoryAbi;
     contractFactoryCode = _contractFactoryCode;
@@ -592,7 +604,10 @@ export const contractAt = contractAddress => contract.at(contractAddress);
     : String0x => KontE(txHash) */
 export const deployCode = code => sendTx(null)({data: code});
 
-export const deployContract = (k = kLogResult, kError = kLogError) =>
+export const deployFactoryContract = (k = kLogResult, kError = kLogError) =>
+    deployCode(contractFactoryCode)(k, kError)
+
+export const deployFactoryContract = (k = kLogResult, kError = kLogError) =>
     deployCode(contractFactoryCode)(k, kError)
 
 export const checkContract = (k = kLogResult, kError = kLogError) => {
