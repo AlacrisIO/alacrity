@@ -17,6 +17,9 @@ const BNtoHex = (u, nBytes = 32) => {
     const p = toBN(256).pow(nBytes); // v--- p.mul(2) so it works on negative numbers, too.
     return web3.toHex(toBN(u).mod(p).add(p.mul(2))).slice(3);
 }
+function nextMultiple(x, n) {
+    return Math.ceil(x / n) * n;
+}
 
 // Digest
 const digestHex = x => Web3.prototype.sha3(x, {encoding: "hex"});
@@ -122,3 +125,37 @@ export function bytes_right(msg) {
 export function random_uint256() {
     return hexToBN(byteArrayToHex(random32Bytes()));
 }
+
+// --------------------------------------------------------
+
+/** Minimal variants of web3.js's web3.eth.abi functions that only support:
+     * uint256
+     * bool
+     * address
+     * bytes
+    because we can only use web3 0.20.x at this time (which is what metamask provides).
+    Documentation for encoding:
+    https://solidity.readthedocs.io/en/v0.5.9/abi-spec.html?highlight=abi.encode#formal-specification-of-the-encoding
+    NB: they are meant as the JS analogues to Solidity's abi.encode.
+  */
+export function encodeParameter(type, parameter) {
+    if (type === "uint256") {
+        return BNtoHex(parameter);
+    } else if (type === "bool") {
+        return BNtoHex(parameter ? 1 : 0);
+    } else if (type === "address") {
+        return BNtoHex(parameter);
+    } else if (type === "bytes") {
+        // js-length = 2 * logical-length
+        let k = parameter.length / 2;
+        let kpad = nextMultiple(k, 32);
+        return BNtoHex(k) + parameter.padEnd(2 * kpad, "0");
+    } else {
+        console.error("encodeParameter: unsupported type");
+    }
+}
+export const encodeParameters = (types, parameters) => {
+    assert(types.length === parameters.length);
+    return types.map((t, i) => encodeParameter(t, parameters[i])).join("")}
+export const parametrizedContractCode = (code, types, parameters) =>
+    code + encodeParameters(types, parameters)
