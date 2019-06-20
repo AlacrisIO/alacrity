@@ -3,7 +3,7 @@ import {loggedAlert} from "./common-prelude.mjs"
 import {
     rekeyContainer, intToString, stringToInt, registerInit, keyValuePair, throw_if_false,
     handlerK, handlerThenK, errbacK, runHooks, kLogError, kLogResult, hexTo0x, range,
-    logging, loggingK, logErrorK, merge, popEntry, forEachK
+    logging, loggingK, logErrorK, merge, popEntry, forEachK, onlyElement
 } from "./common-utils.mjs";
 import {TinyQueue} from "./tinyqueue.mjs";
 import {Storage} from "./local-storage.mjs";
@@ -68,7 +68,7 @@ export const meth = x => toBN(1e15).mul(x);
 
 /** Convert a hex string to a BigNumber
     : string => BigNumber */
-export const hexToBigNumber = hex => toBN(hexTo0x(hex));
+export const hexToBN = hex => toBN(hexTo0x(hex));
 export const BNtoHex = (u, nBytes = 32) => {
     const p = toBN(256).pow(nBytes); // v--- p.mul(2) so it works on negative numbers, too.
     return web3.toHex(toBN(u).mod(p).add(p.mul(2))).slice(3);}
@@ -98,16 +98,60 @@ export const hexCat = (...x) => x.map(hexOf).join("")
     and we only need uint256 for the rps-demo (although we may want to add bytes soon
     to complete support for the DSL).
     NB: they are meant as the JS analogues to Solidity's abi.encode.
-    TODO: support at least bytes as well as uint256, to complete the Alacrity JS backend.
+    TODO: support at least bytes and bool as well as uint256 and address,
+    to complete the Alacrity JS backend.
+    TODO: make functions encodeParameter and decodeParameter that can handle variable-size parameter
   */
-export const encodeParameter = (type, parameter) => {
-    assert(type === "uint256");
-    return BNtoHex(parameter)}
+export const encodeSimpleParameter = (type, parameter) => {
+    if (type === "uint256") {
+        return BNtoHex(parameter)}
+    if (type === "address") {
+        const hex = un0x(parameter);
+        assert(hex.length === 40, "bad address length");
+        return hex.padStart(64, "0")}
+    throw ["Unsupported type for encodeSimpleParameter", type]}
 export const encodeParameters = (types, parameters) => {
     assert(types.length === parameters.length);
-    return types.map((t, i) => encodeParameter(t, parameters[i])).join("")}
-export const parametrizedContractCode = (code, types, parameters) =>
+    return types.map((t, i) => encodeSimpleParameter(t, parameters[i])).join("")}
+export const encodeParametrizedContract = (code, types, parameters) =>
     code + encodeParameters(types, parameters)
+
+export const decodeSimpleParameter = (type, hex) => {
+    assert(hex.length === 64);
+    if (type === "uint256") {
+        return hexToBN(hex)}
+    if (type === "address") {
+        assert(hex.slice(0, 24) === "000000000000000000000000", "non zero address padding");
+        return hexTo0x(hex.slice(24))}
+    throw ["Unsupported type for decodeSimpleParameter", type]}
+export const decodeParameters = (types, hex) => {
+    assert(types.length === hex.length/64, "badly sized parameter block"); // won't be true when we accept bytes
+    return range(0, types.length).map(i => decodeSimpleParameter(types[i], hex.slice(64*i, 64*(i+1))))}
+export const decodeContractParameters = (input, contractCode, types) => {
+    const il = input.length;
+    const cl = contractCode.length;
+    assert(il >= cl, "input too short to match contract");
+    assert(input.slice(0, cl) === contractCode, "input isn't prefixed by contract");
+    return depcodeParameters(types, input.slice(cl));}
+
+export const getTransactionContractParameters =
+    (txHash, contractCode, types) => (k = kLogResult, kError = kLogError) =>
+    errbacK(web3.eth.getTransaction)(txHash)(
+        txInfo => {
+            if (txInfo === null || txInfo.blockNumber === null) {
+                return kError(["Contract-creating transaction not found"])}
+            if (txInfo.to !== null) {
+                return kError(["Transaction isn't a contract creation"])}
+            try {
+                return k(decodeContractParameters(txInfo.input, contractCode, types))}
+            catch (e) {return kError(e)}},
+        kError)
+
+export const contractAbiConstructorTypes = abi =>
+    onlyElement(abi.filter(x => x.type === "constructor")).inputs.map(x => x.type);
+
+export const deployParametrizedContract = (contractCode, types, parameters) =>
+    deployCode(encodeParametrizedContract(contractCode, types, parameters))
 
 
 /** For Apps with a "current user" that may change, making keys relative to a userId.
@@ -618,6 +662,9 @@ const initContract = k => {
         if (digestHex(contractFactoryCode) !== config.contract.codeHash) {
             logging(`Warning: deployed contract has code hash ${config.contract.codeHash} \
 but the latest version of the contract has code hash ${digestHex(contractFactoryCode)}`)();}
+    } else if (config && !contractFactoryAbi) {
+        // All is well, parametrized contract to instantiate each time instead of factory.
+        return k();
     } else {
         loggedAlert("Cannot initialize contract: missing configuration or registration");
     }

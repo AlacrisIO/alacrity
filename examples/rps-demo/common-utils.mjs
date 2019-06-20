@@ -36,6 +36,8 @@ export const throw_if_false = (bool, error) => { if (!bool) {
     console.log(...err);
     throw(err)}}
 
+const assert = throw_if_false
+
 // Combinators for CPS functions
 // type Not(...'a) = forall('result) ...'a => 'result
 // type Kont(...'a) = Not(Not(...'a))
@@ -110,7 +112,7 @@ export const hexToInt = x => parseInt(x, 16);
 /** Strip the 0x prefix
     : String0x => string */
 export const un0x = s => {
-    throw_if_false(s.slice(0,2) == "0x", () => ["string doesn't start with 0x", s]);
+    assert(s.slice(0,2) == "0x", () => ["string doesn't start with 0x", s]);
     return s.slice(2);}
 
 /** Prepend "0x" to a hex string
@@ -134,6 +136,10 @@ export const arrayLast = a => a[a.length-1];
 
 /** : (Array(...'a), 'b) => Array(...'a, 'b) */
 export const snoc = (l, e) => [...l, e];
+
+export const onlyElement = a => {
+    assert(a.length === 1, "array doesn't have exactly one element");
+    return a[0]}
 
 /** : Object => bool */
 export const isEmpty = obj => {

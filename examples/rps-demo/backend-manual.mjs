@@ -49,7 +49,7 @@ import {loggedAlert, byteToHex, registerInit, hexToAddress, hexTo0x, checkRequir
         merge, flip, logErrorK, random_uint256,
         web3, userAddress,
         saltedDigest, registerBackendHooks, renderGame, config,
-        toBN, optionalAddressOf0x, optionalAddressMatches, hexToBigNumber,
+        toBN, optionalAddressOf0x, optionalAddressMatches, hexToBN,
         getGame, updateGame, removeActiveGame, queueGame, attemptGameCreation, optionalAddressTo0x,
         isGameConfirmed, sendTx,
         registerFactoryContract, contractFactory, contractAt,
@@ -85,10 +85,10 @@ export const decodeGameCreationEvent = (data, blockNumber, txHash) => {
     const contract = hexToAddress(x(0));
     const player0 = hexToAddress(x(1));
     const player1 = optionalAddressOf0x(hexToAddress(x(2)));
-    const timeoutInBlocks = hexToBigNumber(x(3)).toNumber();
+    const timeoutInBlocks = hexToBN(x(3)).toNumber();
     const player0Commitment = hexTo0x(x(4));
-    const wagerInWei = hexToBigNumber(x(5));
-    const escrowInWei = hexToBigNumber(x(6));
+    const wagerInWei = hexToBN(x(5));
+    const escrowInWei = hexToBN(x(6));
     return {contract, player0, player1, timeoutInBlocks, player0Commitment, wagerInWei, escrowInWei,
             previousBlock: blockNumber, state: State.WaitingForPlayer1, player1filter: player1,
             blockNumber, txHash}}
@@ -110,13 +110,13 @@ export const decodeGameEvent = event => {
     if (topic == topics.Player1ShowHand) {
         return {msgType: MsgType.Player1ShowHand,
                 player1: hexToAddress(x(0)),
-                hand1: hexToBigNumber(x(1)).toNumber(),
+                hand1: hexToBN(x(1)).toNumber(),
                 blockNumber, txHash}
     } else if (topic == topics.Player0Reveal) {
         return {msgType: MsgType.Player0Reveal,
                 salt: hexTo0x(x(0)),
-                hand0: hexToBigNumber(x(1)).toNumber(),
-                outcome: hexToBigNumber(x(2)).toNumber(),
+                hand0: hexToBN(x(1)).toNumber(),
+                outcome: hexToBN(x(2)).toNumber(),
                 blockNumber, txHash}
     } else if (topic == topics.Player0Rescind) {
         return {msgType: MsgType.Player0Rescind,

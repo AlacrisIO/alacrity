@@ -85,5 +85,5 @@ if (isInBrowser) {
 } else {
     process.globals = globals;
     process.magic = magic;
-    require = process.require; // cheat the module system; must be set by an outer loader.
+    require = process.require; // cheat the module system; must be set by node-prelude.js
 }

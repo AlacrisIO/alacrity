@@ -4,17 +4,18 @@ import {registerInit, hexToAddress, hexTo0x, checkRequirement,
         loggedAlert, merge, flip, logErrorK,
         web3, userAddress,
         registerBackendHooks, renderGame, config,
-        toBN, hexToBigNumber,
+        toBN, hexToBN,
         getGame, updateGame, removeActiveGame, queueGame,
         sendTx,
-        registerContract, contractFactory, contractAt,
-        renderWei, registerNetworkConfig
+        registerContract, contract, contractAt,
+        renderWei, registerNetworkConfig,
+        contractAbiConstructorTypes
        } from "./alacrity-runtime.mjs";
 import {isValidHand, Outcome, outcomeOfHands, State,
         registerRpsBackendHooks, player0RevealContext} from "./rps-backend.mjs";
 
-import * as Contract from "./build/contract-auto.js";
-registerContract(Contract.contractAbi, Contract.contractFactoryAbi, Contract.contractFactoryCode);
+import * as Contract from "./build/contract-auto.mjs";
+registerContract(Contract.contractAbi, Contract.contractCode);
 import * as Config from "./config-auto.mjs";
 registerNetworkConfig(Config.networkConfig);
 
@@ -22,6 +23,11 @@ import * as ala from "./rps.ala.js";
 
 ala, web3, renderGame, config, isValidHand, Outcome, outcomeOfHands, State,
 registerBackendHooks, registerRpsBackendHooks, player0RevealContext;
+
+export const contractConstructorTypes = contractAbiConstructorTypes(Contract.contractAbi)
+
+export const netDeployContract = (contractType, ...parameters) =>
+    deployParametrizedContract(contractCode, contractConstructorTypes, parameters)
 
 // TODO #72, #82: blah, use decode parameters to match a new contract,
 // see that it's indeed code + params, and match the params
@@ -45,13 +51,13 @@ export const decodeGameEvent = event => {
     if (topic == topics.Player1ShowHand) {
         return {msgType: MsgType.Player1ShowHand,
                 player1: hexToAddress(x(0)),
-                hand1: hexToBigNumber(x(1)).toNumber(),
+                hand1: hexToBN(x(1)).toNumber(),
                 blockNumber, txHash}
     } else if (topic == topics.Player0Reveal) {
         return {msgType: MsgType.Player0Reveal,
                 salt: hexTo0x(x(0)),
-                hand0: hexToBigNumber(x(1)).toNumber(),
-                outcome: hexToBigNumber(x(2)).toNumber(),
+                hand0: hexToBN(x(1)).toNumber(),
+                outcome: hexToBN(x(2)).toNumber(),
                 blockNumber, txHash}
     } else if (topic == topics.Player0Rescind) {
         return {msgType: MsgType.Player0Rescind,
@@ -220,13 +226,15 @@ export const net_attach = () => { }
 export const topics = {}
 
 const initBackend = k => {
-    if (contractFactory) { // Avoid erroring on an unconfigured network
-        topics.Created = contractFactory.Created().options.topics[0];
-        //topics.Player0StartGame = contractAt().Player0StartGame().options.topics[0];
-        topics.Player1ShowHand = contractAt().Player1ShowHand().options.topics[0];
-        topics.Player0Reveal = contractAt().Player0Reveal().options.topics[0];
-        //topics.Player0Rescind = contractAt().Player0Rescind().options.topics[0];
-        //topics.Player1WinByDefault = contractAt().Player1WinByDefault().options.topics[0]
+    const events = Contract.contractAbi.filter(x=>x.type==="event");
+    const ctc = contract.at();
+    for (let i in events) {
+        const event = events[i];
+        const name = event.name;
+        const types = event.inputs.map(x=>x.type);
+        console.log(i, event, name, types);
+        const topic = ctc[name]().options.topics[0];
+        topics[topic] = [name, types];
     }
     return k()}
 
