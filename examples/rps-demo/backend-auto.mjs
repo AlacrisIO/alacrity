@@ -26,7 +26,7 @@ registerBackendHooks, registerRpsBackendHooks, player0RevealContext;
 
 export const contractConstructorTypes = contractAbiConstructorTypes(Contract.contractAbi)
 
-export const netDeployContract = (contractType, ...parameters) =>
+export const netDeployContract = (...parameters) =>
     deployParametrizedContract(contractCode, contractConstructorTypes, parameters)
 
 // TODO #72, #82: blah, use decode parameters to match a new contract,

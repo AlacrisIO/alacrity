@@ -101,6 +101,9 @@ export const hexCat = (...x) => x.map(hexOf).join("")
     TODO: support at least bytes and bool as well as uint256 and address,
     to complete the Alacrity JS backend.
     TODO: make functions encodeParameter and decodeParameter that can handle variable-size parameter
+
+    NB: to look at the types required to use the contract output, see:
+      new Set(contractAbi.map(x=>x.inputs).flat().map(a=>a.type))
   */
 export const encodeSimpleParameter = (type, parameter) => {
     if (type === "uint256") {
@@ -132,7 +135,7 @@ export const decodeContractParameters = (input, contractCode, types) => {
     const cl = contractCode.length;
     assert(il >= cl, "input too short to match contract");
     assert(input.slice(0, cl) === contractCode, "input isn't prefixed by contract");
-    return depcodeParameters(types, input.slice(cl));}
+    return decodeParameters(types, input.slice(cl));}
 
 export const getTransactionContractParameters =
     (txHash, contractCode, types) => (k = kLogResult, kError = kLogError) =>
@@ -150,8 +153,13 @@ export const getTransactionContractParameters =
 export const contractAbiConstructorTypes = abi =>
     onlyElement(abi.filter(x => x.type === "constructor")).inputs.map(x => x.type);
 
+// NB: if the types correspond to the abi from the contractAbi from which contract was initialized, then
+// deployParametrizedContract(code, types, parameters)(k, kErr) should be the same as:
+// errBacK(contract.new(...parameters, {data: contractCode})(x => k(x.transactionHash), kErr)
+// except that we control what is done and can reasonably expect to verify the parameters indeed.
 export const deployParametrizedContract = (contractCode, types, parameters) =>
     deployCode(encodeParametrizedContract(contractCode, types, parameters))
+
 
 
 /** For Apps with a "current user" that may change, making keys relative to a userId.
