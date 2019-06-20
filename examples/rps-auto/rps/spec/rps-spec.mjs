@@ -1,19 +1,20 @@
 // vim: filetype=javascript
 
-import '../monkey-patch-require.js';
-import * as A                  from '../alacrity-runtime.mjs';
-import { web3 }                from '../web3-prelude.mjs';
-import { contractFactoryCode } from '../build/contract-manual.mjs';
-
+import Web3             from 'web3';
+import { contractCode } from '../../build/contract.mjs';
 
 jasmine.DEFAULT_TIMEOUT_INTERVAL = 60 * 1000;
 
+const web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:8545'));
 
 const panic = m =>
   console.error(m) || process.exit(1);
 
 const balanceOf = a =>
   web3.eth.getBalance(a);
+
+const digestHex = x =>
+  web3.sha3(x, { encoding: 'hex' });
 
 
 // This matches the logic in legicash-facts'
@@ -29,7 +30,7 @@ const contract = {};
 // Upserts (nickname, hex ID) record
 const createAndUnlock = acctNames => {
   const created = u =>
-    new Promise((resolve, reject) =>
+    new Promise(resolve =>
       web3.personal.newAccount((z, i) => {
         accts[u] = i;
         return web3.personal.unlockAccount(i, resolve);
@@ -44,7 +45,7 @@ const prefundTestAccounts = () => {
   const newTxFor = to =>
     ({ to
      , from:  PREFUNDED_PRIVATE_NET_ACCT
-     , value: A.ethToWei(100)
+     , value: web3.toWei(100, 'ether')
      });
 
   const prefunded = acct =>
@@ -57,7 +58,7 @@ const prefundTestAccounts = () => {
 };
 
 
-const deployContractFactory = () =>
+const deployContract = () =>
   new Promise((resolve, reject) => {
 
     // TODO Fare allowed this to be configurable before; reimplement?
@@ -65,8 +66,8 @@ const deployContractFactory = () =>
 
     const o =
       { from: PREFUNDED_PRIVATE_NET_ACCT
-      , data: contractFactoryCode
-      , gas:  web3.eth.estimateGas({ data: contractFactoryCode })
+      , data: contractCode
+      , gas:  web3.eth.estimateGas({ data: contractCode })
       };
 
     const k = f => (err, ...d) =>
@@ -79,7 +80,7 @@ const deployContractFactory = () =>
           return reject(`Bad txHash; ${txHash} !== ${receipt.transactionHash}`);
 
         contract.address       = receipt.contractAddress;
-        contract.codeHash      = A.digestHex(contractFactoryCode);
+        contract.codeHash      = digestHex(contractCode);
         contract.creationBlock = receipt.blockNumber;
         contract.creationHash  = receipt.transactionHash;
 
@@ -112,9 +113,9 @@ const runPrep = done => {
 
   return createAndUnlock([ 'alice', 'bob' ])
     .then(prefundTestAccounts)
-    .then(deployContractFactory)
+    .then(deployContract)
     .then(done)
-    .catch(panic)
+    .catch(panic);
 };
 
 
@@ -159,10 +160,10 @@ xdescribe('A rock/paper/scissors game', () => {
       // Look up Bob's new balance
       // Compare and assert balances
       // Salt generation must be fixed for `node`
-      const balanceStartAlice = balanceOf(accts.alice);
-      const balanceStartBob   = balanceOf(accts.bob);
-      const wagerInWei        = A.ethToWei(1.5);
-      const escrowInWei       = wagerInWei.div(10);
+      // const balanceStartAlice = balanceOf(accts.alice);
+      // const balanceStartBob   = balanceOf(accts.bob);
+      // const wagerInWei        = A.ethToWei(1.5);
+      // const escrowInWei       = wagerInWei.div(10);
 
       done();
 

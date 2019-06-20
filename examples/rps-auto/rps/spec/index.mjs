@@ -13,14 +13,14 @@ jasmine.addReporter(new JasmineConsoleReporter(
   , verbosity:  4
   , listStyle:  'indent'
   , activity:   'dots'
-  }))
+  }));
 
 const panic = e =>
   console.error(e) || process.exit(1);
 
 // TODO improve module path resolution
 const importOrBail = p =>
-  import(p.replace('spec/', './'))
+  import(p.replace('rps/spec/', './'))
     .catch(panic);
 
 glob('**/*-spec.mjs', (err, ss) =>
