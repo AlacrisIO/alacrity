@@ -29,91 +29,31 @@ export const contractConstructorTypes = contractAbiConstructorTypes(Contract.con
 export const netDeployContract = (...parameters) =>
     deployParametrizedContract(contractCode, contractConstructorTypes, parameters)
 
-// TODO #72, #82: blah, use decode parameters to match a new contract,
-// see that it's indeed code + params, and match the params
-export const decodeGameCreationEvent = () => { }
+// TODO: mark the receive as triggering the continuation if it happens.
+// Hopefully, when we receive our own
+export const ctc_recv = (ctc, event, k) =>
+    errBacK(ctc[event](...parameters, {value}))(k)
 
-export const MsgType = Object.freeze({
-    Player0StarGame: 0,
-    Player1ShowHand: 1,
-    Player0Reveal: 2,
-    Player0Rescind: 3,
-    Player1WinByDefault: 4
-});
+// TODO: don't confirmTransaction; instead,
+// mark the txHash as something that triggers the continuation if and when we see it confirmed
+// TODO: use our KontErr monad and add kError parameters everywhere.
+export const ctc_send = (ctc, event, parameters, value, k) =>
+    errBacK(ctc[event](...parameters, {value}))(
+        txHash => confirmTransaction(txHash, k))
 
 // TODO #72: have a general-purpose variant of that based on the abi description.
-export const decodeGameEvent = event => {
+export const decodeEvent = event => {
     const topic = event.topics[0];
     const data = event.data;
     const blockNumber = event.blockNumber;
     const txHash = event.transactionHash;
-    const x = i => data.slice(2+i*64,66+i*64);
-    if (topic == topics.Player1ShowHand) {
-        return {msgType: MsgType.Player1ShowHand,
-                player1: hexToAddress(x(0)),
-                hand1: hexToBN(x(1)).toNumber(),
-                blockNumber, txHash}
-    } else if (topic == topics.Player0Reveal) {
-        return {msgType: MsgType.Player0Reveal,
-                salt: hexTo0x(x(0)),
-                hand0: hexToBN(x(1)).toNumber(),
-                outcome: hexToBN(x(2)).toNumber(),
-                blockNumber, txHash}
-    } else if (topic == topics.Player0Rescind) {
-        return {msgType: MsgType.Player0Rescind,
-                blockNumber, txHash}
-    } else if (topic == topics.Player1WinByDefault) {
-        return {msgType: MsgType.Player1WinByDefault,
-                blockNumber, txHash}}
-    loggedAlert(`Unrecognized topic ${JSON.stringify({topic, data, blockNumber, txHash})}`);}
+    const [name, types] = topics[topic]; // TODO: handle error if no match.
+    const parameters = decodeParameters(types, un0x(data));
+    return {name, parameters, blockNumber, txHash}}
 
-// NB: None of these checkRequirement's is useful if we trust the contract.
-// NB: if we are doing speculative execution of unconfirmed messages, though,
-// we may still check them to avoid a switcheroo attack, whereby the adversary
-// sends a transaction to create a contract, then gets a different contract confirmed,
-// but you reply to the first contract.
-
-// export const player1ShowHand = (g, msg, player1, hand1) => { }
-
-//export const player0Reveal = (g, msg, salt, hand0, outcome) => { }
-
-export const checkTimeout = (g, msg) =>
-    checkRequirement(msg.blockNumber > g.previousBlock + g.timeoutInBlocks,
-                    () => "Over-early timeout");
-
-// TODO: this should be just calling the continuation... but the auto output needs to implement persistence!
-export const player0Rescind = (g, msg) => {
-    checkRequirement(g.state == State.WaitingForPlayer1,
-                    () => "Invalid state");
-    checkTimeout(g, msg);
-    // TODO: also check that the contract did distribute the funds as it should have?
-    return merge({outcome: Outcome.Player0Rescinds,
-                  previousBlock: msg.blockNumber, state: State.Completed, isCompleted: true})(g);}
-
-export const player1WinByDefault = (g, msg) => {
-    checkRequirement(g.state == State.WaitingForPlayer0Reveal,
-                    () => "Invalid state");
-    checkTimeout(g, msg);
-    // TODO: also check that the contract did distribute the funds as it should have?
-    return merge({outcome: Outcome.Player1WinByDefault,
-                  previousBlock: msg.blockNumber, state: State.Completed, isCompleted: true})(g);}
-
-// TODO #72: just map events to continuations and apply to state
+// TODO #74: have a way to update the state of the contract each time...
 export const stateUpdate = (state, event) => {
-    switch (event.msgType) {
-    case MsgType.Player1ShowHand:
-        // return player1ShowHand(state, event, event.player1, event.hand1);
-        break;
-    case MsgType.Player0Reveal:
-        // return player0Reveal(state, event, event.salt, event.hand0, event.outcome);
-        break;
-    case MsgType.Player0Rescind:
-        // return player0Rescind(state, event);
-        break;
-    case MsgType.Player1WinByDefault:
-        //return player1WinByDefault(state, event)
-        break;
-    }}
+    }
 
 // RECEIVING DATA FROM THE BLOCKCHAIN
 
@@ -149,6 +89,17 @@ export const stateUpdate = (state, event) => {
     TODO #72: "just" pull up the contract and call the suitable continuation with the suitable context.
     TODO: file an issue so the compiler helps our code persist.
  */
+// TODO: Somehow we should follow all the events related to the contract;
+// because of asynchronous handling and race conditions, the thread that listens to the
+// blockchain should push incoming events in order in a queue;
+// an event will be dequeued whenever a suitable handler is registered;
+// if no handler is registered for an event, then handling of this and subsequent events
+// is blocked until a handler is indeed registered, which should properly handle race conditions.
+// When the confirmed event corresponds to a message we did send, the handler will trigger the continuation.
+// When the confirmed event corresponds to input from someone else, the handler will trigger the reaction.
+// All registered handlers are use-once. When selecting among a sum of handlers,
+// triggering one handler de-registers its rivals as well as itself.
+//
 // TODO: are we triggering a renderGame here when something changes, or somewhere else?
 export const processGameAtHook = confirmedBlock => id => k => {
     // TODO: move the beginning of this function to a common file...
