@@ -1,0 +1,22 @@
+{
+  "name": "rps-auto",
+  "version": "1.0.0",
+  "description": "Rock Paper Scissors, by Alacris",
+  "type": "module",
+  "dependencies": {
+    "web3": "^0.20.7"
+  },
+  "devDependencies": {
+    "jasmine": "^3.4.0",
+    "jasmine-console-reporter": "^3.1.0",
+    "babel-eslint": "^10.0.2",
+    "eslint-plugin-jasmine": "^2.10.1",
+    "eslint": "^5.16.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AlacrisIO/alacrity"
+  },
+  "author": "alacris.io",
+  "license": "LGPL"
+}
