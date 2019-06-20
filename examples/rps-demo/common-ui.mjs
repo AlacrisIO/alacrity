@@ -44,7 +44,3 @@ Your address is: <a href="${config.addressExplorerUrl}${userAddress}">${userAddr
 export const pronoun = (who, you, lowercase) => {
     const capitalized = who == you ? "You" : "They";
     return lowercase ? capitalized.toLowerCase() : capitalized;}
-
-// Local Variables:
-// mode: JavaScript
-// End:

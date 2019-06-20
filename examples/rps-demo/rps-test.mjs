@@ -1,9 +1,9 @@
 /* eslint-disable no-console */
 
-import {callInitFunctions, initFunctions, registerInit,
+import {init, initFunctions, registerInit,
         identity, logging, errbacK, assert, kLogResult, kLogError,
         web3, networkId, userAddress,
-        digestHex, confirmTransaction, config, checkContract, deployContract, contractFactoryCode
+        digestHex, confirmTransaction, config, checkContract, deployFactoryContract, contractFactoryCode
        } from "./alacrity-runtime.mjs";
 // TODO: dynamically import either the manual or auto backend depending on command-line flags.
 import "./backend-manual.mjs";
@@ -22,7 +22,7 @@ delete initFunctions.WatchActiveGames;
 const initialized = {};
 
 const deployCommand = (k = kLogResult, kError = kLogError) => {
-    callInitFunctions(["Backend"], initialized)(() => {
+    init(["Backend"], initialized)(() => {
     console.log("Connected to network %s (%s) as %s", networkId, config.networkName, userAddress);
     web3.eth.defaultAccount = userAddress;
     //errbacK(web3.eth.getBalance)(userAddress)(balance => {
@@ -34,7 +34,7 @@ const deployCommand = (k = kLogResult, kError = kLogError) => {
     //console.log("Block has gas limit %s", block.gasLimit); // 6289319
 
     const kDeploy = () =>
-        deployContract(creationHash => {
+        deployFactoryContract(creationHash => {
             console.log("Deploying the contract through transaction %s...", creationHash);
             return confirmTransaction(creationHash, 0)(() =>
             errbacK(web3.eth.getTransactionReceipt)(creationHash)(receipt => {
@@ -74,8 +74,3 @@ const processArg = () => {
         default: console.error("%s", usageString); process.exit(2); break;}}}
 
 processArg();
-
-// vim: filetype=javascript
-// Local Variables:
-// mode: JavaScript
-// End:

@@ -1,7 +1,6 @@
 /** General-Purpose Utilities for JavaScript programs, by Alacris */
-/* eslint-disable no-alert, no-console */
 
-export const isInBrowser = typeof window === "object" && window !== null;
+/* eslint-disable no-alert, no-console */
 
 // Combinators for regular functions
 /** : 'a => 'a */
@@ -29,11 +28,15 @@ export const compose = (...fa) => {
     else if (l == 2) { return kompose(fa[0])(fa[1]); }
     else { const f = l.pop(); return kompose(compose(...fa))(f)}}
 
-export const assert = (bool, msg, doAlert) => { if (!bool) {
-    const err = msg ? typeof msg == "function" ? msg () : msg : "assertion failed";
-    // TODO: do something good on nodejs
-    if (doAlert) { loggedAlert(err) } else { logging(err)() }
+export const throw_if_false = (bool, error) => { if (!bool) {
+    const err = error ?
+          typeof error === "string" ? [error] :
+          typeof error === "function" ? error() :
+          error : ["assertion failed"];
+    console.log(...err);
     throw(err)}}
+
+const assert = throw_if_false
 
 // Combinators for CPS functions
 // type Not(...'a) = forall('result) ...'a => 'result
@@ -98,9 +101,6 @@ export const hexTo0x = hex => "0x" + hex;
 /** : Uint8Array => String0x */
 export const bytesTo0x = bytes => hexTo0x(bytesToHex(bytes));
 
-/** : () => String0x */
-export const randomSalt = () => bytesTo0x(random32Bytes())
-
 /** : int => Hex */
 export const intToHex = (u, nBytes = 4) => {
     const p = Math.pow(256,nBytes); // v--- *2 so it works on negative numbers, too.
@@ -118,9 +118,6 @@ export const un0x = s => {
 /** Prepend "0x" to a hex string
     : string => String0x */
 export const hexToAddress = hex => hexTo0x(hex.slice(-40));
-
-/** Given a hex string, what it the length of the represented bytes array */
-export const bytes_length = s => s.length / 2;
 
 /** Parse a decimal number */
 export const parseDecimal = x => parseInt(x, 10);
@@ -140,6 +137,10 @@ export const arrayLast = a => a[a.length-1];
 /** : (Array(...'a), 'b) => Array(...'a, 'b) */
 export const snoc = (l, e) => [...l, e];
 
+export const onlyElement = a => {
+    assert(a.length === 1, "array doesn't have exactly one element");
+    return a[0]}
+
 /** : Object => bool */
 export const isEmpty = obj => {
     for(var key in obj) { return false; }
@@ -153,11 +154,7 @@ export const merge = o1 => o2 => ({...o2, ...o1});
 /** : ...'a => ...'b => () */
 export const logging = (...prefix) => (...result) => {
     const args = [...prefix, ...result.map(JSON.stringify)];
-    if (isInBrowser) { console.log(...args) }
-    else { console.log("%s", args.join(" ")); }}
-
-export const loggedAlert = (...message) => {
-    logging(...message)(); if (isInBrowser) { alert(message.pop()) }}
+    console.log(...args) }
 
 /** : ...'a => ...'b => Kont(...'b) */
 export const loggingK = (...prefix) => (...result) => k =>
@@ -232,17 +229,9 @@ export const initFunctions = {}; // maps names to an object { dependsOn: [list o
 export const initFunctionFunction = name => { const f = initFunctions[name]; return f.fun || f }
 export const registerInit = init => Object.assign(initFunctions, init);
 export const initialized = {}
-export const callInitFunctions = (what = Object.keys(initFunctions), done={}) => (k = identity) =>
+export const init = (what = Object.keys(initFunctions), done={}) => (k = identity) =>
     inDependencyOrder(initFunctionFunction, initFunctions, "init:",
                       what, done)(k);
-
-export const init = (what = Object.keys(initFunctions), done={}) => {
-    if (isInBrowser) {
-        window.addEventListener('load', () => {
-            /* eslint-disable no-console */
-            console.log("Page loaded. Initializing...");
-            return callInitFunctions(what, done)()})}
-    else { return callInitFunctions(what, done)()}}
 
 // "places", the imperative alternative to lenses.
 // type place('a) = { get: () => 'a, set: 'a => () }
@@ -294,28 +283,3 @@ export const setrk = result => k => k(setr(result));
 export const setrrk = seq(Array.of)(setrk);
 export const srf = func => {r = undefined; return func(setr);}
 export const srrf = func => {r = undefined; return func(setrr);}
-
-export let require;
-export const globals = {}
-export const registerGlobals = x => Object.assign(globals, x);
-export const magic = () =>
-   `var globals = ${isInBrowser ? "window" : "process"}.globals;
-   ${Object.keys(globals).map(m=>Object.keys(window.globals[m]).map(s=>`var ${s} = globals.${m}.${s}`).join(";")).join(";")}`
-
-logging(`To make all the program bindings available in the console, use:\neval(${isInBrowser ? "" : "process."}magic())`)();
-// const MAGIC = () => eval(magic()) // This does NOT work. You do have to call "eval" *at the toplevel*.
-
-if (isInBrowser) {
-    window.globals = globals;
-    window.magic = magic;
-    require = () => loggedAlert("Cannot use require in a browser");
-} else {
-    process.globals = globals;
-    process.magic = magic;
-    require = process.require; // cheat the module system; must be set by an outer loader.
-}
-
-// vim: filetype=javascript
-// Local Variables:
-// mode: JavaScript
-// End:

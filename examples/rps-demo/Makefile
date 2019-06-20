@@ -27,7 +27,7 @@ all: build_all
 
 build_all: contract
 
-contract: manual_contract
+contract: manual_contract auto_contract
 
 MANUAL_CONTRACT_OUTPUTS:=build/contract-manual.mjs $(BUILD_DIR)/RockPaperScissors.abi $(BUILD_DIR)/RockPaperScissors.bin $(BUILD_DIR)/RockPaperScissorsFactory.abi $(BUILD_DIR)/RockPaperScissorsFactory.bin
 manual_contract: $(MANUAL_CONTRACT_OUTPUTS)
@@ -68,7 +68,7 @@ npm_install:
 	$(HIDE) npm install web3@0.20.7 node-localstorage@1.3.1 jasmine@3.4.0
 
 test:
-	$(HIDE) node --experimental-modules spec
+	$(HIDE) node --experimental-modules test.js -- test
 
 deploy:
 	$(HIDE) node --experimental-modules test.js -- deploy

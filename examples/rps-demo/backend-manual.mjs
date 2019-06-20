@@ -45,11 +45,11 @@
   * Have a serial number for the factory contract, and inside it a serial number for the game?
     This would allow games to have a unique ID shareable with other users.
 */
-import {byteToHex, registerInit, hexToAddress, hexTo0x, checkRequirement,
-        loggedAlert, merge, flip, logErrorK, randomSalt,
+import {loggedAlert, byteToHex, registerInit, hexToAddress, hexTo0x, checkRequirement,
+        merge, flip, logErrorK, random_uint256,
         web3, userAddress,
         saltedDigest, registerBackendHooks, renderGame, config,
-        toBN, optionalAddressOf0x, optionalAddressMatches, hexToBigNumber,
+        toBN, optionalAddressOf0x, optionalAddressMatches, hexToBN,
         getGame, updateGame, removeActiveGame, queueGame, attemptGameCreation, optionalAddressTo0x,
         isGameConfirmed, sendTx,
         registerFactoryContract, contractFactory, contractAt,
@@ -85,10 +85,10 @@ export const decodeGameCreationEvent = (data, blockNumber, txHash) => {
     const contract = hexToAddress(x(0));
     const player0 = hexToAddress(x(1));
     const player1 = optionalAddressOf0x(hexToAddress(x(2)));
-    const timeoutInBlocks = hexToBigNumber(x(3)).toNumber();
+    const timeoutInBlocks = hexToBN(x(3)).toNumber();
     const player0Commitment = hexTo0x(x(4));
-    const wagerInWei = hexToBigNumber(x(5));
-    const escrowInWei = hexToBigNumber(x(6));
+    const wagerInWei = hexToBN(x(5));
+    const escrowInWei = hexToBN(x(6));
     return {contract, player0, player1, timeoutInBlocks, player0Commitment, wagerInWei, escrowInWei,
             previousBlock: blockNumber, state: State.WaitingForPlayer1, player1filter: player1,
             blockNumber, txHash}}
@@ -110,13 +110,13 @@ export const decodeGameEvent = event => {
     if (topic == topics.Player1ShowHand) {
         return {msgType: MsgType.Player1ShowHand,
                 player1: hexToAddress(x(0)),
-                hand1: hexToBigNumber(x(1)).toNumber(),
+                hand1: hexToBN(x(1)).toNumber(),
                 blockNumber, txHash}
     } else if (topic == topics.Player0Reveal) {
         return {msgType: MsgType.Player0Reveal,
                 salt: hexTo0x(x(0)),
-                hand0: hexToBigNumber(x(1)).toNumber(),
-                outcome: hexToBigNumber(x(2)).toNumber(),
+                hand0: hexToBN(x(1)).toNumber(),
+                outcome: hexToBN(x(2)).toNumber(),
                 blockNumber, txHash}
     } else if (topic == topics.Player0Rescind) {
         return {msgType: MsgType.Player0Rescind,
@@ -287,7 +287,7 @@ and their ${renderWei(stakeInWei)} stake`);
     return k()}
 
 export const createNewGame = (wagerInWei, escrowInWei, player1, hand0) => {
-    const salt = randomSalt();
+    const salt = random_uint256();
     const player0Commitment = makeCommitment(salt, hand0);
     const player0 = userAddress;
     const timeoutInBlocks = config.timeoutInBlocks;
@@ -299,17 +299,11 @@ export const createNewGame = (wagerInWei, escrowInWei, player1, hand0) => {
     // We could use the nonce for the transaction, but there's no atomic access to it.
     // Could we save the TxHash locally *before* sending it online? Unhappily web3 doesn't allow that:
     // < https://github.com/MetaMask/metamask-extension/issues/3475 >.
-
-    const game =
-      { salt, hand0, player0Commitment, player0, player1
-      , timeoutInBlocks, wagerInWei, escrowInWei }
-
-    const args =
-      [ optionalAddressTo0x(player1), timeoutInBlocks, player0Commitment
-      , wagerInWei, {value: totalAmount} ]
-
-    return attemptGameCreation(game)(contractFactory.player0_start_game)(...args)
-};
+    return attemptGameCreation(
+        {salt, hand0, player0Commitment, player0, player1, timeoutInBlocks, wagerInWei, escrowInWei})(
+        contractFactory.player0_start_game)(
+        optionalAddressTo0x(player1), timeoutInBlocks, player0Commitment, wagerInWei,
+            {value: totalAmount})}
 
 /** Accept a game of given id, playing given hand.
     Assumes the game is waiting for player1 and we're authorized.
@@ -366,8 +360,3 @@ registerRpsBackendHooks({
 
 registerInit({
     Backend: {fun: initBackend, dependsOn: ["Contract"]}})
-
-// vim: filetype=javascript
-// Local Variables:
-// mode: JavaScript
-// End:
