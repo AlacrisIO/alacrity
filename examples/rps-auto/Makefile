@@ -26,7 +26,7 @@ $(AUTO_CONTRACT_OUTPUTS): $(ALAB)/ALAContract.bin $(ALAB)/ALAContract.abi
 	) > $@
 
 lint:
-	$(HIDE) `npm bin`/eslint -c .eslintrc.yaml rps/**/*.mjs
+	$(HIDE) `npm bin`/eslint -c .eslintrc.yaml rps/*.mjs
 
 run_ethereum:
 	$(HIDE) ../../scripts/ethereum-devnet/run.sh
