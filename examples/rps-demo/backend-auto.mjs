@@ -49,7 +49,7 @@ export const decodeEvent = event => {
     const txHash = event.transactionHash;
     const [name, types] = topics[topic]; // TODO: handle error if no match.
     const parameters = decodeParameters(types, un0x(data));
-    return {name, parameters, blockNumber, txHash}}
+    return {name, parameters, blockNumber, txHash}} // TODO: get value from getTransaction and/or receipt
 
 // TODO #74: have a way to update the state of the contract each time...
 export const stateUpdate = (state, event) => {

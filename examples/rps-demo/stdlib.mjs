@@ -18,4 +18,4 @@ export const bytes_left_length = hex => hexToInt(hex.substring(0,4))
 export const bytes_left = hex => hex.substring(4, 4 + 2*bytes_left_length(hex))
 export const bytes_right = hex => hex.substring(4 + 2*bytes_left_length(hex))
 
-export const random_uint256 = toBN(bytesTo0x(random32Bytes()));
+export const random_uint256 = () => toBN(bytesTo0x(random32Bytes()));
