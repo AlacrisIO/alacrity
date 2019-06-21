@@ -49,7 +49,7 @@ import {loggedAlert, byteToHex, registerInit, hexToAddress, hexTo0x, checkRequir
         merge, flip, logErrorK, random_uint256,
         web3, userAddress,
         saltedDigest, registerBackendHooks, renderGame, config,
-        toBN, optionalAddressOf0x, optionalAddressMatches, hexToBN,
+        toBN, optionalAddressOf0x, optionalAddressMatches, hexToBN, BNto0x,
         getGame, updateGame, removeActiveGame, queueGame, attemptGameCreation, optionalAddressTo0x,
         isGameConfirmed, sendTx,
         registerFactoryContract, contractFactory, contractAt,
@@ -250,6 +250,7 @@ export const processGameAtHook = confirmedBlock => id => k => {
                     updateGame(id, {player0RevealTxHash: txHash})
                     // Register txHash for confirmation? Nah, we're just polling for state change!
                     // But if we switch to event-tracking, that's where it would happen.
+                    renderGame(id, "Player0 Reveal");
                     return k();},
                 error => {loggedAlert(error); return k();})
         } else {
@@ -270,7 +271,9 @@ Be sure to start a client that has this data before the deadline.`);}} // TODO: 
 sending a transaction to recover your stake of ${renderWei(stakeInWei)}`);
         // TODO register the event, don't send twice.
         return sendTx(contractAt(game.contract).player0_rescind)({})(
-            txHash => { updateGame(id, { player0RescindTxHash: txHash }); return k(); },
+            txHash => { updateGame(id, { player0RescindTxHash: txHash });
+                        renderGame(id, "Player0 Rescind");
+                        return k(); },
             error => { loggedAlert(error); return k()})}
     if (game.player1 == userAddress &&
         game.state == State.WaitingForPlayer0Reveal &&
@@ -282,12 +285,13 @@ and their ${renderWei(stakeInWei)} stake`);
         return sendTx(contractAt(game.contract).player1_win_by_default)({})(
             txHash => {
                 updateGame(id, {player1WinByDefaultTxHash: txHash});
+                renderGame(id, "Player1 win by default");
                 return k()},
             flip(logErrorK)(k))}
     return k()}
 
 export const createNewGame = (wagerInWei, escrowInWei, player1, hand0) => {
-    const salt = random_uint256();
+    const salt = BNto0x(random_uint256());
     const player0Commitment = makeCommitment(salt, hand0);
     const player0 = userAddress;
     const timeoutInBlocks = config.timeoutInBlocks;

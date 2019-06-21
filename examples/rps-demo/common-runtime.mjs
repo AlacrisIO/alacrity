@@ -3,7 +3,7 @@ import {loggedAlert} from "./common-prelude.mjs"
 import {
     rekeyContainer, intToString, stringToInt, registerInit, keyValuePair, throw_if_false,
     handlerK, handlerThenK, errbacK, runHooks, kLogError, kLogResult, hexTo0x, range,
-    logging, loggingK, logErrorK, merge, popEntry, forEachK, onlyElement
+    logging, loggingK, logErrorK, merge, popEntry, forEachK, onlyElement, un0x
 } from "./common-utils.mjs";
 import {TinyQueue} from "./tinyqueue.mjs";
 import {Storage} from "./local-storage.mjs";
@@ -72,6 +72,7 @@ export const hexToBN = hex => toBN(hexTo0x(hex));
 export const BNtoHex = (u, nBytes = 32) => {
     const p = toBN(256).pow(nBytes); // v--- p.mul(2) so it works on negative numbers, too.
     return web3.toHex(toBN(u).mod(p).add(p.mul(2))).slice(3);}
+export const BNto0x = (u, n = 32) => "0x" + BNtoHex(u, n)
 
 export const digest = Web3.prototype.sha3;
 export const digestHex = x => Web3.prototype.sha3(x, {encoding: "hex"});
