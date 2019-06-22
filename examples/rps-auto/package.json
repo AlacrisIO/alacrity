@@ -4,6 +4,7 @@
   "description": "Rock Paper Scissors, by Alacris",
   "type": "module",
   "dependencies": {
+    "ethers": "^4.0.30",
     "web3": "^0.20.7"
   },
   "devDependencies": {
