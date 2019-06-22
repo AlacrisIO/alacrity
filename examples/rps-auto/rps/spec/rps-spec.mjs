@@ -1,6 +1,7 @@
 // vim: filetype=javascript
 
 import Web3       from 'web3';
+import ethers     from 'ethers';
 import * as C     from '../../build/contract.mjs';
 import * as RPS   from '../rps.ala.mjs';
 import { stdlib } from '../alacrity-runtime.mjs';
@@ -10,10 +11,34 @@ jasmine.DEFAULT_TIMEOUT_INTERVAL = 60 * 1000 * 10;
 const panic = m =>
   console.error(m) || process.exit(1);
 
+const k = (reject, f) => (err, ...d) =>
+  !!err ? reject(err)
+        : f(...d);
+
 const balanceOf = a =>
   a.web3.eth.getBalance(a.userAddress);
 
 const interact = () => null;
+
+// `t` is a type name in string form; `v` is the value to cast
+const encode = (t, v) =>
+  ethers.utils.AbiCoder.prototype.encode([t], [v]);
+
+// Left-padded w/ zeros to length of 64, no `0x` prefix
+const encodePlayer = a =>
+  encode('address', a).substring(2);
+
+
+// TODO this is a gross hack; eliminate
+const mangleBn = a => {
+  try {
+    return a._ethersType && a._ethersType === 'BigNumber'
+      ? stdlib.toBN(a.toString())
+      : a;
+  } catch (e) {
+    return a;
+  }
+};
 
 
 // This matches the logic in legicash-facts'
@@ -21,6 +46,14 @@ const interact = () => null;
 // (which is what the prefunder script uses)
 const PREFUNDED_PRIVATE_NET_ACCT =
   stdlib.web3.personal.listAccounts[0] || panic('Cannot infer prefunded account!');
+
+
+const contractCodeWithCtors = (player1Addr, player2Addr) =>
+  [ C.contractCode
+  , encodePlayer(player1Addr)
+  , encodePlayer(player2Addr)
+  ].join('');
+
 
 const accts = {};
 
@@ -57,27 +90,53 @@ const prefundTestAccounts = () => {
 
 
 const mkSend = (web3, contractAbi, address, from, player1Addr, player2Addr) =>
-  (funcName, args, gas, cb) =>
-    // https://github.com/ethereum/wiki/wiki/JavaScript-API#contract-methods
-    web3.eth.contract(contractAbi)
-            .at(address)
-            [funcName]
-            .sendTransaction(player1Addr, player2Addr, ...args, { from, gas }, (err, ...s) =>
-              !!err ? panic(err)
-                    : cb(...s));
+  (funcName, args, value_, cb) => {
 
-// TODO FIXME
-// TODO stop watching for new events once the first one has been handled
-const mkRecv = (web3, contractAbi, address, creationBlock) =>
-  (eventName, cb) =>
-    // https://github.com/ethereum/wiki/wiki/JavaScript-API#contract-events
-    web3.eth.contract(contractAbi)
-            .at(address)
-            [eventName]
-            ({}, { fromBlock: creationBlock, toBlock: 'latest' })
-            .get((err, ...s) =>
-              !!err ? panic(err)
-                    : cb(...s));
+    // TODO dynamically zip encoding with arg based on ABI lookup
+    const assumeUint256OrPass = a => {
+      try       { return encode('uint256', a); }
+      catch (e) { return a;                    }};
+
+    const encoded = args.map(assumeUint256OrPass);
+
+    // TODO this is a temporary fudge job to mitigate lack of proper decoding;
+    // eliminate when able
+    const value =
+        funcName === 'm0' ? stdlib.toBN(args[0]).add(args[1])
+      : funcName === 'm1' ? stdlib.toBN(args[0])
+      : funcName === 'm2' ? stdlib.toBN(args[2]) // Should be `0`
+      : panic(`No known value for ${funcName}`);
+
+    // const txObj = { from, value: stdlib.toBN(value) };
+    const txObj = { from, value };
+
+    const afterward = (err, txHash) =>
+      !!err ? panic(err)
+            : awaitConfirmation(web3, txHash)
+                .then(() => txReceiptFor(web3, txHash))
+                .then(cb)
+                .catch(panic);
+
+    // https://github.com/ethereum/wiki/wiki/JavaScript-API#contract-methods
+    return web3.eth
+      .contract(contractAbi)
+      .at(address)
+      [funcName]
+      .sendTransaction(player1Addr
+                     , player2Addr
+                     , ...encoded
+                     , txObj
+                     , afterward);
+  };
+
+
+// TODO dynamic decoding of the args passed into `cb`
+const mkRecv = (web3, contractAbi, address) => (eventName, cb) =>
+  // https://docs.ethers.io/ethers.js/html/api-contract.html#configuring-events
+  new ethers
+    .Contract(address, contractAbi, new ethers.providers.Web3Provider(web3.currentProvider))
+    .once(eventName, (...a) => cb(...a.map(mangleBn)));
+
 
 // TODO FIXME
 const Contract = (web3, userAddress) =>
@@ -90,9 +149,29 @@ const Contract = (web3, userAddress) =>
    , player2Addr
    , contractAbi
    , send: mkSend(web3, contractAbi, address, userAddress, player1Addr, player2Addr)
-   , recv: mkRecv(web3, contractAbi, address, creationBlock)
+   , recv: mkRecv(web3, contractAbi, address)
    });
 
+
+const awaitConfirmation = (web3, txHash, blockPollingPeriodInSeconds = 1) =>
+  new Promise((resolve, reject) => {
+    // A null `t` or `t.blockNumber` means the tx hasn't been confirmed yet
+    const query = () => web3.eth.getTransaction(txHash, (err, t) =>
+        !!err                  ? clearInterval(i) || reject(err)
+      : !!t && !!t.blockNumber ? clearInterval(i) || resolve(txHash)
+      : null);
+
+    const i = setInterval(query, blockPollingPeriodInSeconds * 1000);
+  });
+
+
+const txReceiptFor = (web3, txHash) =>
+  new Promise((resolve, reject) =>
+    web3.eth.getTransactionReceipt(txHash, (err, r) =>
+        !!err                        ? reject(err)
+      : r.transactionHash !== txHash ? reject(`Bad txHash; ${txHash} !== ${receipt.transactionHash}`)
+      : r.status          !== '0x1'  ? reject(`Transaction: ${txHash} failed for unspecified reason`)
+      : resolve(r)));
 
 const deployContractWith = (web3, userAddress) =>
     ( contractAbi
@@ -105,48 +184,26 @@ const deployContractWith = (web3, userAddress) =>
   new Promise((resolve, reject) => {
 
     const o =
-      { from: userAddress
-      , data: contractCode
+      { data: contractCode
+      , from: userAddress
       , gas:  web3.eth.estimateGas({ data: contractCode })
       };
 
-    const k = f => (err, ...d) =>
-      !!err ? reject(err)
-            : f(...d);
-
     const gatherContractInfo = txHash =>
-      web3.eth.getTransactionReceipt(txHash, k(receipt => {
-        if (receipt.transactionHash !== txHash)
-          return reject(`Bad txHash; ${txHash} !== ${receipt.transactionHash}`);
-
-        return resolve(Contract(web3, userAddress)
-          ( receipt.contractAddress        // address
+      txReceiptFor(web3, txHash)
+        .then(r => resolve(Contract(web3, userAddress)
+          ( r.contractAddress              // address
           , stdlib.digestHex(contractCode) // codeHash
-          , receipt.blockNumber            // creationBlock
-          , receipt.transactionHash        // creationHash
+          , r.blockNumber                  // creationBlock
+          , r.transactionHash              // creationHash
           , player1Addr
           , player2Addr
-          , contractAbi
-          ));
-      }));
+          , contractAbi)))
+        .catch(reject);
 
-    const awaitConfirmation = txHash => {
-      const clearAndReject = err =>
-        clearInterval(i) || reject(err);
-
-      const clearAndGather = () =>
-        clearInterval(i) || gatherContractInfo(txHash);
-
-      // A null `t` or `t.blockNumber` means the tx hasn't been confirmed yet
-      const query = () => web3.eth.getTransaction(txHash, (err, t) =>
-          !!err                  ? clearAndReject(err)
-        : !!t && !!t.blockNumber ? clearAndGather()
-        : null);
-
-      const i = setInterval(query, blockPollingPeriodInSeconds * 1000);
-    };
-
-    return web3.eth.sendTransaction(o, k(awaitConfirmation));
+    return web3.eth.sendTransaction(o, k(reject, txHash =>
+      awaitConfirmation(web3, txHash, blockPollingPeriodInSeconds)
+        .then(gatherContractInfo)));
   });
 
 
@@ -169,30 +226,24 @@ const runPrep = done => {
 };
 
 const runGameWith = (alice, bob) => {
-  // TODO FIXME Larger values result in `Error: invalid argument 0: json:
-  // cannot unmarshal hex number > 64 bits into Go value of type
-  // hexutil.Uint64`
-  const wagerInWei = stdlib.web3.toWei(1000, 'wei');
+  const wagerInWei   = stdlib.toBN(stdlib.web3.toWei(1.5, 'ether'));
+  const escrowInWei  = wagerInWei.div(10);
+  const contractCode = contractCodeWithCtors(accts.alice, accts.bob);
 
-  const escrowInWei = stdlib.web3
-    .toBigNumber(wagerInWei)
-    .div(10)
-    .toString();
-
-  const bobShootScissors = ctc =>
-    new Promise(resolve =>
-      bob.attach(C.contractAbi, C.contractCode, accts.alice, accts.bob, ctc.addr, c =>
-        RPS.B(ctc, interact, 2, resolve)));
+  // const bobShootScissors = ctc =>
+  //   new Promise(resolve =>
+  //     bob.attach(C.contractAbi, contractCode, accts.alice, accts.bob, ctc.addr, c =>
+  //       RPS.B(ctc, interact, 2, resolve)));
+  const bobShootScissors = () =>
+    Promise.resolve(1);
 
   const aliceShootRock = ctc =>
     new Promise(resolve =>
       RPS.A(ctc, interact, wagerInWei, escrowInWei, 0, resolve));
 
   return alice
-    .deploy(C.contractAbi, C.contractCode, accts.alice, accts.bob)
-    .then(ctc => [ true, true ]);
-    // TODO FIXME
-    // .then(ctc => Promise.all([ bobShootScissors(ctc), aliceShootRock(ctc) ]));
+    .deploy(C.contractAbi, contractCode, accts.alice, accts.bob)
+    .then(ctc => Promise.all([ bobShootScissors(ctc), aliceShootRock(ctc) ]));
 };
 
 

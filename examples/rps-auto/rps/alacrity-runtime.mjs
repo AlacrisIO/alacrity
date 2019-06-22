@@ -2,13 +2,11 @@
 
 // NB: the following imports are going away when we fix + finalize the `stdlib`
 // parameterization
-import Web3        from 'web3';
-import * as crypto from 'crypto';
+import Web3            from 'web3';
+import * as crypto     from 'crypto';
+import * as nodeAssert from 'assert';
 
 const panic = e => { throw Error(e); };
-
-const assert = console.assert;
-const equal  = (a, b) => a === b;
 
 const hexTo0x        = h => '0x' + h;
 const byteToHex      = b => (b & 0xFF).toString(16).padStart(2, '0');
@@ -34,7 +32,7 @@ const nat16_to_fixed_size_hex = n => {
 // Used by both msg_left and msg_right to see when the left stops and the right
 // starts - 16 bits = 2 bytes = 4 hex characters
 const bytes_left_length = m =>
-	parseInt(m.substring(0,4), 16);
+	parseInt(m.substring(0, 4), 16);
 
 // In our JS representation of byte strings, a byte
 // is a pair of hex chars, so the "JS length" is twice
@@ -48,6 +46,8 @@ const bytes_right = m => m.substring(4    + (2 * bytes_left_length(m)));
 
 // Parameterized ////////////
 
+const assert = a => d => a(d);
+
 const toBN             = web3 =>      web3.toBigNumber;
 const hexToBN          = web3 => h => toBN(web3)(hexTo0x(h));
 const digestHex        = web3 => x => web3.sha3(x, { encoding: 'hex' });
@@ -55,9 +55,9 @@ const keccak256        = web3 => b => digestHex(web3)(hexOf(web3)(b));
 const uint256_to_bytes = web3 => i => BNtoHex(web3)(i);
 
 const BNtoHex = web3 => (u, n = 32) => {
-  // v--- p.mul(2) so it works on negative numbers, too.
   const p = toBN(web3)(256).pow(n);
 
+  // `p.mul(2)` so it works on negative numbers, too.
   return web3
     .toHex(toBN(web3)(u).mod(p).add(p.mul(2)))
     .slice(3);
@@ -99,24 +99,32 @@ const bytes_cat = web3 => (a, b) => {
 const random_uint256 = (web3, random32Bytes) => () =>
 	hexToBN(web3)(byteArrayToHex(random32Bytes()));
 
+
+const equal = web3 => (a, b) =>
+  toBN(web3)(a).eq(toBN(web3)(b));
+
 /////////////////////////////
 
 
-const mkStdlib = (web3, random32Bytes) =>
- ({ assert
-  , equal
-  , digestHex
+const mkStdlib = (web3, random32Bytes, asserter) =>
+ ({ hexTo0x
   , web3 // TODO remove me
   , random_uint256:   random_uint256(web3, random32Bytes)
   , uint256_to_bytes: uint256_to_bytes(web3)
   , bytes_cat:        bytes_cat(web3)
   , keccak256:        keccak256(web3)
+  , BNtoHex:          BNtoHex(web3)
+  , digestHex:        digestHex(web3)
+  , assert:           assert(asserter)
+  , toBN:             toBN(web3)
+  , equal:            equal(web3)
   });
 
 
 const stdlibNode = () =>
   mkStdlib(new Web3(new Web3.providers.HttpProvider('http://localhost:8545'))
-         , () => crypto.randomBytes(32));
+         , () => crypto.randomBytes(32)
+         , nodeAssert.strict);
 
 // TODO Improve parameterization over node/browser APIs, dependencies like
 // `web3`, etc + revisit the ergonomics of how this gets plugged in at run time
