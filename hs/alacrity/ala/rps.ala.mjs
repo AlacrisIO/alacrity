@@ -110,7 +110,7 @@ export function A(ctc, interact, v0, v1, v2, kTop) {
             const v95 = v86 ? 0 : v93;
             const v96 = stdlib.eq(v64, 2);
             const v97 = stdlib.eq(v64, 0);
-            kTop(v64); }) }) }) }) }) }
+            kTop(v64); }); }); }); }); }); }
 
 export function B(ctc, interact, v3, kTop) {
   const v9 = stdlib.eq(v3, 0);
@@ -203,4 +203,4 @@ export function B(ctc, interact, v3, kTop) {
           const v95 = v86 ? 0 : v93;
           const v96 = stdlib.eq(v64, 2);
           const v97 = stdlib.eq(v64, 0);
-          kTop(v64); }) }) }) }) }
+          kTop(v64); }); }); }); }); }

@@ -113,7 +113,7 @@ jsAssert a = jsApply "stdlib.assert" [ a ] <> semi
 jsEPStmt :: EPStmt -> Doc a -> Doc a
 jsEPStmt (EP_Claim CT_Possible _) kp = kp
 jsEPStmt (EP_Claim _ a) kp = vsep [ jsAssert (jsArg a), kp ]
-jsEPStmt (EP_Send i svs msg amt) kp = jsApply "ctc.send" [ jsString (solMsg_fun i), vs, jsArg amt, jsLambda [] kp ]
+jsEPStmt (EP_Send i svs msg amt) kp = jsApply "ctc.send" [ jsString (solMsg_fun i), vs, jsArg amt, jsLambda [] kp ] <> semi
   where args = svs ++ msg
         vs = jsArray $ map jsVar args
 
@@ -123,11 +123,11 @@ jsEPTail (EP_If ca tt ft) =
   pretty "if" <+> parens (jsArg ca) <> bp tt <> hardline <> pretty "else" <> bp ft
   where bp at = jsBraces $ jsEPTail at
 jsEPTail (EP_Let v (EP_PrimApp INTERACT al) kt) =
-  jsApply "interact" ((map jsArg al) ++ [ kp ])
+  jsApply "interact" ((map jsArg al) ++ [ kp ]) <> semi
   where kp = jsLambda [ jsVar v ] $ jsEPTail kt
 jsEPTail (EP_Let bv ee kt) = vsep [ jsVarDecl bv <+> pretty "=" <+> jsEPExpr ee <> semi, jsEPTail kt ]
 jsEPTail (EP_Do es kt) = jsEPStmt es $ jsEPTail kt
-jsEPTail (EP_Recv fromme i _ msg pv kt) = jsApply "ctc.recv" [ jsString (solMsg_evt i), kp ]
+jsEPTail (EP_Recv fromme i _ msg pv kt) = jsApply "ctc.recv" [ jsString (solMsg_evt i), kp ] <> semi
   where kp = jsLambda (the_vs ++ [jsVar pv]) ktp
         msg_vs = map jsVar msg
         msg'_vs = map jsVar' msg
