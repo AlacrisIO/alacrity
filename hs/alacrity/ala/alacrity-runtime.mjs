@@ -1,0 +1,1 @@
+../../../examples/rps-auto/rps/alacrity-runtime.mjs
