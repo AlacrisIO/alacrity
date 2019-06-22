@@ -77,34 +77,31 @@ jsBinOp :: String -> Doc a -> Doc a -> Doc a
 jsBinOp o l r = l <+> pretty o <+> r
 
 jsPrimApply :: EP_Prim -> [Doc a] -> Doc a
-jsPrimApply pr args =
+jsPrimApply pr =
   case pr of
-    CP ADD -> binOp "+"
-    CP SUB -> binOp "-"
-    CP MUL -> binOp "*"
-    CP DIV -> binOp "/"
-    CP MOD -> binOp "%"
-    CP PLT -> binOp "<"
-    CP PLE -> binOp "<="
-    CP PEQ -> binOp "=="
-    CP PGE -> binOp ">="
-    CP PGT -> binOp ">"
-    CP IF_THEN_ELSE -> case args of
+    CP ADD -> jsApply "stdlib.add"
+    CP SUB -> jsApply "stdlib.sub"
+    CP MUL -> jsApply "stdlib.mul"
+    CP DIV -> jsApply "stdlib.div"
+    CP MOD -> jsApply "stdlib.mod"
+    CP PLT -> jsApply "stdlib.lt"
+    CP PLE -> jsApply "stdlib.le"
+    CP PEQ -> jsApply "stdlib.eq"
+    CP PGE -> jsApply "stdlib.ge"
+    CP PGT -> jsApply "stdlib.gt"
+    CP IF_THEN_ELSE -> \args -> case args of
                       [ c, t, f ] -> c <+> pretty "?" <+> t <+> pretty ":" <+> f
                       _ -> spa_error ()
-    CP UINT256_TO_BYTES -> jsApply "stdlib.uint256_to_bytes" args
-    CP DIGEST -> jsApply "stdlib.keccak256" args
-    CP BYTES_EQ -> jsApply "stdlib.bytes_eq" args
-    CP BYTES_LEN -> jsApply "stdlib.bytes_len" args
-    CP BCAT -> jsApply "stdlib.bytes_cat" args
-    CP BCAT_LEFT -> jsApply "stdlib.bytes_left" args
-    CP BCAT_RIGHT -> jsApply "stdlib.bytes_right" args
-    RANDOM -> jsApply "stdlib.random_uint256" args
+    CP UINT256_TO_BYTES -> jsApply "stdlib.uint256_to_bytes"
+    CP DIGEST -> jsApply "stdlib.keccak256"
+    CP BYTES_EQ -> jsApply "stdlib.bytes_eq"
+    CP BYTES_LEN -> jsApply "stdlib.bytes_len"
+    CP BCAT -> jsApply "stdlib.bytes_cat"
+    CP BCAT_LEFT -> jsApply "stdlib.bytes_left"
+    CP BCAT_RIGHT -> jsApply "stdlib.bytes_right"
+    RANDOM -> jsApply "stdlib.random_uint256"
     INTERACT -> error "interact doesn't use jsPrimApply"
-  where binOp op = case args of
-          [ l, r ] -> jsBinOp op l r
-          _ -> spa_error ()
-        spa_error () = error "jsPrimApply"
+  where spa_error () = error "jsPrimApply"
 
 jsEPExpr :: EPExpr -> Doc a
 jsEPExpr (EP_Arg a) = jsArg a
