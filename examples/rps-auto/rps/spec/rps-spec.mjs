@@ -198,7 +198,8 @@ const deployContractWith = (web3, userAddress) =>
           , r.transactionHash              // creationHash
           , player1Addr
           , player2Addr
-          , contractAbi)))
+          , contractAbi
+          )))
         .catch(reject);
 
     return web3.eth.sendTransaction(o, k(reject, txHash =>
