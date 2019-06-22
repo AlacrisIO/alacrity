@@ -1,4 +1,4 @@
-import * as stdlib from './alacrity-runtime.mjs';
+import { stdlib } from './alacrity-runtime.mjs';
 
 /* XXX export const ABI = Copy the ABI from the solc output; */
 

@@ -145,7 +145,7 @@ jsPart (p, (EP_Prog pargs et)) =
 
 emit_js :: BLProgram -> Doc a
 emit_js (BL_Prog pm _) = modp
-  where modp = vsep_with_blank ( pretty "import * as stdlib from './alacrity-runtime.mjs';"
+  where modp = vsep_with_blank ( pretty "import { stdlib } from './alacrity-runtime.mjs';"
                                  : pretty "/* XXX export const ABI = Copy the ABI from the solc output; */"
                                  : pretty "/* XXX export const Bytecode = \"0x Copy the bytecode from the solc output\"; */"
                                  : partsp )

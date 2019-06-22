@@ -8,9 +8,6 @@ import { stdlib } from '../alacrity-runtime.mjs';
 
 jasmine.DEFAULT_TIMEOUT_INTERVAL = 60 * 1000 * 10;
 
-const panic = m =>
-  console.error(m) || process.exit(1);
-
 const k = (reject, f) => (err, ...d) =>
   !!err ? reject(err)
         : f(...d);
@@ -22,30 +19,18 @@ const interact = () => null;
 
 // `t` is a type name in string form; `v` is the value to cast
 const encode = (t, v) =>
-  ethers.utils.AbiCoder.prototype.encode([t], [v]);
+  ethers.utils.defaultAbiCoder.encode([t], [v]);
 
 // Left-padded w/ zeros to length of 64, no `0x` prefix
 const encodePlayer = a =>
   encode('address', a).substring(2);
 
 
-// TODO this is a gross hack; eliminate
-const mangleBn = a => {
-  try {
-    return a._ethersType && a._ethersType === 'BigNumber'
-      ? stdlib.toBN(a.toString())
-      : a;
-  } catch (e) {
-    return a;
-  }
-};
-
-
 // This matches the logic in legicash-facts'
 // src/legilogic_ethereum/ethereum_transaction.ml:get_first_account function
 // (which is what the prefunder script uses)
 const PREFUNDED_PRIVATE_NET_ACCT =
-  stdlib.web3.personal.listAccounts[0] || panic('Cannot infer prefunded account!');
+  stdlib.web3.personal.listAccounts[0] || stdlib.panic('Cannot infer prefunded account!');
 
 
 const contractCodeWithCtors = (player1Addr, player2Addr) =>
@@ -56,7 +41,6 @@ const contractCodeWithCtors = (player1Addr, player2Addr) =>
 
 
 const accts = {};
-
 
 // Upserts (nickname, hex ID) record
 const createAndUnlock = acctNames => {
@@ -90,32 +74,14 @@ const prefundTestAccounts = () => {
 
 
 const mkSend = (web3, contractAbi, address, from, player1Addr, player2Addr) =>
-  (funcName, args, value_, cb) => {
-
-    // TODO dynamically zip encoding with arg based on ABI lookup
-    const assumeUint256OrPass = a => {
-      try       { return encode('uint256', a); }
-      catch (e) { return a;                    }};
-
-    const encoded = args.map(assumeUint256OrPass);
-
-    // TODO this is a temporary fudge job to mitigate lack of proper decoding;
-    // eliminate when able
-    const value =
-        funcName === 'm0' ? stdlib.toBN(args[0]).add(args[1])
-      : funcName === 'm1' ? stdlib.toBN(args[0])
-      : funcName === 'm2' ? stdlib.toBN(args[2]) // Should be `0`
-      : panic(`No known value for ${funcName}`);
-
-    // const txObj = { from, value: stdlib.toBN(value) };
+  (funcName, args, value, cb) => {
     const txObj = { from, value };
 
-    const afterward = (err, txHash) =>
-      !!err ? panic(err)
-            : awaitConfirmation(web3, txHash)
-                .then(() => txReceiptFor(web3, txHash))
-                .then(cb)
-                .catch(panic);
+    const afterward = k(stdlib.panic, txHash =>
+      awaitConfirmation(web3, txHash)
+        .then(() => txReceiptFor(web3, txHash))
+        .then(cb)
+        .catch(stdlib.panic));
 
     // https://github.com/ethereum/wiki/wiki/JavaScript-API#contract-methods
     return web3.eth
@@ -124,32 +90,37 @@ const mkSend = (web3, contractAbi, address, from, player1Addr, player2Addr) =>
       [funcName]
       .sendTransaction(player1Addr
                      , player2Addr
-                     , ...encoded
+                     , ...args
                      , txObj
                      , afterward);
   };
 
 
-// TODO dynamic decoding of the args passed into `cb`
+// https://docs.ethers.io/ethers.js/html/api-contract.html#configuring-events
 const mkRecv = (web3, contractAbi, address) => (eventName, cb) =>
-  // https://docs.ethers.io/ethers.js/html/api-contract.html#configuring-events
   new ethers
     .Contract(address, contractAbi, new ethers.providers.Web3Provider(web3.currentProvider))
-    .once(eventName, (...a) => cb(...a.map(mangleBn)));
+    .on(eventName, (...a) => {
+      const b = a.map(b => b); // Preserve `a` w/ copy
+      const e = b.pop();       // The final element represents an `ethers` event object
 
+      // Swap ethers' BigNumber wrapping for web3's
+      const bns = b.map(x => stdlib.toBN(x.toString()));
 
-// TODO FIXME
-const Contract = (web3, userAddress) =>
-    (address, codeHash, creationBlock, creationHash, player1Addr, player2Addr, contractAbi) =>
-  ({ address
-   , codeHash
-   , creationBlock
-   , creationHash
+      // TODO FIXME replace arbitrary delay with something more intelligent to
+      // mitigate mystery race condition
+      web3.eth.getTransaction(e.transactionHash, k(stdlib.panic, t =>
+        setTimeout(() => cb(...bns, t.value), 1000)));
+    });
+
+const Contract = (web3, userAddress) => (abi, code, player1Addr, player2Addr, address) =>
+  ({ abi
+   , code
    , player1Addr
    , player2Addr
-   , contractAbi
-   , send: mkSend(web3, contractAbi, address, userAddress, player1Addr, player2Addr)
-   , recv: mkRecv(web3, contractAbi, address)
+   , address
+   , send: mkSend(web3, abi, address, userAddress, player1Addr, player2Addr)
+   , recv: mkRecv(web3, abi, address)
    });
 
 
@@ -173,6 +144,7 @@ const txReceiptFor = (web3, txHash) =>
       : r.status          !== '0x1'  ? reject(`Transaction: ${txHash} failed for unspecified reason`)
       : resolve(r)));
 
+
 const deployContractWith = (web3, userAddress) =>
     ( contractAbi
     , contractCode
@@ -180,7 +152,6 @@ const deployContractWith = (web3, userAddress) =>
     , player2Addr
     , blockPollingPeriodInSeconds = 1
     ) =>
-
   new Promise((resolve, reject) => {
 
     const o =
@@ -192,13 +163,11 @@ const deployContractWith = (web3, userAddress) =>
     const gatherContractInfo = txHash =>
       txReceiptFor(web3, txHash)
         .then(r => resolve(Contract(web3, userAddress)
-          ( r.contractAddress              // address
-          , stdlib.digestHex(contractCode) // codeHash
-          , r.blockNumber                  // creationBlock
-          , r.transactionHash              // creationHash
+          ( contractAbi
+          , contractCode
           , player1Addr
           , player2Addr
-          , contractAbi
+          , r.contractAddress
           )))
         .catch(reject);
 
@@ -223,20 +192,19 @@ const runPrep = done => {
   return createAndUnlock([ 'alice', 'bob' ])
     .then(prefundTestAccounts)
     .then(done)
-    .catch(panic);
+    .catch(stdlib.panic);
 };
 
+const wagerInWei  = stdlib.toBN(stdlib.web3.toWei(1.5, 'ether'));
+const escrowInWei = wagerInWei.div(10);
+
 const runGameWith = (alice, bob) => {
-  const wagerInWei   = stdlib.toBN(stdlib.web3.toWei(1.5, 'ether'));
-  const escrowInWei  = wagerInWei.div(10);
   const contractCode = contractCodeWithCtors(accts.alice, accts.bob);
 
-  // const bobShootScissors = ctc =>
-  //   new Promise(resolve =>
-  //     bob.attach(C.contractAbi, contractCode, accts.alice, accts.bob, ctc.addr, c =>
-  //       RPS.B(ctc, interact, 2, resolve)));
-  const bobShootScissors = () =>
-    Promise.resolve(1);
+  const bobShootScissors = ctcAlice =>
+    new Promise(resolve =>
+      bob.attach(ctcAlice.abi, ctcAlice.code, accts.alice, accts.bob, ctcAlice.address)
+        .then(ctcBob => RPS.B(ctcBob, interact, 2, resolve)));
 
   const aliceShootRock = ctc =>
     new Promise(resolve =>
@@ -258,7 +226,7 @@ describe('A rock/paper/scissors game', () => {
         .then(([ bobOutcome, aliceOutcome ]) => expect(bobOutcome).toEqual(aliceOutcome))
         .then(done));
 
-    xit('the winner\'s balance being increased + loser\'s balance being reduced by wager', done => {
+    it('the winner\'s balance being increased + loser\'s balance being reduced by wager', done => {
       const alice = EthereumNetwork(stdlib.web3, accts.alice);
       const bob   = EthereumNetwork(stdlib.web3, accts.bob);
 
@@ -266,8 +234,8 @@ describe('A rock/paper/scissors game', () => {
       const balanceStartBob   = balanceOf(bob);
 
       return runGameWith(alice, bob)
-        .then(() => expect(balanceOf(alice)).toBeLessThan(balanceStartAlice))
-        .then(() => expect(balanceOf(bob)).toBeGreaterThan(balanceStartBob))
+        .then(() => expect(balanceOf(alice)).toBeGreaterThan(balanceStartAlice + wagerInWei))
+        .then(() => expect(balanceOf(bob  )).toBeLessThan(   balanceStartBob   - wagerInWei))
         .then(done);
     });
   });

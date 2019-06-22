@@ -100,8 +100,12 @@ const random_uint256 = (web3, random32Bytes) => () =>
 	hexToBN(web3)(byteArrayToHex(random32Bytes()));
 
 
-const equal = web3 => (a, b) =>
-  toBN(web3)(a).eq(toBN(web3)(b));
+// TODO these should probably just assume BigNumber arguments
+const equal = web3 => (a, b) => toBN(web3)(a).eq(toBN(web3)(b));
+const add   = web3 => (a, b) => toBN(web3)(a).add(toBN(web3)(b));
+const sub   = web3 => (a, b) => toBN(web3)(a).sub(toBN(web3)(b));
+const mod   = web3 => (a, b) => toBN(web3)(a).mod(toBN(web3)(b));
+const mul   = web3 => (a, b) => toBN(web3)(a).mul(toBN(web3)(b));
 
 /////////////////////////////
 
@@ -118,6 +122,11 @@ const mkStdlib = (web3, random32Bytes, asserter) =>
   , assert:           assert(asserter)
   , toBN:             toBN(web3)
   , equal:            equal(web3)
+  , eq:               equal(web3)
+  , add:              add(web3)
+  , sub:              sub(web3)
+  , mod:              mod(web3)
+  , mul:              mul(web3)
   });
 
 
