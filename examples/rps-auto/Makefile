@@ -32,4 +32,4 @@ run_ethereum:
 	$(HIDE) ../../scripts/ethereum-devnet/run.sh
 
 test:
-	$(HIDE) node --experimental-modules rps/spec
+	$(HIDE) node --experimental-modules rps/spec/index.mjs

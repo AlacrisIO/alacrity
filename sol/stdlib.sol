@@ -8,7 +8,7 @@ contract Stdlib {
 
   function ALA_BCAT (bytes memory l, bytes memory r)
     internal pure returns (bytes memory) {
-    return abi.encodePacked(l.length, l, r); }
+    return abi.encodePacked(uint16(l.length), l, r); }
 
   function ALA_BCAT_LEFT_LENGTH (bytes memory c)
     internal pure returns (uint16) {

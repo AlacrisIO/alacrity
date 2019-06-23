@@ -9,8 +9,7 @@
 [send->] (declare-fun digest (Bytes ) Int )
 [<-recv] success
 [send->] (define-fun-rec bytes-length ((bs Bytes ) ) Int (if ((_ is uint256->bytes ) bs ) 32 (if ((_ is digest ) bs ) 32 (+ 32 (bytes-length (msg-left bs ) ) (bytes-length (msg-right bs ) ) ) ) ) )
-[stderr] ; define-fun-rec
-[<-recv] unsupported
+[<-recv] success
 [send->] (declare-fun v0 () Int )
 [<-recv] success
 [send->] (declare-fun v1 () Int )
