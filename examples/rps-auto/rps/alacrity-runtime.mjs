@@ -89,11 +89,11 @@ const bytes_len = web3 => b => {
 // ∀ a b, msg_left (msg_cat(a, b)) = a
 // ∀ a b, msg_right(msg_cat(a, b)) = b
 const bytes_cat = web3 => (a, b) => {
-    const ah = hexOf(web3)(a);
-    const bh = hexOf(web3)(b);
-    const n  = nat16_to_fixed_size_hex(bytes_len(web3)(ah));
+  const ah = hexOf(web3)(a);
+  const bh = hexOf(web3)(b);
+  const n  = nat16_to_fixed_size_hex(bytes_len(web3)(ah));
 
-    return n + ah + bh;
+  return n + ah + bh;
 };
 
 const random_uint256 = (web3, random32Bytes) => () =>
