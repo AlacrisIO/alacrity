@@ -133,29 +133,67 @@ export function random_uint256() {
      * bool
      * address
      * bytes
+     * ["tuple", type ...]
     because we can only use web3 0.20.x at this time (which is what metamask provides).
     Documentation for encoding:
     https://solidity.readthedocs.io/en/v0.5.9/abi-spec.html?highlight=abi.encode#formal-specification-of-the-encoding
     NB: they are meant as the JS analogues to Solidity's abi.encode.
   */
-export function encodeParameter(type, parameter) {
+function typeIsDynamic(type) {
+    return (type === "bytes")
+           || (Array.isArray(type)
+               && (type[0] === "tuple")
+               && (type.slice(1).every(typeIsDynamic)))
+}
+function typeHeadSize(type) {
+    if (typeIsDynamic(type)) {
+        return 32;
+    } else if (type === "uint256" || type === "bool" || type === "address") {
+        return 32;
+    } else if (Array.isArray(type) && (type[0] === "tuple")) {
+        return type.slice(1).map(typeHeadSize).reduce((a,b) => a + b, 0);
+    } else {
+        console.error("encode: unsupported type");
+    }
+}
+export function encode(type, value) {
     if (type === "uint256") {
-        return BNtoHex(parameter);
+        return BNtoHex(value);
     } else if (type === "bool") {
-        return BNtoHex(parameter ? 1 : 0);
+        return BNtoHex(value ? 1 : 0);
     } else if (type === "address") {
-        return BNtoHex(parameter);
+        return BNtoHex(value);
     } else if (type === "bytes") {
         // js-length = 2 * logical-length
-        let k = parameter.length / 2;
+        let k = value.length / 2;
         let kpad = nextMultiple(k, 32);
-        return BNtoHex(k) + parameter.padEnd(2 * kpad, "0");
+        return BNtoHex(k) + value.padEnd(2 * kpad, "0");
+    } else if (Array.isArray(type) && (type[0] === "tuple")) {
+        let types = type.slice(1);
+        let k = types.length;
+        assert(k === value.length);
+        // ptr and heads are mutable!
+        let ptr = types.map(typeHeadSize).reduce((a,b) => a + b, 0);
+        let heads = [];
+        let tails = types.map((v,i) => {
+            if (typeIsDynamic(v)) {
+                heads[i] = ptr;
+                let tail = encode(v);
+                ptr += (tail.length / 2);
+                return tail;
+            } else {
+                heads[i] = encode(v)
+                return "";
+            }
+        });
+        return heads.concat(tails).join("");
     } else {
-        console.error("encodeParameter: unsupported type");
+        console.error("encode: unsupported type");
     }
 }
 export const encodeParameters = (types, parameters) => {
     assert(types.length === parameters.length);
-    return types.map((t, i) => encodeParameter(t, parameters[i])).join("")}
+    return encode(["tuple"].concat(types), parameters);
+}
 export const parametrizedContractCode = (code, types, parameters) =>
     code + encodeParameters(types, parameters)
