@@ -47,7 +47,7 @@
 */
 import {loggedAlert, byteToHex, registerInit, hexToAddress, hexTo0x, checkRequirement,
         merge, flip, logErrorK, random_uint256,
-        web3, userAddress,
+        web3, userAddress, errbacK,
         saltedDigest, registerBackendHooks, renderGame, config,
         toBN, optionalAddressOf0x, optionalAddressMatches, hexToBN, BNto0x,
         getGame, updateGame, removeActiveGame, queueGame, attemptGameCreation, optionalAddressTo0x,
@@ -305,7 +305,7 @@ export const createNewGame = (wagerInWei, escrowInWei, player1, hand0) => {
     // < https://github.com/MetaMask/metamask-extension/issues/3475 >.
     return attemptGameCreation(
         {salt, hand0, player0Commitment, player0, player1, timeoutInBlocks, wagerInWei, escrowInWei})(
-        contractFactory.player0_start_game)(
+        errbacK(contractFactory.player0_start_game))(
         optionalAddressTo0x(player1), timeoutInBlocks, player0Commitment, wagerInWei,
             {value: totalAmount})}
 

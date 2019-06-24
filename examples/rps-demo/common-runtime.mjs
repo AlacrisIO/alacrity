@@ -156,10 +156,10 @@ export const contractAbiConstructorTypes = abi =>
 
 // NB: if the types correspond to the abi from the contractAbi from which contract was initialized, then
 // deployParametrizedContract(code, types, parameters)(k, kErr) should be the same as:
-// errBacK(contract.new(...parameters, {data: contractCode})(x => k(x.transactionHash), kErr)
+// errbacK(contract.new(...parameters, {data: contractCode})(x => k(x.transactionHash), kErr)
 // except that we control what is done and can reasonably expect to verify the parameters indeed.
-export const deployParametrizedContract = (contractCode, types, parameters) =>
-    deployCode(encodeParametrizedContract(contractCode, types, parameters))
+export const deployParametrizedContract = (contractCode, types, parameters, txObj) =>
+    deployCode(encodeParametrizedContract(contractCode, types, parameters), txObj)
 
 
 
@@ -461,7 +461,7 @@ export const attemptGameCreation = game => func => (...args) => {
     // Could we save the TxHash locally *before* sending it online? Unhappily web3 doesn't allow that:
     // < https://github.com/MetaMask/metamask-extension/issues/3475 >.
     renderGame(id, "Creating Game:");
-    return errbacK(func)(...args)(
+    return func(...args)(
         txHash => confirmGame(id, {txHash}),
         error => {
             removeUnconfirmedGame(id);
@@ -640,7 +640,7 @@ export const contractAt = contractAddress => contract.at(contractAddress);
 /** Given some code in 0x form (.bin output from solc), deploy a contract with that code
     and CPS-return its transactionHash
     : String0x => KontE(txHash) */
-export const deployCode = code => sendTx(null)({data: code});
+export const deployCode = (code, txObj) => sendTx(null)({...txObj, data: code});
 
 export const deployFactoryContract = (k = kLogResult, kError = kLogError) =>
     deployCode(contractFactoryCode)(k, kError)

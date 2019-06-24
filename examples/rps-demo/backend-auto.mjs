@@ -24,10 +24,54 @@ import * as ala from "./rps.ala.js";
 ala, web3, renderGame, config, isValidHand, Outcome, outcomeOfHands, State,
 registerBackendHooks, registerRpsBackendHooks, player0RevealContext;
 
+
+
+/**
+   Note that since only consensual data is in the scope of the consensual computations
+   done at a given step (after receiving a message from a participant),
+   we can always hoist them above the private computations from each of the participants.
+   On the other hands, these private computations can reuse variables bound in public.
+
+   type ctc_proto = {
+     abi: JSON,
+     code: String0x,
+     web3_contract_proto: Object, // web3.eth.contract(abi)
+     roles_proto: Object(role_id, role_code)
+   }
+
+   type ctc = extend(ctc_proto, {
+     publicParameters: Array,
+     address: Address,
+     roles: Object(role_id, role_state),
+     web3_contract: Object, // web3.eth.contract(abi).at(address),
+     txHash: Object(msg, TxHash),
+   })
+ */
+
+export const contractProto = {
+    abi: Contract.abi,
+    code: Contract.contractCode,
+    web3_contract_proto: web3.eth.contract(Contract.abi),
+    roles_proto: ala,
+}
+
 export const contractConstructorTypes = contractAbiConstructorTypes(Contract.contractAbi)
 
-export const netDeployContract = (...parameters) =>
-    deployParametrizedContract(Contract.contractCode, contractConstructorTypes, parameters)
+export const deployABGame = (pA, pB) => (k, kError = kLogError) => {
+    attemptGameCreation(
+        contractProto + {publicParameters: [pA, pB]})(
+        deployParametrizedContract)(
+            contractProto.code, contractConstructorTypes, publicParameters, txObj)
+
+export const netDeployContract =
+    (contractProto, publicParameters, privateState, txObj) =>
+    (k, kError = kLogError) =>
+    attemptGameCreation(
+        contractProto + {publicParameters, privateState})(
+        deployParametrizedContract)(
+            contractProto.code, contractConstructorTypes, publicParameters, txObj)
+
+
 
 // TODO: mark the receive as triggering the continuation if it happens.
 // Hopefully, when we receive our own
@@ -158,7 +202,9 @@ and their ${renderWei(stakeInWei)} stake`);
             flip(logErrorK)(k))}
     return k()}
 
+
 // TODO #72: support for net.deploy. See in backend-manual createGame.
+// : (ctc_proto, ...parameters) => KontE(id, ctc)
 export const net_deploy = () => { }
 
 /** Accept a game of given id, playing given hand.
@@ -169,8 +215,8 @@ export const net_deploy = () => { }
  */
 export const net_attach = () => { }
 
-// TODO #72: move the list of topics and its initialization to common-runtime
-// in initContract.
+// TODO #72: move the list of topics and its initialization to
+// some general-purpose function in common-runtime that creates a "contract" object.
 // Just build a table (per contract kind?) from event type to topics[0] code
 // (and/or possibly the table back from code to name?) by walking the abi JSON.
 export const topics = {}
