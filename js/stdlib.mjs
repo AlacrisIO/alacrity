@@ -4,7 +4,7 @@ import * as crypto     from 'crypto';
 const web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:8545'));
 const toHex = web3.utils.toHex;
 const toBN = web3.utils.toBN;
-const random32Bytes = crypto.randomBytes(32);
+const random32Bytes = () => crypto.randomBytes(32);
 
 /** : string => String0x */
 const hexTo0x = hex => "0x" + hex;
