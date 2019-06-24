@@ -33,5 +33,6 @@ and the [Rock, Papers, Scissors demo](examples/rps-demo/) we are using as a benc
 
 If you're using Emacs:
 ```
-(add-to-list 'auto-mode-alist '(("\\.mjs$" . javascript-mode) ("\\.ala$" . javascript-mode)))
+(add-to-list 'auto-mode-alist '("\\.mjs$" . javascript-mode))
+(add-to-list 'auto-mode-alist '("\\.ala$" . javascript-mode))
 ```
