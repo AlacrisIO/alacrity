@@ -1,4 +1,5 @@
---- Copied from:
+
+-- This file was copied from:
 {-|
 Module      : Text.SExpression.Internal
 Description : Internal parser functions
