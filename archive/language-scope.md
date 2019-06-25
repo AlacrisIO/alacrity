@@ -856,12 +856,21 @@ See the [examples](examples/index.md) directory.
   but is semantically the same.
 
 * [DAML](https://daml.com) is the smart contract language of Digital Asset.
-  While a decent language as such, it doesn't seem particularly suited to writing
+  It looks like a great language for private permissioned blockchains,
+  where trust is enforced socially, with a good data model and a good transaction model;
+  its documentation bridges the gap between financial accounting and programming,
+  and makes for good DSL documentation;
+  the language is proudly a variant of Haskell, and seems all around well designed;
+  However, DAML doesn't seem particularly suited to writing
   contracts for public permissionless blockchains: no good obvious cost model,
-  use of wall clock time instead of block depth.
-  And of course, it's for contracts only, not for entire DApps.
+  use of wall clock time instead of block depth,
+  a privacy model that seems to assume a trusted third party to enforce it, etc.,
+  no notion of separate computation for each participant vs for the consensus.
+  In the end, it's yet another language for contracts only, not for entire DApps.
   It looks like you'd have to use continuation-passing style to represent
   any complex interaction.
+  Interestingly, we may use some of their [examples](https://github.com/digital-asset/ex-models)
+  as benchmarks to compare against.
 
 * [Dovetail](https://community.tibco.com/wiki/project-dovetail) by TIBCO
   tries to abstract smart contract creation using a graphical language.
