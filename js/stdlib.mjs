@@ -154,7 +154,7 @@ function typeIsDynamic(type) {
     return (type === "bytes")
            || (Array.isArray(type)
                && (type[0] === "tuple")
-               && (type.slice(1).every(typeIsDynamic)))
+               && (type.slice(1).some(typeIsDynamic)))
 }
 function typeHeadSize(type) {
     if (typeIsDynamic(type)) {
@@ -186,14 +186,14 @@ export function encode(type, value) {
         // ptr and heads are mutable!
         let ptr = types.map(typeHeadSize).reduce((a,b) => a + b, 0);
         let heads = [];
-        let tails = types.map((v,i) => {
-            if (typeIsDynamic(v)) {
-                heads[i] = ptr;
-                let tail = encode(v);
+        let tails = types.map((t,i) => {
+            if (typeIsDynamic(t)) {
+                heads[i] = nat256ToHex(ptr);
+                let tail = encode(t, value[i]);
                 ptr += (tail.length / 2);
                 return tail;
             } else {
-                heads[i] = encode(v)
+                heads[i] = encode(t, value[i]);
                 return "";
             }
         });
