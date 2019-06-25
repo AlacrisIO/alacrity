@@ -10,8 +10,12 @@
 		"web3": "^1.0.0-beta.55"
 	},
 	"ava": {
-		"require": ["esm"],
+		"require": [
+			"esm"
+		],
 		"babel": false,
-		"extensions": ["mjs"]
+		"extensions": [
+			"mjs"
+		]
 	}
 }

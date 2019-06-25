@@ -6,6 +6,12 @@ const toHex = web3.utils.toHex;
 const toBN = web3.utils.toBN;
 const random32Bytes = () => crypto.randomBytes(32);
 
+// TODO: delete this when BNtoHex gets fixed
+// ASSUME: Number.isInteger(n) && 0 <= n && n < 2^256
+function nat256ToHex(n) {
+    return n.toString(16).padStart(64, "0");
+}
+
 /** : string => String0x */
 const hexTo0x = hex => "0x" + hex;
 
@@ -163,16 +169,16 @@ function typeHeadSize(type) {
 }
 export function encode(type, value) {
     if (type === "uint256") {
-        return BNtoHex(value);
+        return nat256ToHex(value);
     } else if (type === "bool") {
-        return BNtoHex(value ? 1 : 0);
+        return nat256ToHex(value ? 1 : 0);
     } else if (type === "address") {
-        return BNtoHex(value);
+        return nat256ToHex(value);
     } else if (type === "bytes") {
         // js-length = 2 * logical-length
         let k = value.length / 2;
         let kpad = nextMultiple(k, 32);
-        return BNtoHex(k) + value.padEnd(2 * kpad, "0");
+        return nat256ToHex(k) + value.padEnd(2 * kpad, "0");
     } else if (Array.isArray(type) && (type[0] === "tuple")) {
         let types = type.slice(1);
         let k = types.length;
