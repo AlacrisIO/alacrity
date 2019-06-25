@@ -67,43 +67,43 @@ define_participant B = {
 const main = () => {
 
 // (@ A (assume! (hand? A-hand)))
-A @ { assume(hand(A_hand)); }
+@A { assume(hand(A_hand)); }
 
 // (@ B (assume! (hand? B-hand)))
-B @ { assume(hand B_hand); }
+@B { assume(hand B_hand); }
 
 // (@ A (define-values (A-commit A-salt) (precommit A-hand)))
-A @ { const A_commit = precommit, A_salt = A_hand; }
+@A { const A_commit = precommit, A_salt = A_hand; }
 
 // (@ A (declassify! wager-amount))
-A @ { declassify(wager_amount); }
+@A { declassify(wager_amount); }
 
 // (@ A (declassify! escrow-amount))
-A @ { declassify(escrow_amount); }
+@A { declassify(escrow_amount); }
 
 // (@ A (declassify! A-commit))
-A @ { declassify(A_commit); }
+@A { declassify(A_commit); }
 
 // (@ A (publish! wager-amount escrow-amount A-commit)
 //      (pay! (+ wager-amount escrow-amount)))
-A @ { publish! {wager_amount, escrow_amount, A_commit};
-      pay! (wager_amount + escrow_amount); }
+@A { publish! {wager_amount, escrow_amount, A_commit};
+     pay! (wager_amount + escrow_amount); }
 
 // (@ B (declassify! B-hand))
-B @ { declassify(B_hand); }
+@B { declassify(B_hand); }
 
 // (@ B (publish! B-hand) (pay! wager-amount)
 //      (require! (hand? B-hand)))
 // $1. Is `require!` a special concept as well?
-B @ { publish! {B_hand};
+@B { publish! {B_hand};
       pay! wager_amount;
       require! hand(B_hand); }
 
 // (@ A (declassify! A-salt))
-A @ { declassify(A_salt); }
+@B { declassify(A_salt); }
 
 // (@ A (declassify! A-hand))
-A @ { declassify(A_hand); }
+@A { declassify(A_hand); }
 
 // (@ A (publish! A-salt A-hand) (pay! 0)
 //      (check-commit! A-commit A-salt A-hand)
@@ -121,28 +121,28 @@ A @ { declassify(A_hand); }
 //           (values (+ wager-amount escrow-amount) wager-amount)]))
 //      (transfer! A A-gets)
 //      (transfer! B B-gets))
-A @ { publish! {A_salt, A_hand};
-      pay! 0;
-      check_commit(A_commit, A_salt, A_hand);
-      require! hand(A_hand);
-      const outcome = RPS_outcome(A_hand, B_hand);
-      // $2
-      assert((outcome = A_WINS) implies hand(A_hand));
-      assert((outcome = B_WINS) implies hand(B_hand));
-      const gets = () => {
-        if (outcome == A_WINS) {
-          ((2 * wager_amount) + escrow_amount), 0;
-        }
-        else if (outcome == B_WINS) {
-          escrow_amount, (2 * wager_amount);
-        }
-        else {
-          (wager_amount + escrow_amount), wager_amount;
-        }
-      };
-      const A_gets, B_gets = gets();
-      transfer(A, A_gets);
-      transfer(B, B_gets); }
+@A { publish! {A_salt, A_hand};
+     pay! 0;
+     check_commit(A_commit, A_salt, A_hand);
+     require! hand(A_hand);
+     const outcome = RPS_outcome(A_hand, B_hand);
+     // $2
+     assert((outcome = A_WINS) implies hand(A_hand));
+     assert((outcome = B_WINS) implies hand(B_hand));
+     const gets = () => {
+       if (outcome == A_WINS) {
+         ((2 * wager_amount) + escrow_amount), 0;
+       }
+       else if (outcome == B_WINS) {
+         escrow_amount, (2 * wager_amount);
+       }
+       else {
+         (wager_amount + escrow_amount), wager_amount;
+       }
+     };
+     const A_gets, B_gets = gets();
+     transfer(A, A_gets);
+     transfer(B, B_gets); }
 
 // (possible? (= outcome A_WINS))
 possible(outcome = A_WINS)
