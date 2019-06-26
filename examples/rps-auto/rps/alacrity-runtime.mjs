@@ -18,16 +18,21 @@ const isBigInt = x =>
   && x.isInteger();
 
 // TODO shouldn't this throw or abort somehow?
-// Used by msg_cat to encode the left_length 16-bit unsigned integer
-// as 2 hex bytes or 4 hex characters
-const nat16_to_fixed_size_hex = n => {
-  // 2^16 = 1 << 16
-  if (!(Number.isInteger(n) && 0 <= n && n < (1 << 16))) {
-    console.error('nat16_to_fixed_size_hex: expected a nat that can fit into 16 bits');
+// Encodes an unsigned integer as size hex bytes or (2*size) hex characters
+const nat_to_fixed_size_hex = size => n => {
+  if (!(Number.isInteger(n) && 0 <= n)) {
+    console.error('nat_to_fixed_size_hex: expected a nat');
   }
-  // 16 bits = 2 bytes = 4 hex characters
-  return n.toString(16).padStart(4, '0');
+  if (!(Math.ceil(Math.log2(n + 1) / 8) < size)) {
+    console.error('nat_to_fixed_size_hex: expected a nat that can fit into ' + size.toString() + ' bytes');
+  }
+  // size bytes = (2*size) hex characters
+  return n.toString(16).padStart((2*size), '0');
 };
+// Encodes a 16-bit unsigned integer as 2 hex bytes or 4 hex characters
+const nat16_to_fixed_size_hex = nat_to_fixed_size_hex(2);
+// Encodes a 256-bit unsigned integer as 32 hex bytes or 64 hex characters
+const nat256_to_fixed_size_hex = nat_to_fixed_size_hex(32);
 
 // Used by both msg_left and msg_right to see when the left stops and the right
 // starts - 16 bits = 2 bytes = 4 hex characters
@@ -107,7 +112,79 @@ const sub   = web3 => (a, b) => toBN(web3)(a).sub(toBN(web3)(b));
 const mod   = web3 => (a, b) => toBN(web3)(a).mod(toBN(web3)(b));
 const mul   = web3 => (a, b) => toBN(web3)(a).mul(toBN(web3)(b));
 
-/////////////////////////////
+// --------------------------------------------------------
+
+/** Minimal variants of web3.js's web3.eth.abi functions that only support:
+     * uint256
+     * bool
+     * address
+     * bytes
+     * ["tuple", type ...]
+    because we can only use web3 0.20.x at this time (which is what metamask provides).
+    Documentation for encoding:
+    https://solidity.readthedocs.io/en/v0.5.9/abi-spec.html?highlight=abi.encode#formal-specification-of-the-encoding
+    NB: they are meant as the JS analogues to Solidity's abi.encode.
+  */
+function typeIsDynamic(type) {
+  return (type === "bytes")
+         || (Array.isArray(type)
+             && (type[0] === "tuple")
+             && (type.slice(1).some(typeIsDynamic)))
+}
+function typeHeadSize(type) {
+  if (typeIsDynamic(type)) {
+      return 32;
+  } else if (type === "uint256" || type === "bool" || type === "address") {
+      return 32;
+  } else if (Array.isArray(type) && (type[0] === "tuple")) {
+      return type.slice(1).map(typeHeadSize).reduce((a,b) => a + b, 0);
+  } else {
+      console.error("encode: unsupported type");
+  }
+}
+export function encode(type, value) {
+  if (type === "uint256") {
+      return nat256_to_fixed_size_hex(value);
+  } else if (type === "bool") {
+      return nat256_to_fixed_size_hex(value ? 1 : 0);
+  } else if (type === "address") {
+      return nat256_to_fixed_size_hex(value);
+  } else if (type === "bytes") {
+      // js-length = 2 * logical-length
+      let k = value.length / 2;
+      let kpad = nextMultiple(k, 32);
+      return nat256_to_fixed_size_hex(k) + value.padEnd(2 * kpad, "0");
+  } else if (Array.isArray(type) && (type[0] === "tuple")) {
+      let types = type.slice(1);
+      let k = types.length;
+      assert(k === value.length);
+      // ptr and heads are mutable!
+      let ptr = types.map(typeHeadSize).reduce((a,b) => a + b, 0);
+      let heads = [];
+      let tails = types.map((t,i) => {
+          if (typeIsDynamic(t)) {
+              heads[i] = nat256_to_fixed_size_hex(ptr);
+              let tail = encode(t, value[i]);
+              ptr += (tail.length / 2);
+              return tail;
+          } else {
+              heads[i] = encode(t, value[i]);
+              return "";
+          }
+      });
+      return heads.concat(tails).join("");
+  } else {
+      console.error("encode: unsupported type");
+  }
+}
+export const encodeParameters = (types, parameters) => {
+  assert(types.length === parameters.length);
+  return encode(["tuple"].concat(types), parameters);
+}
+export const parametrizedContractCode = (code, types, parameters) =>
+  code + encodeParameters(types, parameters)
+
+// --------------------------------------------------------
 
 
 const mkStdlib = (web3, random32Bytes, asserter) =>
