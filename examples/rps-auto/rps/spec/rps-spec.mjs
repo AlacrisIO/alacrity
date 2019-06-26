@@ -110,7 +110,7 @@ const mkRecv = (web3, contractAbi, address) => (eventName, cb) =>
       // TODO FIXME replace arbitrary delay with something more intelligent to
       // mitigate mystery race condition
       web3.eth.getTransaction(e.transactionHash, k(stdlib.panic, t =>
-        setTimeout(() => cb(...bns, t.value), 1000)));
+        setTimeout(() => cb(...bns, t.value), 2000)));
     });
 
 const Contract = (web3, userAddress) => (abi, code, player1Addr, player2Addr, address) =>
