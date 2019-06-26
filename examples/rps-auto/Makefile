@@ -15,15 +15,14 @@ all: contract lint
 
 .PHONY: all contract test lint run_ethereum
 
-AUTO_CONTRACT_OUTPUTS=build/contract.mjs
 ALAB=../../hs/alacrity/ala/_build
 
-contract: $(AUTO_CONTRACT_OUTPUTS)
-$(AUTO_CONTRACT_OUTPUTS): $(ALAB)/ALAContract.bin $(ALAB)/ALAContract.abi
+contract:
+	$(HIDE) cd ../../hs/alacrity && stack test && cd ../../examples/rps-auto
 	$(HIDE) mkdir -p build
 	$(HIDE) (echo "export const contractAbi = `cat $(ALAB)/ALAContract.abi`;"; \
 	echo; echo "export const contractCode = \"0x`cat $(ALAB)/ALAContract.bin`\";"; \
-	) > $@
+	) > build/contract.mjs
 
 lint:
 	$(HIDE) `npm bin`/eslint -c .eslintrc.yaml rps/*.mjs

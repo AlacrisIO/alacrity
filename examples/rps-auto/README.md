@@ -11,10 +11,23 @@ targets described below.
 
 # Tests
 Invoke the following (in order) to run the test suite:
-- `make run_ethereum` (will clear previous network state and restart if already
-  running)
-- `make contract`
-- `make test`
+
+```bash
+# (Will clear previous network state and restart `geth` if already running)
+$ make run_ethereum
+
+# Wait a moment to allow `geth` to catch up...
+
+# (Re-)compile the contract ABI + bytecode
+$ make contract
+
+# Launch the test suite
+$ make test
+
+# Don't forget to shut down `geth` afterward so it's not taking up system
+# resources unnecessarily
+$ killall geth
+```
 
 *If `make test` fails with an `Error: Invalid JSON RPC response: undefined`
 exception you should try again but wait a few moments between the
