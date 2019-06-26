@@ -171,16 +171,16 @@ function typeHeadSize(type) {
 }
 export function encode(type, value) {
     if (type === "uint256") {
-        return nat256_to_fixed_size_hex(value);
+        return BNtoHex(value);
     } else if (type === "bool") {
-        return nat256_to_fixed_size_hex(value ? 1 : 0);
+        return BNtoHex(value ? 1 : 0);
     } else if (type === "address") {
-        return nat256_to_fixed_size_hex(value);
+        return BNtoHex(value);
     } else if (type === "bytes") {
         // js-length = 2 * logical-length
         let k = value.length / 2;
         let kpad = nextMultiple(k, 32);
-        return nat256_to_fixed_size_hex(k) + value.padEnd(2 * kpad, "0");
+        return BNtoHex(k) + value.padEnd(2 * kpad, "0");
     } else if (Array.isArray(type) && (type[0] === "tuple")) {
         let types = type.slice(1);
         let k = types.length;
@@ -190,7 +190,7 @@ export function encode(type, value) {
         let heads = [];
         let tails = types.map((t,i) => {
             if (typeIsDynamic(t)) {
-                heads[i] = nat256_to_fixed_size_hex(ptr);
+                heads[i] = BNtoHex(ptr);
                 let tail = encode(t, value[i]);
                 ptr += (tail.length / 2);
                 return tail;
