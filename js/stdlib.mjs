@@ -210,3 +210,41 @@ export const encodeParameters = (types, parameters) => {
 }
 export const parametrizedContractCode = (code, types, parameters) =>
     code + encodeParameters(types, parameters)
+
+export function decode(type, bytes) {
+    if (type === "uint256") {
+        return parseInt(bytes, 16);
+    } else if (type === "bool") {
+        return !(parseInt(bytes, 16) === 0);
+    } else if (type === "address") {
+        return parseInt(bytes, 16);
+    } else if (type === "bytes") {
+        // 256 bits = 32 bytes = 64 hex characters
+        let k = parseInt(bytes.slice(0, 64), 16);
+        // js-length = 2 * logical-length
+        return bytes.slice(64, 64 + (2*k));
+    } else if (Array.isArray(type) && (type[0] === "tuple")) {
+        let types = type.slice(1);
+        // i is mutable!
+        let i = 0;
+        return types.map(t => {
+            let j = i + typeHeadSize(t);
+            // js-length = 2 * logical-length
+            let bs = bytes.slice(2*i, 2*j);
+            i = j;
+            if (typeIsDynamic(t)) {
+                // follow the pointer
+                let ptr = parseInt(bs, 16);
+                return decode(t, bytes.slice(2*ptr))
+            } else {
+                // get the value directly
+                return decode(t, bs);
+            }
+        });
+    } else {
+        console.error("encode: unsupported type");
+    }
+}
+export const decodeParameters = (types, bytes) => {
+    return decode(["tuple"].concat(types), bytes);
+}
