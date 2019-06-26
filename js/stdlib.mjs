@@ -3,7 +3,7 @@ import * as crypto     from 'crypto';
 
 const web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:8545'));
 const toHex = web3.utils.toHex;
-const toBN = web3.utils.toBN;
+export const toBN = web3.utils.toBN;
 const random32Bytes = () => crypto.randomBytes(32);
 
 /** : string => String0x */
@@ -213,11 +213,14 @@ export const parametrizedContractCode = (code, types, parameters) =>
 
 export function decode(type, bytes) {
     if (type === "uint256") {
-        return parseInt(bytes, 16);
+        return hexToBN(bytes);
     } else if (type === "bool") {
-        return !(parseInt(bytes, 16) === 0);
+        return !(hexToBN(bytes, 16).isZero());
     } else if (type === "address") {
-        return parseInt(bytes, 16);
+        // logical-length 12 = js-length 24
+        // logical-length 32 = js-length 64
+        assert(bytes.slice(0, 24) === "00".repeat(12));
+        return bytes.slice(24, 64);
     } else if (type === "bytes") {
         // 256 bits = 32 bytes = 64 hex characters
         let k = parseInt(bytes.slice(0, 64), 16);
