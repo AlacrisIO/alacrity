@@ -18,9 +18,12 @@ const byteArrayToHex = byteArray => Array.from(byteArray, byteToHex).join('');
 // BigNumbers
 const isBigInt = x => typeof x === "object" && typeof x.isInteger === "function" && x.isInteger();
 const hexToBN = hex => toBN(hexTo0x(hex));
-const BNtoHex = (u, nBytes = 32) => {
-    const p = toBN(256).pow(nBytes); // v--- p.mul(2) so it works on negative numbers, too.
-    return toHex(toBN(u).mod(p).add(p.mul(2))).slice(3);
+const BNtoHex = (u, size = 32) => {
+    let n = toBN(u);
+    if (!(Math.ceil(n.bitLength() / 8) <= size)) {
+        console.error("BNtoHex: expected a BN that can fit into " + size.toString() + "bytes");
+    }
+    return n.toTwos(8 * size).toString(16, 2 * size);
 }
 function nextMultiple(x, n) {
     return Math.ceil(x / n) * n;
@@ -30,7 +33,7 @@ function nextMultiple(x, n) {
 const digestHex = x => Web3.prototype.sha3(x, {encoding: "hex"});
 
 // Gets the hex bytes of a number or byte-string, without the 0x prefix
-const hexOf = x => {
+export const hexOf = x => {
     if (typeof x === "number") {
         return BNtoHex(toBN(x));
     }
@@ -88,7 +91,7 @@ const nat_to_fixed_size_hex = size => n => {
     if (!(Number.isInteger(n) && 0 <= n)) {
         console.error('nat_to_fixed_size_hex: expected a nat');
     }
-    if (!(Math.ceil(Math.log2(n + 1) / 8) < size)) {
+    if (!(Math.ceil(Math.log2(n + 1) / 8) <= size)) {
       console.error('nat_to_fixed_size_hex: expected a nat that can fit into ' + size.toString() + ' bytes');
     }
     // size bytes = (2*size) hex characters

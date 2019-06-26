@@ -2,6 +2,26 @@ import * as Stdlib from './stdlib.mjs';
 
 import test from 'ava';
 
+test('BNtoHex positive', t => {
+	t.deepEqual(Stdlib.hexOf(0), "0000000000000000000000000000000000000000000000000000000000000000");
+	t.deepEqual(Stdlib.hexOf(1), "0000000000000000000000000000000000000000000000000000000000000001");
+	t.deepEqual(Stdlib.hexOf(10), "000000000000000000000000000000000000000000000000000000000000000a");
+	t.deepEqual(Stdlib.hexOf(25), "0000000000000000000000000000000000000000000000000000000000000019");
+	t.deepEqual(Stdlib.hexOf(30), "000000000000000000000000000000000000000000000000000000000000001e");
+	t.deepEqual(
+		Stdlib.hexOf(5463728190),
+		"0000000000000000000000000000000000000000000000000000000145a9e03e");
+});
+
+test('BNtoHex negative', t => {
+	t.deepEqual(Stdlib.hexOf(-1), "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+	t.deepEqual(Stdlib.hexOf(-10), "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff6");
+	t.deepEqual(Stdlib.hexOf(-30), "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe2");
+	t.deepEqual(
+		Stdlib.hexOf(-5463728190),
+		"fffffffffffffffffffffffffffffffffffffffffffffffffffffffeba561fc2");
+});
+
 test('encode uint256', t => {
 	t.deepEqual(
 		Stdlib.encode("uint256", 99),

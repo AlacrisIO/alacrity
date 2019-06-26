@@ -23,7 +23,7 @@ const nat_to_fixed_size_hex = size => n => {
   if (!(Number.isInteger(n) && 0 <= n)) {
     console.error('nat_to_fixed_size_hex: expected a nat');
   }
-  if (!(Math.ceil(Math.log2(n + 1) / 8) < size)) {
+  if (!(Math.ceil(Math.log2(n + 1) / 8) <= size)) {
     console.error('nat_to_fixed_size_hex: expected a nat that can fit into ' + size.toString() + ' bytes');
   }
   // size bytes = (2*size) hex characters
@@ -59,13 +59,17 @@ const digestHex        = web3 => x => web3.sha3(x, { encoding: 'hex' });
 const keccak256        = web3 => b => digestHex(web3)(hexOf(web3)(b));
 const uint256_to_bytes = web3 => i => BNtoHex(web3)(i);
 
-const BNtoHex = web3 => (u, n = 32) => {
-  const p = toBN(web3)(256).pow(n);
-
-  // `p.mul(2)` so it works on negative numbers, too.
-  return web3
-    .toHex(toBN(web3)(u).mod(p).add(p.mul(2)))
-    .slice(3);
+const BNtoHex = web3 => (u, size = 32) => {
+  let n = toBN(web3)(u);
+  // TODO: if/when we switch to web3 v1.0:
+  //       return n.toTwos(8 * size).toString(16, 2 * size);
+  if (n.isNegative()) {
+    let top = toBN(web3)(256).pow(size);
+    let nTwos = n.modulo(top).add(top);
+    return nTwos.toString(16).padStart(2 * size, "f");
+  } else {
+    return n.toString(16).padStart(2 * size, "0");
+  }
 };
 
 // Gets the hex bytes of a number or byte-string, without the 0x prefix
