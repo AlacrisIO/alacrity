@@ -125,6 +125,17 @@ setup.***
 
 
 # Linting
-The JavaScript code under the `rps/` directory can also be style-checked with
-`make lint`. You won't see any output unless there are warnings and/or errors
-to report.
+The JavaScript code under the `rps/` directory can also be style-checked with:
+
+```bash
+$ make lint
+```
+
+You won't see any output unless there are warnings and/or errors to report.
+
+# Logs
+To watch your private `geth` network's progress in real time you can invoke:
+
+```bash
+$ make logs
+```

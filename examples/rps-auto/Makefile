@@ -13,7 +13,7 @@ HIDE:=$(if $(VERBOSE),,@)
 
 all: contract lint
 
-.PHONY: all contract test lint run_ethereum
+.PHONY: all contract test lint run_ethereum logs
 
 ALAB=../../hs/alacrity/ala/_build
 
@@ -32,3 +32,6 @@ run_ethereum:
 
 test:
 	$(HIDE) node --experimental-modules rps/spec/index.mjs
+
+logs:
+	$(HIDE) tail -f ../../_ethereum/geth-data/logs/testnet.log
