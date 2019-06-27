@@ -100,19 +100,19 @@ Invoke the following (in order) to run the test suite:
 
 ```bash
 # (Will clear previous network state and restart `geth` if already running)
-$ make run_ethereum
+$ make start_geth
 
 # Wait a moment to allow `geth` to catch up...
 
 # (Re-)compile the contract ABI + bytecode
-$ make contract
+$ make build
 
 # Launch the test suite
 $ make test
 
 # Don't forget to shut down `geth` afterward so it's not taking up system
 # resources unnecessarily
-$ killall geth
+$ make stop_geth
 ```
 
 *If `make test` fails with an `Error: Invalid JSON RPC response: undefined`
