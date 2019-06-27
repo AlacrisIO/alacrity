@@ -1,5 +1,5 @@
 #lang alacrity/exe
-(require "../../../sol/stdlib.ala")
+(require "../../../ala/stdlib.ala")
 
 (define-values (ROCK PAPER SCISSORS) (values 0 1 2))
 (define (hand? x)

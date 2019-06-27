@@ -2,7 +2,7 @@
 
 import Web3       from 'web3';
 import ethers     from 'ethers';
-import * as RPS   from '../rps.ala.mjs';
+import * as RPS   from '../../build/rps.mjs';
 import { stdlib } from '../alacrity-runtime.mjs';
 
 jasmine.DEFAULT_TIMEOUT_INTERVAL = 60 * 1000 * 10;

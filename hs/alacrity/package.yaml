@@ -9,7 +9,6 @@ copyright:           "2019 Alacris"
 extra-source-files:
 - README.md
 - ChangeLog.md
-- ala/*.ala
 
 description:         Please see the README on GitHub at <https://github.com/AlacrisIO/alacrity#readme>
 
@@ -32,6 +31,8 @@ dependencies:
 - simple-smt
 - aeson
 - unordered-containers
+- optparse-applicative
+- system-filepath
 
 ghc-options:
 - -Wall

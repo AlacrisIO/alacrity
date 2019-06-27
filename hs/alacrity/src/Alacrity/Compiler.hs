@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Alacrity.Compiler where
 
 import Control.Monad.State.Lazy
@@ -6,6 +8,7 @@ import qualified Data.Set as Set
 import qualified Data.Sequence as S
 import Data.Text.Prettyprint.Doc
 import System.Exit
+import qualified Filesystem.Path.CurrentOS as FP
 
 import Alacrity.AST
 import Alacrity.Parser
@@ -551,18 +554,23 @@ epp (IL_Prog ips it) = BL_Prog bps cp
         initarg ((n, s), et) = ((n, s), (et, Secret))
         γ = M.insert RoleContract M.empty γi
 
-compile :: FilePath -> IO ()
-compile srcp = do
+data CompilerOpts = CompilerOpts
+  { output_dir :: FilePath
+  , source :: FilePath }
+
+compile :: CompilerOpts -> IO ()
+compile copts = do
+  let srcp = source copts
+  let out ext = FP.encodeString $ FP.append (FP.decodeString $ output_dir copts) (FP.basename (FP.decodeString srcp) `FP.addExtension` ext)
   xlp <- readAlacrityFile srcp
-  writeFile (srcp ++ ".xl") (show (pretty xlp))
+  writeFile (out "xl") (show (pretty xlp))
   let xilp = inline xlp
-  writeFile (srcp ++ ".xil") (show (pretty xilp))
+  writeFile (out "xil") (show (pretty xilp))
   let ilp = anf xilp
-  writeFile (srcp ++ ".il") (show (pretty ilp))
+  writeFile (out "il") (show (pretty ilp))
   let blp = epp ilp
-  writeFile (srcp ++ ".bl") (show (pretty blp))
-  verify_z3 (srcp ++ ".z3") ilp blp
-  cs <- compile_sol (srcp ++ ".sol") blp
-  writeFile (srcp ++ ".mjs") (show (emit_js blp cs))
+  writeFile (out "bl") (show (pretty blp))
+  verify_z3 (out "z3") ilp blp
+  cs <- compile_sol (out "sol") blp
+  writeFile (out "mjs") (show (emit_js blp cs))
   exitSuccess
-    

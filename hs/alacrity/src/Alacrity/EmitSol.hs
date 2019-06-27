@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Alacrity.EmitSol where
 
@@ -13,7 +13,6 @@ import System.Exit
 import Data.Aeson
 
 import Alacrity.AST
-import Alacrity.Util
 
 {- AST add-ons
  -}
@@ -284,12 +283,18 @@ extract v = (abi, code)
 compile_sol :: String -> BLProgram -> IO CompiledSol
 compile_sol solf blp = do
   writeFile solf (show (emit_sol blp))
+  --- XXX This allow paths is brittle and forces a symlink
   ( ec, stdout, stderr ) <- readProcessWithExitCode "solc" ["--allow-paths", ".", "--combined-json", "abi,bin", solf] []
-  maybeDie $ return ec
-  case (eitherDecode $ B.pack stdout) of
-    Right v -> return $ extract v
-    Left err ->
-      die $ "solc failed to produce valid output:\n" 
+  case ec of
+    ExitFailure _ ->
+      die $ "solc errored:\n"
       ++ "STDOUT:\n" ++ stdout ++ "\n"
       ++ "STDERR:\n" ++ stderr ++ "\n"
-      ++ "Decode Error:\n" ++ err ++ "\n"
+    ExitSuccess ->
+      case (eitherDecode $ B.pack stdout) of
+        Right v -> return $ extract v
+        Left err ->
+          die $ "solc failed to produce valid output:\n" 
+          ++ "STDOUT:\n" ++ stdout ++ "\n"
+          ++ "STDERR:\n" ++ stderr ++ "\n"
+          ++ "Decode Error:\n" ++ err ++ "\n"

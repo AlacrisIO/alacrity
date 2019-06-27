@@ -1,19 +1,25 @@
-# Requirements: you need to install the solidity compiler, version 0.5.2 or later
+.PHONY: all build test lint start_geth stop_geth logs
 
-all: contract lint
+export STACK_YAML=../../hs/alacrity/stack.yaml
 
-.PHONY: all contract test lint run_ethereum logs
+all: start_geth test stop_geth
 
-contract:
-	cd ../../hs/alacrity && stack test && cd ../../examples/rps-auto
+build: build/rps.ala.mjs
+
+build/rps.ala.mjs: rps/rps.ala
+	stack build
+	stack exec -- alacrityc -o build $^
 
 lint:
 	`npm bin`/eslint -c .eslintrc.yaml rps/*.mjs
 
-run_ethereum:
+start_geth:
 	../../scripts/ethereum-devnet/run.sh
 
-test:
+stop_geth:
+	killall geth
+
+test: build/rps.ala.mjs
 	node --experimental-modules rps/spec/index.mjs
 
 logs:

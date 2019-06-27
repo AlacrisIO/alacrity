@@ -154,7 +154,8 @@ emit_js :: BLProgram -> CompiledSol -> Doc a
 emit_js (BL_Prog pm _) (abi, code) = modp
   where modp = vsep_with_blank $ (stdlibp : partsp) ++ [ abip, codep ]
         partsp = map jsPart $ M.toList pm
-        stdlibp = pretty "import { stdlib } from './alacrity-runtime.mjs';"
+        --- XXX This is terrible... we need a better way
+        stdlibp = pretty "import { stdlib } from '../rps/alacrity-runtime.mjs';"
         abip = pretty $ "export const ABI = " ++ abi ++ ";"
         codep = pretty $ "export const Bytecode = " ++ code ++ ";"
         
