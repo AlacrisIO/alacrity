@@ -54,13 +54,13 @@ const RPS_outcome = (A_hand, B_hand) => {
 //   [A-hand : uint256])
 // (define-participant B
 //   [B-hand : uint256])
-define_participant A = {
-  wager_amount : uint256,
-  escrow_amount : uint256,
-  A_hand : uint256
+participant A {
+  uint256 wager_amount;
+  uint256 escrow_amount;
+  uint256 A_hand;
 }
-define_participant B = {
-  B_hand : uint256
+participant B {
+  uint256 B_hand;
 }
 
 // #:main
@@ -86,8 +86,8 @@ const main = () => {
 
 // (@ A (publish! wager-amount escrow-amount A-commit)
 //      (pay! (+ wager-amount escrow-amount)))
-@A { publish! {wager_amount, escrow_amount, A_commit};
-     pay! (wager_amount + escrow_amount); }
+@A { publish {wager_amount, escrow_amount, A_commit};
+     pay (wager_amount + escrow_amount); }
 
 // (@ B (declassify! B-hand))
 @B { declassify(B_hand); }
@@ -95,9 +95,9 @@ const main = () => {
 // (@ B (publish! B-hand) (pay! wager-amount)
 //      (require! (hand? B-hand)))
 // $1. Is `require!` a special concept as well?
-@B { publish! {B_hand};
-      pay! wager_amount;
-      require! hand(B_hand); }
+@B { publish {B_hand};
+      pay wager_amount;
+      require hand(B_hand); }
 
 // (@ A (declassify! A-salt))
 @B { declassify(A_salt); }
@@ -121,10 +121,10 @@ const main = () => {
 //           (values (+ wager-amount escrow-amount) wager-amount)]))
 //      (transfer! A A-gets)
 //      (transfer! B B-gets))
-@A { publish! {A_salt, A_hand};
-     pay! 0;
+@A { publish {A_salt, A_hand};
+     pay 0;
      check_commit(A_commit, A_salt, A_hand);
-     require! hand(A_hand);
+     require hand(A_hand);
      const outcome = RPS_outcome(A_hand, B_hand);
      // $2
      assert((outcome = A_WINS) implies hand(A_hand));
