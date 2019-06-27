@@ -2,7 +2,6 @@
 
 import Web3       from 'web3';
 import ethers     from 'ethers';
-import * as C     from '../../build/contract.mjs';
 import * as RPS   from '../rps.ala.mjs';
 import { stdlib } from '../alacrity-runtime.mjs';
 
@@ -34,7 +33,7 @@ const PREFUNDED_PRIVATE_NET_ACCT =
 
 
 const contractCodeWithCtors = (player1Addr, player2Addr) =>
-  [ C.contractCode
+  [ RPS.Bytecode
   , encodePlayer(player1Addr)
   , encodePlayer(player2Addr)
   ].join('');
@@ -211,7 +210,7 @@ const runGameWith = (alice, bob) => {
       RPS.A(ctc, interact, wagerInWei, escrowInWei, 0, resolve));
 
   return alice
-    .deploy(C.contractAbi, contractCode, accts.alice, accts.bob)
+    .deploy(RPS.ABI, contractCode, accts.alice, accts.bob)
     .then(ctc => Promise.all([ bobShootScissors(ctc), aliceShootRock(ctc) ]));
 };
 

@@ -562,7 +562,7 @@ compile srcp = do
   let blp = epp ilp
   writeFile (srcp ++ ".bl") (show (pretty blp))
   verify_z3 (srcp ++ ".z3") ilp blp
-  writeFile (srcp ++ ".sol") (show (emit_sol blp))
-  writeFile (srcp ++ ".mjs") (show (emit_js blp))
+  cs <- compile_sol (srcp ++ ".sol") blp
+  writeFile (srcp ++ ".mjs") (show (emit_js blp cs))
   exitSuccess
     

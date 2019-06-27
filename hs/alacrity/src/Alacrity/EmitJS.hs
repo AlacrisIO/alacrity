@@ -5,7 +5,11 @@ import Data.List (intersperse)
 import Data.Text.Prettyprint.Doc
 
 import Alacrity.AST
-import Alacrity.EmitSol (solMsg_evt, solMsg_fun, solType)
+import Alacrity.EmitSol
+  ( solMsg_evt
+  , solMsg_fun
+  , solType
+  , CompiledSol )
 
 {- Compilation to Javascript
 
@@ -143,13 +147,14 @@ jsPart (p, (EP_Prog pargs et)) =
   where pargs_vs = map jsVar pargs
         bodyp = jsEPTail et
 
-emit_js :: BLProgram -> Doc a
-emit_js (BL_Prog pm _) = modp
-  where modp = vsep_with_blank ( pretty "import { stdlib } from './alacrity-runtime.mjs';"
-                                 : pretty "/* XXX export const ABI = Copy the ABI from the solc output; */"
-                                 : pretty "/* XXX export const Bytecode = \"0x Copy the bytecode from the solc output\"; */"
-                                 : partsp )
-        partsp = map jsPart $ M.toList pm
-
 vsep_with_blank :: [Doc a] -> Doc a
 vsep_with_blank l = vsep $ intersperse emptyDoc l
+
+emit_js :: BLProgram -> CompiledSol -> Doc a
+emit_js (BL_Prog pm _) (abi, code) = modp
+  where modp = vsep_with_blank $ (stdlibp : partsp) ++ [ abip, codep ]
+        partsp = map jsPart $ M.toList pm
+        stdlibp = pretty "import { stdlib } from './alacrity-runtime.mjs';"
+        abip = pretty $ "export const ABI = " ++ abi ++ ";"
+        codep = pretty $ "export const Bytecode = " ++ code ++ ";"
+        

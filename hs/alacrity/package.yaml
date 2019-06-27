@@ -30,6 +30,8 @@ dependencies:
 - debug
 - extra
 - simple-smt
+- aeson
+- unordered-containers
 
 ghc-options:
 - -Wall

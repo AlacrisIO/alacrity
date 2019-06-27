@@ -1,10 +1,19 @@
+{-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
+
 module Alacrity.EmitSol where
 
 import Data.List (intersperse)
 import Data.Text.Prettyprint.Doc
+import qualified Data.Text as T
+import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as M
+import qualified Data.ByteString.Lazy.Char8 as B
+import System.Process
+import System.Exit
+import Data.Aeson
 
 import Alacrity.AST
+import Alacrity.Util
 
 {- AST add-ons
  -}
@@ -88,11 +97,11 @@ solBraces body = braces (nest 2 $ hardline <> body <> space)
 
 solFunction :: String -> [Doc a] -> Doc a -> Doc a -> Doc a
 solFunction name args ret body =
-  pretty "function" <+> solApply name args <+> ret <+> solBraces body
+  "function" <+> solApply name args <+> ret <+> solBraces body
 
 solEvent :: String -> [Doc a] -> Doc a
 solEvent name args =
-  pretty "event" <+> solApply name args <> semi
+  "event" <+> solApply name args <> semi
 
 solDecl :: String -> Doc a -> Doc a
 solDecl ty n = pretty ty <+> n
@@ -111,8 +120,8 @@ solNum i = pretty $ "uint256(" ++ show i ++ ")"
 
 solCon :: Constant -> Doc a
 solCon (Con_I i) = solNum i
-solCon (Con_B True) = pretty "true"
-solCon (Con_B False) = pretty "false"
+solCon (Con_B True) = "true"
+solCon (Con_B False) = "false"
 solCon (Con_BS s) = pretty $ "\"" ++ show s ++ "\""
 
 solArg :: SolRenaming a -> BLArg -> Doc a
@@ -135,13 +144,13 @@ solPartDecl :: Participant -> Doc a
 solPartDecl p = solDecl "address payable" (solPartVar p)
 
 solContract :: String -> Doc a -> Doc a
-solContract s body = pretty "contract" <+> pretty s <+> solBraces body
+solContract s body = "contract" <+> pretty s <+> solBraces body
 
 solVersion :: Doc a
-solVersion = pretty "pragma solidity ^0.5.2;"
+solVersion = "pragma solidity ^0.5.2;"
 
 solStdLib :: Doc a
-solStdLib = pretty "import \"sol/stdlib.sol\";"
+solStdLib = "import \"sol/stdlib.sol\";"
 
 solApply :: String -> [Doc a] -> Doc a
 solApply f args = pretty f <> parens (hcat $ intersperse (comma <> space) args)
@@ -165,7 +174,7 @@ solHashState :: SolRenaming a -> Int -> [Participant] -> [BLVar] -> Doc a
 solHashState ρ i ps svs = solHash $ (solNum i) : (map solPartVar ps) ++ (map (solVar ρ) svs)
 
 solRequireSender :: Participant -> Doc a
-solRequireSender from = solRequire $ solEq (pretty "msg.sender") (solPartVar from)
+solRequireSender from = solRequire $ solEq ("msg.sender") (solPartVar from)
 
 solPrimApply :: C_Prim -> [Doc a] -> Doc a
 solPrimApply pr args =
@@ -181,16 +190,14 @@ solPrimApply pr args =
     PGE -> binOp ">="
     PGT -> binOp ">"
     IF_THEN_ELSE -> case args of
-                      [ c, t, f ] -> c <+> pretty "?" <+> t <+> pretty ":" <+> f
+                      [ c, t, f ] -> c <+> "?" <+> t <+> ":" <+> f
                       _ -> spa_error ()
     UINT256_TO_BYTES -> solApply "abi.encodePacked" args
     DIGEST -> case args of
                 [ a ] -> solHash [a]
                 _ -> spa_error ()
     BYTES_EQ -> binOp "=="
-    BYTES_LEN -> case args of
-                   [ a ] -> a <> pretty ".length"
-                   _ -> spa_error ()
+    BYTES_LEN -> solApply "ALA_BYTES_LEN" args
     BCAT -> solApply "ALA_BCAT" args
     BCAT_LEFT -> solApply "ALA_BCAT_LEFT" args
     BCAT_RIGHT -> solApply "ALA_BCAT_RIGHT" args
@@ -205,25 +212,25 @@ solCExpr ρ (C_PrimApp pr al) = solPrimApply pr $ map (solArg ρ) al
 solCStmt :: SolRenaming a -> CStmt -> Doc a
 solCStmt _ (C_Claim CT_Possible _) = emptyDoc
 solCStmt ρ (C_Claim _ a) = solRequire $ solArg ρ a
-solCStmt ρ (C_Transfer p a) = solPartVar p <> pretty "." <> solApply "transfer" [ solArg ρ a ]
+solCStmt ρ (C_Transfer p a) = solPartVar p <> "." <> solApply "transfer" [ solArg ρ a ]
 
 solCTail :: [Participant] -> Doc a -> SolRenaming a -> CCounts -> CTail -> Doc a
 solCTail ps emitp ρ ccs ct =
   case ct of
     C_Halt ->
-      emitp <> vsep [ solSet (pretty "current_state") (pretty "0x0") <> semi,
+      emitp <> vsep [ solSet ("current_state") ("0x0") <> semi,
                       solApply "selfdestruct" [ solApply "address" [ pretty alacrisAddress ] ] <> semi ]
     C_Wait i svs ->
-      emitp <> (solSet (pretty "current_state") (solHashState ρ i ps svs)) <> semi
+      emitp <> (solSet ("current_state") (solHashState ρ i ps svs)) <> semi
     C_If ca tt ft ->
-      pretty "if" <+> parens (solArg ρ ca) <> bp tt <> hardline <> pretty "else" <> bp ft
+      "if" <+> parens (solArg ρ ca) <> bp tt <> hardline <> "else" <> bp ft
       where bp at = solBraces $ solCTail ps emitp ρ ccs at
     C_Let bv ce kt ->
       case M.lookup bv ccs of
         Just 0 -> solCTail ps emitp ρ ccs kt
         Just 1 -> solCTail ps emitp ρ' ccs kt
           where ρ' = M.insert bv (parens (solCExpr ρ ce)) ρ
-        _ -> vsep [ solVarDecl bv <+> pretty "=" <+> solCExpr ρ ce <> semi,
+        _ -> vsep [ solVarDecl bv <+> "=" <+> solCExpr ρ ce <> semi,
                     solCTail ps emitp ρ ccs kt ]
     C_Do cs kt -> vsep [ solCStmt ρ cs <> semi, solCTail ps emitp ρ ccs kt ]
 
@@ -236,11 +243,11 @@ solHandler ps i (C_Handler from svs msg pv body) = vsep [ evtp, funp ]
         evts = solMsg_evt i
         evtp = solEvent evts msg_eds
         funp = solFunction (solMsg_fun i) arg_ds retp bodyp
-        retp = pretty "external payable"
-        emitp = pretty "emit" <+> solApply evts msg_rs <> semi <> hardline
+        retp = "external payable"
+        emitp = "emit" <+> solApply evts msg_rs <> semi <> hardline
         ccs = usesCTail body
-        ρ = M.insert pv (pretty "msg.value") M.empty
-        bodyp = vsep [ (solRequire $ solEq (pretty "current_state") (solHashState ρ i ps svs)) <> semi,
+        ρ = M.insert pv ("msg.value") M.empty
+        bodyp = vsep [ (solRequire $ solEq ("current_state") (solHashState ρ i ps svs)) <> semi,
                        solRequireSender from <> semi,
                        solCTail ps emitp ρ ccs body ]
 
@@ -256,7 +263,33 @@ emit_sol (BL_Prog _ (C_Prog ps hs)) =
   where ctcp = solContract "ALAContract is Stdlib"
                $ ctcbody
         ctcbody = vsep $ [state_defn, emptyDoc, consp, emptyDoc, solHandlers ps hs]
-        consp = solApply "constructor" p_ds <+> pretty "public payable" <+> solBraces consbody
+        consp = solApply "constructor" p_ds <+> "public payable" <+> solBraces consbody
         consbody = solCTail ps emptyDoc M.empty M.empty (C_Wait 0 [])
-        state_defn = pretty "uint256 current_state;"
+        state_defn = "uint256 current_state;"
         p_ds = map solPartDecl ps
+
+type CompiledSol = (String, String)
+
+extract :: Value -> CompiledSol
+extract v = (abi, code)
+  where Object hm = v
+        Just (Object ctcs) = HM.lookup "contracts" hm
+        [ thectc, "sol/stdlib.sol:Stdlib" ] = HM.keys ctcs
+        Just (Object ctc) = HM.lookup thectc ctcs
+        Just (String abit) = HM.lookup "abi" ctc
+        abi = T.unpack abit
+        Just (String codebodyt) = HM.lookup "bin" ctc
+        code = "\"0x" ++ T.unpack codebodyt ++ "\""
+
+compile_sol :: String -> BLProgram -> IO CompiledSol
+compile_sol solf blp = do
+  writeFile solf (show (emit_sol blp))
+  ( ec, stdout, stderr ) <- readProcessWithExitCode "solc" ["--allow-paths", ".", "--combined-json", "abi,bin", solf] []
+  maybeDie $ return ec
+  case (eitherDecode $ B.pack stdout) of
+    Right v -> return $ extract v
+    Left err ->
+      die $ "solc failed to produce valid output:\n" 
+      ++ "STDOUT:\n" ++ stdout ++ "\n"
+      ++ "STDERR:\n" ++ stderr ++ "\n"
+      ++ "Decode Error:\n" ++ err ++ "\n"
