@@ -1,6 +1,4 @@
-import { stdlib } from '../rps/alacrity-runtime.mjs';
-
-export function A(ctc, interact, v0, v1, v2, kTop) {
+export function A(stdlib, ctc, interact, v0, v1, v2, kTop) {
   const v4 = stdlib.le(0, v2);
   const v5 = stdlib.lt(v2, 3);
   const v6 = v4 ? v5 : false;
@@ -91,7 +89,7 @@ export function A(ctc, interact, v0, v1, v2, kTop) {
             const v78 = stdlib.eq(v51, 0);
             kTop(v51); }); }); }); }); }); }
 
-export function B(ctc, interact, v3, kTop) {
+export function B(stdlib, ctc, interact, v3, kTop) {
   const v7 = stdlib.le(0, v3);
   const v8 = stdlib.lt(v3, 3);
   const v9 = v7 ? v8 : false;

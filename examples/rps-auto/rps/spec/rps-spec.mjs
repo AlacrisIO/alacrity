@@ -203,11 +203,11 @@ const runGameWith = (alice, bob) => {
   const bobShootScissors = ctcAlice =>
     new Promise(resolve =>
       bob.attach(ctcAlice.abi, ctcAlice.code, accts.alice, accts.bob, ctcAlice.address)
-        .then(ctcBob => RPS.B(ctcBob, interact, 2, resolve)));
+        .then(ctcBob => RPS.B(stdlib, ctcBob, interact, 2, resolve)));
 
   const aliceShootRock = ctc =>
     new Promise(resolve =>
-      RPS.A(ctc, interact, wagerInWei, escrowInWei, 0, resolve));
+      RPS.A(stdlib, ctc, interact, wagerInWei, escrowInWei, 0, resolve));
 
   return alice
     .deploy(RPS.ABI, contractCode, accts.alice, accts.bob)

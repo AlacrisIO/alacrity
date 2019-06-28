@@ -143,7 +143,7 @@ jsEPTail (EP_Recv fromme i _ msg pv kt) = jsApply "ctc.recv" [ jsString (solMsg_
 jsPart :: (Participant, EProgram) -> Doc a
 jsPart (p, (EP_Prog pargs et)) =
   --- XXX Perhaps use async/await rather than CPS for more idiomatic code?
-  pretty "export" <+> jsFunction p ([ pretty "ctc", pretty "interact" ] ++ pargs_vs ++ [ pretty "kTop" ]) bodyp
+  pretty "export" <+> jsFunction p ([ pretty "stdlib", pretty "ctc", pretty "interact" ] ++ pargs_vs ++ [ pretty "kTop" ]) bodyp
   where pargs_vs = map jsVar pargs
         bodyp = jsEPTail et
 
@@ -152,10 +152,8 @@ vsep_with_blank l = vsep $ intersperse emptyDoc l
 
 emit_js :: BLProgram -> CompiledSol -> Doc a
 emit_js (BL_Prog pm _) (abi, code) = modp
-  where modp = vsep_with_blank $ (stdlibp : partsp) ++ [ abip, codep ]
+  where modp = vsep_with_blank $ partsp ++ [ abip, codep ]
         partsp = map jsPart $ M.toList pm
-        --- XXX This is terrible... we need a better way
-        stdlibp = pretty "import { stdlib } from '../rps/alacrity-runtime.mjs';"
         abip = pretty $ "export const ABI = " ++ abi ++ ";"
         codep = pretty $ "export const Bytecode = " ++ code ++ ";"
         
