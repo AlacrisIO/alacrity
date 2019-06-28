@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 
 module Alacrity.EmitSol where
 
@@ -8,9 +8,11 @@ import qualified Data.Text as T
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as M
 import qualified Data.ByteString.Lazy.Char8 as B
+import qualified Data.ByteString.Char8 as BS
 import System.Process
 import System.Exit
 import Data.Aeson
+import Data.FileEmbed
 
 import Alacrity.AST
 
@@ -149,7 +151,7 @@ solVersion :: Doc a
 solVersion = "pragma solidity ^0.5.2;"
 
 solStdLib :: Doc a
-solStdLib = "import \"sol/stdlib.sol\";"
+solStdLib = pretty $ BS.unpack $(embedFile "../../sol/stdlib.sol")
 
 solApply :: String -> [Doc a] -> Doc a
 solApply f args = pretty f <> parens (hcat $ intersperse (comma <> space) args)
@@ -273,7 +275,7 @@ extract :: Value -> CompiledSol
 extract v = (abi, code)
   where Object hm = v
         Just (Object ctcs) = HM.lookup "contracts" hm
-        [ thectc, "sol/stdlib.sol:Stdlib" ] = HM.keys ctcs
+        [ thectc, _ ] = HM.keys ctcs
         Just (Object ctc) = HM.lookup thectc ctcs
         Just (String abit) = HM.lookup "abi" ctc
         abi = T.unpack abit
@@ -283,8 +285,7 @@ extract v = (abi, code)
 compile_sol :: String -> BLProgram -> IO CompiledSol
 compile_sol solf blp = do
   writeFile solf (show (emit_sol blp))
-  --- XXX This allow paths is brittle and forces a symlink
-  ( ec, stdout, stderr ) <- readProcessWithExitCode "solc" ["--allow-paths", ".", "--combined-json", "abi,bin", solf] []
+  ( ec, stdout, stderr ) <- readProcessWithExitCode "solc" ["--optimize", "--combined-json", "abi,bin", solf] []
   case ec of
     ExitFailure _ ->
       die $ "solc errored:\n"
