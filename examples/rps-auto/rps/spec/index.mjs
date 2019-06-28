@@ -8,7 +8,7 @@ const jasmine = new Jasmine();
 jasmine.env.clearReporters();
 
 jasmine.addReporter(new JasmineConsoleReporter(
-  { colors:     true
+  { colors:     false
   , cleanStack: true
   , verbosity:  4
   , listStyle:  'indent'
