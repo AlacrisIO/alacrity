@@ -57,10 +57,10 @@ main {
     const getsA, getsB =
           if (outcome == A_WINS) {
               values ((2 * wagerAmount) + escrowAmount), 0 }
-          else { if (outcome == B_WINS) {
+          else if (outcome == B_WINS) {
               values escrowAmount, (2 * wagerAmount) }
           else {
-              values (wagerAmount + escrowAmount), wagerAmount } };
+              values (wagerAmount + escrowAmount), wagerAmount };
     transfer! A <- getsA;
     transfer! B <- getsB;
     return;
