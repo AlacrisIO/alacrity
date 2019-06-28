@@ -2,32 +2,32 @@
 
 #:participants
 (define-participant A
-  [0/wager-amount : uint256]
-  [1/escrow-amount : uint256]
-  [2/A-hand : uint256])
+  [0/wagerAmount : uint256]
+  [1/escrowAmount : uint256]
+  [2/handA : uint256])
 (define-participant B
-  [3/B-hand : uint256])
+  [3/handB : uint256])
 
 #:main
-(@ A (define 4/PrimApp (PEQ 2/A-hand 0)))
-(@ A (define 5/PrimApp (PEQ 2/A-hand 1)))
-(@ A (define 6/PrimApp (PEQ 2/A-hand 2)))
+(@ A (define 4/PrimApp (PEQ 2/handA 0)))
+(@ A (define 5/PrimApp (PEQ 2/handA 1)))
+(@ A (define 6/PrimApp (PEQ 2/handA 2)))
 (@ A (define 7/PrimApp (IF_THEN_ELSE 5/PrimApp True 6/PrimApp)))
 (@ A (define 8/PrimApp (IF_THEN_ELSE 4/PrimApp True 7/PrimApp)))
 (@ A (assume! 8/PrimApp))
-(@ B (define 9/PrimApp (PEQ 3/B-hand 0)))
-(@ B (define 10/PrimApp (PEQ 3/B-hand 1)))
-(@ B (define 11/PrimApp (PEQ 3/B-hand 2)))
+(@ B (define 9/PrimApp (PEQ 3/handB 0)))
+(@ B (define 10/PrimApp (PEQ 3/handB 1)))
+(@ B (define 11/PrimApp (PEQ 3/handB 2)))
 (@ B (define 12/PrimApp (IF_THEN_ELSE 10/PrimApp True 11/PrimApp)))
 (@ B (define 13/PrimApp (IF_THEN_ELSE 9/PrimApp True 12/PrimApp)))
 (@ B (assume! 13/PrimApp))
 (@ A (define 14/PrimApp (RANDOM)))
 (@ A (define 15/PrimApp (UINT256_TO_BYTES 14/PrimApp)))
-(@ A (define 16/PrimApp (UINT256_TO_BYTES 2/A-hand)))
+(@ A (define 16/PrimApp (UINT256_TO_BYTES 2/handA)))
 (@ A (define 17/PrimApp (BCAT 15/PrimApp 16/PrimApp)))
 (@ A (define 18/PrimApp (DIGEST 17/PrimApp)))
-(@ A (define 19/Declassify (declassify 0/wager-amount)))
-(@ A (define 20/Declassify (declassify 1/escrow-amount)))
+(@ A (define 19/Declassify (declassify 0/wagerAmount)))
+(@ A (define 20/Declassify (declassify 1/escrowAmount)))
 (@ A (define 21/Declassify (declassify 18/PrimApp)))
 (@ A (define 22/PrimApp (ADD 19/Declassify 20/Declassify)))
 (@ A 
@@ -37,7 +37,7 @@
 (@ CTC (define 25/PrimApp (PEQ 23/pay-amount 24/PrimApp)))
 (@ CTC (require! 25/PrimApp))
 (return!)
-(@ B (define 26/Declassify (declassify 3/B-hand)))
+(@ B (define 26/Declassify (declassify 3/handB)))
 (@ B 
   (publish! (26/Declassify))
   (pay! (27, pay-amount) 19/Declassify))
@@ -51,7 +51,7 @@
 (@ CTC (require! 33/PrimApp))
 (return!)
 (@ A (define 34/Declassify (declassify 14/PrimApp)))
-(@ A (define 35/Declassify (declassify 2/A-hand)))
+(@ A (define 35/Declassify (declassify 2/handA)))
 (@ A 
   (publish! (34/Declassify 35/Declassify))
   (pay! (36, pay-amount) 0))

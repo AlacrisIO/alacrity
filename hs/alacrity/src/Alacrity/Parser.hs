@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Alacrity.Parser
   ( readAlacrityFile
   ) where
@@ -6,232 +8,345 @@ import qualified Data.ByteString.Char8 as B
 import qualified Data.Map.Strict as M
 import System.Directory
 import System.FilePath
-import qualified Text.Megaparsec as MP
-import qualified Alacrity.SExpr as SE
+import System.Exit
+import Control.Monad
+import Control.Monad.Trans
+import Data.Void
+import Text.Megaparsec
+import Text.Megaparsec.Char
+-- import Text.Megaparsec.Debug (dbg)
+import qualified Text.Megaparsec.Char.Lexer as L
 
 import Alacrity.AST
 
-valid_id :: String -> Bool
-valid_id p = not (elem p rsw) && head p /= '#' && (Nothing == (decodePrim p))
-  where rsw = ["if", "cond", "else", "assert!", "assume!", "require!", "possible?", "transfer!", "declassify!", "declassify", "values", "@", "define", "define-values", "require", "CTC"]
+type Parser = ParsecT Void String IO
 
-decodeXLType :: SE.SExpr -> BaseType
-decodeXLType (SE.Atom "uint256") = AT_UInt256
-decodeXLType (SE.Atom "bool") = AT_Bool
-decodeXLType (SE.Atom "bytes") = AT_Bytes
-decodeXLType se = invalid "decodeXLType" se
-
-decodeRole :: SE.SExpr -> Role
-decodeRole (SE.Atom "CTC") = RoleContract
-decodeRole (SE.Atom p)
-  | valid_id p = RolePart p
-  | otherwise = error (p ++ " is reserved!")
-decodeRole se = invalid "decodeRole" se
-
-decodePart :: SE.SExpr -> Participant
-decodePart se =
-  case (decodeRole se) of
-    RolePart p -> p
-    RoleContract -> error "CTC is not a participant!"
-
-decodeXLVar :: SE.SExpr -> XLVar
-decodeXLVar (SE.Atom v)
-  | valid_id v = v
-  | otherwise = error (v ++ " is reserved!")
-decodeXLVar se = invalid "decodeXLVar" se
-
-decodeXLVarType :: SE.SExpr -> (XLVar, BaseType)
-decodeXLVarType (SE.List [vse,SE.Atom ":", tse]) = ((decodeXLVar vse), (decodeXLType tse))
-decodeXLVarType se = invalid "decodeXLVarType" se
-
-decodeXLVars :: [SE.SExpr] -> [XLVar]
-decodeXLVars ses = map decodeXLVar ses
-
-decodePrim :: String -> Maybe EP_Prim
-decodePrim s =
-    case s of
-    "+" -> Just (CP ADD)
-    "-" -> Just (CP SUB)
-    "*" -> Just (CP MUL)
-    "/" -> Just (CP DIV)
-    "%" -> Just (CP MOD)
-    "modulo" -> Just (CP MOD)
-    "<" -> Just (CP PLT)
-    "<=" -> Just (CP PLE)
-    "=" -> Just (CP PEQ)
-    ">=" -> Just (CP PGE)
-    ">" -> Just (CP PGT)
-    "ite" -> Just (CP IF_THEN_ELSE)
-    "uint256->bytes" -> Just (CP UINT256_TO_BYTES)
-    "digest" -> Just (CP DIGEST)
-    "bytes=?" -> Just (CP BYTES_EQ)
-    "bytes-length" -> Just (CP BYTES_LEN)
-    "msg-cat" -> Just (CP BCAT)
-    "msg-left" -> Just (CP BCAT_LEFT)
-    "msg-right" -> Just (CP BCAT_RIGHT)
-    "random" -> Just RANDOM
-    "interact" -> Just INTERACT
-    _ -> Nothing
-
-decodeXLOp :: String -> [XLExpr] -> XLExpr
-decodeXLOp s =
-  case decodePrim s of
-    Just p -> XL_PrimApp p
-    Nothing ->
-      if valid_id s then
-        XL_FunApp s
-      else
-        error $ "Invalid function name: " ++ show s
-
-decodeXLExpr1 :: SE.SExpr -> XLExpr
-decodeXLExpr1 (SE.Number i) = XL_Con (Con_I i)
-decodeXLExpr1 (SE.Bool t) = XL_Con (Con_B t)
-decodeXLExpr1 (SE.String s) = XL_Con (Con_BS (B.pack s))
-decodeXLExpr1 (SE.Atom v) = XL_Var v
-decodeXLExpr1 (SE.List [SE.Atom "if", ce, te, fe]) =
-  XL_If False (decodeXLExpr1 ce) (decodeXLExpr1 te) (decodeXLExpr1 fe)
-decodeXLExpr1 (SE.List [SE.Atom "cond", SE.List (SE.Atom "else":answer)]) =
-  decodeXLExpr answer
-decodeXLExpr1 (SE.List (SE.Atom "cond":SE.List (question:answer):more)) =
-  XL_If False (decodeXLExpr1 question) (decodeXLExpr answer) (decodeXLExpr1 (SE.List (SE.Atom "cond" : more)))
-decodeXLExpr1 (SE.List [SE.Atom "assert!", arg]) =
-  XL_Claim CT_Assert (decodeXLExpr1 arg)
-decodeXLExpr1 (SE.List [SE.Atom "assume!", arg]) =
-  XL_Claim CT_Assume (decodeXLExpr1 arg)
-decodeXLExpr1 (SE.List [SE.Atom "require!", arg]) =
-  XL_Claim CT_Require (decodeXLExpr1 arg)
-decodeXLExpr1 (SE.List [SE.Atom "possible?", arg]) =
-  XL_Claim CT_Possible (decodeXLExpr1 arg)
-decodeXLExpr1 (SE.List [SE.Atom "transfer!", to, amt]) =
-  XL_Transfer (decodePart to) (decodeXLExpr1 amt)
-decodeXLExpr1 (SE.List [SE.Atom "declassify", arg]) =
-  XL_Declassify (decodeXLExpr1 arg)
-decodeXLExpr1 (SE.List (SE.Atom "values":args)) =
-  XL_Values (map decodeXLExpr1 args)
-decodeXLExpr1 (SE.List (SE.Atom op:args)) =
-  (decodeXLOp op) (map decodeXLExpr1 args)
-decodeXLExpr1 se = invalid "decodeXLExpr1" se
-
-decodeXLExpr :: [SE.SExpr] -> XLExpr
-decodeXLExpr [] = error "Empty expression sequence"
-decodeXLExpr [SE.List (SE.Atom "begin-local" : kse)] =
-  XL_FromConsensus (decodeXLExpr kse)
-decodeXLExpr ((SE.List (SE.Atom "@" : fromse :
-                        SE.List (SE.Atom "publish!" : inse) :
-                        --- XXX Make variant that allows choice about
-                        --- what payvse is and doesn't assume should
-                        --- be exactly equal to payse
-                        SE.List [SE.Atom "pay!", payse] :
-                        bse)):kse) =
-  XL_ToConsensus p ins pay payv body
-  where RolePart p = decodeRole fromse
-        --- XXX
-        payvse = SE.Atom "pay-amount"
-        payv = decodeXLVar payvse
-        ins = decodeXLVars inse
-        pay = decodeXLExpr1 payse
-        bse' = [(SE.List [SE.Atom "require!", (SE.List [SE.Atom "=", payvse, payse])])] ++ bse ++ [(SE.List (SE.Atom "begin-local" : kse))]
-        body = decodeXLExpr bse'
---- define
-decodeXLExpr ((SE.List [SE.Atom "@", rs, (SE.List [SE.Atom "declassify!", v])]):kse) =
-  decodeXLExpr ((SE.List [SE.Atom "@", rs, (SE.List [SE.Atom "define", v, (SE.List [SE.Atom "declassify", v])])]):kse)
-decodeXLExpr ((SE.List [SE.Atom "@", rs, (SE.List [SE.Atom "define", vse, ese])]):kse) =
-  XL_LetValues (Just p) (Just [(decodeXLVar vse)]) (decodeXLExpr1 ese) (decodeXLExpr kse)
-  where RolePart p = (decodeRole rs)
-decodeXLExpr ((SE.List [SE.Atom "define", vse, ese]):kse) =
-  XL_LetValues Nothing (Just [(decodeXLVar vse)]) (decodeXLExpr1 ese) (decodeXLExpr kse)
---- define-values
-decodeXLExpr ((SE.List [SE.Atom "@", rs, (SE.List [SE.Atom "define-values", SE.List vses, ese])]):kse) =
-  XL_LetValues (Just p) (Just (decodeXLVars vses)) (decodeXLExpr1 ese) (decodeXLExpr kse)
-  where RolePart p = (decodeRole rs)
-decodeXLExpr ((SE.List [SE.Atom "define-values", SE.List vses, ese]):kse) =
-  XL_LetValues Nothing (Just (decodeXLVars vses)) (decodeXLExpr1 ese) (decodeXLExpr kse)
---- expressions
-decodeXLExpr ((SE.List [SE.Atom "@", rs, e]):kse)
- = XL_LetValues (Just p) Nothing (decodeXLExpr1 e) (decodeXLExpr kse)
-  where RolePart p = (decodeRole rs)
-decodeXLExpr (e:kse)
- = case kse of
-     [] -> (decodeXLExpr1 e)
-     _ -> XL_LetValues Nothing Nothing (decodeXLExpr1 e) (decodeXLExpr kse)
-
-decodeXLParts :: [SE.SExpr] -> (XLPartInfo, [SE.SExpr])
-decodeXLParts (SE.Atom "#:main":more) = (M.empty, more)
-decodeXLParts ((SE.List ((SE.Atom "define-participant":SE.Atom p:vses))):more) =
-  (M.insert p vs ps, more1)
+sc :: Parser ()
+sc = L.space space1 lineCmnt blockCmnt
   where
-    vs = map decodeXLVarType vses
-    (ps, more1) = (decodeXLParts more)
-decodeXLParts ses = invalids "decodeXLParts" ses
+    lineCmnt  = L.skipLineComment "//"
+    blockCmnt = L.skipBlockComment "/*" "*/"
 
-decodeXLMain :: [SE.SExpr] -> (XLPartInfo, XLExpr)
-decodeXLMain (SE.Atom "#:participants":more0) = (ps, me)
-  where (ps, more1) = decodeXLParts more0
-        me = decodeXLExpr more1
-decodeXLMain ses = invalids "decodeXLMain" ses
+lexeme :: Parser a -> Parser a
+lexeme = L.lexeme sc
 
-decodeXLDefs :: [SE.SExpr] -> IO ([XLDef], [SE.SExpr])
-decodeXLDefs [] = return ([], [])
-decodeXLDefs ((SE.List [SE.Atom "require", SE.String fp]):more) = do
-  defs1 <- readXLLibrary fp
-  (defs2, m) <- decodeXLDefs more
-  return (defs1 ++ defs2, m)
-decodeXLDefs ((SE.List (SE.Atom "define":SE.List (fse:argse):ese)):more) = do
-  let f = decodeXLVar fse
-      args = decodeXLVars argse
-      e = case ese of
-        (SE.Atom ":" : predse : ese') ->
-          --- XXX hygeine with Data.IORef
-          (XL_LetValues Nothing (Just ["result"]) (decodeXLExpr ese') (XL_LetValues Nothing Nothing (XL_Claim CT_Assert (XL_FunApp (decodeXLVar predse) [XL_Var "result"])) (XL_Var "result")))
-        _ -> decodeXLExpr ese
-  (defs2, m) <- decodeXLDefs more
-  return ((XL_DefineFun f args e) : defs2, m)
-decodeXLDefs ((SE.List [SE.Atom "define", SE.Atom vse, ese]):more) = do
-  let v = decodeXLVar (SE.Atom vse)
-      e = decodeXLExpr1 ese
-  (defs2, m) <- decodeXLDefs more
-  return ((XL_DefineValues [v] e) : defs2, m)
-decodeXLDefs ((SE.List [SE.Atom "define-values", SE.List vses, ese]):more) = do
-  let vs = decodeXLVars vses
-      e = decodeXLExpr1 ese
-  (defs2, m) <- decodeXLDefs more
-  return ((XL_DefineValues vs e) : defs2, m)
-decodeXLDefs ses = return ([], ses)
+exact :: String -> Parser ()
+exact s = do
+  _ <- L.symbol sc s
+  return ()
 
-decodeXLProgram :: SE.SExpr -> IO XLProgram
-decodeXLProgram (SE.List (SE.Atom "#lang":SE.Atom "alacrity/exe":body)) = do
-  (defs, more) <- decodeXLDefs body
-  let (ps, be) = decodeXLMain more
-  return (XL_Prog defs ps be)
-decodeXLProgram se = invalid "decodeXLProgram" se
+semi :: Parser ()
+semi = exact ";"
 
-decodeXLLibrary :: SE.SExpr -> IO [XLDef]
-decodeXLLibrary (SE.List (SE.Atom "#lang":SE.Atom "alacrity/lib":body)) = do
-  (defs, []) <- decodeXLDefs body
-  return defs
-decodeXLLibrary se = invalid "decodeXLLibrary" se
+comma :: Parser ()
+comma = exact ","
 
-invalid :: String -> SE.SExpr -> a
-invalid f se = error ("Invalid " ++ f ++ " se: " ++ show se)
+integer :: Parser Integer
+integer = lexeme L.decimal
 
-invalids :: String -> [SE.SExpr] -> a
-invalids f ses = invalid f (SE.List ses)
+stringLiteral :: Parser String
+stringLiteral = char '"' >> manyTill L.charLiteral (char '"')
 
-readSExpr :: FilePath -> IO SE.SExpr
-readSExpr srcp = do
-  input <- readFile srcp
-  let input' = ("(\n" ++ input ++ "\n)")
-  case MP.parse SE.parseSExpr srcp input' of
-    Left bundle -> do
-      putStr (MP.errorBundlePretty bundle)
-      error ("Failed to parse " ++ srcp)
-    Right se -> return se
+parens :: Parser a -> Parser a
+parens = between (exact "(") (exact ")")
+
+braces :: Parser a -> Parser a
+braces = between (exact "{") (exact "}")
+
+rws :: [String] -- list of reserved words
+rws = ["if","then","else","import","true","false","msgcons","msgcar","msgcdr","bytes_equal","length","uint256_bytes","digest","random","interact","assert!","assume!","require!","possible?","values","transfer!","<-","const","function","participant","@","uint256","bool","bytes","publish!","w/","return"]
+
+parseBaseType :: Parser BaseType
+parseBaseType =
+  (AT_UInt256 <$ exact "uint256")
+  <|> (AT_Bool <$ exact "bool")
+  <|> (AT_Bytes <$ exact "bytes")
+
+parseXLVar :: Parser XLVar
+parseXLVar = (lexeme . try) (p >>= check)
+  where
+    p       = (:) <$> letterChar <*> many (alphaNumChar <|> char '_')
+    check x = if x `elem` rws
+                then fail $ "keyword " ++ show x ++ " cannot be an identifier"
+                else return x
+
+parseXLVars :: Parser [XLVar]
+parseXLVars = sepBy parseXLVar comma
+
+parseConstant :: Parser Constant
+parseConstant =
+  (Con_I <$> integer)
+  <|> (Con_B True <$ exact "true")
+  <|> (Con_B False <$ exact "false")
+  <|> ((Con_BS . B.pack) <$> stringLiteral)
+
+parseParticipant :: Parser Participant
+parseParticipant = parseXLVar
+
+parseXLBinOp :: Parser EP_Prim
+parseXLBinOp =
+  (CP ADD <$ exact "+")
+  <|> (CP SUB <$ exact "-")
+  <|> (CP MUL <$ exact "*")
+  <|> (CP DIV <$ exact "/")
+  <|> (CP MOD <$ exact "%")
+  <|> (CP PLT <$ exact "<")
+  <|> (CP PLE <$ exact "<=")
+  <|> (CP PEQ <$ exact "==")
+  <|> (CP PGE <$ exact ">=")
+  <|> (CP PGT <$ exact ">")
+
+parseXLFunOp :: Parser EP_Prim
+parseXLFunOp =
+  (CP BCAT <$ exact "msgcons")
+  <|> (CP BCAT_LEFT <$ exact "msgcar")
+  <|> (CP BCAT_RIGHT <$ exact "msgcdr")
+  <|> (CP BYTES_EQ <$ exact "bytes_equal")
+  <|> (CP BYTES_LEN <$ exact "length")
+  <|> (CP UINT256_TO_BYTES <$ exact "uint256_bytes")
+  <|> (CP DIGEST <$ exact "digest")
+  <|> (RANDOM <$ exact "random")
+  <|> (INTERACT <$ exact "interact")
+
+parseXLStdLibFun :: Parser XLVar
+parseXLStdLibFun =
+  ("not" <$ exact "not")
+
+parseXLStdLibOp :: Parser XLVar
+parseXLStdLibOp =
+  ("implies" <$ exact "=>")
+  <|> ("or" <$ exact "||")
+  <|> ("and" <$ exact "&&")
+
+parseXLPrimApp :: Parser XLExpr
+parseXLPrimApp =
+  (do pr <- parseXLFunOp
+      args <- parens $ parseXLExprs
+      return $ XL_PrimApp pr args)
+  <|> (do pr <- parseXLStdLibFun
+          args <- parens $ parseXLExprs
+          return $ XL_FunApp pr args)
+  <|> (parens $
+  do left <- parseXLExpr1
+     ((do exact "?"
+          te <- parseXLExpr1
+          exact ":"
+          fe <- parseXLExpr1
+          return $ XL_PrimApp (CP IF_THEN_ELSE) [ left, te, fe ])
+      <|> (do pr <- parseXLBinOp
+              right <- parseXLExpr1
+              return $ XL_PrimApp pr [left, right])
+      <|> (do pr <- parseXLStdLibOp
+              right <- parseXLExpr1
+              return $ XL_FunApp pr [left, right])))
+
+parseXLIf :: Parser XLExpr
+parseXLIf = do
+  exact "if"
+  ce <- parseXLExpr1
+  te <- parseXLExpr1
+  exact "else"
+  fe <- parseXLExpr1
+  return $ XL_If False ce te fe
+
+parseClaimType :: Parser ClaimType
+parseClaimType =
+  (CT_Assert <$ exact "assert!")
+  <|> (CT_Assume <$ exact "assume!")
+  <|> (CT_Require <$ exact "require!")
+  <|> (CT_Possible <$ exact "possible?")
+  
+parseXLClaim :: Parser XLExpr
+parseXLClaim = do
+  ct <- parseClaimType
+  xe <- parseXLExpr1
+  return $ XL_Claim ct xe
+
+parseXLValues :: Parser XLExpr
+parseXLValues = do
+  exact "values"
+  XL_Values <$> parseXLExprs
+
+parseXLTransfer :: Parser XLExpr
+parseXLTransfer = do
+  exact "transfer!"
+  p <- parseParticipant
+  exact "<-"
+  xe <- parseXLExpr1
+  return $ XL_Transfer p xe
+
+parseXLDeclassify :: Parser XLExpr
+parseXLDeclassify =
+  do exact "declassify"
+     xe <- parens $ parseXLExpr1
+     return $ XL_Declassify xe
+     
+parseXLFunApp :: Parser XLExpr
+parseXLFunApp = do
+  f <- parseXLVar
+  args <- parens $ parseXLExprs
+  return $ XL_FunApp f args
+
+parseXLExpr1 :: Parser XLExpr
+parseXLExpr1 =
+  (XL_Con <$> parseConstant)
+  <|> parseXLPrimApp
+  <|> parseXLIf
+  <|> parseXLClaim
+  <|> parseXLValues
+  <|> parseXLTransfer
+  <|> parseXLDeclassify
+  <|> (braces $ parseXLExprT Nothing)
+  <|> try parseXLFunApp
+  <|> (XL_Var <$> parseXLVar)
+
+parseXLExprs :: Parser [XLExpr]
+parseXLExprs = sepBy parseXLExpr1 comma
+
+parseXLToConsensus :: Parser XLExpr
+parseXLToConsensus = do
+  exact "@"
+  who <- parseParticipant
+  exact "{"
+  exact "publish!"
+  vs <- parseXLVars
+  exact "w/"
+  amount <- parseXLExpr1
+  exact "}"
+  semi
+  conk <- parseXLExprT Nothing
+  --- XXX hygeine
+  return $ XL_ToConsensus who vs amount "pay-amount" (XL_LetValues Nothing Nothing (XL_Claim CT_Require (XL_PrimApp (CP PEQ) [ (XL_Var "pay-amount"), amount ])) conk)
+
+parseAt :: Parser XLExpr
+parseAt = do
+  exact "@"
+  who <- parseParticipant
+  parseXLExprT (Just who)
+
+parseXLFromConsensus :: Parser XLExpr
+parseXLFromConsensus = do
+  exact "return"
+  semi
+  k <- parseXLExprT Nothing
+  return $ XL_FromConsensus k
+
+parseXLDeclassifyBang :: Maybe Participant -> Parser XLExpr
+parseXLDeclassifyBang who =
+  do exact "declassify!"
+     v <- parseXLVar
+     semi
+     k <- parseXLExprT who
+     return $ XL_LetValues who (Just [v]) (XL_Declassify (XL_Var v)) k
+
+parseXLLetValues :: Maybe Participant -> Parser XLExpr
+parseXLLetValues who = do
+  exact "const"
+  vs <- parseXLVars
+  exact "="
+  ve <- parseXLExpr1
+  semi
+  k <- parseXLExprT who
+  return $ XL_LetValues who (Just vs) ve k
+
+parseXLExprT :: Maybe Participant -> Parser XLExpr
+parseXLExprT who =
+  try parseXLToConsensus
+  <|> parseAt
+  <|> parseXLFromConsensus
+  <|> parseXLDeclassifyBang who
+  <|> parseXLLetValues who
+  <|> (do before <- parseXLExpr1
+          ((do semi
+               after <- parseXLExprT who
+               return $ XL_LetValues who Nothing before after)
+           <|> (return before)))
+
+parseImport :: Parser [XLDef]
+parseImport = do
+  exact "import"
+  ip <- stringLiteral
+  semi
+  ds <- liftIO $ readXLLibrary ip
+  return ds
+
+parseDefineFun :: Parser [XLDef]
+parseDefineFun = do
+  exact "function"
+  f <- parseXLVar
+  args <- parens $ parseXLVars
+  e <- ((do exact ":"
+            post <- parseXLVar
+            body <- parseXLExpr1
+            --- XXX hygeine
+            return (XL_LetValues Nothing (Just ["result"]) body (XL_LetValues Nothing Nothing (XL_Claim CT_Assert (XL_FunApp post [XL_Var "result"])) (XL_Var "result"))))
+         <|> parseXLExpr1)
+  return $ [XL_DefineFun f args e]
+
+parseDefine :: Parser [XLDef]
+parseDefine = do
+  exact "const"
+  vs <- parseXLVars
+  exact "="
+  ve <- parseXLExpr1
+  semi
+  return [XL_DefineValues vs ve]
+
+parseXLDef :: Parser [XLDef]
+parseXLDef = parseImport <|> parseDefineFun <|> parseDefine
+
+parseXLDefs :: Parser [XLDef]
+parseXLDefs = liftM concat (sepBy parseXLDef sc)
+
+parseXLVarDecl :: Parser (XLVar, BaseType)
+parseXLVarDecl = do
+  bt <- parseBaseType
+  v <- parseXLVar
+  return (v, bt)
+
+parseXLPart :: Parser (Participant, [(XLVar, BaseType)])
+parseXLPart = do
+  exact "participant"
+  p <- parseParticipant
+  ds <- braces $ sepBy parseXLVarDecl comma
+  return (p, ds)
+
+parseXLPartInfo :: Parser XLPartInfo
+parseXLPartInfo = M.fromList <$> sepBy parseXLPart sc
+
+parseXLMain :: Parser XLExpr
+parseXLMain = do
+  exact "main"
+  parseXLExpr1
+
+parseXLLibrary :: Parser [XLDef]
+parseXLLibrary = do
+  sc
+  exact "#lang"
+  exact "alacrity/lib"
+  parseXLDefs
+
+parseXLProgram :: Parser XLProgram
+parseXLProgram = do
+  sc
+  exact "#lang"
+  exact "alacrity/exe"
+  defs <- parseXLDefs
+  ps <- parseXLPartInfo
+  be <- parseXLMain
+  return (XL_Prog defs ps be)  
 
 readXLProgram :: FilePath -> IO XLProgram
-readXLProgram fp = readSExpr fp >>= decodeXLProgram
+readXLProgram fp = readFile fp >>= runParserT parseXLProgram fp >>= maybeError
 
 readXLLibrary :: FilePath -> IO [XLDef]
-readXLLibrary fp = readSExpr fp >>= decodeXLLibrary
+readXLLibrary fp = readFile fp >>= runParserT parseXLLibrary fp >>= maybeError
+
+maybeError :: Either (ParseErrorBundle String Void) a -> IO a
+maybeError (Right v) = return v
+maybeError (Left peb) = do
+  putStrLn $ errorBundlePretty peb
+  die "Failed to parse"
 
 readAlacrityFile :: FilePath -> IO XLProgram
 readAlacrityFile srcp =

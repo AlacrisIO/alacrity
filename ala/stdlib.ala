@@ -1,18 +1,18 @@
 #lang alacrity/lib
 
-(define (not x) (ite x #f #t))
-(define (or x y) (ite x #t y))
-(define (and x y) (ite x y #f))
-(define (implies x y) (or (not x) y))
+function not (x) {
+    (x ? false : true) }
+function or (x, y) {
+    (x ? true : y) }
+function and (x, y) {
+    (x ? y : false) }
+function implies (x, y) {
+    (not(x) || y) }
 
-(define (precommit x)
-  (define salt (random))
-  (define commitment
-    (digest (msg-cat (uint256->bytes salt)
-                     (uint256->bytes x))))
-  (values commitment salt))
-(define (check-commit! commitment salt x)
-  (require! (= commitment
-               (digest (msg-cat (uint256->bytes salt)
-                                (uint256->bytes x)))))
-  x)
+function precommit (x) {
+    const salt = random();
+    const commitment = digest(msgcons(uint256_bytes(salt), uint256_bytes(x)));
+    values commitment, salt }
+
+function check_commit (commit, salt, x) {
+    require! (commit == digest(msgcons(uint256_bytes(salt), uint256_bytes(x)))) }
