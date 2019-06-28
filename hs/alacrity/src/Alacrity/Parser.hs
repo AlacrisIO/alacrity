@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 
 module Alacrity.Parser
   ( readAlacrityFile
@@ -16,6 +16,7 @@ import Text.Megaparsec
 import Text.Megaparsec.Char
 -- import Text.Megaparsec.Debug (dbg)
 import qualified Text.Megaparsec.Char.Lexer as L
+import Data.FileEmbed
 
 import Alacrity.AST
 
@@ -329,16 +330,20 @@ parseXLProgram = do
   sc
   exact "#lang"
   exact "alacrity/exe"
+  stdlib_defs <- include_stdlib
   defs <- parseXLDefs
   ps <- parseXLPartInfo
   be <- parseXLMain
-  return (XL_Prog defs ps be)  
+  return (XL_Prog (stdlib_defs ++ defs) ps be)
 
 readXLProgram :: FilePath -> IO XLProgram
 readXLProgram fp = readFile fp >>= runParserT parseXLProgram fp >>= maybeError
 
 readXLLibrary :: FilePath -> IO [XLDef]
 readXLLibrary fp = readFile fp >>= runParserT parseXLLibrary fp >>= maybeError
+
+include_stdlib :: Parser [XLDef]
+include_stdlib = liftIO $ (runParserT parseXLLibrary "stdlib.ala" (B.unpack $(embedFile "../../ala/stdlib.ala")) >>= maybeError)
 
 maybeError :: Either (ParseErrorBundle String Void) a -> IO a
 maybeError (Right v) = return v
