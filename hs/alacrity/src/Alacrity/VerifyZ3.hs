@@ -167,6 +167,9 @@ z3_sat1 z3 (_honest, _r, _tk) a = inNewScope z3 $ do
 
    2. Verify claims (see ClaimType for details)
 
+   SMT-LIB is documented here:
+   http://smtlib.cs.uiowa.edu/standard.shtml
+
  -}
 
 lookie :: (Show k, Ord k) => String -> k -> M.Map k a -> a
