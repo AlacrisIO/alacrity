@@ -30,25 +30,25 @@ participant B {
     uint256 handB }
 
 main {
-    @A { assume! isHand(handA) };
-    @B { assume! isHand(handB) };
+    @A assume! isHand(handA);
+    @B assume! isHand(handB);
    
     @A const commitA, saltA = precommit(handA);
     @A declassify! wagerAmount;
     @A declassify! escrowAmount;
     @A declassify! commitA;
-    @A { publish! wagerAmount, escrowAmount, commitA
-         w/ (wagerAmount + escrowAmount) };
+    @A publish! wagerAmount, escrowAmount, commitA
+       w/ (wagerAmount + escrowAmount);
     return;
     
     @B declassify! handB;
-    @B { publish! handB w/ wagerAmount };
+    @B publish! handB w/ wagerAmount;
     require! isHand(handB);
     return;
 
     @A declassify! saltA;
     @A declassify! handA;
-    @A { publish! saltA, handA w/ 0 };
+    @A publish! saltA, handA w/ 0;
     check_commit(commitA, saltA, handA);
     require! isHand(handA);
     const outcome = winner(handA, handB);

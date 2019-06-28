@@ -207,12 +207,10 @@ parseXLToConsensus :: Parser XLExpr
 parseXLToConsensus = do
   exact "@"
   who <- parseParticipant
-  exact "{"
   exact "publish!"
   vs <- parseXLVars
   exact "w/"
   amount <- parseXLExpr1
-  exact "}"
   semi
   conk <- parseXLExprT Nothing
   --- XXX hygeine
