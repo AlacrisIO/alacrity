@@ -115,6 +115,10 @@ const add   = web3 => (a, b) => toBN(web3)(a).add(toBN(web3)(b));
 const sub   = web3 => (a, b) => toBN(web3)(a).sub(toBN(web3)(b));
 const mod   = web3 => (a, b) => toBN(web3)(a).mod(toBN(web3)(b));
 const mul   = web3 => (a, b) => toBN(web3)(a).mul(toBN(web3)(b));
+const ge    = web3 => (a, b) => toBN(web3)(a).gte(toBN(web3)(b));
+const gt    = web3 => (a, b) => toBN(web3)(a).gt(toBN(web3)(b));
+const le    = web3 => (a, b) => toBN(web3)(a).lte(toBN(web3)(b));
+const lt    = web3 => (a, b) => toBN(web3)(a).lt(toBN(web3)(b));
 
 // --------------------------------------------------------
 
@@ -208,6 +212,10 @@ const mkStdlib = (web3, random32Bytes, asserter) =>
   , sub:              sub(web3)
   , mod:              mod(web3)
   , mul:              mul(web3)
+  , ge:               ge(web3)
+  , gt:               gt(web3)
+  , le:               le(web3)
+  , lt:               lt(web3)
   });
 
 

@@ -291,8 +291,25 @@ parseDefine = do
   semi
   return [XL_DefineValues vs ve]
 
+parseEnum :: Parser [XLDef]
+parseEnum = do
+  exact "enum"
+  name <- parseXLVar
+  vs <- braces $ parseXLVars
+  semi
+  return $ doXLEnum name vs
+
+doXLEnum :: XLVar -> [XLVar] -> [XLDef]
+doXLEnum predv vs = [ dvs, predd ]
+  where dvs = XL_DefineValues vs ve
+        ve = XL_Values $ zipWith (\_ i -> XL_Con (Con_I i)) vs [0..]
+        predd = XL_DefineFun predv [ "x" ] checke
+        checke = XL_FunApp "and" [ lee, lte ]
+        lee = XL_PrimApp (CP PLE) [ XL_Con (Con_I 0), XL_Var "x" ]
+        lte = XL_PrimApp (CP PLT) [ XL_Var "x", XL_Con (Con_I (toInteger (length vs))) ]
+
 parseXLDef :: Parser [XLDef]
-parseXLDef = parseImport <|> parseDefineFun <|> parseDefine
+parseXLDef = parseImport <|> parseDefineFun <|> parseDefine <|> parseEnum
 
 parseXLDefs :: Parser [XLDef]
 parseXLDefs = liftM concat (sepBy parseXLDef sc)

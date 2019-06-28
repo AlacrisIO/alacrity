@@ -1,13 +1,7 @@
 #lang alacrity/exe
-import "../../../ala/stdlib.ala";
 
-const ROCK, PAPER, SCISSORS = values 0, 1, 2;
-function isHand (x) {
-    ((x == ROCK) || ((x == PAPER) || (x == SCISSORS))) }
-
-const B_WINS, DRAW, A_WINS = values 0, 1, 2;
-function isOutcome (x) {
-    ((x == B_WINS) || ((x == DRAW) || (x == A_WINS))) }
+enum isHand { ROCK, PAPER, SCISSORS };
+enum isOutcome { B_WINS, DRAW, A_WINS };
 
 function winner(handA, handB) : isOutcome {
     const validA = isHand(handA);
