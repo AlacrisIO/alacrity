@@ -44,3 +44,8 @@ geth \
     --nat "any" \
     --ipcpath .ethereum/geth.ipc \
     > $LOGDIR/testnet.log 2>&1 &
+
+while ! curl -sSf http://localhost:$RPCPORT ; do
+    echo "Geth not started yet, waiting..."
+    sleep 1
+done
