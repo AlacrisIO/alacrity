@@ -30,7 +30,6 @@ main {
     @A const commitA, saltA = precommit(handA);
     @A declassify! wagerAmount;
     @A declassify! escrowAmount;
-    @A declassify! commitA;
     @A publish! wagerAmount, escrowAmount, commitA
        w/ (wagerAmount + escrowAmount);
     return;

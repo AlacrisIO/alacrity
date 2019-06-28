@@ -405,10 +405,11 @@ epp_e_loc γ p e = case e of
     where (fvs, args'st) = epp_args γ (RolePart p) args
           args't = map (fst . snd) args'st
           args' = map fst args'st
-          --- XXX digest result should be public
-          --- XXX interact result should be secret
           ret = checkFun (primType pr) args't
-          slvl = mconcat $ map (snd . snd) args'st
+          slvl = case pr of
+                   (CP DIGEST) -> Public
+                   INTERACT -> Secret
+                   _ -> mconcat $ map (snd . snd) args'st
  where earg = epp_arg γ (RolePart p)
 
 epp_s_ctc :: EPPEnv -> ILStmt -> (Set.Set BLVar, CStmt)
