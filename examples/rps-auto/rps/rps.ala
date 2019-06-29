@@ -24,6 +24,8 @@ participant B {
     uint256 handB }
 
 main {
+    @A assume! (escrowAmount > 0);
+    @A assume! (wagerAmount > 0);
     @A assume! isHand(handA);
     @B assume! isHand(handB);
    
@@ -60,4 +62,5 @@ main {
 
     possible? (outcome == A_WINS);
     possible? (outcome == B_WINS);
+    assert! (escrowAmount <= getsA);
     outcome }
