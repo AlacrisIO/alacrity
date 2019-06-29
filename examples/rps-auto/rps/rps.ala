@@ -24,12 +24,10 @@ participant B {
     uint256 handB }
 
 main {
-    @A assume! (escrowAmount > 0);
-    @A assume! (wagerAmount > 0);
     @A assume! isHand(handA);
     @B assume! isHand(handB);
-   
     @A const commitA, saltA = precommit(handA);
+
     @A declassify! wagerAmount;
     @A declassify! escrowAmount;
     @A publish! wagerAmount, escrowAmount, commitA
