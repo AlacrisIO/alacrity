@@ -79,9 +79,9 @@ contract ALAContract is Stdlib {
     bool v41 = (uint256(0) <= v28) ? (v28 < uint256(3)) : false;
     bool v44 = (uint256(0) <= v21) ? (v21 < uint256(3)) : false;
     uint256 v51 = (v41 ? v44 : false) ? ((v28 + (uint256(4) - v21)) % uint256(3)) : (v41 ? uint256(2) : (v44 ? uint256(0) : uint256(1)));
-    require(((uint256(0) <= v51) ? (v51 < uint256(3)) : false));
-    require((((v51 == uint256(2)) ? false : true) ? true : ((uint256(0) <= v28) ? (v28 < uint256(3)) : false)));
-    require((((v51 == uint256(0)) ? false : true) ? true : ((uint256(0) <= v21) ? (v21 < uint256(3)) : false)));
+    
+    
+    
     bool v67 = v51 == uint256(2);
     bool v70 = v51 == uint256(0);
     pA.transfer((v67 ? ((uint256(2) * v15) + v16) : (v70 ? v16 : (v15 + v16))));

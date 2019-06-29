@@ -116,6 +116,7 @@ jsAssert a = jsApply "stdlib.assert" [ a ] <> semi
 
 jsEPStmt :: EPStmt -> Doc a -> Doc a
 jsEPStmt (EP_Claim CT_Possible _) kp = kp
+jsEPStmt (EP_Claim CT_Assert _) kp = kp
 jsEPStmt (EP_Claim _ a) kp = vsep [ jsAssert (jsArg a), kp ]
 jsEPStmt (EP_Send i svs msg amt) kp = jsApply "ctc.send" [ jsString (solMsg_fun i), vs, jsArg amt, jsLambda [] kp ] <> semi
   where args = svs ++ msg
