@@ -83,9 +83,9 @@ contract ALAContract is Stdlib {
     
     
     bool v69 = v53 == uint256(2);
-    bool v72 = v53 == uint256(0);
-    pA.transfer((v69 ? ((uint256(2) * v17) + v18) : (v72 ? v18 : (v17 + v18))));
-    pB.transfer((v69 ? uint256(0) : (v72 ? (uint256(2) * v17) : v17)));
+    bool v71 = v53 == uint256(0);
+    pA.transfer((v18 + (v69 ? (uint256(2) * v17) : (v71 ? uint256(0) : v17))));
+    pB.transfer((v69 ? uint256(0) : (v71 ? (uint256(2) * v17) : v17)));
     emit e2(v29, v30);
     current_state = 0x0;
     selfdestruct(address(0x02B463784Bc1a49f1647B47a19452aC420DFC65A)); } }

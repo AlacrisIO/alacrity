@@ -51,16 +51,15 @@ main {
     assert! ((outcome == B_WINS) => isHand(handB));
     const getsA, getsB =
           if (outcome == A_WINS) {
-              values ((2 * wagerAmount) + escrowAmount), 0 }
+              values (2 * wagerAmount), 0 }
           else if (outcome == B_WINS) {
-              values escrowAmount, (2 * wagerAmount) }
+              values 0, (2 * wagerAmount) }
           else {
-              values (wagerAmount + escrowAmount), wagerAmount };
-    transfer! A <- getsA;
+              values wagerAmount, wagerAmount };
+    transfer! A <- (escrowAmount + getsA);
     transfer! B <- getsB;
     return;
 
     possible? (outcome == A_WINS);
     possible? (outcome == B_WINS);
-    assert! (escrowAmount <= getsA);
     outcome }

@@ -392,45 +392,53 @@
 [<-recv] success
 [send->] (assert (= v70 (* 2 v17 ) ) )
 [<-recv] success
-[send->] (declare-fun v71 () Int )
+[send->] (declare-fun v71 () Bool )
 [<-recv] success
-[send->] (assert (= v71 (+ v70 v18 ) ) )
+[send->] (assert (= v71 (= v53 0 ) ) )
 [<-recv] success
-[send->] (declare-fun v72 () Bool )
+[send->] (declare-fun v72 () Int )
 [<-recv] success
-[send->] (assert (= v72 (= v53 0 ) ) )
+[send->] (assert (= v72 (* 2 v17 ) ) )
 [<-recv] success
 [send->] (declare-fun v73 () Int )
 [<-recv] success
-[send->] (assert (= v73 (* 2 v17 ) ) )
+[send->] (assert (= v73 (ite v71 0 v17 ) ) )
 [<-recv] success
 [send->] (declare-fun v74 () Int )
 [<-recv] success
-[send->] (assert (= v74 (+ v17 v18 ) ) )
+[send->] (assert (= v74 (ite v71 v72 v17 ) ) )
 [<-recv] success
 [send->] (declare-fun v75 () Int )
 [<-recv] success
-[send->] (assert (= v75 (ite v72 v18 v74 ) ) )
+[send->] (assert (= v75 (ite v69 v70 v73 ) ) )
 [<-recv] success
 [send->] (declare-fun v76 () Int )
 [<-recv] success
-[send->] (assert (= v76 (ite v72 v73 v17 ) ) )
+[send->] (assert (= v76 (ite v69 0 v74 ) ) )
 [<-recv] success
 [send->] (declare-fun v77 () Int )
 [<-recv] success
-[send->] (assert (= v77 (ite v69 v71 v75 ) ) )
-[<-recv] success
-[send->] (declare-fun v78 () Int )
-[<-recv] success
-[send->] (assert (= v78 (ite v69 0 v76 ) ) )
+[send->] (assert (= v77 (+ v18 v75 ) ) )
 [<-recv] success
 [send->] (define-fun ctc_balance4 () Int (- ctc_balance3 v77 ) )
 [<-recv] success
-[send->] (define-fun ctc_balance5 () Int (- ctc_balance4 v78 ) )
+[send->] (define-fun ctc_balance5 () Int (- ctc_balance4 v76 ) )
+[<-recv] success
+[send->] (declare-fun v78 () Bool )
+[<-recv] success
+[send->] (assert (= v78 (= v53 2 ) ) )
+[<-recv] success
+[send->] (push 1 )
+[<-recv] success
+[send->] (assert v78 )
+[<-recv] success
+[send->] (check-sat )
+[<-recv] sat
+[send->] (pop 1 )
 [<-recv] success
 [send->] (declare-fun v79 () Bool )
 [<-recv] success
-[send->] (assert (= v79 (= v53 2 ) ) )
+[send->] (assert (= v79 (= v53 0 ) ) )
 [<-recv] success
 [send->] (push 1 )
 [<-recv] success
@@ -439,32 +447,6 @@
 [send->] (check-sat )
 [<-recv] sat
 [send->] (pop 1 )
-[<-recv] success
-[send->] (declare-fun v80 () Bool )
-[<-recv] success
-[send->] (assert (= v80 (= v53 0 ) ) )
-[<-recv] success
-[send->] (push 1 )
-[<-recv] success
-[send->] (assert v80 )
-[<-recv] success
-[send->] (check-sat )
-[<-recv] sat
-[send->] (pop 1 )
-[<-recv] success
-[send->] (declare-fun v81 () Bool )
-[<-recv] success
-[send->] (assert (= v81 (<= v18 v77 ) ) )
-[<-recv] success
-[send->] (push 1 )
-[<-recv] success
-[send->] (assert (not v81 ) )
-[<-recv] success
-[send->] (check-sat )
-[<-recv] unsat
-[send->] (pop 1 )
-[<-recv] success
-[send->] (assert v81 )
 [<-recv] success
 [send->] (push 1 )
 [<-recv] success
@@ -850,45 +832,53 @@
 [<-recv] success
 [send->] (assert (= v70 (* 2 v17 ) ) )
 [<-recv] success
-[send->] (declare-fun v71 () Int )
+[send->] (declare-fun v71 () Bool )
 [<-recv] success
-[send->] (assert (= v71 (+ v70 v18 ) ) )
+[send->] (assert (= v71 (= v53 0 ) ) )
 [<-recv] success
-[send->] (declare-fun v72 () Bool )
+[send->] (declare-fun v72 () Int )
 [<-recv] success
-[send->] (assert (= v72 (= v53 0 ) ) )
+[send->] (assert (= v72 (* 2 v17 ) ) )
 [<-recv] success
 [send->] (declare-fun v73 () Int )
 [<-recv] success
-[send->] (assert (= v73 (* 2 v17 ) ) )
+[send->] (assert (= v73 (ite v71 0 v17 ) ) )
 [<-recv] success
 [send->] (declare-fun v74 () Int )
 [<-recv] success
-[send->] (assert (= v74 (+ v17 v18 ) ) )
+[send->] (assert (= v74 (ite v71 v72 v17 ) ) )
 [<-recv] success
 [send->] (declare-fun v75 () Int )
 [<-recv] success
-[send->] (assert (= v75 (ite v72 v18 v74 ) ) )
+[send->] (assert (= v75 (ite v69 v70 v73 ) ) )
 [<-recv] success
 [send->] (declare-fun v76 () Int )
 [<-recv] success
-[send->] (assert (= v76 (ite v72 v73 v17 ) ) )
+[send->] (assert (= v76 (ite v69 0 v74 ) ) )
 [<-recv] success
 [send->] (declare-fun v77 () Int )
 [<-recv] success
-[send->] (assert (= v77 (ite v69 v71 v75 ) ) )
-[<-recv] success
-[send->] (declare-fun v78 () Int )
-[<-recv] success
-[send->] (assert (= v78 (ite v69 0 v76 ) ) )
+[send->] (assert (= v77 (+ v18 v75 ) ) )
 [<-recv] success
 [send->] (define-fun ctc_balance4 () Int (- ctc_balance3 v77 ) )
 [<-recv] success
-[send->] (define-fun ctc_balance5 () Int (- ctc_balance4 v78 ) )
+[send->] (define-fun ctc_balance5 () Int (- ctc_balance4 v76 ) )
+[<-recv] success
+[send->] (declare-fun v78 () Bool )
+[<-recv] success
+[send->] (assert (= v78 (= v53 2 ) ) )
+[<-recv] success
+[send->] (push 1 )
+[<-recv] success
+[send->] (assert v78 )
+[<-recv] success
+[send->] (check-sat )
+[<-recv] sat
+[send->] (pop 1 )
 [<-recv] success
 [send->] (declare-fun v79 () Bool )
 [<-recv] success
-[send->] (assert (= v79 (= v53 2 ) ) )
+[send->] (assert (= v79 (= v53 0 ) ) )
 [<-recv] success
 [send->] (push 1 )
 [<-recv] success
@@ -897,32 +887,6 @@
 [send->] (check-sat )
 [<-recv] sat
 [send->] (pop 1 )
-[<-recv] success
-[send->] (declare-fun v80 () Bool )
-[<-recv] success
-[send->] (assert (= v80 (= v53 0 ) ) )
-[<-recv] success
-[send->] (push 1 )
-[<-recv] success
-[send->] (assert v80 )
-[<-recv] success
-[send->] (check-sat )
-[<-recv] sat
-[send->] (pop 1 )
-[<-recv] success
-[send->] (declare-fun v81 () Bool )
-[<-recv] success
-[send->] (assert (= v81 (<= v18 v77 ) ) )
-[<-recv] success
-[send->] (push 1 )
-[<-recv] success
-[send->] (assert (not v81 ) )
-[<-recv] success
-[send->] (check-sat )
-[<-recv] unsat
-[send->] (pop 1 )
-[<-recv] success
-[send->] (assert v81 )
 [<-recv] success
 [send->] (push 1 )
 [<-recv] success
@@ -1308,45 +1272,53 @@
 [<-recv] success
 [send->] (assert (= v70 (* 2 v17 ) ) )
 [<-recv] success
-[send->] (declare-fun v71 () Int )
+[send->] (declare-fun v71 () Bool )
 [<-recv] success
-[send->] (assert (= v71 (+ v70 v18 ) ) )
+[send->] (assert (= v71 (= v53 0 ) ) )
 [<-recv] success
-[send->] (declare-fun v72 () Bool )
+[send->] (declare-fun v72 () Int )
 [<-recv] success
-[send->] (assert (= v72 (= v53 0 ) ) )
+[send->] (assert (= v72 (* 2 v17 ) ) )
 [<-recv] success
 [send->] (declare-fun v73 () Int )
 [<-recv] success
-[send->] (assert (= v73 (* 2 v17 ) ) )
+[send->] (assert (= v73 (ite v71 0 v17 ) ) )
 [<-recv] success
 [send->] (declare-fun v74 () Int )
 [<-recv] success
-[send->] (assert (= v74 (+ v17 v18 ) ) )
+[send->] (assert (= v74 (ite v71 v72 v17 ) ) )
 [<-recv] success
 [send->] (declare-fun v75 () Int )
 [<-recv] success
-[send->] (assert (= v75 (ite v72 v18 v74 ) ) )
+[send->] (assert (= v75 (ite v69 v70 v73 ) ) )
 [<-recv] success
 [send->] (declare-fun v76 () Int )
 [<-recv] success
-[send->] (assert (= v76 (ite v72 v73 v17 ) ) )
+[send->] (assert (= v76 (ite v69 0 v74 ) ) )
 [<-recv] success
 [send->] (declare-fun v77 () Int )
 [<-recv] success
-[send->] (assert (= v77 (ite v69 v71 v75 ) ) )
-[<-recv] success
-[send->] (declare-fun v78 () Int )
-[<-recv] success
-[send->] (assert (= v78 (ite v69 0 v76 ) ) )
+[send->] (assert (= v77 (+ v18 v75 ) ) )
 [<-recv] success
 [send->] (define-fun ctc_balance4 () Int (- ctc_balance3 v77 ) )
 [<-recv] success
-[send->] (define-fun ctc_balance5 () Int (- ctc_balance4 v78 ) )
+[send->] (define-fun ctc_balance5 () Int (- ctc_balance4 v76 ) )
+[<-recv] success
+[send->] (declare-fun v78 () Bool )
+[<-recv] success
+[send->] (assert (= v78 (= v53 2 ) ) )
+[<-recv] success
+[send->] (push 1 )
+[<-recv] success
+[send->] (assert v78 )
+[<-recv] success
+[send->] (check-sat )
+[<-recv] sat
+[send->] (pop 1 )
 [<-recv] success
 [send->] (declare-fun v79 () Bool )
 [<-recv] success
-[send->] (assert (= v79 (= v53 2 ) ) )
+[send->] (assert (= v79 (= v53 0 ) ) )
 [<-recv] success
 [send->] (push 1 )
 [<-recv] success
@@ -1355,32 +1327,6 @@
 [send->] (check-sat )
 [<-recv] sat
 [send->] (pop 1 )
-[<-recv] success
-[send->] (declare-fun v80 () Bool )
-[<-recv] success
-[send->] (assert (= v80 (= v53 0 ) ) )
-[<-recv] success
-[send->] (push 1 )
-[<-recv] success
-[send->] (assert v80 )
-[<-recv] success
-[send->] (check-sat )
-[<-recv] sat
-[send->] (pop 1 )
-[<-recv] success
-[send->] (declare-fun v81 () Bool )
-[<-recv] success
-[send->] (assert (= v81 (<= v18 v77 ) ) )
-[<-recv] success
-[send->] (push 1 )
-[<-recv] success
-[send->] (assert (not v81 ) )
-[<-recv] success
-[send->] (check-sat )
-[<-recv] unsat
-[send->] (pop 1 )
-[<-recv] success
-[send->] (assert v81 )
 [<-recv] success
 [send->] (push 1 )
 [<-recv] success
@@ -1674,45 +1620,53 @@
 [<-recv] success
 [send->] (assert (= v70 (* 2 v17 ) ) )
 [<-recv] success
-[send->] (declare-fun v71 () Int )
+[send->] (declare-fun v71 () Bool )
 [<-recv] success
-[send->] (assert (= v71 (+ v70 v18 ) ) )
+[send->] (assert (= v71 (= v53 0 ) ) )
 [<-recv] success
-[send->] (declare-fun v72 () Bool )
+[send->] (declare-fun v72 () Int )
 [<-recv] success
-[send->] (assert (= v72 (= v53 0 ) ) )
+[send->] (assert (= v72 (* 2 v17 ) ) )
 [<-recv] success
 [send->] (declare-fun v73 () Int )
 [<-recv] success
-[send->] (assert (= v73 (* 2 v17 ) ) )
+[send->] (assert (= v73 (ite v71 0 v17 ) ) )
 [<-recv] success
 [send->] (declare-fun v74 () Int )
 [<-recv] success
-[send->] (assert (= v74 (+ v17 v18 ) ) )
+[send->] (assert (= v74 (ite v71 v72 v17 ) ) )
 [<-recv] success
 [send->] (declare-fun v75 () Int )
 [<-recv] success
-[send->] (assert (= v75 (ite v72 v18 v74 ) ) )
+[send->] (assert (= v75 (ite v69 v70 v73 ) ) )
 [<-recv] success
 [send->] (declare-fun v76 () Int )
 [<-recv] success
-[send->] (assert (= v76 (ite v72 v73 v17 ) ) )
+[send->] (assert (= v76 (ite v69 0 v74 ) ) )
 [<-recv] success
 [send->] (declare-fun v77 () Int )
 [<-recv] success
-[send->] (assert (= v77 (ite v69 v71 v75 ) ) )
-[<-recv] success
-[send->] (declare-fun v78 () Int )
-[<-recv] success
-[send->] (assert (= v78 (ite v69 0 v76 ) ) )
+[send->] (assert (= v77 (+ v18 v75 ) ) )
 [<-recv] success
 [send->] (define-fun ctc_balance4 () Int (- ctc_balance3 v77 ) )
 [<-recv] success
-[send->] (define-fun ctc_balance5 () Int (- ctc_balance4 v78 ) )
+[send->] (define-fun ctc_balance5 () Int (- ctc_balance4 v76 ) )
+[<-recv] success
+[send->] (declare-fun v78 () Bool )
+[<-recv] success
+[send->] (assert (= v78 (= v53 2 ) ) )
+[<-recv] success
+[send->] (push 1 )
+[<-recv] success
+[send->] (assert v78 )
+[<-recv] success
+[send->] (check-sat )
+[<-recv] sat
+[send->] (pop 1 )
 [<-recv] success
 [send->] (declare-fun v79 () Bool )
 [<-recv] success
-[send->] (assert (= v79 (= v53 2 ) ) )
+[send->] (assert (= v79 (= v53 0 ) ) )
 [<-recv] success
 [send->] (push 1 )
 [<-recv] success
@@ -1721,32 +1675,6 @@
 [send->] (check-sat )
 [<-recv] sat
 [send->] (pop 1 )
-[<-recv] success
-[send->] (declare-fun v80 () Bool )
-[<-recv] success
-[send->] (assert (= v80 (= v53 0 ) ) )
-[<-recv] success
-[send->] (push 1 )
-[<-recv] success
-[send->] (assert v80 )
-[<-recv] success
-[send->] (check-sat )
-[<-recv] sat
-[send->] (pop 1 )
-[<-recv] success
-[send->] (declare-fun v81 () Bool )
-[<-recv] success
-[send->] (assert (= v81 (<= v18 v77 ) ) )
-[<-recv] success
-[send->] (push 1 )
-[<-recv] success
-[send->] (assert (not v81 ) )
-[<-recv] success
-[send->] (check-sat )
-[<-recv] unsat
-[send->] (pop 1 )
-[<-recv] success
-[send->] (assert v81 )
 [<-recv] success
 [send->] (push 1 )
 [<-recv] success
@@ -2074,45 +2002,53 @@
 [<-recv] success
 [send->] (assert (= v70 (* 2 v17 ) ) )
 [<-recv] success
-[send->] (declare-fun v71 () Int )
+[send->] (declare-fun v71 () Bool )
 [<-recv] success
-[send->] (assert (= v71 (+ v70 v18 ) ) )
+[send->] (assert (= v71 (= v53 0 ) ) )
 [<-recv] success
-[send->] (declare-fun v72 () Bool )
+[send->] (declare-fun v72 () Int )
 [<-recv] success
-[send->] (assert (= v72 (= v53 0 ) ) )
+[send->] (assert (= v72 (* 2 v17 ) ) )
 [<-recv] success
 [send->] (declare-fun v73 () Int )
 [<-recv] success
-[send->] (assert (= v73 (* 2 v17 ) ) )
+[send->] (assert (= v73 (ite v71 0 v17 ) ) )
 [<-recv] success
 [send->] (declare-fun v74 () Int )
 [<-recv] success
-[send->] (assert (= v74 (+ v17 v18 ) ) )
+[send->] (assert (= v74 (ite v71 v72 v17 ) ) )
 [<-recv] success
 [send->] (declare-fun v75 () Int )
 [<-recv] success
-[send->] (assert (= v75 (ite v72 v18 v74 ) ) )
+[send->] (assert (= v75 (ite v69 v70 v73 ) ) )
 [<-recv] success
 [send->] (declare-fun v76 () Int )
 [<-recv] success
-[send->] (assert (= v76 (ite v72 v73 v17 ) ) )
+[send->] (assert (= v76 (ite v69 0 v74 ) ) )
 [<-recv] success
 [send->] (declare-fun v77 () Int )
 [<-recv] success
-[send->] (assert (= v77 (ite v69 v71 v75 ) ) )
-[<-recv] success
-[send->] (declare-fun v78 () Int )
-[<-recv] success
-[send->] (assert (= v78 (ite v69 0 v76 ) ) )
+[send->] (assert (= v77 (+ v18 v75 ) ) )
 [<-recv] success
 [send->] (define-fun ctc_balance4 () Int (- ctc_balance3 v77 ) )
 [<-recv] success
-[send->] (define-fun ctc_balance5 () Int (- ctc_balance4 v78 ) )
+[send->] (define-fun ctc_balance5 () Int (- ctc_balance4 v76 ) )
+[<-recv] success
+[send->] (declare-fun v78 () Bool )
+[<-recv] success
+[send->] (assert (= v78 (= v53 2 ) ) )
+[<-recv] success
+[send->] (push 1 )
+[<-recv] success
+[send->] (assert v78 )
+[<-recv] success
+[send->] (check-sat )
+[<-recv] sat
+[send->] (pop 1 )
 [<-recv] success
 [send->] (declare-fun v79 () Bool )
 [<-recv] success
-[send->] (assert (= v79 (= v53 2 ) ) )
+[send->] (assert (= v79 (= v53 0 ) ) )
 [<-recv] success
 [send->] (push 1 )
 [<-recv] success
@@ -2121,32 +2057,6 @@
 [send->] (check-sat )
 [<-recv] sat
 [send->] (pop 1 )
-[<-recv] success
-[send->] (declare-fun v80 () Bool )
-[<-recv] success
-[send->] (assert (= v80 (= v53 0 ) ) )
-[<-recv] success
-[send->] (push 1 )
-[<-recv] success
-[send->] (assert v80 )
-[<-recv] success
-[send->] (check-sat )
-[<-recv] sat
-[send->] (pop 1 )
-[<-recv] success
-[send->] (declare-fun v81 () Bool )
-[<-recv] success
-[send->] (assert (= v81 (<= v18 v77 ) ) )
-[<-recv] success
-[send->] (push 1 )
-[<-recv] success
-[send->] (assert (not v81 ) )
-[<-recv] success
-[send->] (check-sat )
-[<-recv] unsat
-[send->] (pop 1 )
-[<-recv] success
-[send->] (assert v81 )
 [<-recv] success
 [send->] (push 1 )
 [<-recv] success
@@ -2450,45 +2360,53 @@
 [<-recv] success
 [send->] (assert (= v70 (* 2 v17 ) ) )
 [<-recv] success
-[send->] (declare-fun v71 () Int )
+[send->] (declare-fun v71 () Bool )
 [<-recv] success
-[send->] (assert (= v71 (+ v70 v18 ) ) )
+[send->] (assert (= v71 (= v53 0 ) ) )
 [<-recv] success
-[send->] (declare-fun v72 () Bool )
+[send->] (declare-fun v72 () Int )
 [<-recv] success
-[send->] (assert (= v72 (= v53 0 ) ) )
+[send->] (assert (= v72 (* 2 v17 ) ) )
 [<-recv] success
 [send->] (declare-fun v73 () Int )
 [<-recv] success
-[send->] (assert (= v73 (* 2 v17 ) ) )
+[send->] (assert (= v73 (ite v71 0 v17 ) ) )
 [<-recv] success
 [send->] (declare-fun v74 () Int )
 [<-recv] success
-[send->] (assert (= v74 (+ v17 v18 ) ) )
+[send->] (assert (= v74 (ite v71 v72 v17 ) ) )
 [<-recv] success
 [send->] (declare-fun v75 () Int )
 [<-recv] success
-[send->] (assert (= v75 (ite v72 v18 v74 ) ) )
+[send->] (assert (= v75 (ite v69 v70 v73 ) ) )
 [<-recv] success
 [send->] (declare-fun v76 () Int )
 [<-recv] success
-[send->] (assert (= v76 (ite v72 v73 v17 ) ) )
+[send->] (assert (= v76 (ite v69 0 v74 ) ) )
 [<-recv] success
 [send->] (declare-fun v77 () Int )
 [<-recv] success
-[send->] (assert (= v77 (ite v69 v71 v75 ) ) )
-[<-recv] success
-[send->] (declare-fun v78 () Int )
-[<-recv] success
-[send->] (assert (= v78 (ite v69 0 v76 ) ) )
+[send->] (assert (= v77 (+ v18 v75 ) ) )
 [<-recv] success
 [send->] (define-fun ctc_balance4 () Int (- ctc_balance3 v77 ) )
 [<-recv] success
-[send->] (define-fun ctc_balance5 () Int (- ctc_balance4 v78 ) )
+[send->] (define-fun ctc_balance5 () Int (- ctc_balance4 v76 ) )
+[<-recv] success
+[send->] (declare-fun v78 () Bool )
+[<-recv] success
+[send->] (assert (= v78 (= v53 2 ) ) )
+[<-recv] success
+[send->] (push 1 )
+[<-recv] success
+[send->] (assert v78 )
+[<-recv] success
+[send->] (check-sat )
+[<-recv] sat
+[send->] (pop 1 )
 [<-recv] success
 [send->] (declare-fun v79 () Bool )
 [<-recv] success
-[send->] (assert (= v79 (= v53 2 ) ) )
+[send->] (assert (= v79 (= v53 0 ) ) )
 [<-recv] success
 [send->] (push 1 )
 [<-recv] success
@@ -2497,32 +2415,6 @@
 [send->] (check-sat )
 [<-recv] sat
 [send->] (pop 1 )
-[<-recv] success
-[send->] (declare-fun v80 () Bool )
-[<-recv] success
-[send->] (assert (= v80 (= v53 0 ) ) )
-[<-recv] success
-[send->] (push 1 )
-[<-recv] success
-[send->] (assert v80 )
-[<-recv] success
-[send->] (check-sat )
-[<-recv] sat
-[send->] (pop 1 )
-[<-recv] success
-[send->] (declare-fun v81 () Bool )
-[<-recv] success
-[send->] (assert (= v81 (<= v18 v77 ) ) )
-[<-recv] success
-[send->] (push 1 )
-[<-recv] success
-[send->] (assert (not v81 ) )
-[<-recv] success
-[send->] (check-sat )
-[<-recv] unsat
-[send->] (pop 1 )
-[<-recv] success
-[send->] (assert v81 )
 [<-recv] success
 [send->] (push 1 )
 [<-recv] success
