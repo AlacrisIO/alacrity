@@ -1,6 +1,7 @@
 module Alacrity.EmitJS where
 
 import qualified Data.Map.Strict as M
+import qualified Data.Set as Set
 import Data.List (intersperse)
 import Data.Text.Prettyprint.Doc
 
@@ -44,9 +45,9 @@ jsCon (Con_B True) = pretty "true"
 jsCon (Con_B False) = pretty "false"
 jsCon (Con_BS s) = jsString $ show s
 
-jsArg :: BLArg -> Doc a
-jsArg (BL_Var v) = jsVar v
-jsArg (BL_Con c) = jsCon c
+jsArg :: BLArg -> (Doc a, Set.Set BLVar)
+jsArg (BL_Var v) = (jsVar v, Set.singleton v)
+jsArg (BL_Con c) = (jsCon c, Set.empty)
 
 jsPartVar :: Participant -> Doc a
 jsPartVar p = pretty $ "p" ++ p
@@ -107,46 +108,76 @@ jsPrimApply pr =
     INTERACT -> error "interact doesn't use jsPrimApply"
   where spa_error () = error "jsPrimApply"
 
-jsEPExpr :: EPExpr -> Doc a
+jsEPExpr :: EPExpr -> (Doc a, Set.Set BLVar)
 jsEPExpr (EP_Arg a) = jsArg a
-jsEPExpr (EP_PrimApp pr al) = jsPrimApply pr $ map jsArg al
+jsEPExpr (EP_PrimApp pr al) = ((jsPrimApply pr $ map fst alp), (Set.unions $ map snd alp))
+  where alp = map jsArg al
 
 jsAssert :: Doc a -> Doc a
 jsAssert a = jsApply "stdlib.assert" [ a ] <> semi
 
-jsEPStmt :: EPStmt -> Doc a -> Doc a
-jsEPStmt (EP_Claim CT_Possible _) kp = kp
-jsEPStmt (EP_Claim CT_Assert _) kp = kp
-jsEPStmt (EP_Claim _ a) kp = vsep [ jsAssert (jsArg a), kp ]
-jsEPStmt (EP_Send i svs msg amt) kp = jsApply "ctc.send" [ jsString (solMsg_fun i), vs, jsArg amt, jsLambda [] kp ] <> semi
-  where args = svs ++ msg
+jsEPStmt :: EPStmt -> Doc a -> (Doc a, Set.Set BLVar)
+jsEPStmt (EP_Claim CT_Possible _) kp = (kp, Set.empty)
+jsEPStmt (EP_Claim CT_Assert _) kp = (kp, Set.empty)
+jsEPStmt (EP_Claim _ a) kp = (vsep [ jsAssert ap, kp ], afvs)
+  where (ap, afvs) = jsArg a
+jsEPStmt (EP_Send i svs msg amt) kp = (tp, tfvs)
+  where tp = jsApply "ctc.send" [ jsString (solMsg_fun i), vs, amtp, jsLambda [] kp ] <> semi
+        tfvs = Set.union amtfvs $ Set.fromList args
+        (amtp, amtfvs) = jsArg amt
+        args = svs ++ msg
         vs = jsArray $ map jsVar args
 
-jsEPTail :: EPTail -> Doc a
-jsEPTail (EP_Ret al) = (jsApply "kTop" $ map jsArg al) <> semi
-jsEPTail (EP_If ca tt ft) =
-  pretty "if" <+> parens (jsArg ca) <> bp tt <> hardline <> pretty "else" <> bp ft
-  where bp at = jsBraces $ jsEPTail at
-jsEPTail (EP_Let v (EP_PrimApp INTERACT al) kt) =
-  jsApply "interact" ((map jsArg al) ++ [ kp ]) <> semi
-  where kp = jsLambda [ jsVar v ] $ jsEPTail kt
-jsEPTail (EP_Let bv ee kt) = vsep [ jsVarDecl bv <+> pretty "=" <+> jsEPExpr ee <> semi, jsEPTail kt ]
-jsEPTail (EP_Do es kt) = jsEPStmt es $ jsEPTail kt
-jsEPTail (EP_Recv fromme i _ msg pv kt) = jsApply "ctc.recv" [ jsString (solMsg_evt i), kp ] <> semi
-  where kp = jsLambda (the_vs ++ [jsVar pv]) ktp
+jsEPTail :: EPTail -> (Doc a, Set.Set BLVar)
+jsEPTail (EP_Ret al) = ((jsApply "kTop" $ map fst alp) <> semi, Set.unions $ map snd alp)
+  where alp = map jsArg al
+jsEPTail (EP_If ca tt ft) = (tp, tfvs)
+  where (ttp', ttfvs) = jsEPTail tt
+        ttp = jsBraces ttp'
+        (ftp', ftfvs) = jsEPTail ft
+        ftp = jsBraces ftp'
+        (cap, cafvs) = jsArg ca
+        tp = pretty "if" <+> parens cap <> ttp <> hardline <> pretty "else" <> ftp
+        tfvs = Set.unions [ cafvs, ttfvs, ftfvs ]
+jsEPTail (EP_Let v (EP_PrimApp INTERACT al) kt) = (tp, tfvs)
+  where kp = jsLambda [ jsVar v ] ktp
+        (ktp, ktfvs) = jsEPTail kt
+        alp = map jsArg al
+        tp = jsApply "interact" ((map fst alp) ++ [ kp ]) <> semi
+        tfvs = Set.union ktfvs $ Set.unions $ map snd alp
+jsEPTail (EP_Let bv ee kt) = (tp, tfvs)
+  where used = elem bv ktfvs
+        tp = if used then
+               vsep [ bvdeclp, ktp ]
+             else
+               ktp
+        tfvs' = Set.difference ktfvs (Set.singleton bv)
+        tfvs = if used then Set.union eefvs tfvs' else tfvs'
+        bvdeclp = jsVarDecl bv <+> pretty "=" <+> eep <> semi
+        (eep, eefvs) = jsEPExpr ee
+        (ktp, ktfvs) = jsEPTail kt
+jsEPTail (EP_Do es kt) = (tp, tfvs)
+  where (tp, esfvs) = jsEPStmt es ktp
+        tfvs = Set.union esfvs kfvs
+        (ktp, kfvs) = jsEPTail kt
+jsEPTail (EP_Recv fromme i _ msg pv kt) = (tp, tfvs)
+  where tp = jsApply "ctc.recv" [ jsString (solMsg_evt i), kp ] <> semi
+        tfvs = Set.unions [Set.fromList msg, Set.singleton pv, ktfvs]
+        kp = jsLambda (the_vs ++ [jsVar pv]) ktp
         msg_vs = map jsVar msg
         msg'_vs = map jsVar' msg
         the_vs = if fromme then msg'_vs else msg_vs
         require_and_kt = vsep $ zipWith require_match msg_vs msg'_vs
         require_match mvp mv'p = jsAssert $ jsApply "stdlib.equal" [ mvp, mv'p ]
-        ktp = (if fromme then require_and_kt <> hardline else emptyDoc) <> jsEPTail kt
+        (ktp', ktfvs) = jsEPTail kt
+        ktp = (if fromme then require_and_kt <> hardline else emptyDoc) <> ktp'
 
 jsPart :: (Participant, EProgram) -> Doc a
 jsPart (p, (EP_Prog pargs et)) =
   --- XXX Perhaps use async/await rather than CPS for more idiomatic code?
   pretty "export" <+> jsFunction p ([ pretty "stdlib", pretty "ctc", pretty "interact" ] ++ pargs_vs ++ [ pretty "kTop" ]) bodyp
   where pargs_vs = map jsVar pargs
-        bodyp = jsEPTail et
+        (bodyp, _) = jsEPTail et
 
 vsep_with_blank :: [Doc a] -> Doc a
 vsep_with_blank l = vsep $ intersperse emptyDoc l
