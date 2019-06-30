@@ -626,6 +626,7 @@ from which it extracts hands encrypted for each player,
 and an encrypted continuation for the players to be able to continue to play the game.
 Participants would thus be able to play Poker in a state channel,
 while an on-chain contract would make it possible to prevent any participant from stalling the game.
+(Idea: partner with [CypherPoker](https://github.com/monicanagent/cypherpoker.js).)
 
 Other uses might include coordinating complex auctions between distrustful parties
 that each have elaborate bidding strategies to which each participant is committed
@@ -891,4 +892,32 @@ See the [examples](examples/index.md) directory.
   is a resource with lots of information about the design of languages to specify "smart contracts",
   not all of them backed by a blockchain (indeed, going back to the 1960s).
 
+* [Cosmos](https://cosmos.network/developers) offers
+  the [ABCI](https://tendermint.com/docs/spec/abci/),
+  a way to build your own Tendermint blockchain with its own extensions written in Go
+  for application-specific consensual computations.
+  The biggest problem with this approach is economical:
+  to trust such an application, you need to trust a network of staked validators who all run this code;
+  this is not a recipe for either decentralization or success;
+  instead of enjoying a large, heavily capitalized validation network,
+  you have a small one that can be cheaply corrupted, taken over;
+  there are high infrastructure costs to running a validator node running across time,
+  and keeping it secure in an adversarial environment with rapid bitrot,
+  and this balkanization of validator networks is not capital-efficient.
+  Technically, Go is a great language to write servers, but a dangerous language
+  in which to write consensual computations, and not at all a good language to write DApps
+  that have both consensual and private components that must work perfectly in unison.
+  Importantly, the Go language and its existing toolchain aren't designed to ensure that
+  a Go program will behave in a deterministic way without side-effect;
+  that is why each program much be socially vouched for, and the validators for each application
+  must remain separate from the others: if arbitrary application code were to run on the same server
+  using this language and toolchain, malicious applications could disrupt other applications
+  and steal resources. Thus, the economic limitation of the Cosmos architecture above
+  is a direct consequence of the technical limitation of its application language Go.
+
+* DeepSea, other Coq-based systems...
+
+* [Actus](https://www.actusfrf.org/), works by [Fritz Henglein](http://hjemmesider.diku.dk/~henglein/).
+
 * See what Statebox has, what O(1)labs has, etc.
+
