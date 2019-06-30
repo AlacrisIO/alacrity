@@ -46,7 +46,8 @@ programming language that makes it easy to automatically prove the
 structural components of desirable properties about DApps and makes it
 possible to easily prove the user-specific components of those
 properties. This is in contrast to designing an unconstrained language
-and providing a novel new proving technique.
+and providing a novel new proving technique specialized for
+decentralized applications.
 
 In this article, we walk through an example Alacrity program and show
 how Alacrity performs each of these functions.
@@ -78,9 +79,10 @@ receives back the escrow.
 
 Alacrity programs define the interactions between a set of
 participants as they reach consensus on the results of computations
-based on variables initially known only to one participant. The number
-of interactions and participants are fixed, finite, and known at the
-beginning of the program.
+based on variables initially known only to one participant. For now,
+the number of interactions and participants are fixed, finite, and
+known at the beginning of the program. (We discuss lifting these
+limitations in [Future Work](#future-work).)
 
 In our example program, the participants are `A` ("Alice") and `B`
 ("Bob"). Alice knows the amount of the wager, the amount of escrow it
@@ -105,7 +107,7 @@ annotated with the single party that takes them.
 
 In our example program, in the first local block each participants
 makes claims about their initial knowledge via the `assume!` form,
-which is a kind of assertion. (In the Verification section, we will
+which is a kind of assertion. (In [Verification](#verification), we
 discuss the subtleties of the various kinds of assertion in Alacrity.)
 These two claims merely state that the hand values (which are
 arbitrary unsigned integers) are within the fixed range of the
@@ -161,8 +163,11 @@ amount.
 There is no next local block, however, because there's no additional
 computation necessary. Instead, we move immediately to the next
 consensus block, which is initiated by Bob. In Alacrity, there is
-always exactly one participant that initiates a consensus block. In
-this block, Bob declassifies his hand, publishes it, and transfers the
+always exactly one participant that initiates a consensus block. (This
+is not intrinsic to decentralized applications, but a particular
+limitation of the first version of Alacrity. In [Future
+Work](#future-work), we discuss lifting this limitation.)  In this
+block, Bob declassifies his hand, publishes it, and transfers the
 wager amount (which he has just learned from the last consensus
 block.)
 
@@ -520,13 +525,14 @@ work to be done for it to be sufficient for all decentralized
 applications.
 
 Although Alacrity's model is blockchain agnostic, we currently only
-target Ethereum. We plan to target Tezos and Nervos, as well as
-demonstrate a backend for Bitcoin Cash Script.
+target Ethereum. We are talking to many other layer-1 providers to
+form partnerships and build more backends.
 
 Presently, our Ethereum backend generates Solidity code rather than
 bytecode directly. Given that we use such a restricted form of
 Solidity, we intend to generate Ethereum and take over optimization of
-the code directly.
+the code directly, using the extra information only our compiler has
+access to.
 
 The computational fragment of Alacrity is quite limited, with a small
 number of types and operations. We intend to extend the type system
