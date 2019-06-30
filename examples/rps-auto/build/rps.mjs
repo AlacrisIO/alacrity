@@ -82,7 +82,19 @@ export function A(stdlib, ctc, interact, v0, v1, v2, kTop) {
             const v74 = v67 ? 0 : v72;
             const v75 = stdlib.add(v16, v73);
             const v76 = stdlib.eq(v51, 2);
-            const v77 = stdlib.eq(v51, 0);
+            const v77 = stdlib.eq(v28, 0);
+            const v78 = v77 ? v76 : false;
+            const v79 = stdlib.eq(v28, 1);
+            const v80 = v79 ? v76 : false;
+            const v81 = stdlib.eq(v28, 2);
+            const v82 = v81 ? v76 : false;
+            const v83 = stdlib.eq(v51, 0);
+            const v84 = stdlib.eq(v21, 0);
+            const v85 = v84 ? v83 : false;
+            const v86 = stdlib.eq(v21, 1);
+            const v87 = v86 ? v83 : false;
+            const v88 = stdlib.eq(v21, 2);
+            const v89 = v88 ? v83 : false;
             kTop(v51); }); }); }); }); }); }
 
 export function B(stdlib, ctc, interact, v3, kTop) {
@@ -155,7 +167,19 @@ export function B(stdlib, ctc, interact, v3, kTop) {
           const v74 = v67 ? 0 : v72;
           const v75 = stdlib.add(v16, v73);
           const v76 = stdlib.eq(v51, 2);
-          const v77 = stdlib.eq(v51, 0);
+          const v77 = stdlib.eq(v28, 0);
+          const v78 = v77 ? v76 : false;
+          const v79 = stdlib.eq(v28, 1);
+          const v80 = v79 ? v76 : false;
+          const v81 = stdlib.eq(v28, 2);
+          const v82 = v81 ? v76 : false;
+          const v83 = stdlib.eq(v51, 0);
+          const v84 = stdlib.eq(v21, 0);
+          const v85 = v84 ? v83 : false;
+          const v86 = stdlib.eq(v21, 1);
+          const v87 = v86 ? v83 : false;
+          const v88 = stdlib.eq(v21, 2);
+          const v89 = v88 ? v83 : false;
           kTop(v51); }); }); }); }); }
 
 export const ABI = [{"constant":false,"inputs":[{"name":"pA","type":"address"},{"name":"pB","type":"address"},{"name":"v15","type":"uint256"},{"name":"v16","type":"uint256"},{"name":"v14","type":"uint256"}],"name":"m0","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":false,"inputs":[{"name":"pA","type":"address"},{"name":"pB","type":"address"},{"name":"v14","type":"uint256"},{"name":"v15","type":"uint256"},{"name":"v16","type":"uint256"},{"name":"v21","type":"uint256"},{"name":"v27","type":"uint256"},{"name":"v28","type":"uint256"}],"name":"m2","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":false,"inputs":[{"name":"pA","type":"address"},{"name":"pB","type":"address"},{"name":"v14","type":"uint256"},{"name":"v15","type":"uint256"},{"name":"v16","type":"uint256"},{"name":"v21","type":"uint256"}],"name":"m1","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"inputs":[{"name":"pA","type":"address"},{"name":"pB","type":"address"}],"payable":true,"stateMutability":"payable","type":"constructor"},{"anonymous":false,"inputs":[{"indexed":false,"name":"v15","type":"uint256"},{"indexed":false,"name":"v16","type":"uint256"},{"indexed":false,"name":"v14","type":"uint256"}],"name":"e0","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"name":"v21","type":"uint256"}],"name":"e1","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"name":"v27","type":"uint256"},{"indexed":false,"name":"v28","type":"uint256"}],"name":"e2","type":"event"}];

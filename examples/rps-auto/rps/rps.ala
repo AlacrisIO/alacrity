@@ -15,6 +15,18 @@ function winner(handA, handB) : isOutcome {
     else {
         DRAW } }
 
+function fair_if(handX, optionX, canWinX) {
+    possible? ((handX == optionX) && canWinX) }
+
+function fair_for_player(handX, canWinX) {
+    fair_if(handX, ROCK, canWinX);
+    fair_if(handX, PAPER, canWinX);
+    fair_if(handX, SCISSORS, canWinX) }
+
+function fair_game(handA, handB, outcome) {
+    fair_for_player(handA, (outcome == A_WINS));
+    fair_for_player(handB, (outcome == B_WINS)) }
+
 participant A {
     uint256 wagerAmount,
     uint256 escrowAmount,
@@ -58,6 +70,5 @@ main {
     transfer! B <- getsB;
     return;
 
-    possible? (outcome == A_WINS);
-    possible? (outcome == B_WINS);
+    fair_game(handA, handB, outcome);
     outcome }
