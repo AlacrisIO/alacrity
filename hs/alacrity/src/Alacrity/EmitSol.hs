@@ -35,6 +35,8 @@ alacrisAddress = "0x02B463784Bc1a49f1647B47a19452aC420DFC65A"
 
 
 {- De-ANF information
+
+   We could incorporate this into the structures directly.
  -}
 
 type CCounts = M.Map BLVar Int
