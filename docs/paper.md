@@ -331,6 +331,13 @@ they must be located inside of consensus blocks. This is an essential
 property to avoid confusion where participants have disunity on the
 state of the program.
 
+Similarly, there are certain primitives which cannot be called from
+the consensus, but are allowed to be called from the
+participants. These are `random`, for generating a random number, and
+`interact` for interacting with the frontend that drives the Alacrity
+program. (We discuss `interact` more in [End-Point
+Projection](#end-point-projection).)
+
 Actors in Alacrity (the participants and the contract) always require
 a single next action that will be run. In programming language theory
 parlance, this means that the continuation of every statement must be
@@ -410,8 +417,9 @@ language becomes a variable in the SMT problems of the appropriate
 sort and is constrained to be equal the right-hand side of the
 variable definition. We extend the set of sorts and theories to deal
 with the particular kinds of values (like message digests and byte
-strings) used in Alacrity programs. (See the `build/rps.z3` file for
-an example Z3 verification session.)
+strings) used in Alacrity programs. (See the
+[build/rps.z3](https://github.com/AlacrisIO/alacrity/blob/master/examples/rps-auto/build/rps.z3)
+file for an example Z3 verification session.)
 
 Alacrity verifies the correctness of each property from the
 perspective of each participant, as well as the contract, and under a
@@ -512,11 +520,280 @@ thereby increasing trust in the game.
 The verification offered by Alacrity lowers the degree of trust that
 users need to place in decentralized applications. Rather than
 auditing their entire source code, they must only inspect the
-assertions and possibilities.
+assertions and possibilities. In our example application, Alacrity
+proves 78 different theorems about the program in about 1,500 steps of
+Z3 interaction. This verification must be done manually on
+decentralized applications implemented without Alacrity.
 
 # End-Point Projection
 
-XXX
+Alacrity programs describe the entire behavior of the decentralized
+application: the behavior of each individual client-side participant,
+as well as the on-chain behavior of the contract. Unlike traditional
+languages, where compilation results in a single binary, Alacrity
+compilations result in N clients (one for each participant) and a
+contract. In our example program, there is a client for Alice and Bob,
+plus a contract. The clients are contained in one source file,
+[build/rps.mjs](https://github.com/AlacrisIO/alacrity/blob/master/examples/rps-auto/build/rps.mjs),
+while the contract is in
+[build/rps.sol](https://github.com/AlacrisIO/alacrity/blob/master/examples/rps-auto/build/rps.sol).
+
+This process of compiling multiple end-points from a single source
+program is called end-point projection and is a stage of our
+compiler. (The result of this stage is its own program,
+[build/rps.bl](https://github.com/AlacrisIO/alacrity/blob/master/examples/rps-auto/build/rps.bl).)
+In this discussion, we will mix the process of projection with the
+process of compiling to the target languages. 
+
+**Contracts.** We'll start with the process of projecting the
+contract.
+
+The contract will have a single state variable. Throughout the run of
+the program, this will be a digest of the step of the computation and
+the free variables in the computation's continuation. Initially, the
+step is `0` and the free variables are the identities of the
+participants. This ensures that the size of the contract state is
+minimal, at the expense of increasing the size of transactions. In the
+future, we intend to do linear optimization to determine which is more
+efficient.
+
+```
+contract ALAContract is Stdlib {
+  uint256 current_state;
+  
+  constructor(address payable pA, address payable pB) public payable {
+    current_state = uint256(keccak256(abi.encodePacked(uint256(0), pA, pB))); }
+```
+
+Each consensus block in the program will become a method in the
+contract. Its arguments will be (a) the free variables in the
+continuation and (b) the publication of the initiator (technically,
+these are free variables as well.) We will then ensure that the
+current state is the same as the free variables, plus the step number,
+that the sender of the message is the correct initiator, and that the
+value of the message is as expected. Once these requirements have been
+validated, we emit an event to the blockchain confirming that the
+publication occurred and is valid. Finally, we update the state with
+the next step number and the free variables of that step.
+
+Here is the first step of the example program:
+
+```
+  event e0(uint256 v15, uint256 v16, uint256 v14);
+  function m0(address payable pA, address payable pB, uint256 v15, uint256 v16, uint256 v14) external payable {
+    require(current_state == uint256(keccak256(abi.encodePacked(uint256(0), pA, pB))));
+    require(msg.sender == pA);
+    require((msg.value == (v15 + v16)));
+    emit e0(v15, v16, v14);
+    current_state = uint256(keccak256(abi.encodePacked(uint256(1), pA, pB, v14, v15, v16))); }
+```
+
+In this step, the free variables are `pA` and `pB` (the identities of
+the participants) and the message are the three variables
+`v15/wagerAmount`, `v16/escrowAmount`, and `v14/commitA`. We require
+that the state is one where the step is `0` and the participants are
+the same as from the constructor. We require that `pA` is the sender
+and that they transmitted the correct deposit. We then publish `e0`
+with this information and update the state.
+
+The second step is similar, but contains an extra requirement, when
+the contract checks that Bob's hand is valid:
+
+```
+  event e1(uint256 v21);
+  function m1(address payable pA, address payable pB, uint256 v14, uint256 v15, uint256 v16, uint256 v21) external payable {
+    require(current_state == uint256(keccak256(abi.encodePacked(uint256(1), pA, pB, v14, v15, v16))));
+    require(msg.sender == pB);
+    require((msg.value == v15));
+    // Check that Bob's hand is valid
+    require(((uint256(0) <= v21) ? (v21 < uint256(3)) : false));
+    emit e1(v21);
+    current_state = uint256(keccak256(abi.encodePacked(uint256(2), pA, pB, v14, v15, v16, v21))); }
+```
+
+In the second step, we can observe that the event only includes the
+information in the call and leaves out everything that can be computed
+by the observers, such as new information computed by the contract and
+values published in earlier steps. In the future, we will optimize
+this by publishing an event with no information and compile our
+clients so they inspect the transaction that generated the event for
+the values in the arguments.
+
+The final step will do more work, as it needs to transfer funds from
+the contract to Alice and Bob.
+
+```
+ event e2(uint256 v27, uint256 v28);
+  function m2(address payable pA, address payable pB, uint256 v14, uint256 v15, uint256 v16, uint256 v21, uint256 v27, uint256 v28) external payable {
+    require(current_state == uint256(keccak256(abi.encodePacked(uint256(2), pA, pB, v14, v15, v16, v21))));
+    require(msg.sender == pA);
+    require((msg.value == uint256(0)));
+    // Note 1
+    require((v14 == (uint256(keccak256(abi.encodePacked((ALA_BCAT((abi.encodePacked(v27)), (abi.encodePacked(v28))))))))));
+    require(((uint256(0) <= v28) ? (v28 < uint256(3)) : false));
+    bool v41 = (uint256(0) <= v28) ? (v28 < uint256(3)) : false;
+    bool v44 = (uint256(0) <= v21) ? (v21 < uint256(3)) : false;
+    // Note 2
+    uint256 v51 = (v41 ? v44 : false) ? ((v28 + (uint256(4) - v21)) % uint256(3)) : (v41 ? uint256(2) : (v44 ? uint256(0) : uint256(1)));
+    bool v67 = v51 == uint256(2);
+    bool v69 = v51 == uint256(0);
+    // Note 3
+    pA.transfer((v16 + (v67 ? (uint256(2) * v15) : (v69 ? uint256(0) : v15))));
+    pB.transfer((v67 ? uint256(0) : (v69 ? (uint256(2) * v15) : v15)));
+    emit e2(v27, v28);
+    // Note 4
+    current_state = 0x0;
+    selfdestruct(address(0x02B463784Bc1a49f1647B47a19452aC420DFC65A)); } }
+```
+
+At note 1, we check that Alice's salt and hand hash to the same value
+that was previously published. At note 2, we compute the outcome. At
+note 3, we perform the transfer. Finally at note 4, we receive the
+refund on modifying the current state (and ensure that no other calls
+can be made) then self-destruct, sending the refund to Alacris as
+payment for the service of providing Alacrity as an open-source tool.
+
+**Participants.** Projecting clients is a relatively straight-forward
+process. Local blocks have already been transformed into A-Normal
+Form, so there is a trivial list of variable definitions with simple
+right-hand sides. When a local block transitions to a consensus block,
+it waits to receive the event from the blockchain; sending the method
+call first if it is the initiator. (This means that initiators wait
+for confirmation from the chain before continuing.) 
+
+Our libraries are written in continuation-passing style, so
+interaction with the blockchain requires a continuation argument. In
+fact, the entire client is written in continuation-passing style, so
+the front-end code (authored by Alacrity users) passes a continuation
+into the Alacrity client, which will be called with the final value
+returned from the program.
+
+Let's take a look at the header of the function for Alice:
+
+```
+export function A(stdlib, ctc, interact, v0, v1, v2, kTop) {
+```
+
+The function expects to receive (a) the Alacrity standard library
+(provided by the Alacrity runtime), (b) a handle for the contract
+(produced by calling some Alacrity runtime functions), (c) an
+implementation of a function for interacting with the frontend
+(produced by the frontend programmer) (d) the initial knowledge of the
+participant (`wagerAmount`, `escrowAmount`, and `handA`), then (e) the
+continuation of the entire run of the program. When Alice's role is
+complete, Alacrity will call `kTop`. If the Alacrity program uses the
+primitive `interact`, then the provided `interact` function will be
+called with a continuation argument to allow the frontend to take
+control and direct the computation.
+
+Once this information is provided to Alice's client, it can begin
+computing the first local block of Alice:
+
+```
+  const v4 = stdlib.le(0, v2);
+  const v5 = stdlib.lt(v2, 3);
+  const v6 = v4 ? v5 : false;
+  stdlib.assert(v6);
+  const v10 = stdlib.random_uint256();
+  const v11 = stdlib.uint256_to_bytes(v10);
+  const v12 = stdlib.uint256_to_bytes(v2);
+  const v13 = stdlib.bytes_cat(v11, v12);
+  const v14 = stdlib.keccak256(v13);
+  const v15 = v0;
+  const v16 = v1;
+  const v17 = stdlib.add(v15, v16);
+```
+
+Then it can initiated the first consensus block:
+
+```
+  ctc.send("m0", [v15, v16, v14], v17, () => {
+    ctc.recv("e0", (p15, p16, p14, v18) => {
+      stdlib.assert(stdlib.equal(v15, p15));
+      stdlib.assert(stdlib.equal(v16, p16));
+      stdlib.assert(stdlib.equal(v14, p14));
+```
+
+As mentioned, the initiating participant first sends the message
+(`v14` through `v16`) plus the transfer amount (`v17`), then confirms
+the method ran successfully by waiting to receive the corresponding
+event. Once the event is received, it ensures that the received event
+is the same one that it sent by checking that the values are the same
+as those predicted by it (comparing `v15` with `p15` and so on.) In
+addition the publication, the `ctc.recv` function exposes the transfer
+amount `v18`. At this point, Alice has the same information that
+consensus block did, so it runs the exact same code as the consensus:
+
+```
+      const v19 = stdlib.add(v15, v16);
+      const v20 = stdlib.eq(v18, v19);
+      stdlib.assert(v20);
+```
+
+At this point, Alice must wait for Bob's event to appear and run the
+corresponding consensus block:
+
+```
+      ctc.recv("e1", (v21, v22) => {
+        const v23 = stdlib.eq(v22, v15);
+        stdlib.assert(v23);
+        const v24 = stdlib.le(0, v21);
+        const v25 = stdlib.lt(v21, 3);
+        const v26 = v24 ? v25 : false;
+        stdlib.assert(v26);
+```
+
+Finally, Alice publishes her last message and then runs the last
+consensus block, which performs a lot of computations to compute the
+transfer amount:
+
+```
+        const v27 = v10;
+        const v28 = v2;
+        ctc.send("m2", [v14, v15, v16, v21, v27, v28], 0, () => {
+          ctc.recv("e2", (p27, p28, v29) => {
+            stdlib.assert(stdlib.equal(v27, p27));
+            stdlib.assert(stdlib.equal(v28, p28));
+            const v30 = stdlib.eq(v29, 0);
+            stdlib.assert(v30);
+            const v31 = stdlib.uint256_to_bytes(v27);
+            const v32 = stdlib.uint256_to_bytes(v28);
+            const v33 = stdlib.bytes_cat(v31, v32);
+            const v34 = stdlib.keccak256(v33);
+            const v35 = stdlib.eq(v14, v34);
+            stdlib.assert(v35);
+            const v36 = stdlib.le(0, v28);
+            const v37 = stdlib.lt(v28, 3);
+            const v38 = v36 ? v37 : false;
+            stdlib.assert(v38);
+            const v39 = stdlib.le(0, v28);
+            const v40 = stdlib.lt(v28, 3);
+            const v41 = v39 ? v40 : false;
+            const v42 = stdlib.le(0, v21);
+            const v43 = stdlib.lt(v21, 3);
+            const v44 = v42 ? v43 : false;
+            const v45 = v41 ? v44 : false;
+            const v46 = stdlib.sub(4, v21);
+            const v47 = stdlib.add(v28, v46);
+            const v48 = stdlib.mod(v47, 3);
+            const v49 = v44 ? 0 : 1;
+            const v50 = v41 ? 2 : v49;
+            const v51 = v45 ? v48 : v50;
+            kTop(v51); }); }); }); }); }); }
+```
+
+---
+
+The code for Bob is similar, except dual: where Alice sends, Bob
+receives and vice versa. All together, Bob's code is 46 lines and
+Alice's code is 60 lines. It would be tedious to produce this code
+manually, because there is so much duplication of computation between
+each sides and the contract. Any inconsistency between these three
+programs is a potential error and opening for an attack on the
+resources controlled by the application. Alacrity reduces the required
+engineering effort and increases the reliability and trustworthiness
+of the entire application by removing inconsistencies between the
+various pieces of software from the attack surface.
 
 # Future Work
 
@@ -578,10 +855,18 @@ to update her block based on the new state resulting from Eve's and
 try again. It is likely that this is a special case of a `WHILE` and a
 `CHOICE`.
 
-Finally, we are interested in exploring the semantics of decentralized
-applications that concurrently operate on multiple consensus chains
-(rather than a single network) and only partially share information
-(rather than only distinguishing between `Public` and `Secret`.)
+In the longer term, we are interested in exploring the semantics of
+decentralized applications that concurrently operate on multiple
+consensus chains (rather than a single network) and only partially
+share information (rather than only distinguishing between `Public`
+and `Secret`.)
+
+Finally, presently Alacrity is implemented as an approximately 2,500
+line Haskell program. This program must be trusted for the claims made
+about Alacrity programs to themselves be trustworthy. In the future,
+we intend to re-write the compiler in a verified language, like Coq or
+Agda, and prove that its transformations are
+semantics-preserving.
 
 # Conclusion
 
