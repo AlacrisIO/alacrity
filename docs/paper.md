@@ -284,18 +284,18 @@ Participant Internal := {
          -> Internal x Maybe Block
 ```
 
-The `start` object represents the initial private of the participant
-and whether they are the first publisher. The `react` function updates
-their internal state based on the current state of the contract and
-the most recent message, as well as potentially publishes another
-message. Again, given a chain and a participant, we can always
-determine how that participant would react to each action.
+The `start` object represents the initial private knowledge of the
+participant and whether they are the first publisher. The `react`
+function updates their internal state based on the current state of
+the contract and the most recent message, as well as potentially
+publishes another message. Again, given a chain and a participant, we
+can always determine how that participant would react to each action.
 
 This computation model (`Contract` and `Participant`) defines the
 expectations that Alacrity has on blockchains and client platforms
 that it deploys to. In practice, the complexity of the `observe`
 function determines whether a particular Alacrity program could deploy
-to a particular chain. We have purposefully design the computational
+to a particular chain. We have purposefully designed the computational
 abilities of Alacrity to map to the lowest-common-denominator chains.
 
 # Analysis
@@ -378,9 +378,9 @@ Satisfiability modulo theories (SMT) is a decision problem on logical
 formulas and sets of equational theories. SMT can be seen as an
 optimization of satisfiability (SAT). A SAT problem concerns a set of
 a boolean variables ($x_0$, $x_1$, ... $x_n$) and a formula over them
-($x_0 \vee \neg x_1 \implies x_2$). The SAT solver determines if there
-is an assignment of the variables to values such that the formula
-evaluates to true. SAT was the first problem be proved to be
+(e.g., $x_0 \vee \neg x_1 \implies x_2$). The SAT solver determines if
+there is an assignment of the variables to values such that the
+formula evaluates to true. SAT was the first problem be proved to be
 NP-complete. If NP does not equal P, then SAT is intractable and there
 is no solution that is not exponential. SMT generalizes SAT by adding
 "sorts", which are types to normal programmers, functions that operate
@@ -398,9 +398,9 @@ are the actual values that satisfy the formula. (It is important to
 understand that simply determining if an assignment exists does not
 entail that you know the values.)
 
-Given the low-computation complexity of Alacrity and the A-Normal Form
-of the intermediate language, representing Alacrity programs as SMT
-problems is simple: each variable definition in the intermediate
+Given the low-computational complexity of Alacrity and the A-Normal
+Form of the intermediate language, representing Alacrity programs as
+SMT problems is simple: each variable definition in the intermediate
 language becomes a variable in the SMT problems of the appropriate
 sort and is constrained to be equal the right-hand side of the
 variable definition. We extend the set of sorts and theories to deal
@@ -552,14 +552,14 @@ to allow Alice to recover her deposit if Bob refuses to play after
 some timeout.
 
 Similarly, most DApps are not of finite length. Indeed, most existing
-DApps are specifically infinitely wrong. We will support this by using
-a Hoare logic rule on `WHILE`s inside of the interaction logic. The
-Hoare invariant will be used to do modular verification of the
-predecessor blocks, loop body block, and successor blocks of the
+DApps are specifically infinitely long. We will support this by using
+a Hoare logic-style rule on `WHILE`s inside of the interaction
+logic. The loop invariant will be used to do modular verification of
+the predecessor blocks, loop body block, and successor blocks of the
 loop. In the context of our example, we should enable a variant of the
 game where a draw results in more games, until a winner is chosen.
 
-In Alacrity, participants represents particular keys on the blockchain
+In Alacrity, participants represent particular keys on the blockchain
 we deploy to. The set of participants is fixed at the beginning of the
 program and embedded into the protocol state. Most DApps do not
 involve a predetermine set of participants, but instead involve a
@@ -573,7 +573,7 @@ try again. It is likely that this is a special case of a `WHILE` and a
 `CHOICE`.
 
 Finally, we are interested in exploring the semantics of decentralized
-applications that concurrent operate on multiple consensus chains
+applications that concurrently operate on multiple consensus chains
 (rather than a single network) and only partially share information
 (rather than only distinguishing between `Public` and `Secret`.)
 
@@ -583,9 +583,10 @@ Alacrity is a new domain-specific language specialized for trustworthy
 decentralized applications. Its blockchain-agnostic model frees
 developers from lock-in to specific platform. Its verification
 strategy increases the reliability and trustworthiness of Alacrity
-programs over manually developed DApps. Alacrity's use of end-point
-projection ensures that on-chain and client-side computations are
-synchronized and agree on all fundamental parts of program operation.
+programs over traditionally developed DApps. Alacrity's use of
+end-point projection ensures that on-chain and client-side
+computations are synchronized and agree on all fundamental parts of
+program operation.
 
 Although Alacrity is usable today, it is a work-in-progress with a lot
 of room from growth and development. You can start using it today by
