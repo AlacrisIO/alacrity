@@ -213,8 +213,8 @@ solCExpr ρ (C_PrimApp pr al) = solPrimApply pr $ map (solArg ρ) al
 solCStmt :: SolRenaming a -> CStmt -> Doc a
 solCStmt _ (C_Claim CT_Possible _) = emptyDoc
 solCStmt _ (C_Claim CT_Assert _) = emptyDoc
-solCStmt ρ (C_Claim _ a) = (solRequire $ solArg ρ a) <> semi
-solCStmt ρ (C_Transfer p a) = solPartVar p <> "." <> solApply "transfer" [ solArg ρ a ] <> semi
+solCStmt ρ (C_Claim _ a) = (solRequire $ solArg ρ a) <> semi <> hardline
+solCStmt ρ (C_Transfer p a) = solPartVar p <> "." <> solApply "transfer" [ solArg ρ a ] <> semi <> hardline
 
 solCTail :: [Participant] -> Doc a -> SolRenaming a -> CCounts -> CTail -> Doc a
 solCTail ps emitp ρ ccs ct =
@@ -234,7 +234,7 @@ solCTail ps emitp ρ ccs ct =
           where ρ' = M.insert bv (parens (solCExpr ρ ce)) ρ
         _ -> vsep [ solVarDecl bv <+> "=" <+> solCExpr ρ ce <> semi,
                     solCTail ps emitp ρ ccs kt ]
-    C_Do cs kt -> vsep [ solCStmt ρ cs, solCTail ps emitp ρ ccs kt ]
+    C_Do cs kt -> solCStmt ρ cs <> (solCTail ps emitp ρ ccs kt)
 
 solHandler :: [Participant] -> Int -> CHandler -> Doc a
 solHandler ps i (C_Handler from svs msg pv body) = vsep [ evtp, funp ]

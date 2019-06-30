@@ -79,9 +79,6 @@ contract ALAContract is Stdlib {
     bool v41 = (uint256(0) <= v28) ? (v28 < uint256(3)) : false;
     bool v44 = (uint256(0) <= v21) ? (v21 < uint256(3)) : false;
     uint256 v51 = (v41 ? v44 : false) ? ((v28 + (uint256(4) - v21)) % uint256(3)) : (v41 ? uint256(2) : (v44 ? uint256(0) : uint256(1)));
-    
-    
-    
     bool v67 = v51 == uint256(2);
     bool v69 = v51 == uint256(0);
     pA.transfer((v16 + (v67 ? (uint256(2) * v15) : (v69 ? uint256(0) : v15))));
