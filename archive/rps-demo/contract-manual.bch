@@ -1,0 +1,205 @@
+/*
+The code below demonstrates that it is possible to write "covenants" in BCH (what the Ethereum folks call "smart contracts"), thanks to the opcodes reenabled in May 2018 and to the new CHECKDATASIG, and as previously spearheaded by the spedn language. However, the code is also severely restricted because the only way to constrain outputs is to check a same signature twice, once with CHECKDATASIG, and another time with CHECKSIG. I eventually found suitable documentation for what CHECKSIG signs; one crucial step is that the concatenation of all outputs, including their precommitted scriptPubKey, must fit in the 520 byte limit; using the P2SH format, we can make raise the limit to 520 byte limit per continuation scriptPubKey. There is an additional limit of 201 non-push opcodes per execution, whereas relay rules are such that you can stack 25 consecutive transactions in a block, so that would be an effective 25*(200 effective|500 total) bytes of code per 10-minute block.
+
+Here are a few ways that this limitation can be lifted, not mutually exclusive:
+
+1. The most immediately helpful way to package contract state would be a variant P2DNSH (Pay To Data And Script Hashes) of P2SH that carries two hashes, one for data and one for code. The data could either be an array of push-only code, or be a single piece of raw data that the code takes apart. Either way, separating the two means that you can specify the continuation of your contract as a hash of the current state that is being closed over as well as a code hash. By contrast, with current technology we have to compute a single combined hash, which requires passing as input argument to the current transaction the code of the next continuations in addition to revealing the code as code in the current transaction (or the next transaction if using P2SH), which in turns doubles the cost of code, which at about 500 bytes for a large code frame is typically as large as the rest data. With P2DNSH, you could just sign the data and reuse the constant code hash as a content-addressed pointer, and only have to reveal the code once, reducing the load on the network by about 33%.
+
+2. A more elaborate take on the above would be support for some more general kind of EVAL or MAST, but it's a tricky topic to get right, since you still want to keep evaluation time proportional to space. I admit I haven't thought hard enough about it and haven't looked at previous or current proposals in any bitcoin fork.
+
+3. A simple and stupid way to allow hashing things larger than 520 bytes would be to have three opcodes SHA256_INIT, SHA256_MIX, SHA256_FINISH that allow to compute the hash of long strings, 520 bytes (max) at a time. Then, a script could reconstruct the transaction message to sign from long scripts, and verify that it matches expectations. That would still be more expensive than solution 1, though.
+
+4. Another way would be to have opcodes that allow to inspect data from the current transaction and/or from other chain state. Thus, the script could not only validate the outputs, but also consult commitments to recent chain data, providing a free oracle on anything historically included in the chain itself.
+
+https://bitco.in/forum/threads/smart-contracts-on-bch.24162/
+*/
+/*
+Reconstructing the transaction for CHECKSIG, using SIGHASH_ANYONECANPAY
+
+To simplify the contract, we code our amounts as 31-bit (signed) values in units of 256 Satoshi
+(~.0011 USD increments and ~2.4M USD max at 2019-06-29 prices of ~440 USD/BCH,
+with minimum amounts of 17 increments or ~.019 USD).
+When we lift size restrictions and do automated generation, we can do better arithmetics,
+e.g. 24-bit at a time with one byte readily accessible for the carry bit.
+Or in this case, we could take advantage of the fact that there are only five different outcomes
+to encode all the possible amounts in advance without having to do arithmetics.
+*/
+/*
+Bibliography:
+
+spedn:
+    https://spedn.readthedocs.io/en/latest/
+    https://honest.cash/pein_sama/spending-constraints-with-op_checkdatasig-172
+    https://github.com/KarolTrzeszczkowski/Electron-Cash-Last-Will-Plugin
+    Licho: electron-cash --testnet
+    https://medium.com/chainrift-research/introducing-spedn-a-smart-contract-language-for-bitcoin-cash-7b83b467de05
+    https://coinotizia.com/meet-spedn-a-smart-contract-programming-language-for-bitcoin-cash/
+    https://slpdex.cash/
+
+
+BIP16: P2SH format https://github.com/bitcoin/bips/blob/master/bip-0016.mediawiki
+Bitcoin Opcodes: https://en.bitcoin.it/wiki/Script (not up-to-date)
+CHECKSIG: https://en.bitcoin.it/wiki/OP_CHECKSIG --- looks VERY out of date compared to the code
+May 2018 BCH opcodes: https://github.com/bitcoincashorg/bitcoincash.org/blob/master/spec/may-2018-reenabled-opcodes.md
+CHECKDATASIG: https://github.com/bitcoincashorg/bitcoincash.org/blob/master/spec/op_checkdatasig.md
+CHECKDATASIG: https://medium.com/@Mengerian/the-story-of-op-checkdatasig-c2b1b38e801a
+interpreter: https://github.com/Bitcoin-ABC/bitcoin-abc/blob/master/src/script/interpreter.cpp
+See notably functions CheckSig and SignatureHash for the internals of CHECKSIG.
+https://bitcoin.org/en/transactions-guide#signature-hash-types
+
+Better sighash documentation: https://github.com/bitcoincashorg/bitcoincash.org/blob/master/spec/replay-protected-sighash.md#digest-algorithm
+
+Telegram channel: @bchgang, see also the invitation link in the bitcoincash CONTRIBUTING page,
+and the "BCH Devs & Builders" channel and the BCH working group channels.
+
+im_uname: if you crafted transactions spending an existing UTXO and want to test many permutations of it without actually broadcasting/spending the output, there is testmempoolaccept.
+[for a testnet] just start your bitcoind with testnet=1 in bitcoin.conf
+
+Rosco Kalis: You can use meep to debug already included transactions https://github.com/gcash/meep/blob/master/README.md
+https://github.com/Bitcoin-com/cashscript
+
+*/
+/* FORTH-like function definitions:  : WORD ops... ;
+   The definitions are meant to be inlined when the WORD is written.
+   As in FORTH, \ introduces comments. Often doubled for dramatic effect.
+
+   Length count: putting some number in parentheses(11) indicates the length of the immediately
+   preceding object, to make it easier to count.
+*/
+
+: SPLIT_VAR_DATA(4)
+  \ given bytes with a starting length (of 127 bytes or less) then actual data,
+  \ extract the first record out
+  1 SPLIT BIN2NUM SPLIT
+;
+
+: DATA_TO_PUSHDATA(12) \\ Assume a 2- to 75- byte data, make it into an opcode that pushes that data.
+    SIZE DUP 1 GREATERTHAN VERIFY DUP "4c"(2) LESSTHAN VERIFY SWAP CAT
+;
+
+: DATA_TO_PUSHDATA1 \\ Given 76- to 255- byte data, make it into an opcode that pushes that data.
+    SIZE DUP "4c"(2) GREATERTHANOREQUAL VERIFY DUP "ff"(2) LESSTHANOREQUAL VERIFY SWAP CAT
+; \\^LEN: 13
+
+: SMALL_INT_TO_OPCODE \\ Assume a number 16 or less, return an opcode that pushes that number.
+    IF "50"(2) ADD ELSE DROP "00"(2) ENDIF              \\ push immediate pushing of handB
+; \\^LEN: 9
+
+: MID_INT_TO_OPCODE \\ Assume a number 17 or more, return an opcode that pushes that number.
+    DUP 16 GREATERTHAN VERIFY SIZE SWAP CAT
+; \\^LEN: 7
+
+: FIXED_SIZE_BYTES_TO_OPCODE \\ SIZE DATA -- OPCODE
+  SIZE 2 PICK EQUALVERIFY SWAP CAT
+; \\^LEN: 6
+
+\\ I used this function, but in a way it inlined and optimized
+: PKH_TO_P2PKH(10) \\ <pkH>(20) -- "DUP HASH160 <pkH> EQUALVERIFY CHECKSIG"(25)
+  <"76A914"(4)> SWAP CAT <"88AC"(3)> CAT ;
+
+: VERIFY_OUTPUTS(13) \\ <pkA> <sig> <pre> <outputs>
+  HASH256 OVER SIZE 40(2) SUB SPLIT NIP 32(2) SPLIT DROP EQUALVERIFY ;
+
+: CHECK_TX_SIG(11) \\ pk sig preimage -- bool
+  SHA256 3DUP ROT CHECKDATASIGVERIFY
+  DROP 80(2) ADD SWAP CODESEPARATOR CHECKSIG
+  \\ Hint: always put that at the end, after all the ENDIFs
+  \\ so the preimage only includes one byte for the scriptCode.
+;
+
+
+\\ State 2, waiting for playerA reveal
+\\ scriptSig (A): <pkA(66)> <sig(72)> <preimage(154)> <salt+handA>(21) 0
+\\ scriptSig (B, after timeout): <pkB(66)> <sig(72)> <preimage(154)> 1
+
+: State2ScriptPubKey(202)
+  <wager(4)escrow(4)commitment(20)pkHA(20)pkHB(20)handB(1)>(70)
+  State2ScriptPubKeyBody(132) ;
+
+: State2ScriptPubKeyBody(132)
+  SWAP NOTIF
+    4 SPLIT SWAP BIN2NUM SWAP 4 SPLIT SWAP BIN2NUM SWAP
+    20(2) SPLIT 20(2) SPLIT 20(2) SPLIT BIN2NUM   \\ decode arguments
+( 15) \\ <pk> <sig> <pre> <salt+handA> <wager> <escrow> <commitment> <pkHA> <pkHB> <handB>
+    9 PICK HASH160 3 PICK EQUALVERIFY                     \\ verify that this is playerA
+    6 ROLL DUP HASH160 4 ROLL EQUALVERIFY                 \\ verify that salt+hand hashes to commitment
+( 12) \\ <pk> <sig> <pre> <wager> <escrow> <pkHA> <pkHB> <handB> <salt+handA>
+    20 SPLIT NIP BIN2NUM DUP 3 LESSTHAN VERIFY            \\ extract hand, verify it's less than 3
+      \\ <pk> <sig> <pre> <wager> <escrow> <pkHA> <pkHB> <handB> <handA>
+    4 SUB SUB 3 MOD                                       \\ compute outcome (remove both hands)
+( 13)
+    DUP NOTIF                                             \\ if outcome==0, playerA wins
+      \\ A WINS! <pkA> <sig> <pre> <wager> <escrow> <pkHA> <pkHB>
+      \\ No output verification needed, let A get all the money.
+      2DROP 2DROP
+(  4)
+    ELSE
+      SWAP 1 EQUAL IF                                     \\ if outcome==1, it's a draw (drop outcome)
+        \\ DRAW! <pkA> <sig> <pre> <wager> <escrow> <pkHA> <pkHB>
+        2SWAP OVER ADD
+(  8)   \\ <pkA> <sig> <pre> <pkHA> <pkHB> <wager> <wager+escrow>
+      ELSE
+        \\ B WINS! <pkA> <sig> <pre> <wager> <escrow> <pkHA> <pkHB>
+        2SWAP SWAP DUP ADD SWAP
+(  6)  \\ <pkA> <sig> <pre> <pkHA> <pkHB> <2*wager> <escrow>
+      ENDIF
+      \\ <pkA> <sig> <pre> <pkHA> <pkHB> <Bpayout> <Apayout>
+      7 NUM2BIN "00"(2) SWAP CAT                        \\ convert to 64-bit value
+      "1976A914"(5) CAT 3 ROLL CAT "88AC00"(4) CAT         \\ append length-prefix P2PKH for A, plus "00"
+      \\ <pkA> <sig> <pre> <pkHB> <wager> <outputsBuffer>
+      SWAP 7 NUM2BIN CAT <"76A914"(4)> ROT CAT <"88AC"(3)> CAT \\ and P2PKH for B
+      \\ <pkA> <sig> <pre> <outputs>
+      VERIFY_OUTPUTS(13)
+( 44)
+    ENDIF
+  ELSE
+    48(2) SPLIT 20(2) SPLIT DROP 4 PICK HASH160 EQUALVERIFY  \\ check that H(pk) = pkHB
+    "2d"(3) CHECKSEQUENCEVERIFY 2DROP  \\ check timeout
+    \\ No need to check the outputs: we trust the user to take all the money, anyway.
+  ENDIF
+( 19)
+  CHECK_TX_SIG(11) ;
+( 11)
+
+
+\\ State 1, accepting a wager from playerB
+\\ scriptSig (B): <state2body>(133) <pkB>(66) <sig>(72) <preimage(154(?))> <handB> 0
+\\ scriptSig (A, after timeout): <pkA(66)> <sig(72)> <preimage(154)> 1
+
+: State1ScriptPubKeyBody(147)
+  <wager(4)escrow(4)commitment(20)pkHA(20)>(49)
+  State1ScriptPubKeyBody(98) ;
+
+: State1ScriptPubKeyBody(98)
+  SWAP NOTIF
+    \\ <body> <pkB> <sig> <pre> <handB> <stateA>
+    OVER 3 LESSTHAN VERIFY                      \\ verify the hand is <3
+    4 PICK HASH160 SWAP CAT SWAP 1 NUM2BIN CAT  \\ append stateB to stateA, drop handB
+( 15)
+    \\ <body> <pkB> <sig> <pre> <state>
+    \\ Start a buffer to compute outputs hash, with low byte of total amount.
+    \\ Only one output and no need to P2SH here.
+    "00"(2)
+    OVER 4 SPLIT 4 SPLIT DROP BIN2NUM SWAP BIN2NUM ADD \\ extract wager+escrow as amount.
+    \\ continue with size of continuation code
+    7 NUM2BIN CAT <OP_PUSHDATA1 size(state2ScriptPubKeyBody): 202 size(state): 70>(4) CAT
+    SWAP CAT
+( 22)
+    \\ <body> <pkB> <sig> <pre> <outputBuffer>
+    \\ Considering how code sizes fit in the limit together, we could inline the code here as data,
+    \\ instead of verifying it from inputs,
+    \\ but let's illustrate the more general-purpose technique here.
+    \\ At the cost of 26 bytes of content-address pointer and dereference here,
+    \\ we can move up to 500 bytes there and crucially enable chaining fragments
+    \\ of a program that has more than 500 bytes total.
+    4 ROLL DUP HASH160 <hash160(State1ScriptPubKeyBody)>(21) EQUALVERIFY CAT
+    \\ <pkA> <sig> <pre> <outputs>
+    VERIFY_OUTPUTS(13)
+( 40)
+  ELSE \\ A RESCINDS!
+    28(2) SPLIT NIP 3 PICK HASH160 EQUALVERIFY  \\ check that H(pk) = pkHA
+    \\ "2d"(3) CHECKSEQUENCEVERIFY 2DROP \\ No need to check a timeout: just rescind at any time.
+    \\ No need to check the outputs: we trust the user to take all the money, anyway.
+  ENDIF
+( 10)
+  CHECK_TX_SIG(11) ;
