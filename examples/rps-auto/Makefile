@@ -11,7 +11,7 @@ build/rps.ala.mjs: rps/rps.ala
 	stack exec -- alacrityc -o build $^
 
 lint:
-	`npm bin`/eslint -c .eslintrc.yaml rps/*.mjs
+	@`npm bin`/eslint -c .eslintrc.yaml rps/**/*.mjs
 
 start_geth:
 	../../scripts/ethereum-devnet/run.sh

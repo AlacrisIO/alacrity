@@ -1,6 +1,5 @@
 // vim: filetype=javascript
 
-import Web3       from 'web3';
 import ethers     from 'ethers';
 import * as RPS   from '../../build/rps.mjs';
 import { stdlib } from '../alacrity-runtime.mjs';
@@ -85,8 +84,7 @@ const mkSend = (web3, contractAbi, address, from, player1Addr, player2Addr) =>
     // https://github.com/ethereum/wiki/wiki/JavaScript-API#contract-methods
     return web3.eth
       .contract(contractAbi)
-      .at(address)
-      [funcName]
+      .at(address)[funcName]
       .sendTransaction(player1Addr
                      , player2Addr
                      , ...args
@@ -139,7 +137,7 @@ const txReceiptFor = (web3, txHash) =>
   new Promise((resolve, reject) =>
     web3.eth.getTransactionReceipt(txHash, (err, r) =>
         !!err                        ? reject(err)
-      : r.transactionHash !== txHash ? reject(`Bad txHash; ${txHash} !== ${receipt.transactionHash}`)
+      : r.transactionHash !== txHash ? reject(`Bad txHash; ${txHash} !== ${r.transactionHash}`)
       : r.status          !== '0x1'  ? reject(`Transaction: ${txHash} failed for unspecified reason`)
       : resolve(r)));
 
@@ -162,6 +160,7 @@ const deployContractWith = (web3, userAddress) =>
     const gatherContractInfo = txHash =>
       txReceiptFor(web3, txHash)
         .then(r => resolve(Contract(web3, userAddress)
+          // eslint-disable-next-line no-unexpected-multiline
           ( contractAbi
           , contractCode
           , player1Addr
