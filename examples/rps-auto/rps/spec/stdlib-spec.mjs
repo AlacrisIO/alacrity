@@ -1,6 +1,10 @@
 // vim: filetype=javascript
 
-import { stdlib } from '../alacrity-runtime.mjs';
+import * as RPS       from '../../build/rps.mjs';
+import { stdlibNode } from '../alacrity-runtime.mjs';
+
+const stdlib = stdlibNode(RPS.ABI, RPS.Bytecode);
+
 
 describe('`BNtoHex` is a standard library primitive that', () => {
   it('correctly translates positive `BigNumber`s to hex', () => {
