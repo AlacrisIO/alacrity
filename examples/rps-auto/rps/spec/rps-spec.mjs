@@ -5,104 +5,94 @@ import * as RPS       from '../../build/rps.mjs';
 import { stdlibNode } from '../alacrity-runtime.mjs';
 
 const stdlib = stdlibNode(RPS.ABI, RPS.Bytecode);
-const { EthereumNetwork, balanceOf, web3, panic, toBN } = stdlib;
+const { EthereumNetwork, web3, panic, toBN, balanceOf } = stdlib;
 
 
-const interact = () => null;
+const createAndUnlock = () =>
+  new Promise(resolve =>
+    web3.personal.newAccount((z, i) =>
+      web3.personal.unlockAccount(i, () => resolve(i))));
 
 
-// This matches the logic in legicash-facts'
-// src/legilogic_ethereum/ethereum_transaction.ml:get_first_account function
-// (which is what the prefunder script uses)
-const PREFUNDED_PRIVATE_NET_ACCT =
-  web3.personal.listAccounts[0] || panic('Cannot infer prefunded account!');
+// https://github.com/ethereum/wiki/wiki/JavaScript-API#web3ethsendtransaction
+const fund = (to, from, value) =>
+  new Promise((resolve, reject) =>
+    web3.eth.sendTransaction({ to, from, value }, e =>
+      !!e ? reject(e)
+          : resolve(to)));
 
 
-const accts = {};
+const runGame = () => {
+  // This matches the logic in legicash-facts'
+  // src/legilogic_ethereum/ethereum_transaction.ml:get_first_account function
+  // (which is what the prefunder script uses)
+  const prefundedPrivateNetAcct =
+    web3.personal.listAccounts[0] || panic('Cannot infer prefunded account!');
 
-// Upserts (nickname, hex ID) record
-const createAndUnlock = acctNames => {
-  const created = u =>
-    new Promise(resolve =>
-      web3.personal.newAccount((z, i) => {
-        accts[u] = i;
-        return web3.personal.unlockAccount(i, resolve);
-      }));
+  const wagerInWei  = toBN(web3.toWei(1.5, 'ether'));
+  const escrowInWei = wagerInWei.div(10);
+  const interact    = () => null;
+  const gameState   = { wagerInWei, escrowInWei, interact };
 
-  return Promise.all(acctNames.map(created));
-};
+  const newPlayer = () =>
+    createAndUnlock()
+      .then(to => fund(to, prefundedPrivateNetAcct, web3.toWei(100, 'ether')))
+      .then(EthereumNetwork);
 
-
-const prefundTestAccounts = () => {
-  // https://github.com/ethereum/wiki/wiki/JavaScript-API#web3ethsendtransaction
-  const newTxFor = to =>
-    ({ to
-     , from:  PREFUNDED_PRIVATE_NET_ACCT
-     , value: web3.toWei(100, 'ether')
-     });
-
-  const prefunded = acct =>
-    new Promise((resolve, reject) =>
-      web3.eth.sendTransaction(newTxFor(acct), e =>
-        !!e ? reject(e)
-            : resolve()));
-
-  return Promise.all(Object.values(accts).map(prefunded));
-};
-
-
-const runPrep = done => {
-  // Web3's internals will break without this:
-  web3.eth.defaultAccount = PREFUNDED_PRIVATE_NET_ACCT;
-
-  return createAndUnlock([ 'alice', 'bob' ])
-    .then(prefundTestAccounts)
-    .then(done)
-    .catch(panic);
-};
-
-const wagerInWei  = toBN(web3.toWei(1.5, 'ether'));
-const escrowInWei = wagerInWei.div(10);
-
-const runGameWith = (alice, bob) => {
-  const ctors = [ accts.alice, accts.bob ];
+  const captureOpeningGameState = ([ a, b ]) =>
+    Object.assign(gameState
+               , { alice: a
+                 , bob:   b
+                 , ctors: [ a.userAddress, b.userAddress ]
+                 , balanceStartAlice: balanceOf(a)
+                 , balanceStartBob:   balanceOf(b)
+                 });
 
   const bobShootScissors = ctcAlice =>
     new Promise(resolve =>
-      bob.attach(ctcAlice.abi, ctcAlice.bytecode, ctors, ctcAlice.address)
+      gameState.bob.attach(ctcAlice.abi, ctcAlice.bytecode, gameState.ctors, ctcAlice.address)
         .then(ctcBob => RPS.B(stdlib, ctcBob, interact, 2, resolve)));
 
   const aliceShootRock = ctc =>
     new Promise(resolve =>
       RPS.A(stdlib, ctc, interact, wagerInWei, escrowInWei, 0, resolve));
 
-  return alice
-    .deploy(ctors)
-    .then(ctc => Promise.all([ bobShootScissors(ctc), aliceShootRock(ctc) ]));
+  const captureClosingGameState = ([ outcomeBob, outcomeAlice ]) =>
+    Promise.resolve(Object.assign(gameState, { outcomeAlice, outcomeBob }));
+
+  return Promise.all([ newPlayer(), newPlayer() ])
+    .then(captureOpeningGameState)
+    .then(()  => gameState.alice.deploy(gameState.ctors))
+    .then(ctc => Promise.all([ bobShootScissors(ctc), aliceShootRock(ctc) ]))
+    .then(captureClosingGameState);
 };
 
 
 describe('A rock/paper/scissors game', () => {
-  beforeAll(runPrep);
-
   describe('results in', () => {
 
     it('both participants agreeing on who won', done =>
-      runGameWith(EthereumNetwork(accts.alice), EthereumNetwork(accts.bob))
-        .then(([ bobOutcome, aliceOutcome ]) => expect(bobOutcome).toEqual(aliceOutcome))
+      runGame()
+        .then(({ outcomeAlice, outcomeBob }) => expect(outcomeAlice.eq(outcomeBob)).toBe(true))
         .then(done));
 
-    it('the winner\'s balance being increased + loser\'s balance being reduced by wager', done => {
-      const alice = EthereumNetwork(accts.alice);
-      const bob   = EthereumNetwork(accts.bob);
+    it('the winner\'s balance being increased + loser\'s balance being reduced by wager', done =>
+      runGame()
+        .then(({ alice, bob, balanceStartAlice, balanceStartBob, wagerInWei }) => {
+          // "The Man" always gets his cut regardless - this is just a rough
+          // guesstimate of processing fees
+          const estimatedGas = toBN(web3.toWei('5000000', 'wei'));
 
-      const balanceStartAlice = balanceOf(alice);
-      const balanceStartBob   = balanceOf(bob);
+          const aliceGte = balanceOf(alice).gte(
+            balanceStartAlice.plus(wagerInWei)
+                             .minus(estimatedGas));
 
-      return runGameWith(alice, bob)
-        .then(() => expect(balanceOf(alice)).toBeGreaterThan(balanceStartAlice + wagerInWei))
-        .then(() => expect(balanceOf(bob  )).toBeLessThan(   balanceStartBob   - wagerInWei))
-        .then(done);
-    });
+          const bobLt = balanceOf(bob).lt(
+            balanceStartBob.minus(wagerInWei));
+
+          expect(aliceGte).toBe(true);
+          expect(bobLt   ).toBe(true);
+          done();
+        }));
   });
 });
