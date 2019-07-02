@@ -12,7 +12,7 @@ Alacrity is a domain-specific language for writing decentralized
 applications. It provides automatic solutions to a few key problems
 faced by blockchain developers: verifying that the DApp is
 trustworthy, ensuring the smart contract is consistent with
-client-side software, and abstracting over different blockchains. 
+client-side software, and abstracting over different blockchains.
 
 Alacrity programs embed descriptions of properties about the behavior
 of the application. Safety properties assert mistakes do not occur and
@@ -24,7 +24,7 @@ correctness of these properties using the Z3 SMT theorem prover
 without intervention from programmers. This ensures that Alacrity
 programs are not susceptible to attacks that steal their resources,
 and ensures that untrusting participants can rely on the integrity and
-valid of the Alacrity program.
+validity of the Alacrity program.
 
 Alacrity programs incorporate the client-side behavior of
 participants, as well as on-chain behavior of the contract. The
@@ -53,7 +53,7 @@ In this article, we walk through an example Alacrity program and show
 how Alacrity performs each of these functions.
 
 # External References and Example Program
- 
+
 The Alacrity repository is located at:
 
 https://github.com/AlacrisIO/alacrity
@@ -119,6 +119,12 @@ main {
     @B assume! isHand(handB);
 ```
 
+FRR: shouldn't that be a `require!` from A and a `require!` from B?
+Otherwise, you will be proving very little later when you `require!` itpan
+in a consensus block, since it will already be assumed!
+Or does `assume!` mean something special in a participant block?
+I think `require!` would be a better name here --- or is it already taken?
+
 Next, Alice computes the commitment by calling a library function
 `precommit` and receiving the multiple values it returns. It binds
 these values to the new constants `commitA` (the commitment) and
@@ -138,27 +144,50 @@ this information.
 There is a small wrinkle, however. Alacrity uses an information-flow
 security type system to ensure that participants do not accidentally
 reveal secret information. All information that only one participant
-knows is assumed to be secret. In this case, Alice's knowledge of the
-terms of the bet is secret. However, we do not hold the commitment
-secret, because it is the result of a hashing algorithm which does not
-reveal the values of the inputs, so Alacrity considers it public
-information automatically. Therefore, Alice needs to first declassify
+knows is assumed to be secret until explicitly published. In this case,
+Alice's knowledge of the terms of the bet is secret. However, Alice
+will readily publish her commitment: it is the result of a hashing
+algorithm which does not reveal the values of the inputs;
+but it will also commit her to not changing her hand later,
+without which Bob would refuse to play.
+Therefore, Alice needs to first declassify
 this information before performing the transfer.
 
+FRR I believe `declassify!` should be implicit in `publish!`.
+Can you imagine any scenario when the two don't go together?
+Also, a digest, while it reveals nothing about the data digested,
+can itself be used in further secret computations
+that warrant not publishing it yet (or ever at all).
+Therefore I do not think it should be automatically
+either declassified or published.
+Note that it would be interesting whether we could automatically prove
+(or even manually prove, but formally within the system) that
+in a program without commitment, the second participant to show their hand
+has a winning strategy, or conversely that there is no winning strategy
+(not even probabilistic?) if all the only knowledge we have about the
+other person's choice is the commitment and cryptography works.
+That is a next-level project, though.
+
 ```
-    @A declassify! wagerAmount;
-    @A declassify! escrowAmount;
     @A publish! wagerAmount, escrowAmount, commitA
        w/ (wagerAmount + escrowAmount);
     return;
 ```
 
-The first two lines perform the declassification, while the next two
-perform the publishing and payment to the contract. The last line
-(`return;`) finishes the consensual block and returns to the next
+The first two lines perform the publishing and payment to the contract.
+The last line (`return;`) finishes the consensual block and returns to the next
 local block. After this statement, it is now consensual knowledge that
 Alice shared these three values and transferred the appropriate
 amount.
+
+FRR: Can we do without the `return` ? I believe it will be confusing things
+when we introduce functions that themselves involve interactions.
+The syntactic end of the block is its semantic end, modulo
+the merging of consecutive blocks with the same participant modality.
+What more, in a sequential program, the consensual parts can always be moved
+before or after the parts private to a single participant
+(depending on which block of published variables it depends on),
+such that we have a clear alternation between private and consensus blocks.
 
 There is no next local block, however, because there's no additional
 computation necessary. Instead, we move immediately to the next
@@ -167,12 +196,11 @@ always exactly one participant that initiates a consensus block. (This
 is not intrinsic to decentralized applications, but a particular
 limitation of the first version of Alacrity. In [Future
 Work](#future-work), we discuss lifting this limitation.)  In this
-block, Bob declassifies his hand, publishes it, and transfers the
+block, Bob publishes his hand, and transfers the
 wager amount (which he has just learned from the last consensus
 block.)
 
 ```
-    @B declassify! handB;
     @B publish! handB w/ wagerAmount;
     require! isHand(handB);
     return;
@@ -189,24 +217,64 @@ value. If Bob were dishonest and did not actually check the claim in
 the program, it would be consensually verified at this point and Bob's
 attempt to publish it would be rejected.
 
+FRR: First, I think Bob should have been doing a `require!` initially.
+Also, probably `require!` and `assume!` should be annotated with
+who is being required to ensure the property,
+who assuming that some property holds (if could be a specific participant,
+or everyone). For the safety of participant X, what is `require!`d
+from the consensus should be true based only on
+the assumptions and requirements made by X alone.
+
+FRR: In the near future, it would be much nicer to accompany each variable
+definition such as `handB` with an associated required property
+such as `isHand(handB)`, or, more generally,
+a refinement type as in LiquidHaskell.
+Maybe the syntax could be
+`@verified handB = interact("handB", isHand)` or
+`@verified handB such that isHand(handB) = randomHand()`,
+where `handB` comes with some implicit or explicit refinement type,
+from which a predicate is extracted that gets `require!`d
+both locally and on the consensus.
+Additionally, some definitional predicate can be specified that will be
+verified a some point *later* when data dependencies are made public,
+as in the case of `commitA`:
+`@verifiable commitA = digest(saltA, handA)`.
+Later on, when `saltA` and `handA` are published, we can
+`verify! commitA` and the contract will check that indeed the equality holds
+(or else, `A` is at fault).
+A relevance checker may check that if a variable is declared verifiable,
+then there exists at least one path where it is actually verified.
+Note that if the definitional property were to be verified immediately by
+the consensus, then it would as well be a definition in a consensus block,
+rather than in a participant block.
+
 The last consensus block is where a lot of action is going to
 happen. We will break it down into a number of steps.
 
-First, Alice publishes the inputs to the commitment, after
-declassifying them, and we consensually verify that the earlier
-commitment actually is made from these inputs:
+First, Alice publishes the inputs to the commitment, and we consensually
+verify that the earlier commitment actually is made from these inputs:
 
 ```
-    @A declassify! saltA;
-    @A declassify! handA;
     @A publish! saltA, handA w/ 0;
     check_commit(commitA, saltA, handA);
 ```
 
+FRR: If we remembered what the predicate for `commitA` were,
+that could be just `verify! commitA`, but then we would have needed
+to previously `publish!` it in a way that it couldn't be verified yet,
+so maybe it would have been `publish! unverified(commitA)` or something
+(trying to publish and verify at the same time would fail, since
+`saltA` and `handA`, that the verification depends on, aren't themselves public).
+Or indeed to remain simple, `commitA` is not defined as `@verifiable`,
+but an explicit `check_commit` is used, or it is defined as
+`@verifiableLater` or something.
+Maybe `@verified` and `@verifiedLater`
+instead of `@verifiable` and `@verifiableLater`?
+
 This block indicates that the consensus retains knowledge of the prior
 commitment by Alice, because the `commitA` variable is still in scope
 in the consensus. Once the consensus knows Alice's hand, and that it
-is the same as was committed earlier, we can check that it is valid
+is the same as was committed to earlier, we can check that it is valid
 and determine the winner.
 
 ```
@@ -231,6 +299,17 @@ them to the appropriate parties:
     return;
 ```
 
+FRR: Only semi-related but as both an optimization and
+an associated verification venue, maybe in a closed game like that
+we don't need to verify what the last participant deals to himself,
+only what he deals to the other? It's his game theoretical interest
+to deal the maximum left to himself, anyway,
+so we can trust him on that and if he fails to do so that's his problem.
+On Ethereum, we could use the suicide instruction
+(after proving the expected amounts coincide?).
+On Bitcoin Cash, there is an option to CHECKSIG signatures
+to only check a single output.
+
 The computation is now over and the two parties simply return the
 final outcome:
 
@@ -240,10 +319,10 @@ final outcome:
 ```
 
 This program never explicitly deals with the low-level issues of
-writing blockchain programs: there are no block numbers, gas
+writing blockchain programs: *there are no block numbers, gas
 calculations, calling contract methods, subscribing to contract
-events, and so on. From Alacrity's perspective, a blockchain is simply
-mutual knowledge about a monotonically increasing list of values,
+events, and so on*. From Alacrity's perspective, a blockchain is simply
+mutual knowledge about a monotonically increasing set of values,
 where the validity of each block of values depends on the previous
 values. We could express this as the following type:
 
@@ -288,6 +367,11 @@ Participant Internal := {
     react : Internal x State x Block
          -> Internal x Maybe Block
 ```
+
+FRR: To be pedantic, it's not exactly `Block` you mean here,
+but more like `BlockchainMessage` or `Transaction` or `List Transaction`.
+An actual block would contain several messages
+(e.g. about ~4000 transactions in a Bitcoin Block).
 
 The `start` object represents the initial private knowledge of the
 participant and whether they are the first publisher. The `react`
@@ -364,6 +448,11 @@ is implicitly declassified, but we view manual declassification
 annotations as a fundamental step in security auditing: programmers
 should have to explicitly decide when something is free to release to
 the public.
+
+FRR: I still don't understand how `publish!` isn't explicit enough,
+and when the two should be separated. It might be better to explicitly
+declare things as classified, that then can *never* be declassified.
+I'm reminded of `perltaint`.
 
 Alacrity's variable scope rules are subtle because programs involve
 the actions of many parties. During type checking, the compiler must
@@ -448,12 +537,12 @@ checking for satisfiability. If the assertion is true, there should be
 no assignment of the variables in the program that make the statement
 false, so the SMT solver should return an `UNSAT` result. In our
 example program, we include two assertions:
-  
+
 ```
     assert! ((outcome == A_WINS) => isHand(handA));
     assert! ((outcome == B_WINS) => isHand(handB));
 ```
-  
+
 These establish that if Alice or Bob submit an invalid hand, then they
 are not the winner. This property would be false if we incorrectly
 implemented the outcome calculation and did not check for validity of
@@ -462,10 +551,10 @@ helps to establish trust in the Alacrity program on the part of
 users. Additionally, Alacrity automatically generates an assertion
 that the balance of the contract is zero at the end of the program
 run. This ensures that no resources are lost by the contract.
-  
+
 Assertions are used by Alacrity programmers to check that
 program-specific safety properties are respected by the program.
-  
+
 **Requirements** (`require!`) are checked at runtime (and if false,
 the program aborts) and behave differently in the SMT problem
 depending on the mode. In trusted mode, they behave as assertions and
@@ -488,13 +577,19 @@ amount transferred to the consensus at each interaction is the same as
 is specified in the program (e.g., Bob actually transmits the wager
 amount.)
 
+FRR: It might help to assign responsibilities to requirements, such that
+each player proves their requirements are possible when they reach a statement
+based on their own sole previous assumptions, and thereafter assume they are true.
+They don't need to prove possibility for other players, and can just assume they
+are true after being checked by the consensus.
+
 **Possibilities** (`possible?`) are ignored at runtime and are checked
 for satisfiability in the SMT problem. Unlike assertions, these are
 not negated in the SMT problem. This means that we are verifying that
 it is possible for some values of inputs to arrive at the truth of the
 statement. In our example program, we explore six possibilities
 (abstracted with a function in the real code):
-  
+
 ```
     possible? ((handA == ROCK) && (outcome == A_WINS));
     possible? ((handA == PAPER) && (outcome == A_WINS));
@@ -503,17 +598,23 @@ statement. In our example program, we explore six possibilities
     possible? ((handB == PAPER) && (outcome == B_WINS));
     possible? ((handB == SCISSORS) && (outcome == B_WINS));
 ```
-  
+
 These establish that the game is fair and it is possible for both
 Alice and Bob to be the winner. This would be false if we incorrectly
 implemented the outcome calculation such that one party always won; or
 if there was a flaw in the communication such that Bob could observe
 Alice's hand and always win or if Alice could observe Bob's hand and
 change her commitment.
-  
+
 Possibilities are used by Alacrity programmers to check that
 program-specific liveness properties are respected by the program,
 thereby increasing trust in the game.
+
+FRR: Possible at which point? Always from the beginning? That isn't always what's interesting.
+I believe we should be able to write at point P in the program a `possible?` statement
+about future bindings at point Q in the program. And/or, if scoping is an issue,
+we should be able to name a set of hypotheses at point P and refer to it at point Q
+as sufficient to make some assertion either always true or possible.
 
 ---
 
@@ -543,7 +644,7 @@ program is called end-point projection and is a stage of our
 compiler. (The result of this stage is its own program,
 [build/rps.bl](https://github.com/AlacrisIO/alacrity/blob/master/examples/rps-auto/build/rps.bl).)
 In this discussion, we will mix the process of projection with the
-process of compiling to the target languages. 
+process of compiling to the target languages.
 
 **Contracts.** We'll start with the process of projecting the
 contract.
@@ -560,7 +661,7 @@ efficient.
 ```
 contract ALAContract is Stdlib {
   uint256 current_state;
-  
+
   constructor(address payable pA, address payable pB) public payable {
     current_state = uint256(keccak256(abi.encodePacked(uint256(0), pA, pB))); }
 ```
@@ -653,13 +754,19 @@ refund on modifying the current state (and ensure that no other calls
 can be made) then self-destruct, sending the refund to Alacris as
 payment for the service of providing Alacrity as an open-source tool.
 
+FRR: The gas refund is accounted as reduced gas payment by the last poster, in this case Alice.
+In the example, there is no money left in the contract that gets sent to the Alacris address.
+However, the self-destruct also refunds some gas to Alice.
+Ideally, we should only do the `pB.transfer`, prove that what's left
+is equal to what is owed to Alice, and use `selfdestruct(pA)`.
+
 **Participants.** Projecting clients is a relatively straight-forward
 process. Local blocks have already been transformed into A-Normal
 Form, so there is a trivial list of variable definitions with simple
 right-hand sides. When a local block transitions to a consensus block,
 it waits to receive the event from the blockchain; sending the method
 call first if it is the initiator. (This means that initiators wait
-for confirmation from the chain before continuing.) 
+for confirmation from the chain before continuing.)
 
 Our libraries are written in continuation-passing style, so
 interaction with the blockchain requires a continuation argument. In
@@ -807,7 +914,7 @@ form partnerships and build more backends.
 
 Presently, our Ethereum backend generates Solidity code rather than
 bytecode directly. Given that we use such a restricted form of
-Solidity, we intend to generate Ethereum and take over optimization of
+Solidity, we intend to generate EVM bytecode and take over optimization of
 the code directly, using the extra information only our compiler has
 access to.
 
@@ -845,7 +952,7 @@ game where a draw results in more games, until a winner is chosen.
 In Alacrity, participants represent particular keys on the blockchain
 we deploy to. The set of participants is fixed at the beginning of the
 program and embedded into the protocol state. Most DApps do not
-involve a predetermine set of participants, but instead involve a
+involve a predetermined set of participants, but instead involve a
 dynamically known set of participants drawn from some set of
 participant classes. For example, a blackjack game involves the house
 and a set of players. The main problem this presents for the Alacrity
