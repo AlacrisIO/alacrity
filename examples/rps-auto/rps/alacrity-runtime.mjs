@@ -22,12 +22,6 @@ const byteToHex      = b => (b & 0xFF).toString(16).padStart(2, '0');
 const byteArrayToHex = b => Array.from(b, byteToHex).join('');
 
 
-const isBigInt = x =>
-     typeof x           === 'object'
-  && typeof x.isInteger === 'function'
-  && x.isInteger();
-
-
 const nat_to_fixed_size_hex = size => n => {
   const err = m => panic(`nat_to_fixed_size_hex: ${m}`);
 
@@ -55,6 +49,10 @@ const hexToBN          = A => h => toBN(A)(hexTo0x(h));
 const keccak256        = A => b => digestHex(A)(hexOf(A)(b));
 const uint256_to_bytes = A => i => BNtoHex(A)(i);
 
+// https://github.com/ethereum/web3.js/blob/0.20.7/lib/utils/utils.js#L495
+const isBigNumber = ({ web3 }) => n =>
+  n && (n instanceof web3.BigNumber || (n.constructor && n.constructor.name === 'BigNumber'));
+
 
 const BNtoHex = A => (u, size = 32) => {
   const n = toBN(A)(u);
@@ -75,7 +73,7 @@ const BNtoHex = A => (u, size = 32) => {
 // Gets the hex bytes of a number or byte-string, without the 0x prefix
 const hexOf = A => x =>
     typeof x === 'number'  ? BNtoHex(A)(toBN(A)(x))
-  : isBigInt(x)            ? BNtoHex(A)(x)
+  : isBigNumber(A)(x)      ? BNtoHex(A)(x)
   : typeof x !== 'string'  ? panic(`Cannot convert to hex: ${x}`)
   : x.slice(0, 2) === '0x' ? x.slice(2)
   : x; // Assume `x` is already in hexadecimal form
@@ -112,7 +110,6 @@ const random_uint256 = A => () =>
   hexToBN(A)(byteArrayToHex(A.random32Bytes()));
 
 
-// TODO these should probably just assume BigNumber arguments
 const equal = A => (a, b) => toBN(A)(a).eq( toBN(A)(b));
 const add   = A => (a, b) => toBN(A)(a).add(toBN(A)(b));
 const sub   = A => (a, b) => toBN(A)(a).sub(toBN(A)(b));
@@ -244,7 +241,6 @@ const EthereumNetwork = A => userAddress =>
 const mkStdlib = A =>
  ({ hexTo0x
   , k
-  , isBigInt
   , balanceOf
   , web3:                A.web3
   , ethers:              A.ethers
@@ -269,6 +265,7 @@ const mkStdlib = A =>
   , le:                  le(A)
   , lt:                  lt(A)
   , encode:              encode(A)
+  , isBigNumber:         isBigNumber(A)
   , awaitConfirmationOf: awaitConfirmationOf(A)
   , txReceiptFor:        txReceiptFor(A)
   , Contract:            Contract(A)
