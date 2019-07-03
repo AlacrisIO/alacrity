@@ -26,6 +26,14 @@ $ nvm use 10.16
 Now using node v10.16.0 (npm v6.9.0)
 ```
 
+**Once you've situated `node` and `npm`, and any time the `package.json` file
+has been modified, you'll need to ensure all pinned `node` dependencies have
+been fetched for the project like so:**
+```bash
+$ npm clean-install
+```
+
+
 `stack` is similarly easy to install by following the directions
 [here](https://docs.haskellstack.org/en/stable/README/#how-to-install).
 
@@ -49,7 +57,7 @@ Homebrew also offers a `z3`
 for which you'll need to specify a version:
 
 ```bash
-brew install z3@4.8.4
+$ brew install z3@4.8.4
 ```
 
 ### macOS users running macports
