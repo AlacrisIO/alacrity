@@ -177,14 +177,13 @@ const mkRecv = ({ web3, ethers, abi }) => address => (eventName, cb) =>
     });
 
 
-// TODO remove double abi, code, etc
-const Contract = A => userAddress => (abi, bytecode, ctors, address) =>
-  ({ abi
-   , bytecode
+const Contract = A => userAddress => (ctors, address) =>
+  ({ abi:      A.abi
+   , bytecode: A.bytecode
+   , send:     mkSend(A)(address, userAddress, ctors)
+   , recv:     mkRecv(A)(address)
    , ctors
    , address
-   , send: mkSend(A)(address, userAddress, ctors)
-   , recv: mkRecv(A)(address)
    });
 
 
@@ -204,21 +203,12 @@ const mkDeploy = A => userAddress => (ctors, blockPollingPeriodInSeconds = 1) =>
 
     const data = [ A.bytecode, ...encodedCtors ].join('');
 
-    const o =
-      { data
-      , from: userAddress
-      , gas:  A.web3.eth.estimateGas({ data })
-      };
+    const o = { data, from: userAddress, gas: A.web3.eth.estimateGas({ data }) };
 
     const gatherContractInfo = txHash =>
       txReceiptFor(A)(txHash)
-        .then(r => resolve(Contract(A)(userAddress)
-          // eslint-disable-next-line no-unexpected-multiline
-          ( A.abi
-          , A.bytecode
-          , ctors
-          , r.contractAddress
-          )))
+        .then(r => Contract(A)(userAddress)(ctors, r.contractAddress))
+        .then(resolve)
         .catch(reject);
 
     return A.web3.eth.sendTransaction(o, k(reject, txHash =>
@@ -229,7 +219,7 @@ const mkDeploy = A => userAddress => (ctors, blockPollingPeriodInSeconds = 1) =>
 
 const EthereumNetwork = A => userAddress =>
   ({ deploy: mkDeploy(A)(userAddress)
-   , attach: (...a) => Promise.resolve(Contract(A)(userAddress)(...a))
+   , attach: (ctors, address) => Promise.resolve(Contract(A)(userAddress)(ctors, address))
    , web3:   A.web3
    , userAddress
    });

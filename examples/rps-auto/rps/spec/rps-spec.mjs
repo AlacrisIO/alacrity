@@ -50,7 +50,7 @@ const runGame = () => {
 
   const bobShootScissors = ctcAlice =>
     new Promise(resolve =>
-      gameState.bob.attach(ctcAlice.abi, ctcAlice.bytecode, gameState.ctors, ctcAlice.address)
+      gameState.bob.attach(gameState.ctors, ctcAlice.address)
         .then(ctcBob => RPS.B(stdlib, ctcBob, interact, 2, resolve)));
 
   const aliceShootRock = ctc =>
