@@ -3,7 +3,7 @@
 import * as RPS       from '../../build/rps.mjs';
 import { stdlibNode } from '../alacrity-runtime.mjs';
 
-const { BNtoHex
+const { bnToHex
       , toBN
       , isBigNumber
       , bytes_cat
@@ -20,24 +20,24 @@ const { BNtoHex
       } = stdlibNode(RPS.ABI, RPS.Bytecode);
 
 
-describe('`BNtoHex` is a standard library function that', () => {
+describe('`bnToHex` is a standard library function that', () => {
   it('correctly translates positive `BigNumber`s to hex', () => {
-    expect(BNtoHex(0 )).toBe('0000000000000000000000000000000000000000000000000000000000000000');
-    expect(BNtoHex(1 )).toBe('0000000000000000000000000000000000000000000000000000000000000001');
-    expect(BNtoHex(10)).toBe('000000000000000000000000000000000000000000000000000000000000000a');
-    expect(BNtoHex(25)).toBe('0000000000000000000000000000000000000000000000000000000000000019');
-    expect(BNtoHex(30)).toBe('000000000000000000000000000000000000000000000000000000000000001e');
+    expect(bnToHex(0 )).toBe('0000000000000000000000000000000000000000000000000000000000000000');
+    expect(bnToHex(1 )).toBe('0000000000000000000000000000000000000000000000000000000000000001');
+    expect(bnToHex(10)).toBe('000000000000000000000000000000000000000000000000000000000000000a');
+    expect(bnToHex(25)).toBe('0000000000000000000000000000000000000000000000000000000000000019');
+    expect(bnToHex(30)).toBe('000000000000000000000000000000000000000000000000000000000000001e');
 
-    expect(BNtoHex(5463728190))
+    expect(bnToHex(5463728190))
       .toBe('0000000000000000000000000000000000000000000000000000000145a9e03e');
   });
 
   it('correctly translates negative `BigNumber`s to hex', () => {
-    expect(BNtoHex(-1 )).toBe('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
-    expect(BNtoHex(-10)).toBe('fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff6');
-    expect(BNtoHex(-30)).toBe('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe2');
+    expect(bnToHex(-1 )).toBe('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
+    expect(bnToHex(-10)).toBe('fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff6');
+    expect(bnToHex(-30)).toBe('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe2');
 
-    expect(BNtoHex(-5463728190))
+    expect(bnToHex(-5463728190))
       .toBe('fffffffffffffffffffffffffffffffffffffffffffffffffffffffeba561fc2');
   });
 });

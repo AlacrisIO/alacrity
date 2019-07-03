@@ -47,14 +47,14 @@ const digestHex = ({ web3 }) => x => web3.sha3(x, { encoding: 'hex' });
 
 const hexToBN          = A => h => toBN(A)(hexTo0x(h));
 const keccak256        = A => b => digestHex(A)(hexOf(A)(b));
-const uint256_to_bytes = A => i => BNtoHex(A)(i);
+const uint256_to_bytes = A => i => bnToHex(A)(i);
 
 // https://github.com/ethereum/web3.js/blob/0.20.7/lib/utils/utils.js#L495
 const isBigNumber = ({ web3 }) => n =>
   n && (n instanceof web3.BigNumber || (n.constructor && n.constructor.name === 'BigNumber'));
 
 
-const BNtoHex = A => (u, size = 32) => {
+const bnToHex = A => (u, size = 32) => {
   const n = toBN(A)(u);
   // TODO: if/when we switch to web3 v1.0:
   //       return n.toTwos(8 * size).toString(16, 2 * size);
@@ -72,8 +72,8 @@ const BNtoHex = A => (u, size = 32) => {
 
 // Gets the hex bytes of a number or byte-string, without the 0x prefix
 const hexOf = A => x =>
-    typeof x === 'number'  ? BNtoHex(A)(toBN(A)(x))
-  : isBigNumber(A)(x)      ? BNtoHex(A)(x)
+    typeof x === 'number'  ? bnToHex(A)(toBN(A)(x))
+  : isBigNumber(A)(x)      ? bnToHex(A)(x)
   : typeof x !== 'string'  ? panic(`Cannot convert to hex: ${x}`)
   : x.slice(0, 2) === '0x' ? x.slice(2)
   : x; // Assume `x` is already in hexadecimal form
@@ -240,7 +240,7 @@ const mkStdlib = A =>
   , bytes_len:           bytes_len(A)
   , bytes_eq:            bytes_eq(A)
   , keccak256:           keccak256(A)
-  , BNtoHex:             BNtoHex(A)
+  , bnToHex:             bnToHex(A)
   , digestHex:           digestHex(A)
   , assert:              assert(A)
   , toBN:                toBN(A)
