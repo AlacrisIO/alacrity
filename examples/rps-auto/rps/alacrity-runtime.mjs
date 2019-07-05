@@ -25,8 +25,8 @@ const byteArrayToHex = b => Array.from(b, byteToHex).join('');
 const nat_to_fixed_size_hex = size => n => {
   const err = m => panic(`nat_to_fixed_size_hex: ${m}`);
 
-	const notNat = !(Number.isInteger(n) && 0 <= n);
-	const tooBig = !(Math.ceil(Math.log2(n + 1) / 8) <= size);
+  const notNat = !(Number.isInteger(n) && 0 <= n);
+  const tooBig = !(Math.ceil(Math.log2(n + 1) / 8) <= size);
 
   return notNat ? err(`expected a nat`)
        : tooBig ? err(`expected a nat that fits into ${size} bytes`)
