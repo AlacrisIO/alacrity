@@ -407,7 +407,6 @@ epp_e_loc γ p e = case e of
           args' = map fst args'st
           ret = checkFun (primType pr) args't
           slvl = case pr of
-                   (CP DIGEST) -> Public
                    INTERACT -> Secret
                    _ -> mconcat $ map (snd . snd) args'st
  where earg = epp_arg γ (RolePart p)

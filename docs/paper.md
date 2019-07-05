@@ -12,7 +12,7 @@ Alacrity is a domain-specific language for writing decentralized
 applications. It provides automatic solutions to a few key problems
 faced by blockchain developers: verifying that the DApp is
 trustworthy, ensuring the smart contract is consistent with
-client-side software, and abstracting over different blockchains. 
+client-side software, and abstracting over different blockchains.
 
 Alacrity programs embed descriptions of properties about the behavior
 of the application. Safety properties assert mistakes do not occur and
@@ -24,7 +24,7 @@ correctness of these properties using the Z3 SMT theorem prover
 without intervention from programmers. This ensures that Alacrity
 programs are not susceptible to attacks that steal their resources,
 and ensures that untrusting participants can rely on the integrity and
-valid of the Alacrity program.
+validity of the Alacrity program.
 
 Alacrity programs incorporate the client-side behavior of
 participants, as well as on-chain behavior of the contract. The
@@ -53,7 +53,7 @@ In this article, we walk through an example Alacrity program and show
 how Alacrity performs each of these functions.
 
 # External References and Example Program
- 
+
 The Alacrity repository is located at:
 
 https://github.com/AlacrisIO/alacrity
@@ -138,16 +138,15 @@ this information.
 There is a small wrinkle, however. Alacrity uses an information-flow
 security type system to ensure that participants do not accidentally
 reveal secret information. All information that only one participant
-knows is assumed to be secret. In this case, Alice's knowledge of the
-terms of the bet is secret. However, we do not hold the commitment
-secret, because it is the result of a hashing algorithm which does not
-reveal the values of the inputs, so Alacrity considers it public
-information automatically. Therefore, Alice needs to first declassify
-this information before performing the transfer.
+knows is assumed to be secret until explicitly declassified. In this
+case, Alice's knowledge of the terms of the bet and her commitment are
+secret. Therefore, Alice needs to first declassify this information
+before performing the transfer.
 
 ```
     @A declassify! wagerAmount;
     @A declassify! escrowAmount;
+    @A declassify! commitA;
     @A publish! wagerAmount, escrowAmount, commitA
        w/ (wagerAmount + escrowAmount);
     return;
@@ -206,7 +205,7 @@ commitment actually is made from these inputs:
 This block indicates that the consensus retains knowledge of the prior
 commitment by Alice, because the `commitA` variable is still in scope
 in the consensus. Once the consensus knows Alice's hand, and that it
-is the same as was committed earlier, we can check that it is valid
+is the same as was committed to earlier, we can check that it is valid
 and determine the winner.
 
 ```
@@ -240,12 +239,12 @@ final outcome:
 ```
 
 This program never explicitly deals with the low-level issues of
-writing blockchain programs: there are no block numbers, gas
+writing blockchain programs: *there are no block numbers, gas
 calculations, calling contract methods, subscribing to contract
-events, and so on. From Alacrity's perspective, a blockchain is simply
-mutual knowledge about a monotonically increasing list of values,
-where the validity of each block of values depends on the previous
-values. We could express this as the following type:
+events, and so on*. From Alacrity's perspective, a blockchain is
+simply mutual knowledge about a monotonically increasing list of
+values, where the validity of each block of values depends on the
+previous values. We could express this as the following type:
 
 ```
 Block := List Value
@@ -448,12 +447,12 @@ checking for satisfiability. If the assertion is true, there should be
 no assignment of the variables in the program that make the statement
 false, so the SMT solver should return an `UNSAT` result. In our
 example program, we include two assertions:
-  
+
 ```
     assert! ((outcome == A_WINS) => isHand(handA));
     assert! ((outcome == B_WINS) => isHand(handB));
 ```
-  
+
 These establish that if Alice or Bob submit an invalid hand, then they
 are not the winner. This property would be false if we incorrectly
 implemented the outcome calculation and did not check for validity of
@@ -462,10 +461,10 @@ helps to establish trust in the Alacrity program on the part of
 users. Additionally, Alacrity automatically generates an assertion
 that the balance of the contract is zero at the end of the program
 run. This ensures that no resources are lost by the contract.
-  
+
 Assertions are used by Alacrity programmers to check that
 program-specific safety properties are respected by the program.
-  
+
 **Requirements** (`require!`) are checked at runtime (and if false,
 the program aborts) and behave differently in the SMT problem
 depending on the mode. In trusted mode, they behave as assertions and
@@ -494,7 +493,7 @@ not negated in the SMT problem. This means that we are verifying that
 it is possible for some values of inputs to arrive at the truth of the
 statement. In our example program, we explore six possibilities
 (abstracted with a function in the real code):
-  
+
 ```
     possible? ((handA == ROCK) && (outcome == A_WINS));
     possible? ((handA == PAPER) && (outcome == A_WINS));
@@ -503,14 +502,14 @@ statement. In our example program, we explore six possibilities
     possible? ((handB == PAPER) && (outcome == B_WINS));
     possible? ((handB == SCISSORS) && (outcome == B_WINS));
 ```
-  
+
 These establish that the game is fair and it is possible for both
 Alice and Bob to be the winner. This would be false if we incorrectly
 implemented the outcome calculation such that one party always won; or
 if there was a flaw in the communication such that Bob could observe
 Alice's hand and always win or if Alice could observe Bob's hand and
 change her commitment.
-  
+
 Possibilities are used by Alacrity programmers to check that
 program-specific liveness properties are respected by the program,
 thereby increasing trust in the game.
@@ -543,7 +542,7 @@ program is called end-point projection and is a stage of our
 compiler. (The result of this stage is its own program,
 [build/rps.bl](https://github.com/AlacrisIO/alacrity/blob/master/examples/rps-auto/build/rps.bl).)
 In this discussion, we will mix the process of projection with the
-process of compiling to the target languages. 
+process of compiling to the target languages.
 
 **Contracts.** We'll start with the process of projecting the
 contract.
@@ -650,8 +649,8 @@ At note 1, we check that Alice's salt and hand hash to the same value
 that was previously published. At note 2, we compute the outcome. At
 note 3, we perform the transfer. Finally at note 4, we receive the
 refund on modifying the current state (and ensure that no other calls
-can be made) then self-destruct, sending the refund to Alacris as
-payment for the service of providing Alacrity as an open-source tool.
+can be made) then self-destruct. We previously proved that the account
+balance is zero, so there are no resources actually transferred.
 
 **Participants.** Projecting clients is a relatively straight-forward
 process. Local blocks have already been transformed into A-Normal
@@ -659,7 +658,7 @@ Form, so there is a trivial list of variable definitions with simple
 right-hand sides. When a local block transitions to a consensus block,
 it waits to receive the event from the blockchain; sending the method
 call first if it is the initiator. (This means that initiators wait
-for confirmation from the chain before continuing.) 
+for confirmation from the chain before continuing.)
 
 Our libraries are written in continuation-passing style, so
 interaction with the blockchain requires a continuation argument. In
@@ -807,9 +806,9 @@ form partnerships and build more backends.
 
 Presently, our Ethereum backend generates Solidity code rather than
 bytecode directly. Given that we use such a restricted form of
-Solidity, we intend to generate Ethereum and take over optimization of
-the code directly, using the extra information only our compiler has
-access to.
+Solidity, we intend to generate EVM bytecode and take over
+optimization of the code directly, using the extra information only
+our compiler has access to.
 
 The computational fragment of Alacrity is quite limited, with a small
 number of types and operations. We intend to extend the type system
@@ -845,7 +844,7 @@ game where a draw results in more games, until a winner is chosen.
 In Alacrity, participants represent particular keys on the blockchain
 we deploy to. The set of participants is fixed at the beginning of the
 program and embedded into the protocol state. Most DApps do not
-involve a predetermine set of participants, but instead involve a
+involve a predetermined set of participants, but instead involve a
 dynamically known set of participants drawn from some set of
 participant classes. For example, a blackjack game involves the house
 and a set of players. The main problem this presents for the Alacrity
