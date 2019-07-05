@@ -45,7 +45,7 @@ geth \
     --ipcpath .ethereum/geth.ipc \
     > $LOGDIR/testnet.log 2>&1 &
 
-while ! curl -sSf http://localhost:$RPCPORT ; do
+while ! curl -sSf -X POST --data '{"jsonrpc":"2.0", "method": "web3_clientVersion", "params":[], "id":67}' http://localhost:$RPCPORT ; do
     echo "Geth not started yet, waiting..."
     sleep 1
 done
