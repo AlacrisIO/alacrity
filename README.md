@@ -19,6 +19,12 @@ code.
 The Alacrity software is distributed under the GNU Lesser General
 Public License, version 2.1. See the file [LICENSE](LICENSE).
 
+### Prerequisites
+
+- [Stack](https://docs.haskellstack.org/en/stable/README/)
+- [z3](https://github.com/Z3Prover/z3)
+- [solc](https://github.com/ethereum/solidity)
+- [geth](https://geth.ethereum.org/)
 
 ### Being worked on
 
