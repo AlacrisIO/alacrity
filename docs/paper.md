@@ -58,6 +58,10 @@ The Alacrity repository is located at:
 
 https://github.com/AlacrisIO/alacrity
 
+This article is available at:
+
+https://github.com/AlacrisIO/alacrity/blob/master/docs/paper.md
+
 In this article, we will repeatedly refer to a simple example program:
 
 https://github.com/AlacrisIO/alacrity/blob/master/examples/rps-auto/rps/rps.ala
@@ -881,5 +885,6 @@ Although Alacrity is usable today, it is a work-in-progress with room
 for growth and development. You can start using it today by visiting
 [AlacrisIO/alacrity](https://github.com/AlacrisIO/alacrity). We will
 be running a workshop in Boston in Fall 2019. Please visit
-[alacris.io](https://alacris.io) or follow us on Twitter @alacrisos or
-Telegram at https://t.me/alacrisio for more information!
+[alacris.io](https://alacris.io) or follow us on Twitter
+[@alacrisos](https://twitter.com/alacrisos) or Telegram at
+https://t.me/alacrisio for more information!
