@@ -856,7 +856,7 @@ See the [examples](examples/index.md) directory.
   It brings a nice functional language syntax in the style of OCaml on top of Michelson,
   but is semantically the same.
 
-* [DAML](https://daml.com) is the smart contract language of Digital Asset.
+* [DAML](https://daml.com/) is the smart contract language of Digital Asset.
   It looks like a great language for private permissioned blockchains,
   where trust is enforced socially, with a good data model and a good transaction model;
   its documentation bridges the gap between financial accounting and programming,
@@ -921,3 +921,4 @@ See the [examples](examples/index.md) directory.
 
 * See what Statebox has, what O(1)labs has, etc.
 
+* [E](https://erights.org/): capabilities and smart contracts from before blockchain.
