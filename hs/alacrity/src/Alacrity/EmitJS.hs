@@ -1,5 +1,6 @@
 module Alacrity.EmitJS where
 
+import qualified Data.ByteString.Char8 as B
 import qualified Data.Map.Strict as M
 import qualified Data.Set as Set
 import Data.List (intersperse)
@@ -43,7 +44,7 @@ jsCon :: Constant -> Doc a
 jsCon (Con_I i) = pretty i
 jsCon (Con_B True) = pretty "true"
 jsCon (Con_B False) = pretty "false"
-jsCon (Con_BS s) = jsString $ show s
+jsCon (Con_BS s) = jsString $ B.unpack s
 
 jsArg :: BLArg -> (Doc a, Set.Set BLVar)
 jsArg (BL_Var v) = (jsVar v, Set.singleton v)
@@ -188,4 +189,3 @@ emit_js (BL_Prog pm _) (abi, code) = modp
         partsp = map jsPart $ M.toList pm
         abip = pretty $ "export const ABI = " ++ abi ++ ";"
         codep = pretty $ "export const Bytecode = " ++ code ++ ";"
-        

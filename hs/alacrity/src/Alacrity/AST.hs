@@ -346,7 +346,7 @@ data CStmt
 data CTail
   = C_Halt
   | C_Wait Int [BLVar]
-  | C_If BLArg CTail CTail  
+  | C_If BLArg CTail CTail
   | C_Let BLVar CExpr CTail
   | C_Do CStmt CTail
   deriving (Show,Eq)

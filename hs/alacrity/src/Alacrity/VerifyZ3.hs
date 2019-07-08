@@ -162,7 +162,7 @@ z3_sat1 z3 (_honest, _r, _tk) a = inNewScope z3 $ do
    1. The balance of CTC at the end of the protocol is 0. It will have
    to do this by employing something like the State monad to represent
    all the various modifications to the CTC value overtime and assert
-   that it is 0 at the end. This ensure that the protocol doesn't
+   that it is 0 at the end. This ensures that the protocol doesn't
    "leave anything on the table".
 
    2. Verify claims (see ClaimType for details)
@@ -257,7 +257,7 @@ z3_stmt z3 honest r cbi how =
       where at = emit_z3_arg a
     IL_Claim ct a -> do vr <- this_check
                         assert z3 at
-                        return ( cbi, vr )                        
+                        return ( cbi, vr )
       where at = emit_z3_arg a
             this_check = case mct of
               Just tk -> z3_verify1 z3 (honest, r, tk) at

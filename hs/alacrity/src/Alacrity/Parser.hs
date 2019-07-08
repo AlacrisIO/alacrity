@@ -156,7 +156,7 @@ parseClaimType =
   <|> (CT_Assume <$ exact "assume!")
   <|> (CT_Require <$ exact "require!")
   <|> (CT_Possible <$ exact "possible?")
-  
+
 parseXLClaim :: Parser XLExpr
 parseXLClaim = do
   ct <- parseClaimType
@@ -181,7 +181,7 @@ parseXLDeclassify =
   do exact "declassify"
      xe <- parens $ parseXLExpr1
      return $ XL_Declassify xe
-     
+
 parseXLFunApp :: Parser XLExpr
 parseXLFunApp = do
   f <- parseXLVar
@@ -214,7 +214,7 @@ parseXLToConsensus = do
   amount <- parseXLExpr1
   semi
   conk <- parseXLExprT Nothing
-  --- XXX hygeine
+  --- XXX hygiene
   return $ XL_ToConsensus who vs amount "pay-amount" (XL_LetValues Nothing Nothing (XL_Claim CT_Require (XL_PrimApp (CP PEQ) [ (XL_Var "pay-amount"), amount ])) conk)
 
 parseAt :: Parser XLExpr
@@ -277,7 +277,7 @@ parseDefineFun = do
   e <- ((do exact ":"
             post <- parseXLVar
             body <- parseXLExpr1
-            --- XXX hygeine
+            --- XXX hygiene
             return (XL_LetValues Nothing (Just ["result"]) body (XL_LetValues Nothing Nothing (XL_Claim CT_Assert (XL_FunApp post [XL_Var "result"])) (XL_Var "result"))))
          <|> parseXLExpr1)
   return $ [XL_DefineFun f args e]

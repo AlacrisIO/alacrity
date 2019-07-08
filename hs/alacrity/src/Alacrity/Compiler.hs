@@ -484,7 +484,7 @@ epp_it_loc ps γ hn0 it = case it of
     where ts = M.fromList $ map mkt ps
           mkt p = (p, EP_Ret $ map fst $ snd $ epp_args γ (RolePart p) al)
   IL_If _ _ _ ->
-    error "EPP: Ifs must be consensual"    
+    error "EPP: Ifs must be consensual"
   IL_Let who what how next -> (svs1, ct1, ts2, hn1, hs1)
     where (svs1, ct1, ts1, hn1, hs1) = epp_it_loc ps γ' hn0 next
           iv = what

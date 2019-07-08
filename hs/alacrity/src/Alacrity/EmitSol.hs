@@ -298,7 +298,7 @@ compile_sol solf blp = do
       case (eitherDecode $ B.pack stdout) of
         Right v -> return $ extract v
         Left err ->
-          die $ "solc failed to produce valid output:\n" 
+          die $ "solc failed to produce valid output:\n"
           ++ "STDOUT:\n" ++ stdout ++ "\n"
           ++ "STDERR:\n" ++ stderr ++ "\n"
           ++ "Decode Error:\n" ++ err ++ "\n"
