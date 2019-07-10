@@ -43,17 +43,20 @@ main {
     @A declassify! wagerAmount;
     @A declassify! escrowAmount;
     @A declassify! commitA;
+    @A interact("commits");
     @A publish! wagerAmount, escrowAmount, commitA
        w/ (wagerAmount + escrowAmount);
     return;
-    
+
     @B declassify! handB;
+    @B interact("accepts");
     @B publish! handB w/ wagerAmount;
     require! isHand(handB);
     return;
 
     @A declassify! saltA;
     @A declassify! handA;
+    @A interact("reveals");
     @A publish! saltA, handA w/ 0;
     check_commit(commitA, saltA, handA);
     require! isHand(handA);
@@ -72,4 +75,5 @@ main {
     return;
 
     fair_game(handA, handB, outcome);
+    interact("outcome");
     outcome }

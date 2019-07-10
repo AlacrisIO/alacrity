@@ -11,15 +11,18 @@ const { web3, toBN, balanceOf } = stdlib;
 
 describe('A rock/paper/scissors game', () => {
   describe('results in', () => {
-    const interact = (a, cb) => cb();
+    const interactWith = () => (a, cb) => cb();
+
+    const wagerInEth  = 1.5;
+    const escrowInEth = 0.15;
 
     it('both participants agreeing on who won', done =>
-      runGameWith(interact)
+      runGameWith(interactWith, wagerInEth, escrowInEth)
         .then(({ outcomeAlice, outcomeBob }) => expect(outcomeAlice.eq(outcomeBob)).toBe(true))
         .then(done));
 
     it('the winner\'s balance being increased + loser\'s balance being reduced by wager', done =>
-      runGameWith(interact)
+      runGameWith(interactWith, wagerInEth, escrowInEth)
         .then(({ alice, bob, balanceStartAlice, balanceStartBob, wagerInWei }) => {
           // "The Man" always gets his cut regardless - this is just a rough
           // guesstimate of processing fees

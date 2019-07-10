@@ -4,7 +4,7 @@ import * as RPS       from '../build/rps.mjs';
 import { stdlibNode } from './alacrity-runtime.mjs';
 
 
-export const runGameWith = interact => {
+export const runGameWith = (interactWith, wagerInEth, escrowInEth) => {
   const stdlib = stdlibNode(RPS.ABI, RPS.Bytecode);
   const { EthereumNetwork, web3, panic, toBN, balanceOf } = stdlib;
 
@@ -14,9 +14,9 @@ export const runGameWith = interact => {
   const prefundedPrivateNetAcct =
     web3.personal.listAccounts[0] || panic('Cannot infer prefunded account!');
 
-  const wagerInWei  = toBN(web3.toWei(1.5, 'ether'));
-  const escrowInWei = wagerInWei.div(10);
-  const gameState   = { wagerInWei, escrowInWei, interact };
+  const wagerInWei  = toBN(web3.toWei(wagerInEth,  'ether'));
+  const escrowInWei = toBN(web3.toWei(escrowInEth, 'ether'));
+  const gameState   = { wagerInWei, escrowInWei };
 
   const captureOpeningGameState = ([ a, b ]) =>
     Object.assign(gameState
@@ -47,11 +47,11 @@ export const runGameWith = interact => {
   const bobShootScissors = ctcAlice =>
     new Promise(resolve =>
       gameState.bob.attach(gameState.ctors, ctcAlice.address)
-        .then(ctcBob => RPS.B(stdlib, ctcBob, interact, 2, resolve)));
+        .then(ctcBob => RPS.B(stdlib, ctcBob, interactWith('Bob'), 2, resolve)));
 
   const aliceShootRock = ctc =>
     new Promise(resolve =>
-      RPS.A(stdlib, ctc, interact, wagerInWei, escrowInWei, 0, resolve));
+      RPS.A(stdlib, ctc, interactWith('Alice'), wagerInWei, escrowInWei, 0, resolve));
 
   const captureClosingGameState = ([ outcomeBob, outcomeAlice ]) =>
     Promise.resolve(Object.assign(gameState, { outcomeAlice, outcomeBob }));
