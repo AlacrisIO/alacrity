@@ -1,0 +1,43 @@
+/**
+ Collateralizing a transaction stream,
+ with serial re-utilization of size-limited escrow account,
+ by the mutual exchange of total_tokens_A for total_tokens_B in N sequential steps.
+*/
+interaction (
+    A : participant,
+    B : participant,
+    total_tokens_A : tokens,
+    total_tokens_B : tokens,
+    N: uint,
+    collateral_A: tokens,
+    collateral_B: tokens,
+    ) {
+
+    require! N > 0;
+
+    const token_increment_A = ceiling(total_tokens_A, N);
+    const token_increment_B = ceiling(total_tokens_B, N);
+
+    @A assume! value(total_tokens_B) > value(total_tokens_A);
+    @B assume! value(collateral_B) > value(transaction_complete);
+
+    @B assume! value(total_tokens_A) > value(total_tokens_B);
+    @B assume! value(collateralA) > value(token_increment_B) + value(transaction_complete);
+
+    @A deposit! collateral_A;
+    @B deposit! collateral_B;
+
+    function transfer_increment (total_tokens : tokens, token_increment : tokens, i : uint) : tokens {
+      require! token_increment == ceiling(total_tokens, N);
+      if (i > 0) { return token_increment; }
+      return total_tokens - token_increment * (N - 1);
+    }
+
+    for (i from N-1 downto 0) {
+      @B transfer! A <- transfer_increment(total_tokens_B, token_increment_B, i);
+      @A transfer! B <- transfer_increment(total_tokens_A, token_increment_A, i);
+    }
+
+    transfer! A <- collateral_A;
+    transfer! B <- collateral_B;
+}
