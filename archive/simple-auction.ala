@@ -1,0 +1,21 @@
+/**
+  Simple auction with a deadline.
+*/
+function SimpleAuction (
+    Seller : participant,
+    sold : asset('a),
+    HighestBidder : participant,
+    highestBid : token('t),
+    deadline : timestamp
+) {
+    choice {
+        case @Anyone(Bidder) { publish! Bid(bid : token('t)) ; deposit! bid; }:
+          require! bid > highestBid;
+          transfer! HighestBidder <- highestBid; // refund previous highest bidder
+          return SimpleAuction(Seller, sold, Bidder, bid, deadline);
+        case @Anyone() publish! Close():
+          require! currentBlockNumber() >= deadline;
+          transfer! Seller <- highestBid;
+          transfer! HighestBidder <- sold;
+    }
+}
