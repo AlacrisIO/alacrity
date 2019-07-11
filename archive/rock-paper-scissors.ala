@@ -1,30 +1,79 @@
-import Game;
+#lang alacrity/exe
 
-type Hand = Rock | Paper | Scissors;
+enum isHand { ROCK, PAPER, SCISSORS };
+enum isOutcome { B_WINS, DRAW, A_WINS };
 
-// obtain this function automatically via a macro annotation,
-// e.g. @enum type hand = Rock | Paper | Scissors;
-const intOfHand : Hand => int = hand => {
-  match hand with
-  | Rock => 0
-  | Paper => 1
-  | Scissors => 2;
-}
+function winner(handA : isHand, handB : isHand) : isOutcome {
+    ((handA + (4 - handB)) % 3) }
 
-// strcmp style comparison
-const handCompare : (Hand, Hand) => int = (hand0, hand1) =>
-    (intOfHand(hand0)+4-intOfHand(hand1)) mod 3 - 1;
+// Test matrix for winner function
+assert! winner(ROCK,     ROCK)     == DRAW
+assert! winner(ROCK,     PAPER)    == B_WINS
+assert! winner(ROCK,     SCISSORS) == A_WINS
+assert! winner(PAPER,    ROCK)     == A_WINS
+assert! winner(PAPER,    PAPER)    == DRAW
+assert! winner(PAPER,    SCISSORS) == B_WINS
+assert! winner(SCISSORS, ROCK)     == B_WINS
+assert! winner(SCISSORS, PAPER)    == A_WINS
+assert! winner(SCISSORS, SCISSORS) == DRAW
 
-// TwoPlayers is a typeclass that specializes Players in the case there are only two players,
-// Player0 and Player1. The vector returned by mutualize_salted will be of size 2.
-const rockPaperScissors : TwoPlayers ==> Amount => @consensual GameResult = amount => {
-  @consensual {
-    const [hand0, hand1] = mutualizeSalted(@each (input hand));
-    return dominationGameResult(handCompare)(hand0, hand1);
-  }
-}
+// TODO: rename this function???
+function fair_if(handX, optionX, canWinX) {
+    possible? ((handX == optionX) && canWinX) }
+
+function fair_for_player(handX, canWinX) {
+    fair_if(handX, ROCK, canWinX);
+    fair_if(handX, PAPER, canWinX);
+    fair_if(handX, SCISSORS, canWinX) }
+
+function fair_game(handA, handB, outcome) {
+    fair_for_player(handA, (outcome == A_WINS));
+    fair_for_player(handB, (outcome == B_WINS)) }
+
+participant A {
+    uint256 wagerAmount,
+    uint256 escrowAmount,
+    uint256 handA }
+
+participant B {
+    uint256 handB }
+
+main {
+    @A {
+      promise! isHand(handA);
+      const commitA, saltA = precommit(handA);
+      publish! wagerAmount, escrowAmount, commitA;
+      deposit! (wagerAmount + escrowAmount);
+    }
+    @B {
+      promise! isHand(handB);
+      publish! handB;
+      deposit! wagerAmount;
+    }
+    require! isHand(handB);
+
+    @A publish! saltA, handA;
+
+    check_commit(commitA, saltA, handA);
+    require! isHand(handA);
+    const outcome = winner(handA, handB);
+    assert! ((outcome == A_WINS) => isHand(handA));
+    assert! ((outcome == B_WINS) => isHand(handB));
+    const getsA, getsB =
+          if (outcome == A_WINS) {
+              values (2 * wagerAmount), 0 }
+          else if (outcome == B_WINS) {
+              values 0, (2 * wagerAmount) }
+          else {
+              values wagerAmount, wagerAmount };
+    transfer! A <- (escrowAmount + getsA);
+    transfer! B <- getsB;
+
+    fair_game(handA, handB, outcome);
+    outcome }
 
 
-// Local Variables:
-// mode: JavaScript ;; ... until we have an Alacrity mode
-// End:
+// The first timeout MAY be short. The other ones MUST be long enough to fend off DoS attacks.
+
+
+
