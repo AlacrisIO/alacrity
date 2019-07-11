@@ -1,43 +1,54 @@
 /**
  Collateralizing a transaction stream,
  with serial re-utilization of size-limited escrow account,
- by the mutual exchange of total_tokens_A for total_tokens_B in N sequential steps.
+ by the mutual exchange of total_assets_A for total_assets_B in N sequential steps.
 */
-interaction (
+function SequentiallyCollaterizedSwap ( // TODO: implement first-class interactions, so they can be composed
     A : participant,
     B : participant,
-    total_tokens_A : tokens,
-    total_tokens_B : tokens,
-    N: uint,
-    collateral_A: tokens,
-    collateral_B: tokens,
-    ) {
+    total_assets_A : assets('a), // TODO: implement type-parametric assets class.
+    total_assets_B : assets('b),
+    N: uint, // TODO: implement consensus-appropriate uint: uint256 on ETH, uint31 on BCH, bigint on TEZ, etc.
+    collateral_A: assets('a),
+    collateral_B: assets('b),
+) : SimpleTwoParticipantInteraction(A,B) {
 
     require! N > 0;
 
-    const token_increment_A = ceiling(total_tokens_A, N);
-    const token_increment_B = ceiling(total_tokens_B, N);
+    const asset_increment_A = ceiling(total_assets_A, N); // TODO: implement two-argument ceiling function à la Common Lisp.
+    const asset_increment_B = ceiling(total_assets_B, N); // TODO: implement ceiling so the first argument can be a vector of assets, not just some scalar assets.
 
-    @A assume! value(total_tokens_B) > value(total_tokens_A);
-    @B assume! value(collateral_B) > value(transaction_complete);
+    @A assume! value(total_assets_B) > value(total_assets_A); // TODO: have a notion of per-user value function and/or value comparison
+    @B assume! value(collateral_B) > value(transaction_complete); // TODO: have a notion of value of transaction complete, and compensating a user for an incomplete transaction.
 
-    @B assume! value(total_tokens_A) > value(total_tokens_B);
-    @B assume! value(collateralA) > value(token_increment_B) + value(transaction_complete);
+    @B assume! value(total_assets_A) > value(total_assets_B);
+    @B assume! value(collateralA) > value(asset_increment_B) + value(transaction_complete);
+
+    // TODO: off-chain negotiation of parameters can happen up to the first message,
+    // in this case the deposit! of collateral by A.
 
     @A deposit! collateral_A;
     @B deposit! collateral_B;
 
-    function transfer_increment (total_tokens : tokens, token_increment : tokens, i : uint) : tokens {
-      require! token_increment == ceiling(total_tokens, N);
-      if (i > 0) { return token_increment; }
-      return total_tokens - token_increment * (N - 1);
+    // TODO: implement properly-scoped nested functions.
+    function transfer_increment (total_assets : assets, asset_increment : assets, i : uint) : assets {
+      require! asset_increment == ceiling(total_assets, N);
+        if (i > 0) { return asset_increment; }
+      // TODO: implement return statements that match Javascript syntax and semantics.
+      return total_assets - asset_increment * (N - 1);
     }
 
+    // TODO: implement these simple loops, with iteration options specified in the style of Common Lisp.
     for (i from N-1 downto 0) {
-      @B transfer! A <- transfer_increment(total_tokens_B, token_increment_B, i);
-      @A transfer! B <- transfer_increment(total_tokens_A, token_increment_A, i);
+      @B transfer! A <- transfer_increment(total_assets_B, asset_increment_B, i);
+      @A transfer! B <- transfer_increment(total_assets_A, asset_increment_A, i);
     }
 
     transfer! A <- collateral_A;
     transfer! B <- collateral_B;
+
+    // TODO: implement a way to express (and prove with Z3) that the total assets transfered
+    // indeed correspond to those declared in parameter.
+    // TODO: implement a way to refer to assets that are not directly controled by the consensus
+    // that runs the contract, yet where the transfer can be verified by the consensus.
 }
