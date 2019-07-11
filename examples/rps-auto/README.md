@@ -8,7 +8,7 @@ listed (or greater for all but `z3`):
 - `stack` v2.1.1
 - GNU `make` v4.1
 - `geth` v1.8.21
-- `z3` v4.8.4 (it's important to use this exact version for now)
+- `z3` v4.8.4
 - `solc` v0.5.2
 
 We recommend you use
@@ -53,11 +53,10 @@ Follow the directions
 to install `geth` and `solc`.
 
 Homebrew also offers a `z3`
-[package](https://formulae.brew.sh/formula/z3)
-for which you'll need to specify a version:
+[package](https://formulae.brew.sh/formula/z3):
 
 ```bash
-$ brew install z3@4.8.4
+$ brew install z3
 ```
 
 ### macOS users running macports
