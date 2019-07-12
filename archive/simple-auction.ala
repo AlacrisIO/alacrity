@@ -1,20 +1,23 @@
 /**
   Simple auction with a deadline.
 */
-function SimpleAuction (
-    Seller : participant,
+
+// type event = Bid(token('t)) | Close // if we want to declare a uniform type for our choice event.
+
+function simpleAuction (
+    seller : participant, // should it be participant('s) to distinguish types of seller and bidders?
     sold : asset('a),
-    HighestBidder : participant,
+    highestBidder : participant, // ... and participant('b) here
     highestBid : token('t),
     deadline : timestamp
 ) {
-    choice {
-        case @Anyone(Bidder) { publish! Bid(bid : token('t)) ; deposit! bid; }:
-          require! bid > highestBid;
+    choice { // or should we do a switch (message()) ... ?
+        case @bidder : participant('b) { publish! Bid(bid : token('t)) ; deposit! bid; }:
+          require! bid > highestBid; // can we move the require! inside the match case above?
           transfer! HighestBidder <- highestBid; // refund previous highest bidder
           return SimpleAuction(Seller, sold, Bidder, bid, deadline);
-        case @Anyone() publish! Close():
-          require! currentBlockNumber() >= deadline;
+        case @_ publish! Close:
+          require! currentTimestamp() >= deadline;
           transfer! Seller <- highestBid;
           transfer! HighestBidder <- sold;
     }
