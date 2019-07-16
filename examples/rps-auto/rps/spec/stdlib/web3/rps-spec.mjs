@@ -1,15 +1,20 @@
 // vim: filetype=javascript
 jasmine.DEFAULT_TIMEOUT_INTERVAL = 60 * 1000 * 10;
 
-import * as RPS        from '../../build/rps.mjs';
-import { stdlibNode  } from '../alacrity-runtime.mjs';
-import { runGameWith } from '../demo.mjs';
-
-const stdlib = stdlibNode(RPS.ABI, RPS.Bytecode);
-const { web3, toBN, balanceOf } = stdlib;
+import * as RPS        from '../../../../build/rps.mjs';
+import { stdlibNode  } from '../../../stdlib/web3/node.mjs';
+import { runGameWith } from '../../../demo.mjs';
 
 
-describe('A rock/paper/scissors game', () => {
+describe('A rock/paper/scissors game using the `web3` stdlib', () => {
+  let web3, toBN, balanceOf;
+
+  beforeAll(done => stdlibNode(RPS.ABI, RPS.Bytecode)
+    .then(l => { web3      = l.web3;
+                 toBN      = l.toBN;
+                 balanceOf = l.balanceOf; })
+    .then(done));
+
   describe('results in', () => {
     const interactWith = () => (a, cb) => cb();
 

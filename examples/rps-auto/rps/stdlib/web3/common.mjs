@@ -1,12 +1,5 @@
 // vim: filetype=javascript
 
-// NB: the following imports are going away when we fix + finalize the `stdlib`
-// parameterization
-import Web3            from 'web3';
-import * as crypto     from 'crypto';
-import * as nodeAssert from 'assert';
-import ethers          from 'ethers';
-
 const panic = e => { throw Error(e); };
 
 const k = (reject, f) => (err, ...d) =>
@@ -147,6 +140,14 @@ const txReceiptFor = ({ web3 }) => txHash =>
       : resolve(r)));
 
 
+// https://github.com/ethereum/wiki/wiki/JavaScript-API#web3ethsendtransaction
+const transfer = ({ web3 }) => (to, from, value) =>
+  new Promise((resolve, reject) =>
+    web3.eth.sendTransaction({ to, from, value }, e =>
+      !!e ? reject(e)
+          : resolve(to)));
+
+
 // https://github.com/ethereum/wiki/wiki/JavaScript-API#contract-methods
 const mkSend = A => (address, from, ctors) => (funcName, args, value, cb) =>
   A.web3.eth
@@ -198,7 +199,7 @@ const mkDeploy = A => userAddress => (ctors, blockPollingPeriodInSeconds = 1) =>
       .slice(0, ctors.length);
 
     const encodedCtors = ctors
-      .map(c => encode(ethers)(ctorTypes[ctors.indexOf(c)], c))
+      .map(c => encode(A.ethers)(ctorTypes[ctors.indexOf(c)], c))
       .map(c => c.replace(/^0x/, ''));
 
     const data = [ A.bytecode, ...encodedCtors ].join('');
@@ -225,10 +226,26 @@ const EthereumNetwork = A => userAddress =>
    });
 
 
+// devnet-specific /////////////////////////////////////////////////////////////
+
+// This matches the logic in legicash-facts'
+// src/legilogic_ethereum/ethereum_transaction.ml:get_first_account
+// function (which is also what its prefunder script uses)
+const prefundedDevnetAcct = ({ web3 }) =>
+     web3.personal.listAccounts[0]
+  || panic('Cannot infer prefunded account!');
+
+
+const createAndUnlockAcct = ({ web3 }) => () =>
+  new Promise(resolve =>
+    web3.personal.newAccount((z, i) =>
+      web3.personal.unlockAccount(i, () => resolve(i))));
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 
-const mkStdlib = A =>
+export const mkStdlib = A =>
  ({ hexTo0x
   , k
   , balanceOf
@@ -258,18 +275,11 @@ const mkStdlib = A =>
   , isBigNumber:         isBigNumber(A)
   , awaitConfirmationOf: awaitConfirmationOf(A)
   , txReceiptFor:        txReceiptFor(A)
+  , transfer:            transfer(A)
   , Contract:            Contract(A)
   , EthereumNetwork:     EthereumNetwork(A)
+
+  , devnet: { prefundedDevnetAcct: prefundedDevnetAcct(A)
+            , createAndUnlockAcct: createAndUnlockAcct(A)
+            }
   });
-
-
-// TODO Improve parameterization over node/browser APIs, dependencies like
-// `web3`, etc + revisit the ergonomics of how this gets plugged in at run time
-export const stdlibNode = (abi, bytecode) =>
-  mkStdlib({ web3:          new Web3(new Web3.providers.HttpProvider('http://localhost:8545'))
-           , random32Bytes: () => crypto.randomBytes(32)
-           , asserter:      nodeAssert.strict
-           , abi
-           , bytecode
-           , ethers
-           });
