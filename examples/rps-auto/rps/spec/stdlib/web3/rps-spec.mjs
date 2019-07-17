@@ -28,7 +28,7 @@ describe('A rock/paper/scissors game using the `web3` stdlib', () => {
     const escrowInEth = 0.15;
 
     it('both participants agreeing on who won and the winner\'s balance being increased + loser\'s balance being reduced by wager', done =>
-      runGameWith(interactWith, wagerInEth, escrowInEth)
+      runGameWith(interactWith, wagerInEth, escrowInEth, uri)
        .then(({ alice, bob, balanceStartAlice, balanceStartBob, wagerInWei, outcomeAlice, outcomeBob }) => {
            expect(outcomeAlice === outcomeBob).toBe(true);
 
