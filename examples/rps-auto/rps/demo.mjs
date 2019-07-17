@@ -39,11 +39,11 @@ const play = interactWith => ({ stdlib, gameState }) => {
   const bobShootScissors = ctcAlice =>
     new Promise(resolve =>
       gameState.bob.attach(gameState.ctors, ctcAlice.address)
-        .then(ctcBob => RPS.B(stdlib, ctcBob, interactWith('Bob'), 2, resolve)));
+     .then(ctcBob => RPS.B(stdlib, ctcBob, interactWith('Bob','SCISSORS'), resolve)));
 
   const aliceShootRock = ctc =>
     new Promise(resolve =>
-      RPS.A(stdlib, ctc, interactWith('Alice'), wagerInWei, escrowInWei, 0, resolve));
+      RPS.A(stdlib, ctc, interactWith('Alice','ROCK'), wagerInWei, escrowInWei, resolve));
 
   return Promise.all([ newPlayer(), newPlayer() ])
     .then(captureOpeningGameState)

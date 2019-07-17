@@ -19,7 +19,10 @@ describe('A rock/paper/scissors game using the `web3` stdlib', () => {
     .then(done));
 
   describe('results in', () => {
-    const interactWith = () => (a, cb) => cb();
+    const interactWith = (name, hand) => (a, cb) =>
+          { const res = a === 'getHand' ? hand
+                  : null;
+              return cb(res); };
 
     const wagerInEth  = 1.5;
     const escrowInEth = 0.15;
