@@ -4,10 +4,13 @@ import * as RPS       from '../../../../build/rps.mjs';
 import { stdlibNode } from '../../../stdlib/web3/node.mjs';
 
 
+const uri = process.env.ETH_NODE_URI || 'http://localhost:8545';
+
+
 describe('The `web3` stdlib', () => {
   let stdlib, toBN;
 
-  beforeAll(done => stdlibNode(RPS.ABI, RPS.Bytescode)
+  beforeAll(done => stdlibNode(RPS.ABI, RPS.Bytescode, uri)
     .then(l => { stdlib = l; toBN = l.toBN; })
     .then(done));
 

@@ -6,10 +6,13 @@ import { stdlibNode  } from '../../../stdlib/web3/node.mjs';
 import { runGameWith } from '../../../demo.mjs';
 
 
+const uri = process.env.ETH_NODE_URI || 'http://localhost:8545';
+
+
 describe('A rock/paper/scissors game using the `web3` stdlib', () => {
   let web3, toBN, balanceOf;
 
-  beforeAll(done => stdlibNode(RPS.ABI, RPS.Bytecode)
+  beforeAll(done => stdlibNode(RPS.ABI, RPS.Bytecode, uri)
     .then(l => { web3      = l.web3;
                  toBN      = l.toBN;
                  balanceOf = l.balanceOf; })

@@ -5,6 +5,8 @@ import { runGameWith } from './demo.mjs';
 const wagerInEth  = 1.5;
 const escrowInEth = 0.15;
 
+const uri = process.env.ETH_NODE_URI || 'http://localhost:8545';
+
 const interactWith = name => (a, cb) => {
   const commits =
     [ `${name} commits to play with (hidden) hand of rock,`
@@ -24,8 +26,8 @@ const interactWith = name => (a, cb) => {
   return cb();
 };
 
-Promise.resolve(console.log('Alice initiates a new game.'))
-  .then(() => runGameWith(interactWith, wagerInEth, escrowInEth))
+Promise.resolve(console.log(`Alice initiates a new game on ${uri} node`))
+  .then(() => runGameWith(interactWith, wagerInEth, escrowInEth, uri))
   .then(() => console.log('Alice\'s escrow has been reimbursed.'))
   .then(() => console.log('Done!'))
   .then(() => process.exit(0))

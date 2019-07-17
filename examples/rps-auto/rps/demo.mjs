@@ -4,8 +4,8 @@ import * as RPS       from '../build/rps.mjs';
 import { stdlibNode } from './stdlib/web3/node.mjs';
 
 
-const init = (wagerInEth, escrowInEth) =>
-  stdlibNode(RPS.ABI, RPS.Bytecode)
+const init = (wagerInEth, escrowInEth, uri) =>
+  stdlibNode(RPS.ABI, RPS.Bytecode, uri)
     .then(stdlib => {
       const wagerInWei  = stdlib.toBN(stdlib.web3.toWei(wagerInEth,  'ether'));
       const escrowInWei = stdlib.toBN(stdlib.web3.toWei(escrowInEth, 'ether'));
@@ -52,6 +52,6 @@ const play = interactWith => ({ stdlib, gameState }) => {
     .then(captureClosingGameState);
 };
 
-export const runGameWith = (interactWith, wagerInEth, escrowInEth) =>
-  init(wagerInEth, escrowInEth)
+export const runGameWith = (interactWith, wagerInEth, escrowInEth, uri) =>
+  init(wagerInEth, escrowInEth, uri)
     .then(play(interactWith));
