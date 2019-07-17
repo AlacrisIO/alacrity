@@ -34,19 +34,22 @@ const play = interactWith => ({ stdlib, gameState }) => {
   const captureClosingGameState = ([ outcomeBob, outcomeAlice ]) =>
     Promise.resolve(Object.assign(gameState, { outcomeAlice, outcomeBob }));
 
-  const bobShootScissors = ctcAlice =>
+  const randomArray = (a) => { return a[Math.floor(Math.random() * a.length)]; };
+  const randomHand = () => { return randomArray(['ROCK', 'PAPER', 'SCISSORS']); };
+
+  const bobShoot = ctcAlice =>
     new Promise(resolve =>
       gameState.bob.attach(gameState.ctors, ctcAlice.address)
-     .then(ctcBob => RPS.B(stdlib, ctcBob, interactWith('Bob','SCISSORS'), resolve)));
+      .then(ctcBob => RPS.B(stdlib, ctcBob, interactWith('Bob',randomHand()), resolve)));
 
-  const aliceShootRock = ctc =>
+  const aliceShoot = ctc =>
     new Promise(resolve =>
-      RPS.A(stdlib, ctc, interactWith('Alice','ROCK'), wagerInWei, escrowInWei, resolve));
+      RPS.A(stdlib, ctc, interactWith('Alice',randomHand()), wagerInWei, escrowInWei, resolve));
 
   return Promise.all([ newPlayer(), newPlayer() ])
     .then(captureOpeningGameState)
     .then(()  => gameState.alice.deploy(gameState.ctors))
-    .then(ctc => Promise.all([ bobShootScissors(ctc), aliceShootRock(ctc) ]))
+    .then(ctc => Promise.all([ bobShoot(ctc), aliceShoot(ctc) ]))
     .then(captureClosingGameState);
 };
 
