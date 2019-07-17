@@ -8,20 +8,15 @@ const escrowInEth = 0.15;
 const uri = process.env.ETH_NODE_URI || 'http://localhost:8545';
 
 const interactWith = (name, hand) => (a, cb) => {
-  const commits =
-    [ `${name} commits to play with (hidden) hand,`
-    , `wager of ${wagerInEth}ETH,`
-    , `and escrow of ${escrowInEth}ETH.`
-    ].join(' ');
-
   const msg
-    = a === 'getHand' ? `${name} plays ${hand}.`
-    : a === 'commits' ? commits
-    : a === 'accepts' ? `${name} sends hand and matches wager.`
-    : a === 'reveals' ? `${name} reveals salt and hand.`
-    : a === 'outcome' ? `${name} agrees: Alice wins and receives ${wagerInEth}.`
-    : null;
-
+        = a === 'params'  ? `${name} publishes parameters of game: wager of ${wagerInEth}ETH and escrow of ${escrowInEth}ETH.`
+        : a === 'accepts' ? `${name} accepts the terms.`
+        : a === 'getHand' ? `(local: ${name} plays ${hand}.)`
+        : a === 'commits' ? `${name} commits to play with (hidden) hand.`
+        : a === 'shows'   ? `${name} sends hand in clear.`
+        : a === 'reveals' ? `${name} reveals salt and hand.`
+        : a === 'outcome' ? `${name} agrees that game is over.`
+        : null;
   const res = a === 'getHand' ? hand : ``;
 
   !!msg && console.log(msg);
@@ -31,7 +26,7 @@ const interactWith = (name, hand) => (a, cb) => {
 
 Promise.resolve(console.log(`Alice initiates a new game on the ${uri} Ethereum node.`))
   .then(() => runGameWith(interactWith, wagerInEth, escrowInEth, uri))
-  .then(() => console.log('Alice\'s escrow has been reimbursed.'))
+  .then((gs) => console.log(`Alice thinks outcome is ${gs.outcomeAlice}\nBob thinks outcome is ${gs.outcomeBob}`))
   .then(() => console.log('Done!'))
   .then(() => process.exit(0))
   .catch(e => console.error(e) || process.exit(1));

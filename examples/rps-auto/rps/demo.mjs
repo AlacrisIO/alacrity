@@ -3,7 +3,6 @@
 import * as RPS       from '../build/rps.mjs';
 import { stdlibNode } from './stdlib/web3/node.mjs';
 
-
 const init = (wagerInEth, escrowInEth, uri) =>
   stdlibNode(RPS.ABI, RPS.Bytecode, uri)
     .then(stdlib => {
@@ -12,7 +11,6 @@ const init = (wagerInEth, escrowInEth, uri) =>
 
       return { stdlib, gameState: { wagerInWei, escrowInWei }};
     });
-
 
 const play = interactWith => ({ stdlib, gameState }) => {
   const { web3, balanceOf, devnet, transfer } = stdlib;

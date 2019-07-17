@@ -52,37 +52,55 @@ contract ALAContract is Stdlib {
   constructor(address payable pA, address payable pB) public payable {
     current_state = uint256(keccak256(abi.encodePacked(uint256(0), pA, pB))); }
   
-  event e0(uint256 v18, uint256 v19, uint256 v20);
-  function m0(address payable pA, address payable pB, uint256 v18, uint256 v19, uint256 v20) external payable {
+  event e0(uint256 v2, uint256 v3);
+  function m0(address payable pA, address payable pB, uint256 v2, uint256 v3) external payable {
     require(current_state == uint256(keccak256(abi.encodePacked(uint256(0), pA, pB))));
     require(msg.sender == pA);
-    require((msg.value == (v18 + v19)));
-    emit e0(v18, v19, v20);
-    current_state = uint256(keccak256(abi.encodePacked(uint256(1), pA, pB, v18, v19, v20))); }
+    require((msg.value == (v2 + v3)));
+    emit e0(v2, v3);
+    current_state = uint256(keccak256(abi.encodePacked(uint256(1), pA, pB, v2, v3))); }
   
-  event e1(uint256 v37);
-  function m1(address payable pA, address payable pB, uint256 v18, uint256 v19, uint256 v20, uint256 v37) external payable {
-    require(current_state == uint256(keccak256(abi.encodePacked(uint256(1), pA, pB, v18, v19, v20))));
+  event e1();
+  function m1(address payable pA, address payable pB, uint256 v2, uint256 v3) external payable {
+    require(current_state == uint256(keccak256(abi.encodePacked(uint256(1), pA, pB, v2, v3))));
     require(msg.sender == pB);
-    require((msg.value == v18));
-    require(((uint256(0) <= v37) ? (v37 < uint256(3)) : false));
-    emit e1(v37);
-    current_state = uint256(keccak256(abi.encodePacked(uint256(2), pA, pB, v18, v19, v20, v37))); }
+    require((msg.value == v2));
+    emit e1();
+    current_state = uint256(keccak256(abi.encodePacked(uint256(2), pA, pB, v2, v3))); }
   
-  event e2(uint256 v44, uint256 v45);
-  function m2(address payable pA, address payable pB, uint256 v18, uint256 v19, uint256 v20, uint256 v37, uint256 v44, uint256 v45) external payable {
-    require(current_state == uint256(keccak256(abi.encodePacked(uint256(2), pA, pB, v18, v19, v20, v37))));
+  event e2(uint256 v28);
+  function m2(address payable pA, address payable pB, uint256 v2, uint256 v3, uint256 v28) external payable {
+    require(current_state == uint256(keccak256(abi.encodePacked(uint256(2), pA, pB, v2, v3))));
     require(msg.sender == pA);
     require((msg.value == uint256(0)));
-    require((v20 == (uint256(keccak256(abi.encodePacked((ALA_BCAT((abi.encodePacked(v44)), (abi.encodePacked(v45))))))))));
-    require(((uint256(0) <= v45) ? (v45 < uint256(3)) : false));
-    bool v59 = (uint256(0) <= v45) ? (v45 < uint256(3)) : false;
-    bool v62 = (uint256(0) <= v37) ? (v37 < uint256(3)) : false;
-    uint256 v69 = (v59 ? v62 : false) ? ((v45 + (uint256(4) - v37)) % uint256(3)) : (v59 ? uint256(2) : (v62 ? uint256(0) : uint256(1)));
-    bool v85 = v69 == uint256(2);
-    bool v87 = v69 == uint256(0);
-    pA.transfer((v19 + (v85 ? (uint256(2) * v18) : (v87 ? uint256(0) : v18))));
-    pB.transfer((v85 ? uint256(0) : (v87 ? (uint256(2) * v18) : v18)));
-    emit e2(v44, v45);
+    emit e2(v28);
+    current_state = uint256(keccak256(abi.encodePacked(uint256(3), pA, pB, v2, v3, v28))); }
+  
+  event e3(uint256 v43);
+  function m3(address payable pA, address payable pB, uint256 v2, uint256 v3, uint256 v28, uint256 v43) external payable {
+    require(current_state == uint256(keccak256(abi.encodePacked(uint256(3), pA, pB, v2, v3, v28))));
+    require(msg.sender == pB);
+    require((msg.value == uint256(0)));
+    require(((uint256(0) <= v43) ? (v43 < uint256(3)) : false));
+    emit e3(v43);
+    current_state = uint256(keccak256(abi.encodePacked(uint256(4), pA, pB, v2, v3, v28, v43))); }
+  
+  event e4(uint256 v50, uint256 v51);
+  function m4(address payable pA, address payable pB, uint256 v2, uint256 v3, uint256 v28, uint256 v43, uint256 v50, uint256 v51) external payable {
+    require(current_state == uint256(keccak256(abi.encodePacked(uint256(4), pA, pB, v2, v3, v28, v43))));
+    require(msg.sender == pA);
+    require((msg.value == uint256(0)));
+    require((v28 == (uint256(keccak256(abi.encodePacked((ALA_BCAT((abi.encodePacked(v50)), (abi.encodePacked(v51))))))))));
+    require(((uint256(0) <= v51) ? (v51 < uint256(3)) : false));
+    bool v65 = (uint256(0) <= v51) ? (v51 < uint256(3)) : false;
+    bool v68 = (uint256(0) <= v43) ? (v43 < uint256(3)) : false;
+    uint256 v75 = (v65 ? v68 : false) ? ((v51 + (uint256(4) - v43)) % uint256(3)) : (v65 ? uint256(2) : (v68 ? uint256(0) : uint256(1)));
+    bool v91 = v75 == uint256(2);
+    bool v98 = v75 == uint256(0);
+    bool v105 = v75 == uint256(2);
+    bool v107 = v75 == uint256(0);
+    pA.transfer((v3 + (v105 ? (uint256(2) * v2) : (v107 ? uint256(0) : v2))));
+    pB.transfer((v105 ? uint256(0) : (v107 ? (uint256(2) * v2) : v2)));
+    emit e4(v50, v51);
     current_state = 0x0;
     selfdestruct(address(0x02B463784Bc1a49f1647B47a19452aC420DFC65A)); } }
