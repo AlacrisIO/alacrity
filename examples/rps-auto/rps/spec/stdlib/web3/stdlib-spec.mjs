@@ -47,16 +47,16 @@ describe('The `web3` stdlib', () => {
   });
 
 
-  describe('exposes an `isBigNumber` function that', () => {
+  describe('exposes an `isBN` function that', () => {
     it('returns `true` for `BigNumber` arguments', () =>
-      expect(stdlib.isBigNumber(toBN('98765.4321'))).toBe(true));
+      expect(stdlib.isBN(toBN('98765.4321'))).toBe(true));
 
     it('returns `false` for non-`BigNumber` arguments', () => {
-      const { isBigNumber } = stdlib;
+      const { isBN } = stdlib;
 
-      expect(isBigNumber(98765.4321)).toBe(false);
-      expect(isBigNumber('98765.43')).toBe(false);
-      expect(isBigNumber({        })).toBe(false);
+      expect(isBN(98765.4321)).toBe(false);
+      expect(isBN('98765.43')).toBe(false);
+      expect(isBN({        })).toBe(false);
     });
   });
 

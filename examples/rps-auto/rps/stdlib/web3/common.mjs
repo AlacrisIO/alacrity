@@ -43,7 +43,7 @@ const keccak256        = A => b => digestHex(A)(hexOf(A)(b));
 const uint256_to_bytes = A => i => bnToHex(A)(i);
 
 // https://github.com/ethereum/web3.js/blob/0.20.7/lib/utils/utils.js#L495
-const isBigNumber = ({ web3 }) => n =>
+const isBN = ({ web3 }) => n =>
   n && (n instanceof web3.BigNumber || (n.constructor && n.constructor.name === 'BigNumber'));
 
 
@@ -66,7 +66,7 @@ const bnToHex = A => (u, size = 32) => {
 // Gets the hex bytes of a number or byte-string, without the 0x prefix
 const hexOf = A => x =>
     typeof x === 'number'  ? bnToHex(A)(toBN(A)(x))
-  : isBigNumber(A)(x)      ? bnToHex(A)(x)
+  : isBN(A)(x)             ? bnToHex(A)(x)
   : typeof x !== 'string'  ? panic(`Cannot convert to hex: ${x}`)
   : x.slice(0, 2) === '0x' ? x.slice(2)
   : x; // Assume `x` is already in hexadecimal form
@@ -257,10 +257,8 @@ export const mkStdlib = A =>
   , bytes_len:           bytes_len(A)
   , bytes_eq:            bytes_eq(A)
   , keccak256:           keccak256(A)
-  , bnToHex:             bnToHex(A)
   , digestHex:           digestHex(A)
   , assert:              assert(A)
-  , toBN:                toBN(A)
   , equal:               equal(A)
   , eq:                  equal(A)
   , add:                 add(A)
@@ -272,7 +270,9 @@ export const mkStdlib = A =>
   , le:                  le(A)
   , lt:                  lt(A)
   , encode:              encode(A)
-  , isBigNumber:         isBigNumber(A)
+  , toBN:                toBN(A)
+  , bnToHex:             bnToHex(A)
+  , isBN:                isBN(A)
   , awaitConfirmationOf: awaitConfirmationOf(A)
   , txReceiptFor:        txReceiptFor(A)
   , transfer:            transfer(A)
