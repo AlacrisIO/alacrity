@@ -21,8 +21,8 @@ const interactWith = (name, hand) => (a, cb) => {
         : a === 'reveals' ? `${name} reveals salt and hand.`
         : a === 'outcome' ? `${name} agrees: Alice wins and receives ${wagerInEth}.`
         : null;
-  const res = a === 'getHand' ? hand : "";  
-    
+  const res = a === 'getHand' ? hand : ``;
+
   !!msg && console.log(msg);
 
   return cb(res);
