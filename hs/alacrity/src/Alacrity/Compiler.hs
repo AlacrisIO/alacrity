@@ -351,8 +351,6 @@ instance Monoid SecurityLevel where
 type SType = (BaseType, SecurityLevel)
 
 type EPPEnv = M.Map Role (M.Map ILVar SType)
---- XXX Maybe the last two parameters should just be CTail and it
---- should have them directly embedded.
 type EPPRes = (Set.Set BLVar, CTail, M.Map Participant EPTail, Int, [CHandler])
 
 must_be_public :: (a, SType) -> (a, BaseType)

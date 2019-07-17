@@ -38,8 +38,6 @@ class RecoverTypes a where
 instance (Foldable t, RecoverTypes a) => RecoverTypes (t a) where
   rts = foldMap rts
 
---- XXX Find some existing Haskell class that we can derive to
---- automatically generate this stuff... maybe Data?
 instance {-# OVERLAPPING #-} RecoverTypes BLVar where
   rts (n, s, bt) = ITM (M.singleton (n,s) bt)
 
@@ -136,7 +134,6 @@ z3_verify1 z3 (_honest, _r, _tk) a = inNewScope z3 $ do
     Unknown -> error "Z3 inconclusive result"
     Unsat -> return $ VR 1 0
     Sat -> do
-      --- XXX Display useful information about a
       putStrLn $ "Failed to verify! " ++ showsSExpr a ":"
       m <- command z3 $ List [ Atom "get-model" ]
       putStrLn $ show $ pretty_se_top m
@@ -150,7 +147,6 @@ z3_sat1 z3 (_honest, _r, _tk) a = inNewScope z3 $ do
     Unknown -> error "Z3 inconclusive result"
     Sat -> return $ VR 1 0
     Unsat -> do
-      --- XXX Display useful information about a
       putStrLn $ "Failed to verify! " ++ showsSExpr a ":"
       uc <- getUnsatCore z3
       mapM_ putStrLn uc

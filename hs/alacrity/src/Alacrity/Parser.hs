@@ -241,7 +241,6 @@ parseXLToConsensus = do
   amount <- parseXLExpr1               
   semi
   conk <- parseXLExprT Nothing
-  --- XXX replace pay-mount with new primitive
   return $ XL_ToConsensus who vs amount "pay-amount" (XL_Let Nothing Nothing (XL_Claim CT_Require (XL_PrimApp (CP PEQ) [ (XL_Var "pay-amount"), amount ])) False conk)
 
 parseAt :: Parser XLExpr
@@ -316,7 +315,6 @@ parseDefineFun = do
   e <- ((do exact ":"
             post <- parseXLVar
             body <- parseXLExpr1
-            --- XXX hygiene problem is `post` contains `result`
             return (XL_Let Nothing (Just ["result"]) body False (XL_Let Nothing Nothing (XL_Claim CT_Assert (XL_FunApp post [XL_Var "result"])) False (XL_Var "result"))))
          <|> parseXLExpr1)
   return $ [XL_DefineFun f args e]

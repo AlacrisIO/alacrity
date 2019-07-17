@@ -176,7 +176,6 @@ jsEPTail (EP_Recv fromme i _ msg pv kt) = (tp, tfvs)
 
 jsPart :: (Participant, EProgram) -> Doc a
 jsPart (p, (EP_Prog pargs et)) =
-  --- XXX Perhaps use async/await rather than CPS for more idiomatic code?
   pretty "export" <+> jsFunction p ([ pretty "stdlib", pretty "ctc", pretty "interact" ] ++ pargs_vs ++ [ pretty "kTop" ]) bodyp
   where pargs_vs = map jsVar pargs
         (bodyp, _) = jsEPTail et
