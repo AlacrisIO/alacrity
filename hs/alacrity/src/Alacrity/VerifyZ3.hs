@@ -58,7 +58,7 @@ instance RecoverTypes EPTail where
   rts (EP_If ca tt ft) = rts ca <> rts tt <> rts ft
   rts (EP_Let bv ce ct) = rts bv <> rts ce <> rts ct
   rts (EP_Do cs ct) = rts cs <> rts ct
-  rts (EP_Recv _ _ svs msg pv kt) = rts svs <> rts msg <> rts pv <> rts kt
+  rts (EP_Recv _ _ svs msg kt) = rts svs <> rts msg <> rts kt
 
 instance RecoverTypes EProgram where
   rts (EP_Prog vs et) = rts vs <> rts et
@@ -78,7 +78,7 @@ instance RecoverTypes CTail where
   rts (C_Do cs ct) = rts cs <> rts ct
 
 instance RecoverTypes CHandler where
-  rts (C_Handler _ svs msg pv ct) = rts svs <> rts msg <> rts pv <> rts ct
+  rts (C_Handler _ svs msg ct) = rts svs <> rts msg <> rts ct
 
 instance RecoverTypes CProgram where
   rts (C_Prog _ chs) = rts chs
@@ -110,6 +110,12 @@ z3CTCBalance i = "ctc_balance" ++ show i
 
 z3CTCBalanceRef :: Int -> SExpr
 z3CTCBalanceRef i = Atom $ z3CTCBalance i
+
+z3TxnValue :: Int -> String
+z3TxnValue i = "txn_value" ++ show i
+
+z3TxnValueRef :: Int -> SExpr
+z3TxnValueRef i = Atom $ z3TxnValue i
 
 z3IntSort :: SExpr
 z3IntSort = z3_sortof AT_UInt256
@@ -196,6 +202,7 @@ z3CPrim cbi cp =
     BCAT_LEFT -> app "msg-left"
     BCAT_RIGHT -> app "msg-right"
     BALANCE -> \[] -> z3CTCBalanceRef cbi
+    TXN_VALUE -> \[] -> z3TxnValueRef cbi
   where app n = z3Apply n
 
 z3PrimEq :: Solver -> Int -> EP_Prim -> [SExpr] -> ILVar -> IO ()
@@ -296,20 +303,21 @@ z3_it_top z3 tm it_top (honest, me) = inNewScope z3 $ do
                  return $ vr <> vr'
             else
               iter cbi kt
-          IL_ToConsensus _who _msg amount pv kt ->
-            do void $ declare z3 (z3Var pv) z3IntSort
-               void $ define z3 cb' z3IntSort (z3Apply "+" [cb, pvp])
+          IL_ToConsensus _who _msg amount kt ->
+            do void $ declare z3 pvv z3IntSort
+               void $ define z3 cb'v z3IntSort (z3Apply "+" [cbr, pvr])
                assert z3 thisc
                iter cbi' kt
             where cbi' = cbi + 1
-                  cb' = z3CTCBalance cbi'
-                  cb = z3CTCBalanceRef cbi
+                  cb'v = z3CTCBalance cbi'
+                  cbr = z3CTCBalanceRef cbi
                   amountt = emit_z3_arg amount
-                  pvp = z3VarRef pv
+                  pvv = z3TxnValue cbi'
+                  pvr = z3TxnValueRef cbi'
                   thisc = if honest then
-                            z3Eq pvp amountt
+                            z3Eq pvr amountt
                           else
-                            z3Apply "<=" [ zero, pvp ]
+                            z3Apply "<=" [ zero, pvr ]
           IL_FromConsensus kt -> iter cbi kt
 
 z3StdLib :: String

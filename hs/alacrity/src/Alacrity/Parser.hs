@@ -241,7 +241,7 @@ parseXLToConsensus = do
   amount <- parseXLExpr1               
   semi
   conk <- parseXLExprT Nothing
-  return $ XL_ToConsensus who vs amount "pay-amount" (XL_Let Nothing Nothing (XL_Claim CT_Require (XL_PrimApp (CP PEQ) [ (XL_Var "pay-amount"), amount ])) False conk)
+  return $ XL_ToConsensus who vs amount (XL_Let Nothing Nothing (XL_Claim CT_Require (XL_PrimApp (CP PEQ) [ (XL_PrimApp (CP TXN_VALUE) []), amount ])) False conk)
 
 parseAt :: Parser XLExpr
 parseAt = do

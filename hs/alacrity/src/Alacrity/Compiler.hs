@@ -66,10 +66,10 @@ inline_expr e =
       (_, ae') <- inline_expr ae
       --- Assert is impure because it could fail
       return (False, XL_Claim ct ae')
-    XL_ToConsensus p ins pe pv ce -> do
+    XL_ToConsensus p ins pe ce -> do
       (_, pe') <- inline_expr pe
       (_, ce') <- inline_expr ce
-      return (False, XL_ToConsensus p ins pe' pv ce')
+      return (False, XL_ToConsensus p ins pe' ce')
     XL_FromConsensus be -> do
       (_, be') <- inline_expr be
       return (False, XL_FromConsensus be')
@@ -254,13 +254,12 @@ anf_expr me ρ e mk =
     XL_FromConsensus le -> do
       (ln, lt) <- anf_tail RoleContract ρ le mk
       return (ln, IL_FromConsensus lt)
-    XL_ToConsensus from ins pe pv ce ->
+    XL_ToConsensus from ins pe ce ->
       anf_expr (RolePart from) ρ pe
       (\ [ pa ] -> do
          let ins' = vsOnly $ map (anf_renamed_to ρ) ins
-         (ρ', pv') <- makeRename ρ pv
-         (cn, ct) <- anf_tail RoleContract ρ' ce mk
-         return (cn, IL_ToConsensus from ins' pa pv' ct))
+         (cn, ct) <- anf_tail RoleContract ρ ce mk
+         return (cn, IL_ToConsensus from ins' pa ct))
     XL_Values args ->
       anf_exprs me ρ args (\args' -> mk args')
     XL_Transfer to ae ->
@@ -482,8 +481,8 @@ epp_it_ctc ps γ hn0 it = case it of
                   Just how'_ep -> M.map (EP_Do how'_ep) ts1
   IL_Do (RolePart _) _ _ ->
     error "EPP: Cannot perform local action in consensus"
-  IL_ToConsensus _ _ _ _ _ ->
-    error "EPP: Cannot transitions to consensus from consensus"
+  IL_ToConsensus _ _ _ _ ->
+    error "EPP: Cannot transition to consensus from consensus"
   IL_FromConsensus bt -> epp_it_loc ps γ hn0 bt
 
 epp_it_loc :: [Participant] -> EPPEnv -> Int -> ILTail -> EPPRes
@@ -523,27 +522,23 @@ epp_it_loc ps γ hn0 it = case it of
             if not (role_me (RolePart p) who) then t
             else EP_Do s' t
             where (_, s') = epp_s_loc γ p how
-  IL_ToConsensus from what howmuch pv next -> (svs2, ct2, ts2, hn2, hs2)
+  IL_ToConsensus from what howmuch next -> (svs2, ct2, ts2, hn2, hs2)
     where fromr = RolePart from
           what' = map fst $ map must_be_public $ epp_vars γ fromr what
           (_, howmuch') = epp_expect (AT_UInt256, Public) $ epp_arg γ fromr howmuch
           what'env = M.fromList $ map (\(n, s, et) -> ((n,s),(et,Public))) what'
-          (pv_n, pv_s) = pv
-          (pv_t, pv_slvl) = (AT_UInt256, Public)
-          pv' = (pv_n, pv_s, pv_t)
-          addl_env = M.insert pv (pv_t, pv_slvl) what'env
-          γ' = M.map (M.union addl_env) γ
+          γ' = M.map (M.union what'env) γ
           hn1 = hn0 + 1
           (svs1, ct1, ts1, hn2, hs1) = epp_it_ctc ps γ' hn1 next
-          svs2 = Set.difference svs1 (Set.insert pv' (boundBLVars what'))
+          svs2 = Set.difference svs1 (boundBLVars what')
           svs2l = Set.toList svs2
-          nh = C_Handler from svs2l what' pv' ct1
+          nh = C_Handler from svs2l what' ct1
           hs2 = nh : hs1
           ts2 = M.mapWithKey addTail ts1
           ct2 = C_Wait hn0 svs2l
           es = EP_Send hn0 svs2l what' howmuch'
           addTail p pt1 = pt3
-            where pt2 me = EP_Recv me hn0 svs2l what' pv' pt1
+            where pt2 me = EP_Recv me hn0 svs2l what' pt1
                   pt3 = if p /= from then pt2 False
                         else EP_Do es $ pt2 True
   IL_FromConsensus _ ->

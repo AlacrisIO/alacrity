@@ -32,11 +32,15 @@
 [<-recv] success
 [send->] (assert (= v5 (+ v2 v3 ) ) )
 [<-recv] success
+[send->] (declare-fun txn_value1 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance1 () Int (+ ctc_balance0 txn_value1 ) )
+[<-recv] success
+[send->] (assert (= txn_value1 v5 ) )
+[<-recv] success
 [send->] (declare-fun v6 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance1 () Int (+ ctc_balance0 v6 ) )
-[<-recv] success
-[send->] (assert (= v6 v5 ) )
+[send->] (assert (= v6 txn_value1 ) )
 [<-recv] success
 [send->] (declare-fun v7 () Int )
 [<-recv] success
@@ -58,11 +62,15 @@
 [<-recv] success
 [send->] (declare-fun v9 () Bytes )
 [<-recv] success
+[send->] (declare-fun txn_value2 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance2 () Int (+ ctc_balance1 txn_value2 ) )
+[<-recv] success
+[send->] (assert (= txn_value2 v2 ) )
+[<-recv] success
 [send->] (declare-fun v10 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance2 () Int (+ ctc_balance1 v10 ) )
-[<-recv] success
-[send->] (assert (= v10 v2 ) )
+[send->] (assert (= v10 txn_value2 ) )
 [<-recv] success
 [send->] (declare-fun v11 () Bool )
 [<-recv] success
@@ -156,11 +164,15 @@
 [<-recv] success
 [send->] (declare-fun v29 () Bytes )
 [<-recv] success
+[send->] (declare-fun txn_value3 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance3 () Int (+ ctc_balance2 txn_value3 ) )
+[<-recv] success
+[send->] (assert (= txn_value3 0 ) )
+[<-recv] success
 [send->] (declare-fun v30 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance3 () Int (+ ctc_balance2 v30 ) )
-[<-recv] success
-[send->] (assert (= v30 0 ) )
+[send->] (assert (= v30 txn_value3 ) )
 [<-recv] success
 [send->] (declare-fun v31 () Bool )
 [<-recv] success
@@ -236,11 +248,15 @@
 [<-recv] success
 [send->] (declare-fun v44 () Bytes )
 [<-recv] success
+[send->] (declare-fun txn_value4 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance4 () Int (+ ctc_balance3 txn_value4 ) )
+[<-recv] success
+[send->] (assert (= txn_value4 0 ) )
+[<-recv] success
 [send->] (declare-fun v45 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance4 () Int (+ ctc_balance3 v45 ) )
-[<-recv] success
-[send->] (assert (= v45 0 ) )
+[send->] (assert (= v45 txn_value4 ) )
 [<-recv] success
 [send->] (declare-fun v46 () Bool )
 [<-recv] success
@@ -288,11 +304,15 @@
 [<-recv] success
 [send->] (declare-fun v52 () Bytes )
 [<-recv] success
+[send->] (declare-fun txn_value5 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance5 () Int (+ ctc_balance4 txn_value5 ) )
+[<-recv] success
+[send->] (assert (= txn_value5 0 ) )
+[<-recv] success
 [send->] (declare-fun v53 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance5 () Int (+ ctc_balance4 v53 ) )
-[<-recv] success
-[send->] (assert (= v53 0 ) )
+[send->] (assert (= v53 txn_value5 ) )
 [<-recv] success
 [send->] (declare-fun v54 () Bool )
 [<-recv] success
@@ -714,11 +734,15 @@
 [<-recv] success
 [send->] (assert (= v5 (+ v2 v3 ) ) )
 [<-recv] success
+[send->] (declare-fun txn_value1 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance1 () Int (+ ctc_balance0 txn_value1 ) )
+[<-recv] success
+[send->] (assert (= txn_value1 v5 ) )
+[<-recv] success
 [send->] (declare-fun v6 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance1 () Int (+ ctc_balance0 v6 ) )
-[<-recv] success
-[send->] (assert (= v6 v5 ) )
+[send->] (assert (= v6 txn_value1 ) )
 [<-recv] success
 [send->] (declare-fun v7 () Int )
 [<-recv] success
@@ -740,11 +764,15 @@
 [<-recv] success
 [send->] (declare-fun v9 () Bytes )
 [<-recv] success
+[send->] (declare-fun txn_value2 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance2 () Int (+ ctc_balance1 txn_value2 ) )
+[<-recv] success
+[send->] (assert (= txn_value2 v2 ) )
+[<-recv] success
 [send->] (declare-fun v10 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance2 () Int (+ ctc_balance1 v10 ) )
-[<-recv] success
-[send->] (assert (= v10 v2 ) )
+[send->] (assert (= v10 txn_value2 ) )
 [<-recv] success
 [send->] (declare-fun v11 () Bool )
 [<-recv] success
@@ -838,11 +866,15 @@
 [<-recv] success
 [send->] (declare-fun v29 () Bytes )
 [<-recv] success
+[send->] (declare-fun txn_value3 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance3 () Int (+ ctc_balance2 txn_value3 ) )
+[<-recv] success
+[send->] (assert (= txn_value3 0 ) )
+[<-recv] success
 [send->] (declare-fun v30 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance3 () Int (+ ctc_balance2 v30 ) )
-[<-recv] success
-[send->] (assert (= v30 0 ) )
+[send->] (assert (= v30 txn_value3 ) )
 [<-recv] success
 [send->] (declare-fun v31 () Bool )
 [<-recv] success
@@ -918,11 +950,15 @@
 [<-recv] success
 [send->] (declare-fun v44 () Bytes )
 [<-recv] success
+[send->] (declare-fun txn_value4 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance4 () Int (+ ctc_balance3 txn_value4 ) )
+[<-recv] success
+[send->] (assert (= txn_value4 0 ) )
+[<-recv] success
 [send->] (declare-fun v45 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance4 () Int (+ ctc_balance3 v45 ) )
-[<-recv] success
-[send->] (assert (= v45 0 ) )
+[send->] (assert (= v45 txn_value4 ) )
 [<-recv] success
 [send->] (declare-fun v46 () Bool )
 [<-recv] success
@@ -970,11 +1006,15 @@
 [<-recv] success
 [send->] (declare-fun v52 () Bytes )
 [<-recv] success
+[send->] (declare-fun txn_value5 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance5 () Int (+ ctc_balance4 txn_value5 ) )
+[<-recv] success
+[send->] (assert (= txn_value5 0 ) )
+[<-recv] success
 [send->] (declare-fun v53 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance5 () Int (+ ctc_balance4 v53 ) )
-[<-recv] success
-[send->] (assert (= v53 0 ) )
+[send->] (assert (= v53 txn_value5 ) )
 [<-recv] success
 [send->] (declare-fun v54 () Bool )
 [<-recv] success
@@ -1396,11 +1436,15 @@
 [<-recv] success
 [send->] (assert (= v5 (+ v2 v3 ) ) )
 [<-recv] success
+[send->] (declare-fun txn_value1 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance1 () Int (+ ctc_balance0 txn_value1 ) )
+[<-recv] success
+[send->] (assert (= txn_value1 v5 ) )
+[<-recv] success
 [send->] (declare-fun v6 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance1 () Int (+ ctc_balance0 v6 ) )
-[<-recv] success
-[send->] (assert (= v6 v5 ) )
+[send->] (assert (= v6 txn_value1 ) )
 [<-recv] success
 [send->] (declare-fun v7 () Int )
 [<-recv] success
@@ -1422,11 +1466,15 @@
 [<-recv] success
 [send->] (declare-fun v9 () Bytes )
 [<-recv] success
+[send->] (declare-fun txn_value2 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance2 () Int (+ ctc_balance1 txn_value2 ) )
+[<-recv] success
+[send->] (assert (= txn_value2 v2 ) )
+[<-recv] success
 [send->] (declare-fun v10 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance2 () Int (+ ctc_balance1 v10 ) )
-[<-recv] success
-[send->] (assert (= v10 v2 ) )
+[send->] (assert (= v10 txn_value2 ) )
 [<-recv] success
 [send->] (declare-fun v11 () Bool )
 [<-recv] success
@@ -1520,11 +1568,15 @@
 [<-recv] success
 [send->] (declare-fun v29 () Bytes )
 [<-recv] success
+[send->] (declare-fun txn_value3 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance3 () Int (+ ctc_balance2 txn_value3 ) )
+[<-recv] success
+[send->] (assert (= txn_value3 0 ) )
+[<-recv] success
 [send->] (declare-fun v30 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance3 () Int (+ ctc_balance2 v30 ) )
-[<-recv] success
-[send->] (assert (= v30 0 ) )
+[send->] (assert (= v30 txn_value3 ) )
 [<-recv] success
 [send->] (declare-fun v31 () Bool )
 [<-recv] success
@@ -1600,11 +1652,15 @@
 [<-recv] success
 [send->] (declare-fun v44 () Bytes )
 [<-recv] success
+[send->] (declare-fun txn_value4 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance4 () Int (+ ctc_balance3 txn_value4 ) )
+[<-recv] success
+[send->] (assert (= txn_value4 0 ) )
+[<-recv] success
 [send->] (declare-fun v45 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance4 () Int (+ ctc_balance3 v45 ) )
-[<-recv] success
-[send->] (assert (= v45 0 ) )
+[send->] (assert (= v45 txn_value4 ) )
 [<-recv] success
 [send->] (declare-fun v46 () Bool )
 [<-recv] success
@@ -1652,11 +1708,15 @@
 [<-recv] success
 [send->] (declare-fun v52 () Bytes )
 [<-recv] success
+[send->] (declare-fun txn_value5 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance5 () Int (+ ctc_balance4 txn_value5 ) )
+[<-recv] success
+[send->] (assert (= txn_value5 0 ) )
+[<-recv] success
 [send->] (declare-fun v53 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance5 () Int (+ ctc_balance4 v53 ) )
-[<-recv] success
-[send->] (assert (= v53 0 ) )
+[send->] (assert (= v53 txn_value5 ) )
 [<-recv] success
 [send->] (declare-fun v54 () Bool )
 [<-recv] success
@@ -2072,11 +2132,15 @@
 [<-recv] success
 [send->] (declare-fun v5 () Int )
 [<-recv] success
+[send->] (declare-fun txn_value1 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance1 () Int (+ ctc_balance0 txn_value1 ) )
+[<-recv] success
+[send->] (assert (<= 0 txn_value1 ) )
+[<-recv] success
 [send->] (declare-fun v6 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance1 () Int (+ ctc_balance0 v6 ) )
-[<-recv] success
-[send->] (assert (<= 0 v6 ) )
+[send->] (assert (= v6 txn_value1 ) )
 [<-recv] success
 [send->] (declare-fun v7 () Int )
 [<-recv] success
@@ -2090,11 +2154,15 @@
 [<-recv] success
 [send->] (declare-fun v9 () Bytes )
 [<-recv] success
+[send->] (declare-fun txn_value2 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance2 () Int (+ ctc_balance1 txn_value2 ) )
+[<-recv] success
+[send->] (assert (<= 0 txn_value2 ) )
+[<-recv] success
 [send->] (declare-fun v10 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance2 () Int (+ ctc_balance1 v10 ) )
-[<-recv] success
-[send->] (assert (<= 0 v10 ) )
+[send->] (assert (= v10 txn_value2 ) )
 [<-recv] success
 [send->] (declare-fun v11 () Bool )
 [<-recv] success
@@ -2138,11 +2206,15 @@
 [<-recv] success
 [send->] (declare-fun v29 () Bytes )
 [<-recv] success
+[send->] (declare-fun txn_value3 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance3 () Int (+ ctc_balance2 txn_value3 ) )
+[<-recv] success
+[send->] (assert (<= 0 txn_value3 ) )
+[<-recv] success
 [send->] (declare-fun v30 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance3 () Int (+ ctc_balance2 v30 ) )
-[<-recv] success
-[send->] (assert (<= 0 v30 ) )
+[send->] (assert (= v30 txn_value3 ) )
 [<-recv] success
 [send->] (declare-fun v31 () Bool )
 [<-recv] success
@@ -2176,11 +2248,15 @@
 [<-recv] success
 [send->] (declare-fun v44 () Bytes )
 [<-recv] success
+[send->] (declare-fun txn_value4 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance4 () Int (+ ctc_balance3 txn_value4 ) )
+[<-recv] success
+[send->] (assert (<= 0 txn_value4 ) )
+[<-recv] success
 [send->] (declare-fun v45 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance4 () Int (+ ctc_balance3 v45 ) )
-[<-recv] success
-[send->] (assert (<= 0 v45 ) )
+[send->] (assert (= v45 txn_value4 ) )
 [<-recv] success
 [send->] (declare-fun v46 () Bool )
 [<-recv] success
@@ -2208,11 +2284,15 @@
 [<-recv] success
 [send->] (declare-fun v52 () Bytes )
 [<-recv] success
+[send->] (declare-fun txn_value5 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance5 () Int (+ ctc_balance4 txn_value5 ) )
+[<-recv] success
+[send->] (assert (<= 0 txn_value5 ) )
+[<-recv] success
 [send->] (declare-fun v53 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance5 () Int (+ ctc_balance4 v53 ) )
-[<-recv] success
-[send->] (assert (<= 0 v53 ) )
+[send->] (assert (= v53 txn_value5 ) )
 [<-recv] success
 [send->] (declare-fun v54 () Bool )
 [<-recv] success
@@ -2602,11 +2682,15 @@
 [<-recv] success
 [send->] (assert (= v5 (+ v2 v3 ) ) )
 [<-recv] success
+[send->] (declare-fun txn_value1 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance1 () Int (+ ctc_balance0 txn_value1 ) )
+[<-recv] success
+[send->] (assert (<= 0 txn_value1 ) )
+[<-recv] success
 [send->] (declare-fun v6 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance1 () Int (+ ctc_balance0 v6 ) )
-[<-recv] success
-[send->] (assert (<= 0 v6 ) )
+[send->] (assert (= v6 txn_value1 ) )
 [<-recv] success
 [send->] (declare-fun v7 () Int )
 [<-recv] success
@@ -2620,11 +2704,15 @@
 [<-recv] success
 [send->] (declare-fun v9 () Bytes )
 [<-recv] success
+[send->] (declare-fun txn_value2 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance2 () Int (+ ctc_balance1 txn_value2 ) )
+[<-recv] success
+[send->] (assert (<= 0 txn_value2 ) )
+[<-recv] success
 [send->] (declare-fun v10 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance2 () Int (+ ctc_balance1 v10 ) )
-[<-recv] success
-[send->] (assert (<= 0 v10 ) )
+[send->] (assert (= v10 txn_value2 ) )
 [<-recv] success
 [send->] (declare-fun v11 () Bool )
 [<-recv] success
@@ -2710,11 +2798,15 @@
 [<-recv] success
 [send->] (declare-fun v29 () Bytes )
 [<-recv] success
+[send->] (declare-fun txn_value3 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance3 () Int (+ ctc_balance2 txn_value3 ) )
+[<-recv] success
+[send->] (assert (<= 0 txn_value3 ) )
+[<-recv] success
 [send->] (declare-fun v30 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance3 () Int (+ ctc_balance2 v30 ) )
-[<-recv] success
-[send->] (assert (<= 0 v30 ) )
+[send->] (assert (= v30 txn_value3 ) )
 [<-recv] success
 [send->] (declare-fun v31 () Bool )
 [<-recv] success
@@ -2748,11 +2840,15 @@
 [<-recv] success
 [send->] (declare-fun v44 () Bytes )
 [<-recv] success
+[send->] (declare-fun txn_value4 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance4 () Int (+ ctc_balance3 txn_value4 ) )
+[<-recv] success
+[send->] (assert (<= 0 txn_value4 ) )
+[<-recv] success
 [send->] (declare-fun v45 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance4 () Int (+ ctc_balance3 v45 ) )
-[<-recv] success
-[send->] (assert (<= 0 v45 ) )
+[send->] (assert (= v45 txn_value4 ) )
 [<-recv] success
 [send->] (declare-fun v46 () Bool )
 [<-recv] success
@@ -2784,11 +2880,15 @@
 [<-recv] success
 [send->] (declare-fun v52 () Bytes )
 [<-recv] success
+[send->] (declare-fun txn_value5 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance5 () Int (+ ctc_balance4 txn_value5 ) )
+[<-recv] success
+[send->] (assert (<= 0 txn_value5 ) )
+[<-recv] success
 [send->] (declare-fun v53 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance5 () Int (+ ctc_balance4 v53 ) )
-[<-recv] success
-[send->] (assert (<= 0 v53 ) )
+[send->] (assert (= v53 txn_value5 ) )
 [<-recv] success
 [send->] (declare-fun v54 () Bool )
 [<-recv] success
@@ -3172,11 +3272,15 @@
 [<-recv] success
 [send->] (declare-fun v5 () Int )
 [<-recv] success
+[send->] (declare-fun txn_value1 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance1 () Int (+ ctc_balance0 txn_value1 ) )
+[<-recv] success
+[send->] (assert (<= 0 txn_value1 ) )
+[<-recv] success
 [send->] (declare-fun v6 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance1 () Int (+ ctc_balance0 v6 ) )
-[<-recv] success
-[send->] (assert (<= 0 v6 ) )
+[send->] (assert (= v6 txn_value1 ) )
 [<-recv] success
 [send->] (declare-fun v7 () Int )
 [<-recv] success
@@ -3190,11 +3294,15 @@
 [<-recv] success
 [send->] (declare-fun v9 () Bytes )
 [<-recv] success
+[send->] (declare-fun txn_value2 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance2 () Int (+ ctc_balance1 txn_value2 ) )
+[<-recv] success
+[send->] (assert (<= 0 txn_value2 ) )
+[<-recv] success
 [send->] (declare-fun v10 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance2 () Int (+ ctc_balance1 v10 ) )
-[<-recv] success
-[send->] (assert (<= 0 v10 ) )
+[send->] (assert (= v10 txn_value2 ) )
 [<-recv] success
 [send->] (declare-fun v11 () Bool )
 [<-recv] success
@@ -3238,11 +3346,15 @@
 [<-recv] success
 [send->] (declare-fun v29 () Bytes )
 [<-recv] success
+[send->] (declare-fun txn_value3 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance3 () Int (+ ctc_balance2 txn_value3 ) )
+[<-recv] success
+[send->] (assert (<= 0 txn_value3 ) )
+[<-recv] success
 [send->] (declare-fun v30 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance3 () Int (+ ctc_balance2 v30 ) )
-[<-recv] success
-[send->] (assert (<= 0 v30 ) )
+[send->] (assert (= v30 txn_value3 ) )
 [<-recv] success
 [send->] (declare-fun v31 () Bool )
 [<-recv] success
@@ -3310,11 +3422,15 @@
 [<-recv] success
 [send->] (declare-fun v44 () Bytes )
 [<-recv] success
+[send->] (declare-fun txn_value4 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance4 () Int (+ ctc_balance3 txn_value4 ) )
+[<-recv] success
+[send->] (assert (<= 0 txn_value4 ) )
+[<-recv] success
 [send->] (declare-fun v45 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance4 () Int (+ ctc_balance3 v45 ) )
-[<-recv] success
-[send->] (assert (<= 0 v45 ) )
+[send->] (assert (= v45 txn_value4 ) )
 [<-recv] success
 [send->] (declare-fun v46 () Bool )
 [<-recv] success
@@ -3342,11 +3458,15 @@
 [<-recv] success
 [send->] (declare-fun v52 () Bytes )
 [<-recv] success
+[send->] (declare-fun txn_value5 () Int )
+[<-recv] success
+[send->] (define-fun ctc_balance5 () Int (+ ctc_balance4 txn_value5 ) )
+[<-recv] success
+[send->] (assert (<= 0 txn_value5 ) )
+[<-recv] success
 [send->] (declare-fun v53 () Int )
 [<-recv] success
-[send->] (define-fun ctc_balance5 () Int (+ ctc_balance4 v53 ) )
-[<-recv] success
-[send->] (assert (<= 0 v53 ) )
+[send->] (assert (= v53 txn_value5 ) )
 [<-recv] success
 [send->] (declare-fun v54 () Bool )
 [<-recv] success

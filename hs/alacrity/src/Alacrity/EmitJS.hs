@@ -105,7 +105,8 @@ jsPrimApply pr =
     CP BCAT -> jsApply "stdlib.bytes_cat"
     CP BCAT_LEFT -> jsApply "stdlib.bytes_left"
     CP BCAT_RIGHT -> jsApply "stdlib.bytes_right"
-    CP BALANCE -> error "XXX implement balance"
+    CP BALANCE -> \_ -> pretty $ "txn.balance"
+    CP TXN_VALUE -> \_ -> pretty $ "txn.value"
     RANDOM -> jsApply "stdlib.random_uint256"
     INTERACT -> error "interact doesn't use jsPrimApply"
   where spa_error () = error "jsPrimApply"
@@ -162,10 +163,10 @@ jsEPTail (EP_Do es kt) = (tp, tfvs)
   where (tp, esfvs) = jsEPStmt es ktp
         tfvs = Set.union esfvs kfvs
         (ktp, kfvs) = jsEPTail kt
-jsEPTail (EP_Recv fromme i _ msg pv kt) = (tp, tfvs)
+jsEPTail (EP_Recv fromme i _ msg kt) = (tp, tfvs)
   where tp = jsApply "ctc.recv" [ jsString (solMsg_evt i), kp ] <> semi
-        tfvs = Set.unions [Set.fromList msg, Set.singleton pv, ktfvs]
-        kp = jsLambda (the_vs ++ [jsVar pv]) ktp
+        tfvs = Set.unions [Set.fromList msg, ktfvs]
+        kp = jsLambda (the_vs ++ [pretty "txn"]) ktp
         msg_vs = map jsVar msg
         msg'_vs = map jsVar' msg
         the_vs = if fromme then msg'_vs else msg_vs
@@ -176,7 +177,7 @@ jsEPTail (EP_Recv fromme i _ msg pv kt) = (tp, tfvs)
 
 jsPart :: (Participant, EProgram) -> Doc a
 jsPart (p, (EP_Prog pargs et)) =
-  pretty "export" <+> jsFunction p ([ pretty "stdlib", pretty "ctc", pretty "interact" ] ++ pargs_vs ++ [ pretty "kTop" ]) bodyp
+  pretty "export" <+> jsFunction p ([ pretty "stdlib", pretty "ctc", pretty "txn", pretty "interact" ] ++ pargs_vs ++ [ pretty "kTop" ]) bodyp
   where pargs_vs = map jsVar pargs
         (bodyp, _) = jsEPTail et
 
