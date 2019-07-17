@@ -59,6 +59,7 @@ main {
 
     @B interact("accepts");
     >B pay! wagerAmount;
+
     var outcome = DRAW;
     while (outcome == DRAW)
         invariant (balance() == ((2 * wagerAmount) + escrowAmount))

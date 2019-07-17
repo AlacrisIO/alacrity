@@ -266,7 +266,7 @@ anf_expr me ρ e mk =
       anf_expr me ρ ae (\[ aa ] -> ret_stmt (IL_Transfer to aa))
     XL_Declassify ae ->
       anf_expr me ρ ae (\[ aa ] -> ret_expr "Declassify" (IL_Declassify aa))
-    XL_Let mwho mvs ve _xxx be ->
+    XL_Let mwho mvs ve False be ->
       anf_expr who ρ ve k
       where who = case mwho of
                     Nothing -> me
@@ -282,8 +282,9 @@ anf_expr me ρ e mk =
                           (M.fromList $ zip ovs nvs)
                         else
                           error $ "ANF XL_Let, context arity mismatch, " ++ show olen ++ " vs " ++ show nlen
-    XL_While _ _ _ -> error $ "ANF XL_While not implemented yet! XXX"
-    XL_Set _ _ -> error $ "ANF XL_Set not implemented yet! XXX"
+    XL_Let _mwho _mvs _ve True _be -> error $ "ANF XL_Let (mutable) not implemented yet! XXX"
+    XL_While _ce _ie _be -> error $ "ANF XL_While not implemented yet! XXX"
+    XL_Set _v _nve -> error $ "ANF XL_Set not implemented yet! XXX"
     XL_FunApp _ _ -> error $ "ANF XL_FunApp, impossible after inliner"
   where ret_expr s ne = do
           nv <- allocANF me s ne
