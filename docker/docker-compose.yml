@@ -1,0 +1,45 @@
+version: "3"
+services:
+  # Alacrity services
+  alacrity_geth: # Ethereum test network
+    build:
+      context: ..
+      dockerfile: docker/containers/alacrity_geth/Dockerfile
+    image: gcr.io/legicash-demo-1950/legicash-demo/alacrity_geth:v1.8.21
+    hostname: "alacrity-geth"
+    container_name: "alacrity-geth"
+    volumes:
+      - /tmp/legilogs/_ethereum:/var/www/app/alacrity-geth/_ethereum
+      - /tmp/legilogs/:/var/www/app/alacrity-geth/_run/logs
+    networks:
+      legicash-demo:
+        ipv4_address: 10.5.0.9
+    ports:
+      - "8545:8545"
+
+  alacrity_prereq: 
+    build:
+      context: ..
+      dockerfile: docker/containers/build_prerequisites/Dockerfile
+    image: gcr.io/legicash-demo-1950/legicash-demo/alacrity_build_prerequisites:${TAG:-v1.1}
+    hostname: "alacrity-prereq"
+    container_name: "alacrity-prereq"
+    environment:
+      - STACK_YAML=../../hs/alacrity/stack.yaml
+      - ETH_NODE_URI=http://alacrity-geth:8545
+    # volumes:
+    #   - ../:/opt/alacrity/
+    networks:
+      legicash-demo:
+        ipv4_address: 10.5.0.10
+    ports:
+      - "8095:8095"
+    depends_on:
+    - "alacrity_geth"
+
+networks:
+  legicash-demo:
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.5.0.0/24

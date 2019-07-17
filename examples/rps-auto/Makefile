@@ -7,7 +7,7 @@ all: start_geth test stop_geth
 build: build/rps.ala.mjs
 
 build/rps.ala.mjs: rps/rps.ala
-	stack build
+	stack build --allow-different-user
 	stack exec -- alacrityc -o build $^
 
 lint:
