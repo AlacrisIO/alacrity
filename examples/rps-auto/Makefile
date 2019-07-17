@@ -2,7 +2,7 @@
 
 export STACK_YAML=../../hs/alacrity/stack.yaml
 
-all: start_geth test stop_geth
+all: lint start_geth test demo stop_geth
 
 build: build/rps.ala.mjs
 

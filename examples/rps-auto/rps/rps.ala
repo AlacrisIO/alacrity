@@ -1,6 +1,20 @@
 #lang alacrity/exe
 
 enum isHand { ROCK, PAPER, SCISSORS };
+
+function getHand() : isHand {
+    const s = interact("getHand");
+    const rockP = bytes_equal(s, "ROCK");
+    const paperP = bytes_equal(s, "PAPER");
+    const scissorsP = bytes_equal(s, "SCISSORS");
+    assume! (rockP || (paperP || scissorsP));
+    if rockP {
+        ROCK }
+    else if paperP {
+        PAPER }
+    else {
+        SCISSORS } }
+
 enum isOutcome { B_WINS, DRAW, A_WINS };
 
 function winner(handA, handB) : isOutcome {
@@ -29,15 +43,12 @@ function fair_game(handA, handB, outcome) {
 
 participant A {
     uint256 wagerAmount,
-    uint256 escrowAmount,
-    uint256 handA }
+    uint256 escrowAmount }
 
-participant B {
-    uint256 handB }
+participant B { }
 
 main {
-    @A assume! isHand(handA);
-    @B assume! isHand(handB);
+    @A const handA = getHand();
     @A const commitA, saltA = precommit(handA);
 
     @A declassify! wagerAmount;
@@ -48,6 +59,7 @@ main {
        w/ (wagerAmount + escrowAmount);
     return;
 
+    @B const handB = getHand();
     @B declassify! handB;
     @B interact("accepts");
     @B publish! handB w/ wagerAmount;

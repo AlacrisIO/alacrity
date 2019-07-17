@@ -8,6 +8,7 @@ import SimpleSMT --- Maybe use Language.SMTLib2 in future
 import System.IO
 import System.Exit
 import Data.Text.Prettyprint.Doc
+import Data.Digest.CRC32
 
 import Alacrity.AST
 import Alacrity.Util
@@ -227,7 +228,7 @@ emit_z3_con :: Constant -> SExpr
 emit_z3_con (Con_I i) = Atom $ show i
 emit_z3_con (Con_B True) = Atom "true"
 emit_z3_con (Con_B False) = Atom "false"
-emit_z3_con (Con_BS _) = z3Apply "raw-bytes0" []
+emit_z3_con (Con_BS bs) = z3Apply "bytes-literal" [ Atom (show $ crc32 bs) ]
 
 emit_z3_arg :: ILArg -> SExpr
 emit_z3_arg (IL_Con c) = emit_z3_con c
@@ -240,7 +241,8 @@ z3_vardecl z3 tm iv = void $ declare z3 (z3Var iv) s
 
 z3_expr :: Solver -> ILVar -> ILExpr -> IO ()
 z3_expr z3 out how = case how of
-  IL_Declassify a -> assert z3 (z3Eq (z3VarRef out) (emit_z3_arg a))
+  IL_Declassify a ->
+    assert z3 (z3Eq (z3VarRef out) (emit_z3_arg a))
   IL_PrimApp pr al -> z3PrimEq z3 pr alt out
     where alt = map emit_z3_arg al
 

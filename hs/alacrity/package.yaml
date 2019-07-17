@@ -33,6 +33,7 @@ dependencies:
 - unordered-containers
 - optparse-applicative
 - system-filepath
+- digest
 
 ghc-options:
 - -Wall
