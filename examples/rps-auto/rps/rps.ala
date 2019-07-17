@@ -8,14 +8,16 @@ function getHand() : isHand {
     const paperP = bytes_equal(s, "PAPER");
     const scissorsP = bytes_equal(s, "SCISSORS");
     assume! (rockP || (paperP || scissorsP));
-    if rockP {
-        ROCK }
-    else if paperP {
-        PAPER }
-    else {
-        SCISSORS } }
+    if rockP ROCK
+    else if paperP PAPER
+    else SCISSORS }
 
 enum isOutcome { B_WINS, DRAW, A_WINS };
+function showOutcome(o) {
+    require! isOutcome(o);
+    if (o == B_WINS) "Bob wins"
+    else if (o == DRAW) "Draw"
+    else "Alice wins" }
 
 function winner(handA, handB) : isOutcome {
     const validA = isHand(handA);
@@ -48,21 +50,28 @@ participant A {
 participant B { }
 
 main {
-    @A const handA = getHand();
-    @A const commitA, saltA = precommit(handA);
-
     @A declassify! wagerAmount;
     @A declassify! escrowAmount;
+    @A interact("params");
+    @A publish! wagerAmount, escrowAmount
+       w/ (wagerAmount + escrowAmount);
+    return;
+
+    @B interact("accepts");
+    @B pay! wagerAmount;
+    return;
+
+    @A const handA = getHand();
+    @A const commitA, saltA = precommit(handA);
     @A declassify! commitA;
     @A interact("commits");
-    @A publish! wagerAmount, escrowAmount, commitA
-       w/ (wagerAmount + escrowAmount);
+    @A publish! commitA w/ 0;
     return;
 
     @B const handB = getHand();
     @B declassify! handB;
-    @B interact("accepts");
-    @B publish! handB w/ wagerAmount;
+    @B interact("shows");
+    @B publish! handB w/ 0;
     require! isHand(handB);
     return;
 
@@ -75,6 +84,8 @@ main {
     const outcome = winner(handA, handB);
     assert! ((outcome == A_WINS) => isHand(handA));
     assert! ((outcome == B_WINS) => isHand(handB));
+    fair_game(handA, handB, outcome);
+
     const getsA, getsB =
           if (outcome == A_WINS) {
               values (2 * wagerAmount), 0 }
@@ -86,6 +97,5 @@ main {
     transfer! B <- getsB;
     return;
 
-    fair_game(handA, handB, outcome);
     interact("outcome");
-    outcome }
+    showOutcome(outcome) }

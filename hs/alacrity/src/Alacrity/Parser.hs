@@ -46,7 +46,9 @@ integer :: Parser Integer
 integer = lexeme L.decimal
 
 stringLiteral :: Parser String
-stringLiteral = char '"' >> manyTill L.charLiteral (char '"')
+stringLiteral = do s <- char '"' >> manyTill L.charLiteral (char '"')
+                   sc
+                   return s
 
 parens :: Parser a -> Parser a
 parens = between (exact "(") (exact ")")
@@ -55,7 +57,7 @@ braces :: Parser a -> Parser a
 braces = between (exact "{") (exact "}")
 
 rws :: [String] -- list of reserved words
-rws = ["if","then","else","import","true","false","msgcons","msgcar","msgcdr","bytes_equal","length","uint256_bytes","digest","random","interact","assert!","assume!","require!","possible?","values","transfer!","<-","const","function","participant","@","uint256","bool","bytes","publish!","w/","return"]
+rws = ["if","then","else","import","true","false","msgcons","msgcar","msgcdr","bytes_equal","length","uint256_bytes","digest","random","interact","assert!","assume!","require!","possible?","values","transfer!","<-","const","function","participant","@","uint256","bool","bytes","publish!","w/","return","pay!"]
 
 parseBaseType :: Parser BaseType
 parseBaseType =
@@ -208,10 +210,14 @@ parseXLToConsensus :: Parser XLExpr
 parseXLToConsensus = do
   exact "@"
   who <- parseParticipant
-  exact "publish!"
-  vs <- parseXLVars
-  exact "w/"
-  amount <- parseXLExpr1
+  vs <- ((do exact "publish!"
+             vs <- parseXLVars
+             exact "w/"
+             return vs)
+         <|>
+         (do exact "pay!"
+             return []))
+  amount <- parseXLExpr1                
   semi
   conk <- parseXLExprT Nothing
   --- XXX hygiene

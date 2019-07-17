@@ -2,28 +2,28 @@
 
 # Bootstrap
 Ensure the following tools are installed on your system with the versions
-listed (or greater for all but `z3`):
-- `node` v10.16 (the latest "LTS" as of this writing)
-- `npm` v6.9
-- `stack` v2.1.1
-- GNU `make` v4.1
+listed:
+- `node` v12.4.0
+- `npm` v6.9.0
+- `stack` v2.1.3
+- GNU `make` v4.1 (or greater)
 - `geth` v1.8.21
-- `z3` v4.8.4
+- `z3` v4.8.5
 - `solc` v0.5.2
 
 We recommend you use
 [`nvm` (node version manager)](https://github.com/nvm-sh/nvm#installation-and-update)
 to install `node` and `npm`:
 ```bash
-$ nvm install 10.16
+$ nvm install 12.4
 
 # When swapping terminals or starting a fresh session you can ensure you're
 # running the correct versions with:
 $ nvm version
 v8.2.0
 
-$ nvm use 10.16
-Now using node v10.16.0 (npm v6.9.0)
+$ nvm use 12.4
+Now using node v12.4.0 (npm v6.9.0)
 ```
 
 **Once you've situated `node` and `npm`, and any time the `package.json` file
@@ -72,16 +72,16 @@ Fetch pre-built `z3` + `geth` packages from the web and stage them in a `~/bin`
 ```bash
 $ mkdir -p ~/bin && cd ~/bin
 
-$ wget https://github.com/Z3Prover/z3/releases/download/z3-4.8.4/z3-4.8.4.d6df51951f4c-x64-osx-10.14.1.zip
+$ wget https://github.com/Z3Prover/z3/releases/download/Z3-4.8.5/z3-4.8.5-x64-osx-10.14.2.zip
 $ wget https://gethstore.blob.core.windows.net/builds/geth-darwin-amd64-1.8.27-4bcc0a37.tar.gz
 
-$ unzip z3-4.8.4.d6df51951f4c-x64-osx-10.14.1.zip
+$ unzip z3-4.8.5-x64-osx-10.14.2.zip
 $ gnutar -xvf geth-darwin-amd64-1.8.27-4bcc0a37.tar.gz
 
 # Update ~/.bashrc (or ~/.profile, etc), substituting `<you>` with your
 # username, so the new binaries become visible in your $PATH:
 export PATH="/Users/<you>/bin/geth-darwin-amd64-1.8.27-4bcc0a37:$PATH"
-export PATH="/Users/<you>/bin/z3-4.8.4.d6df51951f4c-x64-osx-10.14.1/bin:$PATH"
+export PATH="/Users/<you>/bin/z3-4.8.5-x64-osx-10.14.2/bin:$PATH"
 
 # Activate the $PATH changes and verify the binaries are available now:
 $ source ~/.bashrc
@@ -90,7 +90,7 @@ $ which geth
 /Users/<you>/bin/geth-darwin-amd64-1.8.27-4bcc0a37/geth
 
 $ which z3
-/Users/<you>/bin/z3-4.8.4.d6df51951f4c-x64-osx-10.14.1/bin/z3
+/Users/<you>/bin/z3-4.8.5-x64-osx-10.14.2/bin/z3
 ```
 
 Follow the build instructions
@@ -129,6 +129,14 @@ time to launch the network before serving RPC requests.*
 
 ***Also note that you may need to replace `make` with `gmake` depending on your
 setup.***
+
+
+If you'd like to watch the progress of a pre-scripted game as it happens you
+may also invoke:
+
+```bash
+$ make demo
+```
 
 
 # Linting
