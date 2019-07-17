@@ -15,12 +15,13 @@ const interactWith = (name, hand) => (a, cb) => {
     ].join(' ');
 
   const msg
-        = a === 'getHand' ? `${name} plays ${hand}`
-        : a === 'commits' ? commits
-        : a === 'accepts' ? `${name} sends hand and matches wager.`
-        : a === 'reveals' ? `${name} reveals salt and hand.`
-        : a === 'outcome' ? `${name} agrees: Alice wins and receives ${wagerInEth}.`
-        : null;
+    = a === 'getHand' ? `${name} plays ${hand}.`
+    : a === 'commits' ? commits
+    : a === 'accepts' ? `${name} sends hand and matches wager.`
+    : a === 'reveals' ? `${name} reveals salt and hand.`
+    : a === 'outcome' ? `${name} agrees: Alice wins and receives ${wagerInEth}.`
+    : null;
+
   const res = a === 'getHand' ? hand : ``;
 
   !!msg && console.log(msg);
@@ -28,7 +29,7 @@ const interactWith = (name, hand) => (a, cb) => {
   return cb(res);
 };
 
-Promise.resolve(console.log(`Alice initiates a new game on ${uri} node`))
+Promise.resolve(console.log(`Alice initiates a new game on the ${uri} Ethereum node.`))
   .then(() => runGameWith(interactWith, wagerInEth, escrowInEth, uri))
   .then(() => console.log('Alice\'s escrow has been reimbursed.'))
   .then(() => console.log('Done!'))
