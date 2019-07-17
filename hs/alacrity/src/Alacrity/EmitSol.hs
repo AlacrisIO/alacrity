@@ -204,6 +204,7 @@ solPrimApply pr args =
     BCAT -> solApply "ALA_BCAT" args
     BCAT_LEFT -> solApply "ALA_BCAT_LEFT" args
     BCAT_RIGHT -> solApply "ALA_BCAT_RIGHT" args
+    BALANCE -> "address(this).balance"
   where binOp op = case args of
           [ l, r ] -> solBinOp op l r
           _ -> spa_error ()

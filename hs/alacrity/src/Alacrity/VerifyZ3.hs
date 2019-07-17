@@ -178,8 +178,8 @@ lookie err k m = case M.lookup k m of
   Nothing -> error $ err ++ ": " ++ show k ++ " not in map"
   Just v -> v
 
-z3CPrim :: C_Prim -> [SExpr] -> SExpr
-z3CPrim cp =
+z3CPrim :: Int -> C_Prim -> [SExpr] -> SExpr
+z3CPrim cbi cp =
   case cp of
     ADD -> app "+"
     SUB -> app "-"
@@ -199,11 +199,12 @@ z3CPrim cp =
     BCAT -> app "msg-cat"
     BCAT_LEFT -> app "msg-left"
     BCAT_RIGHT -> app "msg-right"
+    BALANCE -> \[] -> z3CTCBalanceRef cbi
   where app n = z3Apply n
 
-z3PrimEq :: Solver -> EP_Prim -> [SExpr] -> ILVar -> IO ()
-z3PrimEq z3 pr alt out = case pr of
-  CP cp -> assert z3 (z3Eq (z3VarRef out) (z3CPrim cp alt))
+z3PrimEq :: Solver -> Int -> EP_Prim -> [SExpr] -> ILVar -> IO ()
+z3PrimEq z3 cbi pr alt out = case pr of
+  CP cp -> assert z3 (z3Eq (z3VarRef out) (z3CPrim cbi cp alt))
   RANDOM -> return ()
   INTERACT -> return ()
 
@@ -239,11 +240,11 @@ z3_vardecl z3 tm iv = void $ declare z3 (z3Var iv) s
   where bt = lookie "ILTypeMap" iv tm
         s = z3_sortof bt
 
-z3_expr :: Solver -> ILVar -> ILExpr -> IO ()
-z3_expr z3 out how = case how of
+z3_expr :: Solver -> Int -> ILVar -> ILExpr -> IO ()
+z3_expr z3 cbi out how = case how of
   IL_Declassify a ->
     assert z3 (z3Eq (z3VarRef out) (emit_z3_arg a))
-  IL_PrimApp pr al -> z3PrimEq z3 pr alt out
+  IL_PrimApp pr al -> z3PrimEq z3 cbi pr alt out
     where alt = map emit_z3_arg al
 
 z3_stmt :: Solver -> Bool -> Role -> Int -> ILStmt -> IO (Int, VerifyResult)
@@ -290,7 +291,7 @@ z3_it_top z3 tm it_top (honest, me) = inNewScope z3 $ do
                     where cav = emit_z3_con (Con_B v)
           IL_Let who what how kt ->
             do z3_vardecl z3 tm what
-               when (honest || role_me me who) $ z3_expr z3 what how
+               when (honest || role_me me who) $ z3_expr z3 cbi what how
                iter cbi kt
           IL_Do who how kt ->
             if (honest || role_me me who) then

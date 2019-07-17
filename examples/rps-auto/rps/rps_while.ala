@@ -59,40 +59,44 @@ main {
 
     @B interact("accepts");
     >B pay! wagerAmount;
-    return;
+    var outcome = DRAW;
+    while (outcome == DRAW)
+        invariant (balance() == ((2 * wagerAmount) + escrowAmount))
+    {
+        return;
 
-    @A const handA = getHand();
-    @A const commitA, saltA = precommit(handA);
-    @A declassify! commitA;
-    @A interact("commits");
-    >A publish! commitA w/ 0;
-    return;
+        @A const handA = getHand();
+        @A const commitA, saltA = precommit(handA);
+        @A declassify! commitA;
+        @A interact("commits");
+        >A publish! commitA w/ 0;
+        return;
 
-    @B const handB = getHand();
-    @B declassify! handB;
-    @B interact("shows");
-    >B publish! handB w/ 0;
-    require! isHand(handB);
-    return;
+        @B const handB = getHand();
+        @B declassify! handB;
+        @B interact("shows");
+        >B publish! handB w/ 0;
+        require! isHand(handB);
+        return;
 
-    @A declassify! saltA;
-    @A declassify! handA;
-    @A interact("reveals");
-    >A publish! saltA, handA w/ 0;
-    check_commit(commitA, saltA, handA);
-    require! isHand(handA);
-    const outcome = winner(handA, handB);
-    assert! ((outcome == A_WINS) => isHand(handA));
-    assert! ((outcome == B_WINS) => isHand(handB));
-    fair_game(handA, handB, outcome);
+        @A declassify! saltA;
+        @A declassify! handA;
+        @A interact("reveals");
+        >A publish! saltA, handA w/ 0;
+        check_commit(commitA, saltA, handA);
+        require! isHand(handA);
+        set! outcome = winner(handA, handB);
+        assert! ((outcome == A_WINS) => isHand(handA));
+        assert! ((outcome == B_WINS) => isHand(handB));
+        fair_game(handA, handB, outcome)
+    };
 
+    assert! not((outcome == DRAW));
     const getsA, getsB =
           if (outcome == A_WINS) {
               values (2 * wagerAmount), 0 }
-          else if (outcome == B_WINS) {
-              values 0, (2 * wagerAmount) }
           else {
-              values wagerAmount, wagerAmount };
+              values 0, (2 * wagerAmount) };
     transfer! A <- (escrowAmount + getsA);
     transfer! B <- getsB;
     return;

@@ -64,6 +64,7 @@ data C_Prim
   | BCAT
   | BCAT_LEFT
   | BCAT_RIGHT
+  | BALANCE
   deriving (Show,Eq)
 
 data EP_Prim
@@ -91,6 +92,7 @@ primType (CP BYTES_LEN) = [tBytes] --> tUInt256
 primType (CP BCAT)       = ([tBytes, tBytes] --> tBytes)
 primType (CP BCAT_LEFT)  = ([tBytes] --> tBytes)
 primType (CP BCAT_RIGHT) = ([tBytes] --> tBytes)
+primType (CP BALANCE) = ([] --> tUInt256)
 primType RANDOM = ([] --> tUInt256)
 primType INTERACT = ([tBytes] --> tBytes)
 
@@ -201,7 +203,9 @@ data XLExpr
   | XL_Transfer Participant XLExpr
   | XL_Declassify XLExpr
   --- Where x Vars x Expression x Body
-  | XL_LetValues (Maybe Participant) (Maybe [XLVar]) XLExpr XLExpr
+  | XL_Let (Maybe Participant) (Maybe [XLVar]) XLExpr Bool XLExpr
+  | XL_While XLExpr XLExpr XLExpr
+  | XL_Set XLVar XLExpr
   --- Impossible in inlined
   | XL_FunApp XLVar [XLExpr]
   deriving (Show,Eq)

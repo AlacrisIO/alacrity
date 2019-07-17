@@ -105,6 +105,7 @@ jsPrimApply pr =
     CP BCAT -> jsApply "stdlib.bytes_cat"
     CP BCAT_LEFT -> jsApply "stdlib.bytes_left"
     CP BCAT_RIGHT -> jsApply "stdlib.bytes_right"
+    CP BALANCE -> error "XXX implement balance"
     RANDOM -> jsApply "stdlib.random_uint256"
     INTERACT -> error "interact doesn't use jsPrimApply"
   where spa_error () = error "jsPrimApply"
