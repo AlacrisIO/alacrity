@@ -204,6 +204,8 @@ solPrimApply pr args =
     BCAT -> solApply "ALA_BCAT" args
     BCAT_LEFT -> solApply "ALA_BCAT_LEFT" args
     BCAT_RIGHT -> solApply "ALA_BCAT_RIGHT" args
+    BALANCE -> "address(this).balance"
+    TXN_VALUE -> "msg.value"
   where binOp op = case args of
           [ l, r ] -> solBinOp op l r
           _ -> spa_error ()
@@ -239,7 +241,7 @@ solCTail ps emitp ρ ccs ct =
     C_Do cs kt -> solCStmt ρ cs <> (solCTail ps emitp ρ ccs kt)
 
 solHandler :: [Participant] -> Int -> CHandler -> Doc a
-solHandler ps i (C_Handler from svs msg pv body) = vsep [ evtp, funp ]
+solHandler ps i (C_Handler from svs msg body) = vsep [ evtp, funp ]
   where msg_rs = map solRawVar msg
         msg_ds = map solArgDecl msg
         msg_eds = map solFieldDecl msg
@@ -250,7 +252,7 @@ solHandler ps i (C_Handler from svs msg pv body) = vsep [ evtp, funp ]
         retp = "external payable"
         emitp = "emit" <+> solApply evts msg_rs <> semi <> hardline
         ccs = usesCTail body
-        ρ = M.insert pv ("msg.value") M.empty
+        ρ = M.empty
         bodyp = vsep [ (solRequire $ solEq ("current_state") (solHashState ρ i ps svs)) <> semi,
                        solRequireSender from <> semi,
                        solCTail ps emitp ρ ccs body ]

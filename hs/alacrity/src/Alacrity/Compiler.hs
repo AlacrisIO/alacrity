@@ -66,10 +66,10 @@ inline_expr e =
       (_, ae') <- inline_expr ae
       --- Assert is impure because it could fail
       return (False, XL_Claim ct ae')
-    XL_ToConsensus p ins pe pv ce -> do
+    XL_ToConsensus p ins pe ce -> do
       (_, pe') <- inline_expr pe
       (_, ce') <- inline_expr ce
-      return (False, XL_ToConsensus p ins pe' pv ce')
+      return (False, XL_ToConsensus p ins pe' ce')
     XL_FromConsensus be -> do
       (_, be') <- inline_expr be
       return (False, XL_FromConsensus be')
@@ -80,14 +80,22 @@ inline_expr e =
     XL_Declassify de -> do
       (dp, de') <- inline_expr de
       return (dp, XL_Declassify de')
-    XL_LetValues mp mvs ve be -> do
+    XL_Let mp mvs ve mut be -> do
       (vp, ve') <- inline_expr ve
       (bp, be') <- inline_expr be
-      return (vp && bp, XL_LetValues mp mvs ve' be')
+      return (vp && bp, XL_Let mp mvs ve' mut be')
     XL_FunApp f args -> do
       (arp, args') <- inline_exprs args
       (fp, (formals, fun_body')) <- inline_fun f
-      return (arp && fp, XL_LetValues Nothing (Just formals) (XL_Values args') fun_body')
+      return (arp && fp, XL_Let Nothing (Just formals) (XL_Values args') False fun_body')
+    XL_While ce ie be -> do
+      (_, ce') <- inline_expr ce
+      (_, ie') <- inline_expr ie
+      (_, be') <- inline_expr be
+      return (False, XL_While ce' ie' be')
+    XL_Set lv ne -> do
+      (_, ne') <- inline_expr ne
+      return (False, XL_Set lv ne')
 
 inline_defs :: [XLDef] -> XLFuns -> XLExpr -> XLExpr
 inline_defs [] σ me = me'
@@ -95,7 +103,7 @@ inline_defs [] σ me = me'
 inline_defs (XL_DefineFun f args body : ds) σ me = inline_defs ds σ' me
   where σ' = M.insert f (args,body) σ
 inline_defs (XL_DefineValues vs e : ds) σ me = inline_defs ds σ me'
-  where me'= XL_LetValues Nothing (Just vs) e me
+  where me'= XL_Let Nothing (Just vs) e False me
 
 inline :: XLProgram -> XLInlinedProgram
 inline (XL_Prog defs ps m) = XL_InlinedProg ps (inline_defs defs M.empty m)
@@ -246,20 +254,19 @@ anf_expr me ρ e mk =
     XL_FromConsensus le -> do
       (ln, lt) <- anf_tail RoleContract ρ le mk
       return (ln, IL_FromConsensus lt)
-    XL_ToConsensus from ins pe pv ce ->
+    XL_ToConsensus from ins pe ce ->
       anf_expr (RolePart from) ρ pe
       (\ [ pa ] -> do
          let ins' = vsOnly $ map (anf_renamed_to ρ) ins
-         (ρ', pv') <- makeRename ρ pv
-         (cn, ct) <- anf_tail RoleContract ρ' ce mk
-         return (cn, IL_ToConsensus from ins' pa pv' ct))
+         (cn, ct) <- anf_tail RoleContract ρ ce mk
+         return (cn, IL_ToConsensus from ins' pa ct))
     XL_Values args ->
       anf_exprs me ρ args (\args' -> mk args')
     XL_Transfer to ae ->
       anf_expr me ρ ae (\[ aa ] -> ret_stmt (IL_Transfer to aa))
     XL_Declassify ae ->
       anf_expr me ρ ae (\[ aa ] -> ret_expr "Declassify" (IL_Declassify aa))
-    XL_LetValues mwho mvs ve be ->
+    XL_Let mwho mvs ve False be ->
       anf_expr who ρ ve k
       where who = case mwho of
                     Nothing -> me
@@ -274,7 +281,10 @@ anf_expr me ρ e mk =
                         if olen == nlen then
                           (M.fromList $ zip ovs nvs)
                         else
-                          error $ "ANF XL_LetValues, context arity mismatch, " ++ show olen ++ " vs " ++ show nlen
+                          error $ "ANF XL_Let, context arity mismatch, " ++ show olen ++ " vs " ++ show nlen
+    XL_Let _mwho _mvs _ve True _be -> error $ "ANF XL_Let (mutable) not implemented yet! XXX"
+    XL_While _ce _ie _be -> error $ "ANF XL_While not implemented yet! XXX"
+    XL_Set _v _nve -> error $ "ANF XL_Set not implemented yet! XXX"
     XL_FunApp _ _ -> error $ "ANF XL_FunApp, impossible after inliner"
   where ret_expr s ne = do
           nv <- allocANF me s ne
@@ -341,8 +351,6 @@ instance Monoid SecurityLevel where
 type SType = (BaseType, SecurityLevel)
 
 type EPPEnv = M.Map Role (M.Map ILVar SType)
---- XXX Maybe the last two parameters should just be CTail and it
---- should have them directly embedded.
 type EPPRes = (Set.Set BLVar, CTail, M.Map Participant EPTail, Int, [CHandler])
 
 must_be_public :: (a, SType) -> (a, BaseType)
@@ -474,8 +482,8 @@ epp_it_ctc ps γ hn0 it = case it of
                   Just how'_ep -> M.map (EP_Do how'_ep) ts1
   IL_Do (RolePart _) _ _ ->
     error "EPP: Cannot perform local action in consensus"
-  IL_ToConsensus _ _ _ _ _ ->
-    error "EPP: Cannot transitions to consensus from consensus"
+  IL_ToConsensus _ _ _ _ ->
+    error "EPP: Cannot transition to consensus from consensus"
   IL_FromConsensus bt -> epp_it_loc ps γ hn0 bt
 
 epp_it_loc :: [Participant] -> EPPEnv -> Int -> ILTail -> EPPRes
@@ -515,27 +523,23 @@ epp_it_loc ps γ hn0 it = case it of
             if not (role_me (RolePart p) who) then t
             else EP_Do s' t
             where (_, s') = epp_s_loc γ p how
-  IL_ToConsensus from what howmuch pv next -> (svs2, ct2, ts2, hn2, hs2)
+  IL_ToConsensus from what howmuch next -> (svs2, ct2, ts2, hn2, hs2)
     where fromr = RolePart from
           what' = map fst $ map must_be_public $ epp_vars γ fromr what
           (_, howmuch') = epp_expect (AT_UInt256, Public) $ epp_arg γ fromr howmuch
           what'env = M.fromList $ map (\(n, s, et) -> ((n,s),(et,Public))) what'
-          (pv_n, pv_s) = pv
-          (pv_t, pv_slvl) = (AT_UInt256, Public)
-          pv' = (pv_n, pv_s, pv_t)
-          addl_env = M.insert pv (pv_t, pv_slvl) what'env
-          γ' = M.map (M.union addl_env) γ
+          γ' = M.map (M.union what'env) γ
           hn1 = hn0 + 1
           (svs1, ct1, ts1, hn2, hs1) = epp_it_ctc ps γ' hn1 next
-          svs2 = Set.difference svs1 (Set.insert pv' (boundBLVars what'))
+          svs2 = Set.difference svs1 (boundBLVars what')
           svs2l = Set.toList svs2
-          nh = C_Handler from svs2l what' pv' ct1
+          nh = C_Handler from svs2l what' ct1
           hs2 = nh : hs1
           ts2 = M.mapWithKey addTail ts1
           ct2 = C_Wait hn0 svs2l
           es = EP_Send hn0 svs2l what' howmuch'
           addTail p pt1 = pt3
-            where pt2 me = EP_Recv me hn0 svs2l what' pv' pt1
+            where pt2 me = EP_Recv me hn0 svs2l what' pt1
                   pt3 = if p /= from then pt2 False
                         else EP_Do es $ pt2 True
   IL_FromConsensus _ ->

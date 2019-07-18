@@ -6,8 +6,10 @@ all: lint start_geth test demo stop_geth
 
 build: build/rps.ala.mjs
 
-build/rps.ala.mjs: rps/rps.ala
-	stack build --allow-different-user
+while: build build/rps_while.ala.mjs
+
+build/%.ala.mjs: rps/%.ala
+	stack build
 	stack exec -- alacrityc -o build $^
 
 lint:

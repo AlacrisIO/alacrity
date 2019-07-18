@@ -56,7 +56,7 @@ contract ALAContract is Stdlib {
   function m0(address payable pA, address payable pB, uint256 v2, uint256 v3) external payable {
     require(current_state == uint256(keccak256(abi.encodePacked(uint256(0), pA, pB))));
     require(msg.sender == pA);
-    require((msg.value == (v2 + v3)));
+    require(((msg.value) == (v2 + v3)));
     emit e0(v2, v3);
     current_state = uint256(keccak256(abi.encodePacked(uint256(1), pA, pB, v2, v3))); }
   
@@ -64,7 +64,7 @@ contract ALAContract is Stdlib {
   function m1(address payable pA, address payable pB, uint256 v2, uint256 v3) external payable {
     require(current_state == uint256(keccak256(abi.encodePacked(uint256(1), pA, pB, v2, v3))));
     require(msg.sender == pB);
-    require((msg.value == v2));
+    require(((msg.value) == v2));
     emit e1();
     current_state = uint256(keccak256(abi.encodePacked(uint256(2), pA, pB, v2, v3))); }
   
@@ -72,7 +72,7 @@ contract ALAContract is Stdlib {
   function m2(address payable pA, address payable pB, uint256 v2, uint256 v3, uint256 v28) external payable {
     require(current_state == uint256(keccak256(abi.encodePacked(uint256(2), pA, pB, v2, v3))));
     require(msg.sender == pA);
-    require((msg.value == uint256(0)));
+    require(((msg.value) == uint256(0)));
     emit e2(v28);
     current_state = uint256(keccak256(abi.encodePacked(uint256(3), pA, pB, v2, v3, v28))); }
   
@@ -80,7 +80,7 @@ contract ALAContract is Stdlib {
   function m3(address payable pA, address payable pB, uint256 v2, uint256 v3, uint256 v28, uint256 v43) external payable {
     require(current_state == uint256(keccak256(abi.encodePacked(uint256(3), pA, pB, v2, v3, v28))));
     require(msg.sender == pB);
-    require((msg.value == uint256(0)));
+    require(((msg.value) == uint256(0)));
     require(((uint256(0) <= v43) ? (v43 < uint256(3)) : false));
     emit e3(v43);
     current_state = uint256(keccak256(abi.encodePacked(uint256(4), pA, pB, v2, v3, v28, v43))); }
@@ -89,7 +89,7 @@ contract ALAContract is Stdlib {
   function m4(address payable pA, address payable pB, uint256 v2, uint256 v3, uint256 v28, uint256 v43, uint256 v50, uint256 v51) external payable {
     require(current_state == uint256(keccak256(abi.encodePacked(uint256(4), pA, pB, v2, v3, v28, v43))));
     require(msg.sender == pA);
-    require((msg.value == uint256(0)));
+    require(((msg.value) == uint256(0)));
     require((v28 == (uint256(keccak256(abi.encodePacked((ALA_BCAT((abi.encodePacked(v50)), (abi.encodePacked(v51))))))))));
     require(((uint256(0) <= v51) ? (v51 < uint256(3)) : false));
     bool v65 = (uint256(0) <= v51) ? (v51 < uint256(3)) : false;

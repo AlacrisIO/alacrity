@@ -37,14 +37,16 @@ const play = interactWith => ({ stdlib, gameState }) => {
   const randomArray = (a) => { return a[Math.floor(Math.random() * a.length)]; };
   const randomHand = () => { return randomArray(['ROCK', 'PAPER', 'SCISSORS']); };
 
+  const txn0 = { balance: 0, value: 0 };
+
   const bobShoot = ctcAlice =>
     new Promise(resolve =>
       gameState.bob.attach(gameState.ctors, ctcAlice.address)
-      .then(ctcBob => RPS.B(stdlib, ctcBob, interactWith('Bob',randomHand()), resolve)));
+      .then(ctcBob => RPS.B(stdlib, ctcBob, txn0, interactWith('Bob',randomHand()), resolve)));
 
   const aliceShoot = ctc =>
     new Promise(resolve =>
-      RPS.A(stdlib, ctc, interactWith('Alice',randomHand()), wagerInWei, escrowInWei, resolve));
+      RPS.A(stdlib, ctc, txn0, interactWith('Alice',randomHand()), wagerInWei, escrowInWei, resolve));
 
   return Promise.all([ newPlayer(), newPlayer() ])
     .then(captureOpeningGameState)

@@ -174,7 +174,8 @@ const mkRecv = ({ web3, ethers, abi }) => address => (eventName, cb) =>
       // TODO FIXME replace arbitrary delay with something more intelligent to
       // mitigate mystery race condition
       web3.eth.getTransaction(e.transactionHash, k(panic, t =>
-        setTimeout(() => cb(...bns, t.value), 2000)));
+        // XXX Replace 0 below with the contract's balance
+        setTimeout(() => cb(...bns, { value: t.value, balance: 0 }), 1000)));
     });
 
 

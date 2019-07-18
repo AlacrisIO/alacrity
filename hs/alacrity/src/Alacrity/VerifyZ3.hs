@@ -38,8 +38,6 @@ class RecoverTypes a where
 instance (Foldable t, RecoverTypes a) => RecoverTypes (t a) where
   rts = foldMap rts
 
---- XXX Find some existing Haskell class that we can derive to
---- automatically generate this stuff... maybe Data?
 instance {-# OVERLAPPING #-} RecoverTypes BLVar where
   rts (n, s, bt) = ITM (M.singleton (n,s) bt)
 
@@ -60,7 +58,7 @@ instance RecoverTypes EPTail where
   rts (EP_If ca tt ft) = rts ca <> rts tt <> rts ft
   rts (EP_Let bv ce ct) = rts bv <> rts ce <> rts ct
   rts (EP_Do cs ct) = rts cs <> rts ct
-  rts (EP_Recv _ _ svs msg pv kt) = rts svs <> rts msg <> rts pv <> rts kt
+  rts (EP_Recv _ _ svs msg kt) = rts svs <> rts msg <> rts kt
 
 instance RecoverTypes EProgram where
   rts (EP_Prog vs et) = rts vs <> rts et
@@ -80,7 +78,7 @@ instance RecoverTypes CTail where
   rts (C_Do cs ct) = rts cs <> rts ct
 
 instance RecoverTypes CHandler where
-  rts (C_Handler _ svs msg pv ct) = rts svs <> rts msg <> rts pv <> rts ct
+  rts (C_Handler _ svs msg ct) = rts svs <> rts msg <> rts ct
 
 instance RecoverTypes CProgram where
   rts (C_Prog _ chs) = rts chs
@@ -113,6 +111,12 @@ z3CTCBalance i = "ctc_balance" ++ show i
 z3CTCBalanceRef :: Int -> SExpr
 z3CTCBalanceRef i = Atom $ z3CTCBalance i
 
+z3TxnValue :: Int -> String
+z3TxnValue i = "txn_value" ++ show i
+
+z3TxnValueRef :: Int -> SExpr
+z3TxnValueRef i = Atom $ z3TxnValue i
+
 z3IntSort :: SExpr
 z3IntSort = z3_sortof AT_UInt256
 
@@ -136,7 +140,6 @@ z3_verify1 z3 (_honest, _r, _tk) a = inNewScope z3 $ do
     Unknown -> error "Z3 inconclusive result"
     Unsat -> return $ VR 1 0
     Sat -> do
-      --- XXX Display useful information about a
       putStrLn $ "Failed to verify! " ++ showsSExpr a ":"
       m <- command z3 $ List [ Atom "get-model" ]
       putStrLn $ show $ pretty_se_top m
@@ -150,7 +153,6 @@ z3_sat1 z3 (_honest, _r, _tk) a = inNewScope z3 $ do
     Unknown -> error "Z3 inconclusive result"
     Sat -> return $ VR 1 0
     Unsat -> do
-      --- XXX Display useful information about a
       putStrLn $ "Failed to verify! " ++ showsSExpr a ":"
       uc <- getUnsatCore z3
       mapM_ putStrLn uc
@@ -178,8 +180,8 @@ lookie err k m = case M.lookup k m of
   Nothing -> error $ err ++ ": " ++ show k ++ " not in map"
   Just v -> v
 
-z3CPrim :: C_Prim -> [SExpr] -> SExpr
-z3CPrim cp =
+z3CPrim :: Int -> C_Prim -> [SExpr] -> SExpr
+z3CPrim cbi cp =
   case cp of
     ADD -> app "+"
     SUB -> app "-"
@@ -199,11 +201,13 @@ z3CPrim cp =
     BCAT -> app "msg-cat"
     BCAT_LEFT -> app "msg-left"
     BCAT_RIGHT -> app "msg-right"
+    BALANCE -> \[] -> z3CTCBalanceRef cbi
+    TXN_VALUE -> \[] -> z3TxnValueRef cbi
   where app n = z3Apply n
 
-z3PrimEq :: Solver -> EP_Prim -> [SExpr] -> ILVar -> IO ()
-z3PrimEq z3 pr alt out = case pr of
-  CP cp -> assert z3 (z3Eq (z3VarRef out) (z3CPrim cp alt))
+z3PrimEq :: Solver -> Int -> EP_Prim -> [SExpr] -> ILVar -> IO ()
+z3PrimEq z3 cbi pr alt out = case pr of
+  CP cp -> assert z3 (z3Eq (z3VarRef out) (z3CPrim cbi cp alt))
   RANDOM -> return ()
   INTERACT -> return ()
 
@@ -239,11 +243,11 @@ z3_vardecl z3 tm iv = void $ declare z3 (z3Var iv) s
   where bt = lookie "ILTypeMap" iv tm
         s = z3_sortof bt
 
-z3_expr :: Solver -> ILVar -> ILExpr -> IO ()
-z3_expr z3 out how = case how of
+z3_expr :: Solver -> Int -> ILVar -> ILExpr -> IO ()
+z3_expr z3 cbi out how = case how of
   IL_Declassify a ->
     assert z3 (z3Eq (z3VarRef out) (emit_z3_arg a))
-  IL_PrimApp pr al -> z3PrimEq z3 pr alt out
+  IL_PrimApp pr al -> z3PrimEq z3 cbi pr alt out
     where alt = map emit_z3_arg al
 
 z3_stmt :: Solver -> Bool -> Role -> Int -> ILStmt -> IO (Int, VerifyResult)
@@ -290,7 +294,7 @@ z3_it_top z3 tm it_top (honest, me) = inNewScope z3 $ do
                     where cav = emit_z3_con (Con_B v)
           IL_Let who what how kt ->
             do z3_vardecl z3 tm what
-               when (honest || role_me me who) $ z3_expr z3 what how
+               when (honest || role_me me who) $ z3_expr z3 cbi what how
                iter cbi kt
           IL_Do who how kt ->
             if (honest || role_me me who) then
@@ -299,20 +303,21 @@ z3_it_top z3 tm it_top (honest, me) = inNewScope z3 $ do
                  return $ vr <> vr'
             else
               iter cbi kt
-          IL_ToConsensus _who _msg amount pv kt ->
-            do void $ declare z3 (z3Var pv) z3IntSort
-               void $ define z3 cb' z3IntSort (z3Apply "+" [cb, pvp])
+          IL_ToConsensus _who _msg amount kt ->
+            do void $ declare z3 pvv z3IntSort
+               void $ define z3 cb'v z3IntSort (z3Apply "+" [cbr, pvr])
                assert z3 thisc
                iter cbi' kt
             where cbi' = cbi + 1
-                  cb' = z3CTCBalance cbi'
-                  cb = z3CTCBalanceRef cbi
+                  cb'v = z3CTCBalance cbi'
+                  cbr = z3CTCBalanceRef cbi
                   amountt = emit_z3_arg amount
-                  pvp = z3VarRef pv
+                  pvv = z3TxnValue cbi'
+                  pvr = z3TxnValueRef cbi'
                   thisc = if honest then
-                            z3Eq pvp amountt
+                            z3Eq pvr amountt
                           else
-                            z3Apply "<=" [ zero, pvp ]
+                            z3Apply "<=" [ zero, pvr ]
           IL_FromConsensus kt -> iter cbi kt
 
 z3StdLib :: String
