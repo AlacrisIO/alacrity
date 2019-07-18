@@ -9,7 +9,7 @@ build: build/rps.ala.mjs
 while: build build/rps_while.ala.mjs
 
 build/%.ala.mjs: rps/%.ala
-	stack build
+	stack build --allow-different-user
 	stack exec -- alacrityc -o build $^
 
 lint:

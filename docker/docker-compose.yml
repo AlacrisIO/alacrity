@@ -26,9 +26,43 @@ services:
     build:
       context: ..
       dockerfile: docker/containers/build_prerequisites/Dockerfile
+      args:
+        UID: 1000
+        GID: 1000
     image: gcr.io/legicash-demo-1950/legicash-demo/alacrity_build_prerequisites:${TAG:-latest}
     hostname: "alacrity-prereq"
     container_name: "alacrity-prereq"
+    environment:
+      - STACK_YAML=../../hs/alacrity/stack.yaml
+    command: /bin/true
+    networks:
+      legicash-demo:
+        ipv4_address: 10.5.0.10
+
+  alacrity_dev: 
+    build:
+      context: ..
+      dockerfile: docker/containers/alacrity_dev/Dockerfile
+    image: gcr.io/legicash-demo-1950/legicash-demo/alacrity_dev:${TAG:-latest}
+    hostname: "alacrity-dev"
+    container_name: "alacrity-dev"
+    environment:
+      - STACK_YAML=../../hs/alacrity/stack.yaml
+      - ETH_NODE_URI=http://alacrity-geth:8545
+    command: ghcid
+    volumes:
+      - ../:/opt/alacrity/project
+    networks:
+      legicash-demo:
+        ipv4_address: 10.5.0.11
+
+  alacrity_demo: 
+    build:
+      context: ..
+      dockerfile: docker/containers/alacrity_demo/Dockerfile
+    image: gcr.io/legicash-demo-1950/legicash-demo/alacrity_demo:${TAG:-latest}
+    hostname: "alacrity-demo"
+    container_name: "alacrity-demo"
     environment:
       - STACK_YAML=../../hs/alacrity/stack.yaml
       - ETH_NODE_URI=http://alacrity-geth:8545
@@ -37,13 +71,9 @@ services:
         sleep 8;
         make lint test demo
       "
-    # volumes:
-    #   - ../:/opt/alacrity/
     networks:
       legicash-demo:
-        ipv4_address: 10.5.0.10
-    ports:
-      - "8095:8095"
+        ipv4_address: 10.5.0.12
     depends_on:
     - "alacrity_geth"
 

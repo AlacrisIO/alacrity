@@ -16,7 +16,8 @@ ifdef NO_CACHE
 NO_CACHE="--no-cache"
 endif
 
-.PHONY: all rps
+.PHONY: all rps docker-pull docker-build docker-list docker-up \
+        docker-start docker-stop docker-restart docker-status docker-clean docker-prune
 all: rps
 
 rps:
@@ -27,12 +28,12 @@ rps:
 DOCKER_COMPOSE = docker-compose
 DOCKER_COMPOSE_FILE = docker/docker-compose.yml
 
-docker-pull: ## Pull Alacris prerequisites images
+docker-pull: ## Pull Alacrity prerequisites images
 	$(SHOW) " Pulling Alacris Docker images"
 	$(HIDE) docker/scripts/pull_images.sh
 
 docker-build: ## Build all or c=<name> containers in foreground
-	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) build $(NO_CACHE) $(c)
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) build $(NO_CACHE) $(c) 
 
 docker-list: ## List available services
 	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) config --services
@@ -55,10 +56,6 @@ docker-status: ## Show status of containers
 
 docker-clean:  ## Clean all data
 	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) down -v
-
-docker-recompile: ## Recompile application
-	$(SHOW) "Recompiling Alacris apps"
-	@$ docker/scripts/recompile.sh
 
 docker-prune: ## Delete dangling images
 	$(SHOW) Deleting dangling docker images
