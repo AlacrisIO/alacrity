@@ -34,13 +34,6 @@ docker-pull: ## Pull Alacris prerequisites images
 docker-build: ## Build all or c=<name> containers in foreground
 	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) build $(NO_CACHE) $(c)
 
-docker-build-prereq: ## Build frontend app image
-	$(SHOW) "Building prerequisites ..."
-	$(HIDE) docker build \
-	  --no-cache \
-	  -t gcr.io/legicash-demo-1950/legicash-demo/alacrity_build_prerequisites:v1 \
-	  -f docker/containers/build_prerequisites/Dockerfile .
-
 docker-list: ## List available services
 	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) config --services
 

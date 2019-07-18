@@ -22,22 +22,22 @@ RUN add-apt-repository ppa:ethereum/ethereum && \
 
 WORKDIR /opt/alacrity
 
-# install Go
-ARG GO_VERSION=1.12.6
-RUN wget https://dl.google.com/go/go$GO_VERSION.linux-amd64.tar.gz && \
-    tar -C /usr/local -xzf go$GO_VERSION.linux-amd64.tar.gz && \
-    mkdir ~/.go
-ENV GOROOT /usr/local/go
-ENV GOPATH ~/.go
-ENV PATH $PATH:$GOROOT/bin:$GOPATH/bin
+# # install Go
+# ARG GO_VERSION=1.12.6
+# RUN wget https://dl.google.com/go/go$GO_VERSION.linux-amd64.tar.gz && \
+#     tar -C /usr/local -xzf go$GO_VERSION.linux-amd64.tar.gz && \
+#     mkdir ~/.go
+# ENV GOROOT /usr/local/go
+# ENV GOPATH ~/.go
+# ENV PATH $PATH:$GOROOT/bin:$GOPATH/bin
 
-# Install geth
-ARG GETH_VERSION=1.8.21
-RUN wget https://github.com/ethereum/go-ethereum/archive/v$GETH_VERSION.tar.gz && \
-  tar -xvf v$GETH_VERSION.tar.gz && \
-  cd go-ethereum-$GETH_VERSION && make geth && \
-  mv /opt/alacrity/go-ethereum-1.8.21/build/bin/geth /usr/local/bin && \
-  geth version
+# # Install geth
+# ARG GETH_VERSION=1.8.21
+# RUN wget https://github.com/ethereum/go-ethereum/archive/v$GETH_VERSION.tar.gz && \
+#   tar -xvf v$GETH_VERSION.tar.gz && \
+#   cd go-ethereum-$GETH_VERSION && make geth && \
+#   mv /opt/alacrity/go-ethereum-1.8.21/build/bin/geth /usr/local/bin && \
+#   geth version
 
 # Install Stack.
 RUN curl --location https://www.stackage.org/stack/linux-x86_64-static > stack.tar.gz && \
@@ -47,10 +47,10 @@ RUN curl --location https://www.stackage.org/stack/linux-x86_64-static > stack.t
   stack --version
 
 # Install z3
-ARG Z3_VERSION=4.8.4
-RUN wget https://github.com/Z3Prover/z3/releases/download/z3-$Z3_VERSION/z3-$Z3_VERSION.d6df51951f4c-x64-ubuntu-16.04.zip
-RUN unzip z3-$Z3_VERSION.d6df51951f4c-x64-ubuntu-16.04.zip
-ENV PATH /opt/alacrity/z3-$Z3_VERSION.d6df51951f4c-x64-ubuntu-16.04/bin:${PATH}
+ARG Z3_VERSION=4.8.5
+RUN wget https://github.com/Z3Prover/z3/releases/download/Z3-$Z3_VERSION/z3-$Z3_VERSION-x64-ubuntu-16.04.zip
+RUN unzip z3-$Z3_VERSION-x64-ubuntu-16.04.zip
+ENV PATH /opt/alacrity/z3-$Z3_VERSION-x64-ubuntu-16.04/bin:${PATH}
 
 # Install nodejs
 RUN curl -sL https://deb.nodesource.com/setup_12.x | bash -
@@ -61,8 +61,8 @@ WORKDIR /opt/alacrity/project
 # Install GHC
 COPY hs/alacrity/stack.yaml .
 COPY hs/alacrity/alacrity.cabal .
-RUN stack setup && \
-  stack exec -- ghc --version
+# RUN stack setup && \
+#   stack exec -- ghc --version
 
 # Install dependecies
 COPY hs/alacrity/package.yaml .
@@ -77,5 +77,5 @@ WORKDIR /opt/alacrity/project/examples/rps-auto
 RUN make build
 
 # Run tests and demo
-RUN npm install && make start_geth test demo
+RUN npm clean-install
 

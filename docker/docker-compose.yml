@@ -9,24 +9,34 @@ services:
     hostname: "alacrity-geth"
     container_name: "alacrity-geth"
     volumes:
-      - /tmp/legilogs/_ethereum:/var/www/app/alacrity-geth/_ethereum
-      - /tmp/legilogs/:/var/www/app/alacrity-geth/_run/logs
+      - /tmp/:/var/www/app/alacrity-geth/_ethereum
+      - /tmp/:/var/www/app/alacrity-geth/_run/logs
     networks:
       legicash-demo:
         ipv4_address: 10.5.0.9
     ports:
       - "8545:8545"
+    healthcheck:
+        test: ["CMD", "curl", "-f", "http://localhost:8545"]
+        interval: 30s
+        timeout: 10s
+        retries: 5
 
   alacrity_prereq: 
     build:
       context: ..
       dockerfile: docker/containers/build_prerequisites/Dockerfile
-    image: gcr.io/legicash-demo-1950/legicash-demo/alacrity_build_prerequisites:${TAG:-v1.1}
+    image: gcr.io/legicash-demo-1950/legicash-demo/alacrity_build_prerequisites:${TAG:-latest}
     hostname: "alacrity-prereq"
     container_name: "alacrity-prereq"
     environment:
       - STACK_YAML=../../hs/alacrity/stack.yaml
       - ETH_NODE_URI=http://alacrity-geth:8545
+    command: >
+      /bin/bash -c "
+        sleep 8;
+        make lint test demo
+      "
     # volumes:
     #   - ../:/opt/alacrity/
     networks:

@@ -5,7 +5,7 @@ LABEL maintainer="vedr@nlebo.com"
 
 # Install dependencies
 RUN apk update
-RUN apk add bash g++ git make supervisor
+RUN apk add bash g++ git make supervisor curl
 
 # Add appuser
 RUN addgroup -g 1100 -S appuser && \
