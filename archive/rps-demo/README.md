@@ -7,12 +7,12 @@ Then, connect to the [Rinkeby test network](https://rinkeby.io/), and
 use its [faucet](https://rinkeby.io/#faucet) to get some coins to play with.
 
 To play the game as committed to the master branch on [github](https://github.com/alacrisio/alacrity/),
-just point your browser to < https://alacrisio.github.io/alacrity/examples/rps-demo/ >
+just point your browser to < https://alacrisio.github.io/alacrity/archive/rps-demo/ >
 or equivalently < https://j.mp/RPSdemo2019 >.
 
 To try this demo locally, make sure that `nginx` is installed,
 and run `make start_nginx` to start it;
-then direct your browser to < http://localhost:8088/rps-demo/ >.
+then direct your browser to < http://localhost:8088/archive/rps-demo/ >.
 
 To hack on this demo, make sure that `make`, `solc`, `nodejs` and `npm` are installed.
 

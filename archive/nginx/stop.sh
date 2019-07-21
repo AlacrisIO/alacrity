@@ -5,4 +5,4 @@ TOP=$(pwd)
 
 # NB: Use sudo to run as root, otherwise run as regular user.
 # Check file permissions if you mix the two
-nginx -p "$TOP/_run" -c "$TOP"/examples/nginx/nginx.conf -s stop
+nginx -p "$TOP/_run" -c "$TOP"/archive/nginx/nginx.conf -s stop
