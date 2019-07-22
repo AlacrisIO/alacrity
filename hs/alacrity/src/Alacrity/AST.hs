@@ -205,9 +205,9 @@ data XLExpr
   | XL_Transfer Participant XLExpr
   | XL_Declassify XLExpr
   --- Where x Vars x Expression x Body
-  | XL_Let (Maybe Participant) (Maybe [XLVar]) XLExpr Bool XLExpr
-  | XL_While XLExpr XLExpr XLExpr
-  | XL_Set XLVar XLExpr
+  | XL_Let (Maybe Participant) (Maybe [XLVar]) XLExpr XLExpr
+  | XL_While XLVar XLExpr XLExpr XLExpr XLExpr
+  | XL_Continue XLExpr
   --- Impossible in inlined
   | XL_FunApp XLVar [XLExpr]
   deriving (Show,Eq)

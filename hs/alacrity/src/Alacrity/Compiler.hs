@@ -80,22 +80,23 @@ inline_expr e =
     XL_Declassify de -> do
       (dp, de') <- inline_expr de
       return (dp, XL_Declassify de')
-    XL_Let mp mvs ve mut be -> do
+    XL_Let mp mvs ve be -> do
       (vp, ve') <- inline_expr ve
       (bp, be') <- inline_expr be
-      return (vp && bp, XL_Let mp mvs ve' mut be')
+      return (vp && bp, XL_Let mp mvs ve' be')
     XL_FunApp f args -> do
       (arp, args') <- inline_exprs args
       (fp, (formals, fun_body')) <- inline_fun f
-      return (arp && fp, XL_Let Nothing (Just formals) (XL_Values args') False fun_body')
-    XL_While ce ie be -> do
-      (_, ce') <- inline_expr ce
+      return (arp && fp, XL_Let Nothing (Just formals) (XL_Values args') fun_body')
+    XL_While lv ie ce inve be -> do
       (_, ie') <- inline_expr ie
+      (_, ce') <- inline_expr ce
+      (_, inve') <- inline_expr inve
       (_, be') <- inline_expr be
-      return (False, XL_While ce' ie' be')
-    XL_Set lv ne -> do
+      return (False, XL_While lv ie' ce' inve' be')
+    XL_Continue ne -> do
       (_, ne') <- inline_expr ne
-      return (False, XL_Set lv ne')
+      return (False, XL_Continue ne')
 
 inline_defs :: [XLDef] -> XLFuns -> XLExpr -> XLExpr
 inline_defs [] σ me = me'
@@ -103,7 +104,7 @@ inline_defs [] σ me = me'
 inline_defs (XL_DefineFun f args body : ds) σ me = inline_defs ds σ' me
   where σ' = M.insert f (args,body) σ
 inline_defs (XL_DefineValues vs e : ds) σ me = inline_defs ds σ me'
-  where me'= XL_Let Nothing (Just vs) e False me
+  where me'= XL_Let Nothing (Just vs) e me
 
 inline :: XLProgram -> XLInlinedProgram
 inline (XL_Prog defs ps m) = XL_InlinedProg ps (inline_defs defs M.empty m)
@@ -266,7 +267,7 @@ anf_expr me ρ e mk =
       anf_expr me ρ ae (\[ aa ] -> ret_stmt (IL_Transfer to aa))
     XL_Declassify ae ->
       anf_expr me ρ ae (\[ aa ] -> ret_expr "Declassify" (IL_Declassify aa))
-    XL_Let mwho mvs ve False be ->
+    XL_Let mwho mvs ve be ->
       anf_expr who ρ ve k
       where who = case mwho of
                     Nothing -> me
@@ -282,9 +283,8 @@ anf_expr me ρ e mk =
                           (M.fromList $ zip ovs nvs)
                         else
                           error $ "ANF XL_Let, context arity mismatch, " ++ show olen ++ " vs " ++ show nlen
-    XL_Let _mwho _mvs _ve True _be -> error $ "ANF XL_Let (mutable) not implemented yet! XXX"
-    XL_While _ce _ie _be -> error $ "ANF XL_While not implemented yet! XXX"
-    XL_Set _v _nve -> error $ "ANF XL_Set not implemented yet! XXX"
+    XL_While _loopv _inite _untile _inve _bodye -> error $ "ANF XL_While not implemented yet! XXX"
+    XL_Continue _nve -> error $ "ANF XL_Continue not implemented yet! XXX"
     XL_FunApp _ _ -> error $ "ANF XL_FunApp, impossible after inliner"
   where ret_expr s ne = do
           nv <- allocANF me s ne
