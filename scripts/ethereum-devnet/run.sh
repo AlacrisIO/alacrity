@@ -33,6 +33,7 @@ mkdir -p $LOGDIR
 geth \
     --dev \
     --mine \
+    --shh \
     --identity "AlacrisEthereumDevNet" \
     --datadir $DATADIR \
     --nodiscover \
