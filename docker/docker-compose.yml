@@ -60,15 +60,21 @@ services:
     build:
       context: ..
       dockerfile: docker/containers/alacrity_demo/Dockerfile
+      args:
+        UID: 1000
+        GID: 1000
     image: gcr.io/legicash-demo-1950/legicash-demo/alacrity_demo:${TAG:-latest}
     hostname: "alacrity-demo"
     container_name: "alacrity-demo"
+    volumes:
+      - ../examples/rps-auto:/opt/alacrity/project/examples/rps-auto
     environment:
       - STACK_YAML=../../hs/alacrity/stack.yaml
       - ETH_NODE_URI=http://alacrity-geth:8545
     command: >
       /bin/bash -c "
         sleep 8;
+        npm clean-install;
         make lint test demo
       "
     networks:
