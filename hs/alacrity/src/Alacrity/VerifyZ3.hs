@@ -319,6 +319,8 @@ z3_it_top z3 tm it_top (honest, me) = inNewScope z3 $ do
                           else
                             z3Apply "<=" [ zero, pvr ]
           IL_FromConsensus kt -> iter cbi kt
+          IL_While _loopv _inita _untilt _invt _bodyt _kt ->
+            error $ "XXX VerifyZ3 IL_While not implemented"
 
 z3StdLib :: String
 z3StdLib = "../../z3/z3-runtime.smt2"

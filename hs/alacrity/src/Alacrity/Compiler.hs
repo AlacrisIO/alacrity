@@ -283,7 +283,20 @@ anf_expr me ρ e mk =
                           (M.fromList $ zip ovs nvs)
                         else
                           error $ "ANF XL_Let, context arity mismatch, " ++ show olen ++ " vs " ++ show nlen
-    XL_While _loopv _inite _untile _inve _bodye -> error $ "ANF XL_While not implemented yet! XXX"
+    XL_While loopv inite untile inve bodye ->
+      anf_expr me ρ inite k
+      where k [ inita ] = do
+              (ρ', loopv') <- makeRename ρ loopv
+              (untilc, untilt) <- anf_tail me ρ' untile anf_ktop
+              error_unless untilc 1 (return ())
+              (invc, invt) <- anf_tail me ρ' inve anf_ktop
+              error_unless invc 1 (return ())
+              (bodyc, bodyt) <- anf_tail me ρ' bodye anf_knocontinue
+              error_unless bodyc 0 (return ())
+              (kn, kt) <- mk []
+              return (kn, (IL_While loopv' inita untilt invt bodyt kt))
+            k _ = error $ "XL_While initial expression must return 1"
+            anf_knocontinue _ = error $ "ANF XL_While not terminated by XL_Continue"
     XL_Continue _nve -> error $ "ANF XL_Continue not implemented yet! XXX"
     XL_FunApp _ _ -> error $ "ANF XL_FunApp, impossible after inliner"
   where ret_expr s ne = do
@@ -292,6 +305,11 @@ anf_expr me ρ e mk =
         ret_stmt s = do
           appendANF me s
           mk [ IL_Con (Con_B True) ]
+
+error_unless :: Eq a => Show a => a -> a -> b -> b
+error_unless x y r =
+  if x == y then r
+  else error $ show x ++ " not equal to " ++ show y
 
 anf_addVar :: ANFElem -> (Int, ILTail) -> (Int, ILTail)
 anf_addVar (ANFExpr mp v e) (c, t) = (c, IL_Let mp v e t)
@@ -485,6 +503,7 @@ epp_it_ctc ps γ hn0 it = case it of
   IL_ToConsensus _ _ _ _ ->
     error "EPP: Cannot transition to consensus from consensus"
   IL_FromConsensus bt -> epp_it_loc ps γ hn0 bt
+  IL_While _ _ _ _ _ _ -> error $ "XXX EPP: No While impl"
 
 epp_it_loc :: [Participant] -> EPPEnv -> Int -> ILTail -> EPPRes
 epp_it_loc ps γ hn0 it = case it of
@@ -544,6 +563,7 @@ epp_it_loc ps γ hn0 it = case it of
                         else EP_Do es $ pt2 True
   IL_FromConsensus _ ->
     error "EPP: Cannot transition to local from local"
+  IL_While _ _ _ _ _ _ -> error $ "XXX EPP: No While impl"
 
 epp :: ILProgram -> BLProgram
 epp (IL_Prog ips it) = BL_Prog bps cp

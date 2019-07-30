@@ -281,6 +281,7 @@ data ILTail
   --- A FromConsensus moves back from the consensus; the tail is
   --- "local" again.
   | IL_FromConsensus ILTail
+  | IL_While ILVar ILArg ILTail ILTail ILTail ILTail
   deriving (Show,Eq)
 
 type ILPartArgs = [(ILVar, BaseType)]
@@ -428,6 +429,9 @@ prettyClaim ct a = group $ parens $ pretty cts <+> pretty a
 prettyTransfer :: Pretty a => Participant -> a -> Doc ann
 prettyTransfer to a = group $ parens $ pretty "transfer!" <+> pretty to <+> pretty a
 
+prettyWhile :: Pretty a => Pretty b => Pretty c => a -> b -> c -> c -> c -> c -> Doc ann
+prettyWhile loopv inita untilt invt bodyt kt = group $ parens $ pretty "while" <+> pretty loopv <+> pretty inita <+> pretty untilt <+> pretty invt <+> pretty bodyt <+> pretty kt
+
 instance Pretty ILExpr where
   pretty (IL_PrimApp p al) = prettyApp p al
   pretty (IL_Declassify a) = group $ parens $ pretty "declassify" <+> pretty a
@@ -468,6 +472,7 @@ instance Pretty ILTail where
   pretty (IL_FromConsensus lt) =
     vsep [(group $ parens $ pretty "return!"),
           pretty lt]
+  pretty (IL_While loopv inita untilt invt bodyt kt) = prettyWhile loopv inita untilt invt bodyt kt
 
 prettyILVar :: ILVar -> Doc ann
 prettyILVar (n, s) = pretty n <> pretty "/" <> pretty s
