@@ -206,7 +206,7 @@ data XLExpr
   | XL_Declassify XLExpr
   --- Where x Vars x Expression x Body
   | XL_Let (Maybe Participant) (Maybe [XLVar]) XLExpr XLExpr
-  | XL_While XLVar XLExpr XLExpr XLExpr XLExpr
+  | XL_While XLVar XLExpr XLExpr XLExpr XLExpr XLExpr
   | XL_Continue XLExpr
   --- Impossible in inlined
   | XL_FunApp XLVar [XLExpr]
@@ -282,6 +282,7 @@ data ILTail
   --- "local" again.
   | IL_FromConsensus ILTail
   | IL_While ILVar ILArg ILTail ILTail ILTail ILTail
+  | IL_Continue ILArg
   deriving (Show,Eq)
 
 type ILPartArgs = [(ILVar, BaseType)]
@@ -470,9 +471,10 @@ instance Pretty ILTail where
     where svsp = parens $ pretty "publish!" <+> prettyILVars svs
           pap = parens $ pretty "pay!" <+> pretty pa
   pretty (IL_FromConsensus lt) =
-    vsep [(group $ parens $ pretty "return!"),
+    vsep [(group $ parens $ pretty "commit!"),
           pretty lt]
   pretty (IL_While loopv inita untilt invt bodyt kt) = prettyWhile loopv inita untilt invt bodyt kt
+  pretty (IL_Continue a) = parens $ pretty "continue!" <+> pretty a
 
 prettyILVar :: ILVar -> Doc ann
 prettyILVar (n, s) = pretty n <> pretty "/" <> pretty s

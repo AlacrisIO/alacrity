@@ -153,8 +153,8 @@ parseXLIf = do
   fe <- parseXLExpr1
   return $ XL_If False ce te fe
 
-parseXLWhile :: Parser XLExpr
-parseXLWhile = do
+parseXLWhile :: Maybe Participant -> Parser XLExpr
+parseXLWhile who = do
   exact "do"
   exact "const"
   loop_v <- parseXLVar
@@ -165,7 +165,9 @@ parseXLWhile = do
   exact "invariant"
   invariant_e <- parseXLExpr1
   body_e <- parseXLExpr1
-  return $ XL_While loop_v init_e stop_e invariant_e body_e
+  semi
+  k <- parseXLExprT who
+  return $ XL_While loop_v init_e stop_e invariant_e body_e k
 
 parseClaimType :: Parser ClaimType
 parseClaimType =
@@ -211,7 +213,6 @@ parseXLExpr1 =
   ((XL_Con <$> parseConstant)
    <|> parseXLPrimApp
    <|> parseXLIf
-   <|> parseXLWhile
    <|> parseXLClaim
    <|> parseXLValues
    <|> parseXLTransfer  
@@ -285,6 +286,7 @@ parseXLExprT who =
    <|> parseXLDeclassifyBang who
    <|> parseXLLetValues who
    <|> parseXLContinue who
+   <|> parseXLWhile who
    <|> (do before <- parseXLExpr1
            ((do semi
                 after <- parseXLExprT who

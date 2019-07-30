@@ -88,12 +88,13 @@ inline_expr e =
       (arp, args') <- inline_exprs args
       (fp, (formals, fun_body')) <- inline_fun f
       return (arp && fp, XL_Let Nothing (Just formals) (XL_Values args') fun_body')
-    XL_While lv ie ce inve be -> do
+    XL_While lv ie ce inve be ke -> do
       (_, ie') <- inline_expr ie
       (_, ce') <- inline_expr ce
       (_, inve') <- inline_expr inve
       (_, be') <- inline_expr be
-      return (False, XL_While lv ie' ce' inve' be')
+      (_, ke') <- inline_expr ke
+      return (False, XL_While lv ie' ce' inve' be' ke')
     XL_Continue ne -> do
       (_, ne') <- inline_expr ne
       return (False, XL_Continue ne')
@@ -283,7 +284,7 @@ anf_expr me ρ e mk =
                           (M.fromList $ zip ovs nvs)
                         else
                           error $ "ANF XL_Let, context arity mismatch, " ++ show olen ++ " vs " ++ show nlen
-    XL_While loopv inite untile inve bodye ->
+    XL_While loopv inite untile inve bodye ke ->
       anf_expr me ρ inite k
       where k [ inita ] = do
               (ρ', loopv') <- makeRename ρ loopv
@@ -293,11 +294,15 @@ anf_expr me ρ e mk =
               error_unless invc 1 (return ())
               (bodyc, bodyt) <- anf_tail me ρ' bodye anf_knocontinue
               error_unless bodyc 0 (return ())
-              (kn, kt) <- mk []
+              (kn, kt) <- anf_expr me ρ' ke mk
               return (kn, (IL_While loopv' inita untilt invt bodyt kt))
             k _ = error $ "XL_While initial expression must return 1"
             anf_knocontinue _ = error $ "ANF XL_While not terminated by XL_Continue"
-    XL_Continue _nve -> error $ "ANF XL_Continue not implemented yet! XXX"
+    XL_Continue nve -> 
+      anf_expr me ρ nve k
+      where k [ nva ] = do
+              return (0, (IL_Continue nva))
+            k _ = error "anf_expr XL_Continue nve doesn't return 1"
     XL_FunApp _ _ -> error $ "ANF XL_FunApp, impossible after inliner"
   where ret_expr s ne = do
           nv <- allocANF me s ne
@@ -504,6 +509,7 @@ epp_it_ctc ps γ hn0 it = case it of
     error "EPP: Cannot transition to consensus from consensus"
   IL_FromConsensus bt -> epp_it_loc ps γ hn0 bt
   IL_While _ _ _ _ _ _ -> error $ "XXX EPP: No While impl"
+  IL_Continue _ -> error $ "XXX EPP: No Continue impl"
 
 epp_it_loc :: [Participant] -> EPPEnv -> Int -> ILTail -> EPPRes
 epp_it_loc ps γ hn0 it = case it of
@@ -564,6 +570,7 @@ epp_it_loc ps γ hn0 it = case it of
   IL_FromConsensus _ ->
     error "EPP: Cannot transition to local from local"
   IL_While _ _ _ _ _ _ -> error $ "XXX EPP: No While impl"
+  IL_Continue _ -> error $ "XXX EPP: No Continue impl"
 
 epp :: ILProgram -> BLProgram
 epp (IL_Prog ips it) = BL_Prog bps cp
