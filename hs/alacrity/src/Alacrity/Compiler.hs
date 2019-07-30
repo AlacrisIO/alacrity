@@ -569,8 +569,8 @@ epp_it_loc ps γ hn0 it = case it of
                         else EP_Do es $ pt2 True
   IL_FromConsensus _ ->
     error "EPP: Cannot transition to local from local"
-  IL_While _ _ _ _ _ _ -> error $ "XXX EPP: No While impl"
-  IL_Continue _ -> error $ "XXX EPP: No Continue impl"
+  IL_While _ _ _ _ _ _ -> error $ "EPP: While illegal outside consensus"
+  IL_Continue _ -> error $ "EPP: Continue illegal outside consensus"
 
 epp :: ILProgram -> BLProgram
 epp (IL_Prog ips it) = BL_Prog bps cp
