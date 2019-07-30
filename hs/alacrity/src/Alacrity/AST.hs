@@ -335,6 +335,7 @@ data EPTail
   {- This recv is what the sender sent; we will be doing the same
      computation as the contract. -}
   | EP_Recv Bool Int [BLVar] [BLVar] EPTail
+  | EP_Loop Int BLVar BLArg EPTail
   deriving (Show,Eq)
 
 data EProgram
@@ -357,11 +358,13 @@ data CTail
   | C_If BLArg CTail CTail
   | C_Let BLVar CExpr CTail
   | C_Do CStmt CTail
+  | C_Jump Int [BLVar] BLArg
   deriving (Show,Eq)
 
 data CHandler
   --- Each handler has a message that it expects to receive
   = C_Handler Participant [BLVar] [BLVar] CTail
+  | C_Loop [BLVar] BLVar CTail
   deriving (Show,Eq)
 
 --- A contract program is just a sequence of handlers.
@@ -527,6 +530,9 @@ instance Pretty EPTail where
   pretty (EP_Recv fromme hi svs vs bt) =
     vsep [group $ parens $ pretty "define-values" <+> pretty fromme <+> prettyBLVars svs <+> prettyBLVars vs <+> (parens $ pretty "recv!" <+> pretty hi),
           pretty bt]
+  pretty (EP_Loop which loopv inita bt) =
+    vsep [group $ parens $ pretty "loop" <+> pretty which <+> pretty loopv <+> pretty inita,
+          pretty bt]
 
 instance Pretty CTail where
   pretty (C_Halt) = group $ parens $ pretty "halt!"
@@ -534,10 +540,13 @@ instance Pretty CTail where
   pretty (C_If ca tt ft) = prettyIf ca tt ft
   pretty (C_Let mv e bt) = prettyLet prettyBLVar (\x -> x) mv e bt
   pretty (C_Do s bt) = prettyDo (\x -> x) s bt
+  pretty (C_Jump which svs a) = group $ parens $ pretty "jump" <+> pretty which <+> prettyBLVars svs <+> pretty a
 
 prettyCHandler :: Int -> CHandler -> Doc ann
 prettyCHandler i (C_Handler who svs args ct) =
   group $ brackets $ pretty i <+> pretty who <+> prettyBLVars svs <+> prettyBLVars args <+> (nest 2 $ hardline <> pretty ct)
+prettyCHandler i (C_Loop svs arg ct) =
+  group $ brackets $ pretty i <+> pretty "!loop!" <+> prettyBLVars svs <+> prettyBLVar arg <+> (nest 2 $ hardline <> pretty ct)
 
 instance Pretty CProgram where
   pretty (C_Prog ps hs) = group $ parens $ pretty "define-contract" <+> (nest 2 $ hardline <> vsep (psp : hsp))

@@ -174,6 +174,8 @@ jsEPTail (EP_Recv fromme i _ msg kt) = (tp, tfvs)
         require_match mvp mv'p = jsAssert $ jsApply "stdlib.equal" [ mvp, mv'p ]
         (ktp', ktfvs) = jsEPTail kt
         ktp = (if fromme then require_and_kt <> hardline else emptyDoc) <> ktp'
+jsEPTail (EP_Loop _which _loopv _inita _bt) =
+  error "XXX EmitJS EP_Loop"
 
 jsPart :: (Participant, EProgram) -> Doc a
 jsPart (p, (EP_Prog pargs et)) =

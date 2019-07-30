@@ -72,6 +72,9 @@ usesCTail (C_Let _ ce kt) = cmerge cs1 cs2
 usesCTail (C_Do cs kt) = cmerge cs1 cs2
   where cs1 = usesCStmt cs
         cs2 = usesCTail kt
+usesCTail (C_Jump which vs a) = cmerge cs1 cs2
+  where cs1 = usesCTail (C_Wait which vs)
+        cs2 = usesBLArg a
 
 {- Compilation to Solidity
 
@@ -239,6 +242,7 @@ solCTail ps emitp ρ ccs ct =
         _ -> vsep [ solVarDecl bv <+> "=" <+> solCExpr ρ ce <> semi,
                     solCTail ps emitp ρ ccs kt ]
     C_Do cs kt -> solCStmt ρ cs <> (solCTail ps emitp ρ ccs kt)
+    C_Jump _which _vs _a -> error "XXX EmitSol C_Jump"
 
 solHandler :: [Participant] -> Int -> CHandler -> Doc a
 solHandler ps i (C_Handler from svs msg body) = vsep [ evtp, funp ]
@@ -256,6 +260,8 @@ solHandler ps i (C_Handler from svs msg body) = vsep [ evtp, funp ]
         bodyp = vsep [ (solRequire $ solEq ("current_state") (solHashState ρ i ps svs)) <> semi,
                        solRequireSender from <> semi,
                        solCTail ps emitp ρ ccs body ]
+solHandler _ps _i (C_Loop _svs _arg _body) =
+  error "XXX EmitSol C_Loop"
 
 solHandlers :: [Participant] -> [CHandler] -> Doc a
 solHandlers ps hs = vsep $ intersperse emptyDoc $ zipWith (solHandler ps) [0..] hs

@@ -467,14 +467,25 @@ epp_s_ctc2loc :: CStmt -> Maybe EPStmt
 epp_s_ctc2loc (C_Claim ct a) = Just (EP_Claim ct a)
 epp_s_ctc2loc (C_Transfer _ _) = Nothing
 
-epp_it_ctc :: [Participant] -> EPPEnv -> Int -> ILTail -> EPPRes
-epp_it_ctc ps γ hn0 it = case it of
+il2bl_var :: ILVar -> SType -> BLVar
+il2bl_var (n, s) (et, _)  = (n, s, et)
+
+data EPPCtxt
+  = EC_Top
+  | EC_WhileUntil Int EPPEnv ILTail ILTail EPPCtxt ILTail 
+
+epp_it_ctc :: [Participant] -> EPPEnv -> Int -> EPPCtxt -> ILTail -> EPPRes
+epp_it_ctc ps γ hn0 ctxt it = case it of
   IL_Ret _ ->
-    error "EPP: CTC cannot return"
+    case ctxt of
+      EC_Top ->
+        error "EPP: CTC cannot return"
+      EC_WhileUntil _which _γ' _invt _bodyt _ctxt' _kt ->
+        error "XXX EPP Ret EC_WhileUntil"
   IL_If ca tt ft -> (svs, C_If cca' ctt' cft', ts3, hn2, hs3)
     where (svs_ca, cca') = epp_expect (AT_Bool, Public) $ epp_arg γ RoleContract ca
-          (svs_t, ctt', ts1, hn1, hs1) = epp_it_ctc ps γ hn0 tt
-          (svs_f, cft', ts2, hn2, hs2) = epp_it_ctc ps γ hn1 ft
+          (svs_t, ctt', ts1, hn1, hs1) = epp_it_ctc ps γ hn0 ctxt tt
+          (svs_f, cft', ts2, hn2, hs2) = epp_it_ctc ps γ hn1 ctxt ft
           svs = Set.unions [ svs_ca, svs_t, svs_f ]
           hs3 = hs1 ++ hs2
           ts3 = M.fromList $ map mkt ps
@@ -483,12 +494,10 @@ epp_it_ctc ps γ hn0 it = case it of
                   tt' = ts1 M.! p
                   ft' = ts2 M.! p
   IL_Let RoleContract what how next -> (svs, C_Let what' how_ctc next', ts2, hn1, hs1)
-    where (svs1, next', ts1, hn1, hs1) = epp_it_ctc ps γ' hn0 next
+    where (svs1, next', ts1, hn1, hs1) = epp_it_ctc ps γ' hn0 ctxt next
           svs = Set.union (Set.difference svs1 (boundBLVar what')) svs_how
           (st, svs_how, how_ctc) = epp_e_ctc γ how
-          (et, _) = st
-          (n, s) = what
-          what' = (n, s, et)
+          what' = il2bl_var what st
           what'env = M.singleton what st
           γ' = M.map (M.union what'env) γ
           how_ep = epp_e_ctc2loc how_ctc
@@ -496,7 +505,7 @@ epp_it_ctc ps γ hn0 it = case it of
   IL_Let (RolePart _) _ _ _ ->
     error "EPP: Cannot perform local binding in consensus"
   IL_Do RoleContract how next -> (svs, ct2, ts2, hn1, hs1)
-    where (svs1, ct1, ts1, hn1, hs1) = epp_it_ctc ps γ hn0 next
+    where (svs1, ct1, ts1, hn1, hs1) = epp_it_ctc ps γ hn0 ctxt next
           (svs2, how') = epp_s_ctc γ how
           svs = Set.union svs1 svs2
           ct2 = C_Do how' ct1
@@ -508,8 +517,25 @@ epp_it_ctc ps γ hn0 it = case it of
   IL_ToConsensus _ _ _ _ ->
     error "EPP: Cannot transition to consensus from consensus"
   IL_FromConsensus bt -> epp_it_loc ps γ hn0 bt
-  IL_While _ _ _ _ _ _ -> error $ "XXX EPP: No While impl"
-  IL_Continue _ -> error $ "XXX EPP: No Continue impl"
+  IL_While loopv inita untilt invt bodyt kt ->
+    (svs, ct, ts, hn2, hs)
+    where
+      hn1 = hn0 + 1
+      nh = C_Loop svs2l loopv' ct1
+      hs = nh : hs1      
+      svs2l = Set.toList svs2
+      svs2 = Set.difference svs1 (boundBLVar loopv')
+      svs = Set.union fvs_a svs2
+      (svs1, ct1, ts1, hn2, hs1) = epp_it_ctc ps γ' hn1 ctxt' untilt
+      ctxt' = EC_WhileUntil hn1 γ' invt bodyt ctxt kt
+      ((fvs_a, inita'), st_a) = epp_arg γ RoleContract inita
+      loopv' = il2bl_var loopv st_a
+      loopv'env = M.singleton loopv st_a
+      γ' = M.map (M.union loopv'env) γ
+      ts = M.map (EP_Loop hn1 loopv' inita') ts1
+      ct = C_Jump hn1 svs2l inita'
+  IL_Continue _ ->
+    error $ "XXX EPP: No Continue impl"
 
 epp_it_loc :: [Participant] -> EPPEnv -> Int -> ILTail -> EPPRes
 epp_it_loc ps γ hn0 it = case it of
@@ -555,7 +581,7 @@ epp_it_loc ps γ hn0 it = case it of
           what'env = M.fromList $ map (\(n, s, et) -> ((n,s),(et,Public))) what'
           γ' = M.map (M.union what'env) γ
           hn1 = hn0 + 1
-          (svs1, ct1, ts1, hn2, hs1) = epp_it_ctc ps γ' hn1 next
+          (svs1, ct1, ts1, hn2, hs1) = epp_it_ctc ps γ' hn1 EC_Top next
           svs2 = Set.difference svs1 (boundBLVars what')
           svs2l = Set.toList svs2
           nh = C_Handler from svs2l what' ct1
