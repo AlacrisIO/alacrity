@@ -433,8 +433,11 @@ prettyClaim ct a = group $ parens $ pretty cts <+> pretty a
 prettyTransfer :: Pretty a => Participant -> a -> Doc ann
 prettyTransfer to a = group $ parens $ pretty "transfer!" <+> pretty to <+> pretty a
 
-prettyWhile :: Pretty a => Pretty b => Pretty c => a -> b -> c -> c -> c -> c -> Doc ann
-prettyWhile loopv inita untilt invt bodyt kt = group $ parens $ pretty "while" <+> pretty loopv <+> pretty inita <+> pretty untilt <+> pretty invt <+> pretty bodyt <+> pretty kt
+prettyWhile :: Pretty b => Pretty c => (a -> Doc ann) -> a -> b -> c -> c -> c -> c -> Doc ann
+prettyWhile prettyVar loopv inita untilt invt bodyt kt = vsep [ group $ parens $ pretty "do" <+> brackets (prettyVar loopv <+> pretty inita) <> nest 2 (hardline <> pretty "until" <+> prettyBegin untilt <> hardline <> pretty "invariant" <+> prettyBegin invt <> hardline <> prettyBegin bodyt), pretty kt ]
+
+prettyBegin :: Pretty a => a -> Doc ann
+prettyBegin x = group $ parens $ pretty "begin" <+> (nest 2 $ hardline <> pretty x)
 
 instance Pretty ILExpr where
   pretty (IL_PrimApp p al) = prettyApp p al
@@ -476,7 +479,7 @@ instance Pretty ILTail where
   pretty (IL_FromConsensus lt) =
     vsep [(group $ parens $ pretty "commit!"),
           pretty lt]
-  pretty (IL_While loopv inita untilt invt bodyt kt) = prettyWhile loopv inita untilt invt bodyt kt
+  pretty (IL_While loopv inita untilt invt bodyt kt) = prettyWhile prettyILVar loopv inita untilt invt bodyt kt
   pretty (IL_Continue a) = parens $ pretty "continue!" <+> pretty a
 
 prettyILVar :: ILVar -> Doc ann

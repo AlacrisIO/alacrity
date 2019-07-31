@@ -294,7 +294,7 @@ anf_expr me ρ e mk =
               error_unless invc 1 (return ())
               (bodyc, bodyt) <- anf_tail me ρ' bodye anf_knocontinue
               error_unless bodyc 0 (return ())
-              (kn, kt) <- anf_expr me ρ' ke mk
+              (kn, kt) <- anf_tail me ρ' ke mk
               return (kn, (IL_While loopv' inita untilt invt bodyt kt))
             k _ = error $ "XL_While initial expression must return 1"
             anf_knocontinue _ = error $ "ANF XL_While not terminated by XL_Continue"
@@ -391,28 +391,28 @@ epp_expect est (a, ast) =
   if est == ast then a
   else error $ "EPP: Expected " ++ show est ++ ", got " ++ show ast
 
-epp_var :: EPPEnv -> Role -> ILVar -> (BLVar, SType)
-epp_var γ r iv = ((n, s, et), st)
+epp_var :: String -> EPPEnv -> Role -> ILVar -> (BLVar, SType)
+epp_var dbg γ r iv = ((n, s, et), st)
   where (n,s) = iv
         env = case M.lookup r γ of
           Nothing -> error $ "EPP: Unknown role: " ++ show r
           Just v -> v
         (et, _) = st
         st = case M.lookup iv env of
-          Nothing -> error $ "EPP: Role " ++ show r ++ " does not know " ++ show iv
+          Nothing -> error $ "EPP: Role " ++ show r ++ " does not know " ++ show iv ++ " at " ++ dbg ++ " but does know " ++ show env
           Just v -> v
 
-epp_vars :: EPPEnv -> Role -> [ILVar] -> [(BLVar, SType)]
-epp_vars γ r ivs = map (epp_var γ r) ivs
+epp_vars :: String -> EPPEnv -> Role -> [ILVar] -> [(BLVar, SType)]
+epp_vars dbg γ r ivs = map (epp_var dbg γ r) ivs
 
-epp_arg :: EPPEnv -> Role -> ILArg -> ((Set.Set BLVar, BLArg), SType)
-epp_arg _ _ (IL_Con c) = ((Set.empty, BL_Con c), (conType c, Public))
-epp_arg γ r (IL_Var iv) = ((Set.singleton bv, BL_Var bv), st)
-  where (bv, st) = epp_var γ r iv
+epp_arg :: String -> EPPEnv -> Role -> ILArg -> ((Set.Set BLVar, BLArg), SType)
+epp_arg _ _ _ (IL_Con c) = ((Set.empty, BL_Con c), (conType c, Public))
+epp_arg dbg γ r (IL_Var iv) = ((Set.singleton bv, BL_Var bv), st)
+  where (bv, st) = epp_var dbg γ r iv
 
-epp_args :: EPPEnv -> Role -> [ILArg] -> (Set.Set BLVar, [(BLArg, SType)])
-epp_args γ r ivs = (svs, args)
-  where cmb = map (epp_arg γ r) ivs
+epp_args :: String -> EPPEnv -> Role -> [ILArg] -> (Set.Set BLVar, [(BLArg, SType)])
+epp_args dbg γ r ivs = (svs, args)
+  where cmb = map (epp_arg dbg γ r) ivs
         svs = Set.unions $ map (\((a,_),_) -> a) cmb
         args = map (\((_,b),c) -> (b,c)) cmb
 
@@ -420,7 +420,7 @@ epp_e_ctc :: EPPEnv -> ILExpr -> (SType, Set.Set BLVar, CExpr)
 epp_e_ctc γ e = case e of
   IL_Declassify _ -> error "EPP: Contract cannot declassify"
   IL_PrimApp p@(CP cp) args -> (sRet, fvs, C_PrimApp cp args')
-    where (fvs, args0) = epp_args γ RoleContract args
+    where (fvs, args0) = epp_args ("ctc PrimApp " ++ show cp ++ " " ++ show args) γ RoleContract args
           args'st = map must_be_public $ args0
           args' = map fst args'st
           args't = map snd args'st
@@ -431,25 +431,25 @@ epp_e_ctc γ e = case e of
 epp_e_loc :: EPPEnv -> Participant -> ILExpr -> (SType, Set.Set BLVar, EPExpr)
 epp_e_loc γ p e = case e of
   IL_Declassify a -> ((et, Public), fvs, EP_Arg a')
-    where ((fvs, a'), (et, _)) = earg a
+    where ((fvs, a'), (et, _)) = earg "loc Declassify" a
   IL_PrimApp pr args -> ((ret, slvl), fvs, EP_PrimApp pr args')
-    where (fvs, args'st) = epp_args γ (RolePart p) args
+    where (fvs, args'st) = epp_args "loc PrimApp" γ (RolePart p) args
           args't = map (fst . snd) args'st
           args' = map fst args'st
           ret = checkFun (primType pr) args't
           slvl = case pr of
                    INTERACT -> Secret
                    _ -> mconcat $ map (snd . snd) args'st
- where earg = epp_arg γ (RolePart p)
+ where earg dbg = epp_arg dbg γ (RolePart p)
 
 epp_s_ctc :: EPPEnv -> ILStmt -> (Set.Set BLVar, CStmt)
 epp_s_ctc γ e = case e of
   IL_Transfer r am -> (fvs, C_Transfer r am')
-    where (fvs, am') = eargt am AT_UInt256
+    where (fvs, am') = eargt "ctc Transfer" am AT_UInt256
   IL_Claim ct a -> (fvs, C_Claim ct a')
-    where (fvs, a') = eargt a AT_Bool
- where earg = epp_arg γ RoleContract
-       eargt a expected = epp_expect (expected, Public) $ earg a
+    where (fvs, a') = eargt "ctc Claim" a AT_Bool
+ where earg dbg = epp_arg dbg γ RoleContract
+       eargt dbg a expected = epp_expect (expected, Public) $ earg dbg a
 
 epp_s_loc :: EPPEnv -> Participant -> ILStmt -> (Set.Set BLVar, EPStmt)
 epp_s_loc γ p e = case e of
@@ -457,8 +457,8 @@ epp_s_loc γ p e = case e of
   IL_Claim ct a -> case bt of
                    AT_Bool -> (fvs, EP_Claim ct a')
                    _ -> error "EPP: Assert argument not bool"
-    where ((fvs, a'), (bt, _)) = earg a
-          earg = epp_arg γ (RolePart p)
+    where ((fvs, a'), (bt, _)) = earg "loc Claim" a
+          earg dbg = epp_arg dbg γ (RolePart p)
 
 epp_e_ctc2loc :: CExpr -> EPExpr
 epp_e_ctc2loc (C_PrimApp cp al) = (EP_PrimApp (CP cp) al)
@@ -472,27 +472,38 @@ il2bl_var (n, s) (et, _)  = (n, s, et)
 
 data EPPCtxt
   = EC_Top
-  | EC_WhileUntil Int EPPEnv ILTail ILTail EPPCtxt ILTail 
+  | EC_WhileUntil Int EPPEnv ILTail EPPCtxt ILTail
+  | EC_WhileBody Int
+
+epp_it_ctc_do_if :: [Participant] -> Int -> (EPPEnv, ILArg) -> (EPPEnv, EPPCtxt, ILTail) -> (EPPEnv, EPPCtxt, ILTail) -> EPPRes
+epp_it_ctc_do_if ps hn0 (γc, ca) (γt, tctxt, tt) (γf, fctxt, ft) =
+  (svs, C_If cca' ctt' cft', ts3, hn2, hs3)
+  where (svs_ca, cca') = epp_expect (AT_Bool, Public) $ epp_arg "ctc If cond" γc RoleContract ca
+        (svs_t, ctt', ts1, hn1, hs1) = epp_it_ctc ps γt hn0 tctxt tt
+        (svs_f, cft', ts2, hn2, hs2) = epp_it_ctc ps γf hn1 fctxt ft
+        svs = Set.unions [ svs_ca, svs_t, svs_f ]
+        hs3 = hs1 ++ hs2
+        ts3 = M.fromList $ map mkt ps
+        mkt p = (p, EP_If ca' tt' ft')
+          where (_,ca') = epp_expect (AT_Bool, Public) $ epp_arg "ctc If Cond" γc (RolePart p) ca
+                tt' = ts1 M.! p
+                ft' = ts2 M.! p
 
 epp_it_ctc :: [Participant] -> EPPEnv -> Int -> EPPCtxt -> ILTail -> EPPRes
 epp_it_ctc ps γ hn0 ctxt it = case it of
-  IL_Ret _ ->
+  IL_Ret args ->
     case ctxt of
       EC_Top ->
         error "EPP: CTC cannot return"
-      EC_WhileUntil _which _γ' _invt _bodyt _ctxt' _kt ->
-        error "XXX EPP Ret EC_WhileUntil"
-  IL_If ca tt ft -> (svs, C_If cca' ctt' cft', ts3, hn2, hs3)
-    where (svs_ca, cca') = epp_expect (AT_Bool, Public) $ epp_arg γ RoleContract ca
-          (svs_t, ctt', ts1, hn1, hs1) = epp_it_ctc ps γ hn0 ctxt tt
-          (svs_f, cft', ts2, hn2, hs2) = epp_it_ctc ps γ hn1 ctxt ft
-          svs = Set.unions [ svs_ca, svs_t, svs_f ]
-          hs3 = hs1 ++ hs2
-          ts3 = M.fromList $ map mkt ps
-          mkt p = (p, EP_If ca' tt' ft')
-            where (_,ca') = epp_expect (AT_Bool, Public) $ epp_arg γ (RolePart p) ca
-                  tt' = ts1 M.! p
-                  ft' = ts2 M.! p
+      EC_WhileUntil which γ' bodyt kctxt kt ->
+        epp_it_ctc_do_if ps hn0 (γ, arg0) (γ', kctxt, kt) (γ', ctxt', bodyt)
+        where
+          [ arg0 ] = args
+          ctxt' = EC_WhileBody which
+      EC_WhileBody _ ->
+        error "EPP: WhileBody cannot return"
+  IL_If ca tt ft ->
+    epp_it_ctc_do_if ps hn0 (γ, ca) (γ, ctxt, tt) (γ, ctxt, ft)
   IL_Let RoleContract what how next -> (svs, C_Let what' how_ctc next', ts2, hn1, hs1)
     where (svs1, next', ts1, hn1, hs1) = epp_it_ctc ps γ' hn0 ctxt next
           svs = Set.union (Set.difference svs1 (boundBLVar what')) svs_how
@@ -517,7 +528,8 @@ epp_it_ctc ps γ hn0 ctxt it = case it of
   IL_ToConsensus _ _ _ _ ->
     error "EPP: Cannot transition to consensus from consensus"
   IL_FromConsensus bt -> epp_it_loc ps γ hn0 bt
-  IL_While loopv inita untilt invt bodyt kt ->
+  IL_While loopv inita untilt _invt bodyt kt ->
+    --- _invt is ignored because we'll verify it later and don't need to run it.
     (svs, ct, ts, hn2, hs)
     where
       hn1 = hn0 + 1
@@ -527,8 +539,8 @@ epp_it_ctc ps γ hn0 ctxt it = case it of
       svs2 = Set.difference svs1 (boundBLVar loopv')
       svs = Set.union fvs_a svs2
       (svs1, ct1, ts1, hn2, hs1) = epp_it_ctc ps γ' hn1 ctxt' untilt
-      ctxt' = EC_WhileUntil hn1 γ' invt bodyt ctxt kt
-      ((fvs_a, inita'), st_a) = epp_arg γ RoleContract inita
+      ctxt' = EC_WhileUntil hn1 γ' bodyt ctxt kt
+      ((fvs_a, inita'), st_a) = epp_arg "ctc While init" γ RoleContract inita
       loopv' = il2bl_var loopv st_a
       loopv'env = M.singleton loopv st_a
       γ' = M.map (M.union loopv'env) γ
@@ -541,7 +553,7 @@ epp_it_loc :: [Participant] -> EPPEnv -> Int -> ILTail -> EPPRes
 epp_it_loc ps γ hn0 it = case it of
   IL_Ret al -> ( Set.empty, C_Halt, ts, hn0, [] )
     where ts = M.fromList $ map mkt ps
-          mkt p = (p, EP_Ret $ map fst $ snd $ epp_args γ (RolePart p) al)
+          mkt p = (p, EP_Ret $ map fst $ snd $ epp_args "loc ret" γ (RolePart p) al)
   IL_If _ _ _ ->
     error "EPP: Ifs must be consensual"
   IL_Let who what how next -> (svs1, ct1, ts2, hn1, hs1)
@@ -576,8 +588,8 @@ epp_it_loc ps γ hn0 it = case it of
             where (_, s') = epp_s_loc γ p how
   IL_ToConsensus from what howmuch next -> (svs2, ct2, ts2, hn2, hs2)
     where fromr = RolePart from
-          what' = map fst $ map must_be_public $ epp_vars γ fromr what
-          (_, howmuch') = epp_expect (AT_UInt256, Public) $ epp_arg γ fromr howmuch
+          what' = map fst $ map must_be_public $ epp_vars "loc toconsensus" γ fromr what
+          (_, howmuch') = epp_expect (AT_UInt256, Public) $ epp_arg "loc howmuch" γ fromr howmuch
           what'env = M.fromList $ map (\(n, s, et) -> ((n,s),(et,Public))) what'
           γ' = M.map (M.union what'env) γ
           hn1 = hn0 + 1
