@@ -529,6 +529,7 @@ epp_it_ctc ps γ hn0 ctxt it = case it of
     --- _invt is ignored because we'll verify it later and don't need to run it.
     (svs, ct, ts, hn2, hs)
     where
+      which = hn0
       hn1 = hn0 + 1
       nh = C_Loop svs2l loopv' ct1
       hs = nh : hs1      
@@ -537,8 +538,9 @@ epp_it_ctc ps γ hn0 ctxt it = case it of
       svs = Set.union fvs_a svs2
       (svs1, ct1, ts1, hn2, hs1) = epp_it_ctc ps γ' hn1 ctxt' untilt
       ctxt' = EC_WhileUntil kres bres
-      which = hn0
-      kres hn = epp_it_ctc ps γ' hn ctxt kt
+      kres_a = epp_it_ctc ps γ' hn1 ctxt kt
+      kres hn = if hn == hn1 then kres_a
+                else error $ "While Until cannot escape consensus"
       bres hn = epp_it_ctc ps γ' hn (EC_WhileBody which loopv_ty) bodyt
       ((fvs_a, inita'), st_a) = epp_arg "ctc While init" γ RoleContract inita
       loopv' = il2bl_var loopv st_a
