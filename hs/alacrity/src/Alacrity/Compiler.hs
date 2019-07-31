@@ -472,15 +472,15 @@ il2bl_var (n, s) (et, _)  = (n, s, et)
 
 data EPPCtxt
   = EC_Top
-  | EC_WhileUntil Int BaseType EPPEnv ILTail EPPCtxt ILTail
+  | EC_WhileUntil (Int -> EPPRes) (Int -> EPPRes)
   | EC_WhileBody Int BaseType
 
-epp_it_ctc_do_if :: [Participant] -> Int -> (EPPEnv, ILArg) -> (EPPEnv, EPPCtxt, ILTail) -> (EPPEnv, EPPCtxt, ILTail) -> EPPRes
-epp_it_ctc_do_if ps hn0 (γc, ca) (γt, tctxt, tt) (γf, fctxt, ft) =
+epp_it_ctc_do_if :: [Participant] -> Int -> (EPPEnv, ILArg) -> (Int -> EPPRes) -> (Int -> EPPRes) -> EPPRes
+epp_it_ctc_do_if ps hn0 (γc, ca) tres fres =
   (svs, C_If cca' ctt' cft', ts3, hn2, hs3)
   where (svs_ca, cca') = epp_expect (AT_Bool, Public) $ epp_arg "ctc If cond" γc RoleContract ca
-        (svs_t, ctt', ts1, hn1, hs1) = epp_it_ctc ps γt hn0 tctxt tt
-        (svs_f, cft', ts2, hn2, hs2) = epp_it_ctc ps γf hn1 fctxt ft
+        (svs_t, ctt', ts1, hn1, hs1) = tres hn0
+        (svs_f, cft', ts2, hn2, hs2) = fres hn1
         svs = Set.unions [ svs_ca, svs_t, svs_f ]
         hs3 = hs1 ++ hs2
         ts3 = M.fromList $ map mkt ps
@@ -493,14 +493,14 @@ epp_it_ctc :: [Participant] -> EPPEnv -> Int -> EPPCtxt -> ILTail -> EPPRes
 epp_it_ctc ps γ hn0 ctxt it = case it of
   IL_Ret args ->
     case ctxt of
-      EC_WhileUntil which loopv_ty γ' bodyt kctxt kt ->
-        epp_it_ctc_do_if ps hn0 (γ, arg0) (γ', kctxt, kt) (γ', ctxt', bodyt)
+      EC_WhileUntil kres bres ->
+        epp_it_ctc_do_if ps hn0 (γ, arg0) kres bres
         where [ arg0 ] = args
-              ctxt' = EC_WhileBody which loopv_ty
       _ ->
         error "EPP: CTC cannot return"
   IL_If ca tt ft ->
-    epp_it_ctc_do_if ps hn0 (γ, ca) (γ, ctxt, tt) (γ, ctxt, ft)
+    epp_it_ctc_do_if ps hn0 (γ, ca) (dres tt) (dres ft)
+    where dres wt hn = epp_it_ctc ps γ hn ctxt wt
   IL_Let RoleContract what how next -> (svs, C_Let what' how_ctc next', ts2, hn1, hs1)
     where (svs1, next', ts1, hn1, hs1) = epp_it_ctc ps γ' hn0 ctxt next
           svs = Set.union (Set.difference svs1 (boundBLVar what')) svs_how
@@ -536,13 +536,17 @@ epp_it_ctc ps γ hn0 ctxt it = case it of
       svs2 = Set.difference svs1 (boundBLVar loopv')
       svs = Set.union fvs_a svs2
       (svs1, ct1, ts1, hn2, hs1) = epp_it_ctc ps γ' hn1 ctxt' untilt
-      ctxt' = EC_WhileUntil hn1 (fst st_a) γ' bodyt ctxt kt
+      ctxt' = EC_WhileUntil kres bres
+      which = hn0
+      kres hn = epp_it_ctc ps γ' hn ctxt kt
+      bres hn = epp_it_ctc ps γ' hn (EC_WhileBody which loopv_ty) bodyt
       ((fvs_a, inita'), st_a) = epp_arg "ctc While init" γ RoleContract inita
       loopv' = il2bl_var loopv st_a
       loopv'env = M.singleton loopv st_a
+      loopv_ty = fst st_a
       γ' = M.map (M.union loopv'env) γ
-      ts = M.map (EP_Loop hn1 loopv' inita') ts1
-      ct = C_Jump hn0 svs2l inita'
+      ts = M.map (EP_Loop which loopv' inita') ts1
+      ct = C_Jump which svs2l inita'
   IL_Continue na ->
     case ctxt of
       EC_WhileBody which loopv_ty ->
@@ -551,7 +555,17 @@ epp_it_ctc ps γ hn0 ctxt it = case it of
               hn = hn0
               (fvs_a, inita') = epp_expect (loopv_ty, Public) $ epp_arg "ctc continue" γ RoleContract na
               svs = fvs_a
-              --- XXX Ideally this would just be C_Jump, but we don't know what the free variables are at this point.
+              --- XXX Ideally this would just be C_Jump, but we don't
+              --- know what the free variables are at this point,
+              --- because analyzing this code is what figures it
+              --- out. One solution is to require the programmer to
+              --- annotate what they are. Another is to analyze the
+              --- program twice, once to get the fvars and once to
+              --- construct the tail. Another is to capture the
+              --- continuation (in Haskell) at this point and return
+              --- it with the free variables, so it can be invoked to
+              --- create the object. This basically complicates all
+              --- uses of this function for this one feature.
               ct = C_Continue which inita'
               ts = M.fromList $ map mkt ps
               mkt p = (p, EP_Continue $ snd . fst $ epp_arg "ctc continue loc" γ (RolePart p) na)
