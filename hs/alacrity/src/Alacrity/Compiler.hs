@@ -472,6 +472,7 @@ il2bl_var (n, s) (et, _)  = (n, s, et)
 
 data EPPCtxt
   = EC_Top
+  | EC_Invariant
   | EC_WhileUntil (Int -> EPPRes) (Int -> EPPRes)
   | EC_WhileTrial
   | EC_WhileBody Int BaseType (Set.Set BLVar)
@@ -497,6 +498,8 @@ epp_it_ctc ps γ hn0 ctxt it = case it of
       EC_WhileUntil kres bres ->
         epp_it_ctc_do_if ps hn0 (γ, arg0) kres bres
         where [ arg0 ] = args
+      EC_Invariant ->
+        (mempty, C_Halt, mempty, hn0, [])
       _ ->
         error "EPP: CTC cannot return"
   IL_If ca tt ft ->
@@ -526,17 +529,18 @@ epp_it_ctc ps γ hn0 ctxt it = case it of
   IL_ToConsensus _ _ _ _ ->
     error "EPP: Cannot transition to consensus from consensus"
   IL_FromConsensus bt -> epp_it_loc ps γ hn0 ctxt bt
-  IL_While loopv inita untilt _invt bodyt kt ->
+  IL_While loopv inita untilt invt bodyt kt ->
     --- _invt is ignored because we'll verify it later and don't need to run it.
     (svs, ct, ts, hn2, hs)
     where
       which = hn0
       hn1 = hn0 + 1
-      nh = C_Loop svs2l loopv' ct1
+      nh = C_Loop svs2l loopv' ct_inv ct1
       hs = nh : hs1      
       svs2l = Set.toList svs2
       svs2 = Set.difference svs1 (boundBLVar loopv')
       svs = Set.union fvs_a svs2
+      (_, ct_inv, _, _, _) = epp_it_ctc ps γ' hn1 EC_Invariant invt
       (svs1_trial, _, _, _, _) = epp_it_ctc ps γ' hn1 (EC_WhileUntil kres bres_trial) untilt
       kres_a = epp_it_ctc ps γ' hn1 ctxt kt
       kres hn = if hn == hn1 then kres_a

@@ -82,7 +82,7 @@ instance RecoverTypes CTail where
 
 instance RecoverTypes CHandler where
   rts (C_Handler _ svs msg ct) = rts svs <> rts msg <> rts ct
-  rts (C_Loop svs arg ct) = rts svs <> rts arg <> rts ct
+  rts (C_Loop svs arg it ct) = rts svs <> rts arg <> rts it <> rts ct
 
 instance RecoverTypes CProgram where
   rts (C_Prog _ chs) = rts chs
@@ -137,14 +137,14 @@ pretty_se_top (Atom a) = pretty a
 {- Z3 Interaction -}
 
 z3_verify1 :: Solver -> (Bool, Role, TheoremKind) -> SExpr -> IO VerifyResult
-z3_verify1 z3 (_honest, _r, _tk) a = inNewScope z3 $ do
+z3_verify1 z3 (_honest, _r, tk) a = inNewScope z3 $ do
   assert z3 (z3Apply "not" [ a ])
   r <- check z3
   case r of
     Unknown -> error "Z3 inconclusive result"
     Unsat -> return $ VR 1 0
     Sat -> do
-      putStrLn $ "Failed to verify! " ++ showsSExpr a ":"
+      putStrLn $ "Failed to verify! " ++ show tk ++ " " ++ showsSExpr a ":"
       m <- command z3 $ List [ Atom "get-model" ]
       putStrLn $ show $ pretty_se_top m
       return $ VR 0 1
@@ -220,6 +220,7 @@ data TheoremKind
   | TRequire
   | TPossible
   | TBalanceZero
+  | TInvariant
   deriving (Show)
 
 type Theorem = (Bool, Role, TheoremKind)
@@ -278,38 +279,85 @@ z3_stmt z3 honest r cbi how =
               CT_Require -> Nothing
               CT_Possible -> error "Impossible"
 
+data VerifyCtxt 
+  = VC_Top
+  | VC_AssignCheckInv ILVar ILTail
+  | VC_CheckRet
+  | VC_WhileBody_AssumeNotUntil ILVar ILTail ILTail
+  | VC_WhileBody_AssumeInv ILVar ILTail ILTail
+  | VC_WhileBody_Eval ILVar ILTail
+  | VC_WhileTail_AssumeUntil ILTail (VerifyCtxt, ILTail)
+  | VC_WhileTail_AssumeInv (VerifyCtxt, ILTail)
+
 z3_it_top :: Solver -> ILTail -> (Bool, Role) -> IO VerifyResult
 z3_it_top z3 it_top (honest, me) = inNewScope z3 $ do
   putStrLn $ "Verifying with honest = " ++ show honest ++ "; role = " ++ show me
   void $ define z3 cb0 z3IntSort zero
-  iter 0 it_top
+  meta_iter mempty [(VC_Top, it_top)]
   where zero = emit_z3_con (Con_I 0)
         cb0 = z3CTCBalance 0
-        iter :: Int -> ILTail -> IO VerifyResult
-        iter cbi it = case it of
-          IL_Ret _ ->
-            z3_verify1 z3 (honest, me, TBalanceZero) (z3Eq (z3CTCBalanceRef cbi) zero)
-          IL_If ca tt ft ->
+        meta_iter :: VerifyResult -> [(VerifyCtxt, ILTail)] -> IO VerifyResult
+        meta_iter vr0 [] = return vr0
+        meta_iter vr0 ( (ctxt, it) : more0 ) = do
+          (more1, vr1) <- inNewScope z3 $ iter 0 ctxt it
+          let vr = vr0 <> vr1
+          let more = more0 ++ more1
+          meta_iter vr more
+        iter :: Int -> VerifyCtxt -> ILTail -> IO ([(VerifyCtxt, ILTail)], VerifyResult)
+        iter cbi ctxt it = case it of
+          IL_Ret al ->
+            case ctxt of
+              VC_Top -> do
+                let cbi_balance = z3Eq (z3CTCBalanceRef cbi) zero
+                vr <- z3_verify1 z3 (honest, me, TBalanceZero) cbi_balance
+                return ([], vr)
+              VC_AssignCheckInv loopv invt -> do
+                let [ a ] = al
+                assert z3 (z3Eq (z3VarRef loopv) (emit_z3_arg a))
+                iter cbi VC_CheckRet invt
+              VC_CheckRet -> do
+                let [ a ] = al
+                vr <- z3_verify1 z3 (honest, me, TInvariant) (emit_z3_arg a)
+                return ([], vr)
+              VC_WhileBody_AssumeNotUntil loopv invt bodyt -> do
+                let [ a ] = al
+                assert z3 (z3Apply "not" [ emit_z3_arg a ])
+                iter cbi (VC_WhileBody_AssumeInv loopv invt bodyt) invt
+              VC_WhileBody_AssumeInv loopv invt bodyt -> do
+                let [ a ] = al
+                assert z3 (emit_z3_arg a)
+                iter cbi (VC_WhileBody_Eval loopv invt) bodyt
+              VC_WhileBody_Eval _ _ ->
+                error $ "VerifyZ3 While must terminate in continue"
+              VC_WhileTail_AssumeUntil invt ki -> do
+                let [ a ] = al
+                assert z3 (emit_z3_arg a)
+                iter cbi (VC_WhileTail_AssumeInv ki) invt
+              VC_WhileTail_AssumeInv (kctxt, kt) -> do
+                let [ a ] = al
+                assert z3 (emit_z3_arg a)
+                iter cbi kctxt kt
+          IL_If ca tt ft -> do
             mconcatMapM (inNewScope z3 . f) (zip [True, False] [tt, ft])
             where ca' = emit_z3_arg ca
                   f (v, kt) = do assert z3 (z3Eq ca' cav)
-                                 iter cbi kt
+                                 iter cbi ctxt kt
                     where cav = emit_z3_con (Con_B v)
           IL_Let who what how kt ->
             do when (honest || role_me me who) $ z3_expr z3 cbi what how
-               iter cbi kt
+               iter cbi ctxt kt
           IL_Do who how kt ->
             if (honest || role_me me who) then
               do (cbi', vr) <- z3_stmt z3 honest me cbi how
-                 vr' <- iter cbi' kt
-                 return $ vr <> vr'
+                 (mt, vr') <- iter cbi' ctxt kt
+                 return (mt, vr <> vr')
             else
-              iter cbi kt
+              iter cbi ctxt kt
           IL_ToConsensus _who _msg amount kt ->
             do void $ declare z3 pvv z3IntSort
                void $ define z3 cb'v z3IntSort (z3Apply "+" [cbr, pvr])
                assert z3 thisc
-               iter cbi' kt
+               iter cbi' ctxt kt
             where cbi' = cbi + 1
                   cb'v = z3CTCBalance cbi'
                   cbr = z3CTCBalanceRef cbi
@@ -320,11 +368,19 @@ z3_it_top z3 it_top (honest, me) = inNewScope z3 $ do
                             z3Eq pvr amountt
                           else
                             z3Apply "<=" [ zero, pvr ]
-          IL_FromConsensus kt -> iter cbi kt
-          IL_While _loopv _inita _untilt _invt _bodyt _kt ->
-            error $ "XXX VerifyZ3 IL_While not implemented"
-          IL_Continue _newa ->
-            error $ "XXX VerifyZ3 IL_Continue not implemented"
+          IL_FromConsensus kt -> iter cbi ctxt kt
+          IL_While loopv inita untilt invt bodyt kt -> do
+            (mt, vr) <- iter cbi (VC_AssignCheckInv loopv invt) (IL_Ret [inita])
+            let bodyj = (VC_WhileBody_AssumeNotUntil loopv invt bodyt, untilt)
+            let tailj = (VC_WhileTail_AssumeUntil invt (ctxt, kt), untilt)
+            let mt' = mt ++ [ bodyj, tailj ]
+            return (mt ++ mt', vr)
+          IL_Continue newa ->
+            case ctxt of
+              VC_WhileBody_Eval loopv invt ->
+                iter cbi (VC_AssignCheckInv loopv invt) (IL_Ret [newa])
+              _ ->
+                error $ "VerifyZ3 IL_Continue must only occur inside While"
 
 z3StdLib :: String
 z3StdLib = "../../z3/z3-runtime.smt2"

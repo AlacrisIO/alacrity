@@ -260,7 +260,7 @@ solHandler ps i (C_Handler from svs msg body) = vsep [ evtp, funp ]
         bodyp = vsep [ (solRequire $ solEq ("current_state") (solHashState ρ i ps svs)) <> semi,
                        solRequireSender from <> semi,
                        solCTail ps emitp ρ ccs body ]
-solHandler _ps _i (C_Loop _svs _arg _body) =
+solHandler _ps _i (C_Loop _svs _arg _inv _body) =
   error "XXX EmitSol C_Loop"
 
 solHandlers :: [Participant] -> [CHandler] -> Doc a

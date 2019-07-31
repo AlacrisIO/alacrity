@@ -365,7 +365,7 @@ data CTail
 data CHandler
   --- Each handler has a message that it expects to receive
   = C_Handler Participant [BLVar] [BLVar] CTail
-  | C_Loop [BLVar] BLVar CTail
+  | C_Loop [BLVar] BLVar CTail CTail
   deriving (Show,Eq)
 
 --- A contract program is just a sequence of handlers.
@@ -549,8 +549,8 @@ instance Pretty CTail where
 prettyCHandler :: Int -> CHandler -> Doc ann
 prettyCHandler i (C_Handler who svs args ct) =
   group $ brackets $ pretty i <+> pretty who <+> prettyBLVars svs <+> prettyBLVars args <+> (nest 2 $ hardline <> pretty ct)
-prettyCHandler i (C_Loop svs arg ct) =
-  group $ brackets $ pretty i <+> pretty "!loop!" <+> prettyBLVars svs <+> prettyBLVar arg <+> (nest 2 $ hardline <> pretty ct)
+prettyCHandler i (C_Loop svs arg it ct) =
+  group $ brackets $ pretty i <+> pretty "!loop!" <+> prettyBLVars svs <+> prettyBLVar arg <+> pretty "invariant" <+> prettyBegin it <> (nest 2 $ hardline <> pretty ct)
 
 instance Pretty CProgram where
   pretty (C_Prog ps hs) = group $ parens $ pretty "define-contract" <+> (nest 2 $ hardline <> vsep (psp : hsp))
