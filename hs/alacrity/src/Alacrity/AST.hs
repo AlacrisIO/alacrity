@@ -336,6 +336,7 @@ data EPTail
      computation as the contract. -}
   | EP_Recv Bool Int [BLVar] [BLVar] EPTail
   | EP_Loop Int BLVar BLArg EPTail
+  | EP_Continue BLArg
   deriving (Show,Eq)
 
 data EProgram
@@ -359,6 +360,7 @@ data CTail
   | C_Let BLVar CExpr CTail
   | C_Do CStmt CTail
   | C_Jump Int [BLVar] BLArg
+  | C_Continue Int BLArg
   deriving (Show,Eq)
 
 data CHandler
@@ -534,8 +536,8 @@ instance Pretty EPTail where
     vsep [group $ parens $ pretty "define-values" <+> pretty fromme <+> prettyBLVars svs <+> prettyBLVars vs <+> (parens $ pretty "recv!" <+> pretty hi),
           pretty bt]
   pretty (EP_Loop which loopv inita bt) =
-    vsep [group $ parens $ pretty "loop" <+> pretty which <+> pretty loopv <+> pretty inita,
-          pretty bt]
+    group $ parens $ pretty "loop" <+> pretty which <+> prettyBLVar loopv <+> pretty inita <> nest 2 (hardline <> prettyBegin bt)
+  pretty (EP_Continue arg) = group $ parens $ pretty "continue" <+> pretty arg
 
 instance Pretty CTail where
   pretty (C_Halt) = group $ parens $ pretty "halt!"
@@ -544,6 +546,7 @@ instance Pretty CTail where
   pretty (C_Let mv e bt) = prettyLet prettyBLVar (\x -> x) mv e bt
   pretty (C_Do s bt) = prettyDo (\x -> x) s bt
   pretty (C_Jump which svs a) = group $ parens $ pretty "jump" <+> pretty which <+> prettyBLVars svs <+> pretty a
+  pretty (C_Continue which a) = group $ parens $ pretty "continue" <+> pretty which <+> pretty a
 
 prettyCHandler :: Int -> CHandler -> Doc ann
 prettyCHandler i (C_Handler who svs args ct) =

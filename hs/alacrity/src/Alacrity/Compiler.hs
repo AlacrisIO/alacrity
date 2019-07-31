@@ -472,8 +472,8 @@ il2bl_var (n, s) (et, _)  = (n, s, et)
 
 data EPPCtxt
   = EC_Top
-  | EC_WhileUntil Int EPPEnv ILTail EPPCtxt ILTail
-  | EC_WhileBody Int
+  | EC_WhileUntil Int BaseType EPPEnv ILTail EPPCtxt ILTail
+  | EC_WhileBody Int BaseType
 
 epp_it_ctc_do_if :: [Participant] -> Int -> (EPPEnv, ILArg) -> (EPPEnv, EPPCtxt, ILTail) -> (EPPEnv, EPPCtxt, ILTail) -> EPPRes
 epp_it_ctc_do_if ps hn0 (γc, ca) (γt, tctxt, tt) (γf, fctxt, ft) =
@@ -493,15 +493,12 @@ epp_it_ctc :: [Participant] -> EPPEnv -> Int -> EPPCtxt -> ILTail -> EPPRes
 epp_it_ctc ps γ hn0 ctxt it = case it of
   IL_Ret args ->
     case ctxt of
-      EC_Top ->
-        error "EPP: CTC cannot return"
-      EC_WhileUntil which γ' bodyt kctxt kt ->
+      EC_WhileUntil which loopv_ty γ' bodyt kctxt kt ->
         epp_it_ctc_do_if ps hn0 (γ, arg0) (γ', kctxt, kt) (γ', ctxt', bodyt)
-        where
-          [ arg0 ] = args
-          ctxt' = EC_WhileBody which
-      EC_WhileBody _ ->
-        error "EPP: WhileBody cannot return"
+        where [ arg0 ] = args
+              ctxt' = EC_WhileBody which loopv_ty
+      _ ->
+        error "EPP: CTC cannot return"
   IL_If ca tt ft ->
     epp_it_ctc_do_if ps hn0 (γ, ca) (γ, ctxt, tt) (γ, ctxt, ft)
   IL_Let RoleContract what how next -> (svs, C_Let what' how_ctc next', ts2, hn1, hs1)
@@ -527,7 +524,7 @@ epp_it_ctc ps γ hn0 ctxt it = case it of
     error "EPP: Cannot perform local action in consensus"
   IL_ToConsensus _ _ _ _ ->
     error "EPP: Cannot transition to consensus from consensus"
-  IL_FromConsensus bt -> epp_it_loc ps γ hn0 bt
+  IL_FromConsensus bt -> epp_it_loc ps γ hn0 ctxt bt
   IL_While loopv inita untilt _invt bodyt kt ->
     --- _invt is ignored because we'll verify it later and don't need to run it.
     (svs, ct, ts, hn2, hs)
@@ -539,25 +536,37 @@ epp_it_ctc ps γ hn0 ctxt it = case it of
       svs2 = Set.difference svs1 (boundBLVar loopv')
       svs = Set.union fvs_a svs2
       (svs1, ct1, ts1, hn2, hs1) = epp_it_ctc ps γ' hn1 ctxt' untilt
-      ctxt' = EC_WhileUntil hn1 γ' bodyt ctxt kt
+      ctxt' = EC_WhileUntil hn1 (fst st_a) γ' bodyt ctxt kt
       ((fvs_a, inita'), st_a) = epp_arg "ctc While init" γ RoleContract inita
       loopv' = il2bl_var loopv st_a
       loopv'env = M.singleton loopv st_a
       γ' = M.map (M.union loopv'env) γ
       ts = M.map (EP_Loop hn1 loopv' inita') ts1
-      ct = C_Jump hn1 svs2l inita'
-  IL_Continue _ ->
-    error $ "XXX EPP: No Continue impl"
+      ct = C_Jump hn0 svs2l inita'
+  IL_Continue na ->
+    case ctxt of
+      EC_WhileBody which loopv_ty ->
+        (svs, ct, ts, hn, hs)
+        where hs = []
+              hn = hn0
+              (fvs_a, inita') = epp_expect (loopv_ty, Public) $ epp_arg "ctc continue" γ RoleContract na
+              svs = fvs_a
+              --- XXX Ideally this would just be C_Jump, but we don't know what the free variables are at this point.
+              ct = C_Continue which inita'
+              ts = M.fromList $ map mkt ps
+              mkt p = (p, EP_Continue $ snd . fst $ epp_arg "ctc continue loc" γ (RolePart p) na)
+      _ ->
+        error $ "EPP: Continue not in while body"
 
-epp_it_loc :: [Participant] -> EPPEnv -> Int -> ILTail -> EPPRes
-epp_it_loc ps γ hn0 it = case it of
+epp_it_loc :: [Participant] -> EPPEnv -> Int -> EPPCtxt -> ILTail -> EPPRes
+epp_it_loc ps γ hn0 ctxt it = case it of
   IL_Ret al -> ( Set.empty, C_Halt, ts, hn0, [] )
     where ts = M.fromList $ map mkt ps
           mkt p = (p, EP_Ret $ map fst $ snd $ epp_args "loc ret" γ (RolePart p) al)
   IL_If _ _ _ ->
     error "EPP: Ifs must be consensual"
   IL_Let who what how next -> (svs1, ct1, ts2, hn1, hs1)
-    where (svs1, ct1, ts1, hn1, hs1) = epp_it_loc ps γ' hn0 next
+    where (svs1, ct1, ts1, hn1, hs1) = epp_it_loc ps γ' hn0 ctxt next
           iv = what
           γ' = M.mapWithKey addwhat γ
           addwhat r env = if role_me r who then
@@ -580,7 +589,7 @@ epp_it_loc ps γ hn0 it = case it of
                     (n,s) = what
                     mbv = (n, s, et)
   IL_Do who how next -> (svs1, ct1, ts2, hn1, hs1)
-    where (svs1, ct1, ts1, hn1, hs1) = epp_it_loc ps γ hn0 next
+    where (svs1, ct1, ts1, hn1, hs1) = epp_it_loc ps γ hn0 ctxt next
           ts2 = M.mapWithKey addhow ts1
           addhow p t =
             if not (role_me (RolePart p) who) then t
@@ -593,7 +602,7 @@ epp_it_loc ps γ hn0 it = case it of
           what'env = M.fromList $ map (\(n, s, et) -> ((n,s),(et,Public))) what'
           γ' = M.map (M.union what'env) γ
           hn1 = hn0 + 1
-          (svs1, ct1, ts1, hn2, hs1) = epp_it_ctc ps γ' hn1 EC_Top next
+          (svs1, ct1, ts1, hn2, hs1) = epp_it_ctc ps γ' hn1 ctxt next
           svs2 = Set.difference svs1 (boundBLVars what')
           svs2l = Set.toList svs2
           nh = C_Handler from svs2l what' ct1
@@ -617,7 +626,7 @@ epp (IL_Prog ips it) = BL_Prog bps cp
         bps = M.mapWithKey mkep ets
         mkep p ept = EP_Prog args ept
           where args = map (\((n, s), et) -> (n,s,et)) $ ips M.! p
-        (_, _, ets, _, chs) = epp_it_loc ps γ 0 it
+        (_, _, ets, _, chs) = epp_it_loc ps γ 0 EC_Top it
         γi = M.fromList $ map initγ $ M.toList ips
         initγ (p, args) = (RolePart p, M.fromList $ map initarg args)
         initarg ((n, s), et) = ((n, s), (et, Secret))

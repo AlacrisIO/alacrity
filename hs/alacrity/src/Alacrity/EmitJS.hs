@@ -176,6 +176,8 @@ jsEPTail (EP_Recv fromme i _ msg kt) = (tp, tfvs)
         ktp = (if fromme then require_and_kt <> hardline else emptyDoc) <> ktp'
 jsEPTail (EP_Loop _which _loopv _inita _bt) =
   error "XXX EmitJS EP_Loop"
+jsEPTail (EP_Continue _arg) =
+  error "XXX EmitJS EP_Continue"
 
 jsPart :: (Participant, EProgram) -> Doc a
 jsPart (p, (EP_Prog pargs et)) =

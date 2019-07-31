@@ -75,6 +75,7 @@ usesCTail (C_Do cs kt) = cmerge cs1 cs2
 usesCTail (C_Jump which vs a) = cmerge cs1 cs2
   where cs1 = usesCTail (C_Wait which vs)
         cs2 = usesBLArg a
+usesCTail (C_Continue _ a) = usesBLArg a
 
 {- Compilation to Solidity
 
@@ -243,6 +244,7 @@ solCTail ps emitp ρ ccs ct =
                     solCTail ps emitp ρ ccs kt ]
     C_Do cs kt -> solCStmt ρ cs <> (solCTail ps emitp ρ ccs kt)
     C_Jump _which _vs _a -> error "XXX EmitSol C_Jump"
+    C_Continue _which _a -> error "XXX EmitSol C_Continue"
 
 solHandler :: [Participant] -> Int -> CHandler -> Doc a
 solHandler ps i (C_Handler from svs msg body) = vsep [ evtp, funp ]

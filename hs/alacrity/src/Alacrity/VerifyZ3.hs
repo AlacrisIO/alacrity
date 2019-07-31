@@ -60,6 +60,7 @@ instance RecoverTypes EPTail where
   rts (EP_Do cs ct) = rts cs <> rts ct
   rts (EP_Recv _ _ svs msg kt) = rts svs <> rts msg <> rts kt
   rts (EP_Loop _ loopv inita kt) = rts loopv <> rts inita <> rts kt
+  rts (EP_Continue a) = rts a
 
 instance RecoverTypes EProgram where
   rts (EP_Prog vs et) = rts vs <> rts et
@@ -78,6 +79,7 @@ instance RecoverTypes CTail where
   rts (C_Let bv ce ct) = rts bv <> rts ce <> rts ct
   rts (C_Do cs ct) = rts cs <> rts ct
   rts (C_Jump _ vs arg) = rts vs <> rts arg
+  rts (C_Continue _ arg) = rts arg
 
 instance RecoverTypes CHandler where
   rts (C_Handler _ svs msg ct) = rts svs <> rts msg <> rts ct
