@@ -473,7 +473,8 @@ il2bl_var (n, s) (et, _)  = (n, s, et)
 data EPPCtxt
   = EC_Top
   | EC_WhileUntil (Int -> EPPRes) (Int -> EPPRes)
-  | EC_WhileBody Int BaseType
+  | EC_WhileTrial
+  | EC_WhileBody Int BaseType (Set.Set BLVar)
 
 epp_it_ctc_do_if :: [Participant] -> Int -> (EPPEnv, ILArg) -> (Int -> EPPRes) -> (Int -> EPPRes) -> EPPRes
 epp_it_ctc_do_if ps hn0 (γc, ca) tres fres =
@@ -536,12 +537,14 @@ epp_it_ctc ps γ hn0 ctxt it = case it of
       svs2l = Set.toList svs2
       svs2 = Set.difference svs1 (boundBLVar loopv')
       svs = Set.union fvs_a svs2
-      (svs1, ct1, ts1, hn2, hs1) = epp_it_ctc ps γ' hn1 ctxt' untilt
-      ctxt' = EC_WhileUntil kres bres
+      (svs1_trial, _, _, _, _) = epp_it_ctc ps γ' hn1 (EC_WhileUntil kres bres_trial) untilt
       kres_a = epp_it_ctc ps γ' hn1 ctxt kt
       kres hn = if hn == hn1 then kres_a
                 else error $ "While Until cannot escape consensus"
-      bres hn = epp_it_ctc ps γ' hn (EC_WhileBody which loopv_ty) bodyt
+      bres_trial hn = epp_it_ctc ps γ' hn EC_WhileTrial bodyt
+      (svs1, ct1, ts1, hn2, hs1) = epp_it_ctc ps γ' hn1 (EC_WhileUntil kres bres_real) untilt
+      svs1_trial' = Set.difference svs1_trial (boundBLVar loopv')
+      bres_real hn = epp_it_ctc ps γ' hn (EC_WhileBody which loopv_ty svs1_trial') bodyt
       ((fvs_a, inita'), st_a) = epp_arg "ctc While init" γ RoleContract inita
       loopv' = il2bl_var loopv st_a
       loopv'env = M.singleton loopv st_a
@@ -551,28 +554,25 @@ epp_it_ctc ps γ hn0 ctxt it = case it of
       ct = C_Jump which svs2l inita'
   IL_Continue na ->
     case ctxt of
-      EC_WhileBody which loopv_ty ->
+      EC_WhileTrial ->
+        (svs, trial "ct", ts, hn, hs)
+        where svs = fvs_a
+              ((fvs_a, _), _) = epp_arg "ctc continue" γ RoleContract na
+              trial msg = error $ "EPP: WhileTrial: Cannot inspect " ++ msg
+              ts = M.fromList $ map mkt ps
+              mkt p = (p, EP_Continue $ trial "continue arg")
+      EC_WhileBody which loopv_ty fvs_loop ->
         (svs, ct, ts, hn, hs)
-        where hs = []
-              hn = hn0
-              (fvs_a, inita') = epp_expect (loopv_ty, Public) $ epp_arg "ctc continue" γ RoleContract na
-              svs = fvs_a
-              --- XXX Ideally this would just be C_Jump, but we don't
-              --- know what the free variables are at this point,
-              --- because analyzing this code is what figures it
-              --- out. One solution is to require the programmer to
-              --- annotate what they are. Another is to analyze the
-              --- program twice, once to get the fvars and once to
-              --- construct the tail. Another is to capture the
-              --- continuation (in Haskell) at this point and return
-              --- it with the free variables, so it can be invoked to
-              --- create the object. This basically complicates all
-              --- uses of this function for this one feature.
-              ct = C_Continue which inita'
+        where (fvs_a, inita') = epp_expect (loopv_ty, Public) $ epp_arg "ctc continue" γ RoleContract na
+              svs = Set.union fvs_loop fvs_a
+              fvs_loopl = Set.toList fvs_loop
+              ct = C_Jump which fvs_loopl inita'
               ts = M.fromList $ map mkt ps
               mkt p = (p, EP_Continue $ snd . fst $ epp_arg "ctc continue loc" γ (RolePart p) na)
       _ ->
         error $ "EPP: Continue not in while body"
+    where hn = hn0
+          hs = []
 
 epp_it_loc :: [Participant] -> EPPEnv -> Int -> EPPCtxt -> ILTail -> EPPRes
 epp_it_loc ps γ hn0 ctxt it = case it of

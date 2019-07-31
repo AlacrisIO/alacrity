@@ -360,7 +360,6 @@ data CTail
   | C_Let BLVar CExpr CTail
   | C_Do CStmt CTail
   | C_Jump Int [BLVar] BLArg
-  | C_Continue Int BLArg
   deriving (Show,Eq)
 
 data CHandler
@@ -546,7 +545,6 @@ instance Pretty CTail where
   pretty (C_Let mv e bt) = prettyLet prettyBLVar (\x -> x) mv e bt
   pretty (C_Do s bt) = prettyDo (\x -> x) s bt
   pretty (C_Jump which svs a) = group $ parens $ pretty "jump" <+> pretty which <+> prettyBLVars svs <+> pretty a
-  pretty (C_Continue which a) = group $ parens $ pretty "continue" <+> pretty which <+> pretty a
 
 prettyCHandler :: Int -> CHandler -> Doc ann
 prettyCHandler i (C_Handler who svs args ct) =
