@@ -17,8 +17,8 @@ const play = interactWith => ({ stdlib, gameState }) => {
   const { prefundedDevnetAcct               } = devnet;
   const { wagerInWei, escrowInWei           } = gameState;
 
-  const newPlayer = () =>
-    devnet.createAndUnlockAcct()
+  const newPlayer = password =>
+    devnet.createAndUnlockAcct(password)
       .then(to => transfer(to, prefundedDevnetAcct, web3.toWei(100, 'ether')))
       .then(stdlib.EthereumNetwork);
 
@@ -48,7 +48,7 @@ const play = interactWith => ({ stdlib, gameState }) => {
     new Promise(resolve =>
       RPS.A(stdlib, ctc, txn0, interactWith('Alice',randomHand()), wagerInWei, escrowInWei, resolve));
 
-  return Promise.all([ newPlayer(), newPlayer() ])
+  return Promise.all([ newPlayer("pass1_alice_784543222392"), newPlayer("pass2_bob_604523") ])
     .then(captureOpeningGameState)
     .then(()  => gameState.alice.deploy(gameState.ctors))
     .then(ctc => Promise.all([ bobShoot(ctc), aliceShoot(ctc) ]))

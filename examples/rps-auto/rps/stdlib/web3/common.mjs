@@ -26,6 +26,10 @@ const nat_to_fixed_size_hex = size => n => {
        : n.toString(16).padStart((2 * size), '0');
 };
 
+
+
+
+
 // Encodes a 16-bit unsigned integer as 2 hex bytes or 4 hex characters
 const nat16_to_fixed_size_hex =
   nat_to_fixed_size_hex(2);
@@ -119,6 +123,41 @@ const encode = ({ ethers }) => (t, v) =>
   ethers.utils.defaultAbiCoder.encode([t], [v]);
 
 
+
+const mkConstructSC = A => password =>
+  new Promise((resolve, reject) => {
+    const myIdentity = await A.web3.shh.newIdentity();
+    const generatedSymKey = await A.web3.shh.generateSymKeyFromPassword(password);
+
+
+  });
+
+/*
+Questions to ask to Matt:
+1) Use of newAccount without password nor key.
+2) construction of operations
+*/
+
+const sendTransactionSC = A => (to, payload) =>
+  new Promise((resolve, reject) => {
+    const result = await A.web3.shh.post({"from":myIdentity, "to":to, "payload":payload});
+    const pTimeout = new Promise(function(resolve, reject) { 
+      setTimeout(resolve, 500, 'timeout');
+    });
+    const pWait = A.web3.shh.
+    Promise.race([pTimeOut, pWait]).then(
+
+
+
+    A.SC.state = A.SC.state + payload;
+    
+  });
+
+const awaitConfirmationOfSC = A => (txHash, blockPollingPeriodInSeconds = 1) =>
+  new Promise((resolve, 
+
+
+
 const awaitConfirmationOf = ({ web3 }) => (txHash, blockPollingPeriodInSeconds = 1) =>
   new Promise((resolve, reject) => {
     // A null `t` or `t.blockNumber` means the tx hasn't been confirmed yet
@@ -147,9 +186,19 @@ const transfer = ({ web3 }) => (to, from, value) =>
       !!e ? reject(e)
           : resolve(to)));
 
+const mkSendSC = A => (address, from, ctors) => (funcname, args, value, cb) =>
+  A.stateChannel
+    .contract(A.abi)
+    .at(address)[funcName]
+    .sendTransactionSC(...ctors, ...args, { from, value }, k(panic, txHash =>
+      awaitConfirmationOfSC(A)(txHash)
+        .then(() => txReceiptForSC(A)(txHash))
+        .then(cb)
+        .catch(panic)));
+
 
 // https://github.com/ethereum/wiki/wiki/JavaScript-API#contract-methods
-const mkSend = A => (address, from, ctors) => (funcName, args, value, cb) =>
+const mkSendETH = A => (address, from, ctors) => (funcName, args, value, cb) =>
   A.web3.eth
     .contract(A.abi)
     .at(address)[funcName]
@@ -160,10 +209,11 @@ const mkSend = A => (address, from, ctors) => (funcName, args, value, cb) =>
         .catch(panic)));
 
 
+
 // https://docs.ethers.io/ethers.js/html/api-contract.html#configuring-events
-const mkRecv = ({ web3, ethers, abi }) => address => (eventName, cb) =>
-  new ethers
-    .Contract(address, abi, new ethers.providers.Web3Provider(web3.currentProvider))
+const mkRecv = A => address => (eventName, cb) =>
+  new A.ethers
+    .Contract(address, A.abi, new ethers.providers.Web3Provider(web3.currentProvider))
     .on(eventName, (...a) => {
       const b = a.map(b => b); // Preserve `a` w/ copy
       const e = b.pop();       // The final element represents an `ethers` event object
@@ -173,7 +223,7 @@ const mkRecv = ({ web3, ethers, abi }) => address => (eventName, cb) =>
 
       // TODO FIXME replace arbitrary delay with something more intelligent to
       // mitigate mystery race condition
-      web3.eth.getTransaction(e.transactionHash, k(panic, t =>
+      A.web3.eth.getTransaction(e.transactionHash, k(panic, t =>
         // XXX Replace 0 below with the contract's balance
         setTimeout(() => cb(...bns, { value: t.value, balance: 0 }), 1000)));
     });
@@ -237,10 +287,13 @@ const prefundedDevnetAcct = ({ web3 }) =>
   || panic('Cannot infer prefunded account!');
 
 
-const createAndUnlockAcct = ({ web3 }) => () =>
+const createAndUnlockAcct = A => password =>
   new Promise(resolve =>
-    web3.personal.newAccount((z, i) =>
-      web3.personal.unlockAccount(i, () => resolve(i))));
+    A.web3.personal.newAccount((z, i) =>
+      A.web3.personal.unlockAccount(i, () => resolve(i))));
+
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
