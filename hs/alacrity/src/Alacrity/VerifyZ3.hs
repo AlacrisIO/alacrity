@@ -242,10 +242,9 @@ emit_z3_arg :: ILArg -> SExpr
 emit_z3_arg (IL_Con c) = emit_z3_con c
 emit_z3_arg (IL_Var v) = z3VarRef v
 
-z3_vardecl :: Solver -> ILTypeMapm -> ILVar -> IO ()
-z3_vardecl z3 tm iv = void $ declare z3 (z3Var iv) s
-  where bt = lookie "ILTypeMap" iv tm
-        s = z3_sortof bt
+z3_vardecl :: Solver -> (ILVar, BaseType) -> IO ()
+z3_vardecl z3 (iv, bt) = void $ declare z3 (z3Var iv) s
+  where s = z3_sortof bt
 
 z3_expr :: Solver -> Int -> ILVar -> ILExpr -> IO ()
 z3_expr z3 cbi out how = case how of
@@ -279,8 +278,8 @@ z3_stmt z3 honest r cbi how =
               CT_Require -> Nothing
               CT_Possible -> error "Impossible"
 
-z3_it_top :: Solver -> ILTypeMapm -> ILTail -> (Bool, Role) -> IO VerifyResult
-z3_it_top z3 tm it_top (honest, me) = inNewScope z3 $ do
+z3_it_top :: Solver -> ILTail -> (Bool, Role) -> IO VerifyResult
+z3_it_top z3 it_top (honest, me) = inNewScope z3 $ do
   putStrLn $ "Verifying with honest = " ++ show honest ++ "; role = " ++ show me
   void $ define z3 cb0 z3IntSort zero
   iter 0 it_top
@@ -297,8 +296,7 @@ z3_it_top z3 tm it_top (honest, me) = inNewScope z3 $ do
                                  iter cbi kt
                     where cav = emit_z3_con (Con_B v)
           IL_Let who what how kt ->
-            do z3_vardecl z3 tm what
-               when (honest || role_me me who) $ z3_expr z3 cbi what how
+            do when (honest || role_me me who) $ z3_expr z3 cbi what how
                iter cbi kt
           IL_Do who how kt ->
             if (honest || role_me me who) then
@@ -334,8 +332,8 @@ z3StdLib = "../../z3/z3-runtime.smt2"
 _verify_z3 :: Solver -> ILProgram -> BLProgram -> IO ExitCode
 _verify_z3 z3 tp bp = do
   loadFile z3 z3StdLib
-  mapM_ (mapM_ (z3_vardecl z3 tm . fst) . snd) $ M.toList ipi
-  VR ss fs <- mconcatMapM (z3_it_top z3 tm it) (liftM2 (,) [True, False] ps)
+  mapM_ (z3_vardecl z3) $ M.toList tm
+  VR ss fs <- mconcatMapM (z3_it_top z3 it) (liftM2 (,) [True, False] ps)
   putStr $ "Checked " ++ (show $ ss + fs) ++ " theorems;"
   (if ( fs == 0 ) then
       do putStrLn $ " No failures!"
