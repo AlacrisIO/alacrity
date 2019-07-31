@@ -62,7 +62,8 @@ main {
 
     do const outcome = DRAW
        until not((outcome == DRAW))
-       invariant ((balance() == ((2 * wagerAmount) + escrowAmount)) && isOutcome(outcome))
+       invariant ((balance() == ((2 * wagerAmount) + escrowAmount))
+               && isOutcome(outcome))
     {
         commit;
 
