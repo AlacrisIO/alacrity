@@ -336,7 +336,7 @@ data EPTail
      computation as the contract. -}
   | EP_Recv Bool Int [BLVar] [BLVar] EPTail
   | EP_Loop Int BLVar BLArg EPTail
-  | EP_Continue BLArg
+  | EP_Continue Int BLArg
   deriving (Show,Eq)
 
 data EProgram
@@ -536,7 +536,7 @@ instance Pretty EPTail where
           pretty bt]
   pretty (EP_Loop which loopv inita bt) =
     group $ parens $ pretty "loop" <+> pretty which <+> prettyBLVar loopv <+> pretty inita <> nest 2 (hardline <> prettyBegin bt)
-  pretty (EP_Continue arg) = group $ parens $ pretty "continue" <+> pretty arg
+  pretty (EP_Continue which arg) = group $ parens $ pretty "continue" <+> pretty which <+> pretty arg
 
 instance Pretty CTail where
   pretty (C_Halt) = group $ parens $ pretty "halt!"

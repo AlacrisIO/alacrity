@@ -564,7 +564,7 @@ epp_it_ctc ps γ hn0 ctxt it = case it of
               ((fvs_a, _), _) = epp_arg "ctc continue" γ RoleContract na
               trial msg = error $ "EPP: WhileTrial: Cannot inspect " ++ msg
               ts = M.fromList $ map mkt ps
-              mkt p = (p, EP_Continue $ trial "continue arg")
+              mkt p = (p, EP_Continue 0 $ trial "continue arg")
       EC_WhileBody which loopv_ty fvs_loop ->
         (svs, ct, ts, hn, hs)
         where (fvs_a, inita') = epp_expect (loopv_ty, Public) $ epp_arg "ctc continue" γ RoleContract na
@@ -572,7 +572,7 @@ epp_it_ctc ps γ hn0 ctxt it = case it of
               fvs_loopl = Set.toList fvs_loop
               ct = C_Jump which fvs_loopl inita'
               ts = M.fromList $ map mkt ps
-              mkt p = (p, EP_Continue $ snd . fst $ epp_arg "ctc continue loc" γ (RolePart p) na)
+              mkt p = (p, EP_Continue which $ snd . fst $ epp_arg "ctc continue loc" γ (RolePart p) na)
       _ ->
         error $ "EPP: Continue not in while body"
     where hn = hn0

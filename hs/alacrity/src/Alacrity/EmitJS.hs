@@ -37,6 +37,9 @@ jsVar (n, _, _) = pretty $ "v" ++ show n
 jsVar' :: BLVar -> Doc a
 jsVar' (n, _, _) = pretty $ "p" ++ show n
 
+jsLoopName :: Int -> String
+jsLoopName i = "l" ++ show i
+
 jsVarType :: BLVar -> Doc a
 jsVarType (_, _, bt) = jsString $ solType bt
 
@@ -174,10 +177,15 @@ jsEPTail (EP_Recv fromme i _ msg kt) = (tp, tfvs)
         require_match mvp mv'p = jsAssert $ jsApply "stdlib.equal" [ mvp, mv'p ]
         (ktp', ktfvs) = jsEPTail kt
         ktp = (if fromme then require_and_kt <> hardline else emptyDoc) <> ktp'
-jsEPTail (EP_Loop _which _loopv _inita _bt) =
-  error "XXX EmitJS EP_Loop"
-jsEPTail (EP_Continue _arg) =
-  error "XXX EmitJS EP_Continue"
+jsEPTail (EP_Loop which loopv inita bt) = (tp, tfvs)
+  where tp = vsep [ defp, callp ]
+        (callp, callvs) = jsEPTail (EP_Continue which inita)
+        defp = jsFunction (jsLoopName which) [ jsVar loopv ] bodyp <> semi
+        (bodyp, bodyvs) = jsEPTail bt
+        tfvs = Set.union callvs bodyvs
+jsEPTail (EP_Continue which arg) = (tp, argvs)
+  where tp = jsApply (jsLoopName which) [ argp ] <> semi
+        (argp, argvs) = jsArg arg
 
 jsPart :: (Participant, EProgram) -> Doc a
 jsPart (p, (EP_Prog pargs et)) =
