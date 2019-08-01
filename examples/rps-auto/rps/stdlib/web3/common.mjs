@@ -122,22 +122,24 @@ const encode = ({ ethers }) => (t, v) =>
 const awaitConfirmationOf = ({ web3 }) => (txHash, blockPollingPeriodInSeconds = 1) =>
   new Promise((resolve, reject) => {
     // A null `t` or `t.blockNumber` means the tx hasn't been confirmed yet
-    const query = () => web3.eth.getTransaction(txHash, (err, t) =>
+    const query = () => web3.eth.getTransaction(txHash, (err, t) => {
+      return (
         !!err                  ? clearInterval(i) || reject(err)
       : !!t && !!t.blockNumber ? clearInterval(i) || resolve(txHash)
-      : null);
+      : null); });
 
     const i = setInterval(query, blockPollingPeriodInSeconds * 1000);
   });
 
 
 const txReceiptFor = ({ web3 }) => txHash =>
-  new Promise((resolve, reject) =>
-    web3.eth.getTransactionReceipt(txHash, (err, r) =>
+  new Promise((resolve, reject) => {
+    return web3.eth.getTransactionReceipt(txHash, (err, r) => {
+      return (
         !!err                        ? reject(err)
       : r.transactionHash !== txHash ? reject(`Bad txHash; ${txHash} !== ${r.transactionHash}`)
       : r.status          !== '0x1'  ? reject(`Transaction: ${txHash} failed for unspecified reason`)
-      : resolve(r)));
+      : resolve(r)); }); });
 
 
 // https://github.com/ethereum/wiki/wiki/JavaScript-API#web3ethsendtransaction
@@ -149,22 +151,28 @@ const transfer = ({ web3 }) => (to, from, value) =>
 
 
 // https://github.com/ethereum/wiki/wiki/JavaScript-API#contract-methods
-const mkSend = A => (address, from, ctors) => (funcName, args, value, cb) =>
-  A.web3.eth
+const mkSendRecv = A => (address, from, ctors) => (label, funcName, args, value, eventName, cb) => {
+  // console.log(`${label} sendrecv m ${funcName}/${eventName} ${args}`);
+  return A.web3.eth
     .contract(A.abi)
     .at(address)[funcName]
     .sendTransaction(...ctors, ...args, { from, value }, k(panic, txHash =>
       awaitConfirmationOf(A)(txHash)
         .then(() => txReceiptFor(A)(txHash))
-        .then(cb)
-        .catch(panic)));
+        .then(() => { // console.log(`${label} sendrecv f ${funcName}/${eventName} ${args}`);
+                      // XXX We may need to actually see the event. I don't know if the transaction confirmation is enough.
+                      // XXX Replace 0 below with the contract's balance
+                      cb({ value: value, balance: 0 }); })
+        .catch(panic))); };
 
 
 // https://docs.ethers.io/ethers.js/html/api-contract.html#configuring-events
-const mkRecv = ({ web3, ethers, abi }) => address => (eventName, cb) =>
-  new ethers
+const mkRecv = ({ web3, ethers, abi }) => address => (label, eventName, cb) => {
+  // console.log(`${label} recv m ${eventName}`);
+  return new ethers
     .Contract(address, abi, new ethers.providers.Web3Provider(web3.currentProvider))
-    .on(eventName, (...a) => {
+    .once(eventName, (...a) => {
+      // console.log(`${label} recv e ${eventName} ${a}`);
       const b = a.map(b => b); // Preserve `a` w/ copy
       const e = b.pop();       // The final element represents an `ethers` event object
 
@@ -174,15 +182,16 @@ const mkRecv = ({ web3, ethers, abi }) => address => (eventName, cb) =>
       // TODO FIXME replace arbitrary delay with something more intelligent to
       // mitigate mystery race condition
       web3.eth.getTransaction(e.transactionHash, k(panic, t =>
-        // XXX Replace 0 below with the contract's balance
-        setTimeout(() => cb(...bns, { value: t.value, balance: 0 }), 1000)));
-    });
+        setTimeout(() => { // console.log(`${label} recv f ${eventName} ${bns}`);
+                           // XXX Replace 0 below with the contract's balance
+                           cb(...bns, { value: t.value, balance: 0 }); }, 1000)));
+    }); };
 
 
 const Contract = A => userAddress => (ctors, address) =>
   ({ abi:      A.abi
    , bytecode: A.bytecode
-   , send:     mkSend(A)(address, userAddress, ctors)
+   , sendrecv: mkSendRecv(A)(address, userAddress, ctors)
    , recv:     mkRecv(A)(address)
    , ctors
    , address
