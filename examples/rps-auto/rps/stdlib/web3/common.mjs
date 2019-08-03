@@ -123,13 +123,10 @@ const encode = ({ ethers }) => (t, v) =>
   ethers.utils.defaultAbiCoder.encode([t], [v]);
 
 
-
-const mkConstructSC = A => password =>
+const mkConstructSC = A => () =>
   new Promise((resolve, reject) => {
-    const myIdentity = await A.web3.shh.newIdentity();
-    const generatedSymKey = await A.web3.shh.generateSymKeyFromPassword(password);
-
-
+    A.web3.shh.newIdentity((err_id, result_id) =>
+    !!err_id ? reject(err_id) : resolve(result_id))
   });
 
 /*
@@ -138,19 +135,30 @@ Questions to ask to Matt:
 2) construction of operations
 */
 
-const sendTransactionSC = A => (to, payload) =>
+
+
+
+
+const sendTransactionSC = A => (myIdentity, to, payload) =>
   new Promise((resolve, reject) => {
-    const result = await A.web3.shh.post({"from":myIdentity, "to":to, "payload":payload});
-    const pTimeout = new Promise(function(resolve, reject) { 
-      setTimeout(resolve, 500, 'timeout');
-    });
-    const pWait = A.web3.shh.
-    Promise.race([pTimeOut, pWait]).then(
-
-
-
-    A.SC.state = A.SC.state + payload;
-    
+    const pSend = new Promise((resolve_loc, reject) =>
+      A.web3.shh.post({"from": myIdentity, "to": to, "payload": payload},
+          (err, result) =>
+          !!err ? reject(err) : resolve(result)));
+    pSend.catch((message) => reject('Error in post'))
+    .then((result) =>
+    new Promise((resolve, result) => {
+      const pTimeout = new Promise(function(resolve, reject) { 
+        setTimeout(resolve, 500, 'timeout');
+      });
+      const pWait = new Promise((resolve, reject) => {
+        A.web3.filter({'topics':'state-channel', 'to':myIdentity},
+        (err_filt, result_filt) => !!err_filt ? reject(err_filt) :
+            {A.SC.state = A.SC.state + payload;
+             resolve(result_filt)})
+        });
+      return Promise.race([pTimeOut,pWait]);
+    })
   });
 
 const awaitConfirmationOfSC = A => (txHash, blockPollingPeriodInSeconds = 1) =>
