@@ -55,25 +55,25 @@ main {
     @A interact("params");
     >A publish! wagerAmount, escrowAmount
        w/ (wagerAmount + escrowAmount);
-    return;
+    commit;
 
     @B interact("accepts");
     >B pay! wagerAmount;
-    return;
+    commit;
 
     @A const handA = getHand();
     @A const commitA, saltA = precommit(handA);
     @A declassify! commitA;
     @A interact("commits");
     >A publish! commitA w/ 0;
-    return;
+    commit;
 
     @B const handB = getHand();
     @B declassify! handB;
     @B interact("shows");
     >B publish! handB w/ 0;
     require! isHand(handB);
-    return;
+    commit;
 
     @A declassify! saltA;
     @A declassify! handA;
@@ -95,7 +95,7 @@ main {
               values wagerAmount, wagerAmount };
     transfer! A <- (escrowAmount + getsA);
     transfer! B <- getsB;
-    return;
+    commit;
 
     interact("outcome");
     showOutcome(outcome) }

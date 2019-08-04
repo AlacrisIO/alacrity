@@ -57,7 +57,7 @@ braces :: Parser a -> Parser a
 braces = between (exact "{") (exact "}")
 
 rws :: [String] -- list of reserved words
-rws = ["if","then","else","import","true","false","msgcons","msgcar","msgcdr","bytes_equal","length","uint256_bytes","digest","random","interact","assert!","assume!","require!","possible?","values","transfer!","<-","const","function","participant","@","uint256","bool","bytes","publish!","w/","return","pay!"]
+rws = ["if","then","else","import","true","false","msgcons","msgcar","msgcdr","bytes_equal","length","uint256_bytes","digest","random","interact","assert!","assume!","require!","possible?","values","transfer!","<-","const","function","participant","@","uint256","bool","bytes","publish!","w/","commit","pay!"]
 
 parseBaseType :: Parser BaseType
 parseBaseType =
@@ -153,22 +153,21 @@ parseXLIf = do
   fe <- parseXLExpr1
   return $ XL_If False ce te fe
 
-parseXLWhile :: Parser XLExpr
-parseXLWhile = do
-  exact "while"
-  ce <- parseXLExpr1
-  exact "invariant"
-  ie <- parseXLExpr1
-  be <- parseXLExpr1
-  return $ XL_While ce ie be
-
-parseXLSet :: Parser XLExpr
-parseXLSet = do
-  exact "set!"
-  lv <- parseXLVar
+parseXLWhile :: Maybe Participant -> Parser XLExpr
+parseXLWhile who = do
+  exact "do"
+  exact "const"
+  loop_v <- parseXLVar
   exact "="
-  ve <- parseXLExpr1
-  return $ XL_Set lv ve
+  init_e <- parseXLExpr1
+  exact "until"
+  stop_e <- parseXLExpr1
+  exact "invariant"
+  invariant_e <- parseXLExpr1
+  body_e <- parseXLExpr1
+  semi
+  k <- parseXLExprT who
+  return $ XL_While loop_v init_e stop_e invariant_e body_e k
 
 parseClaimType :: Parser ClaimType
 parseClaimType =
@@ -214,8 +213,6 @@ parseXLExpr1 =
   ((XL_Con <$> parseConstant)
    <|> parseXLPrimApp
    <|> parseXLIf
-   <|> parseXLWhile
-   <|> parseXLSet
    <|> parseXLClaim
    <|> parseXLValues
    <|> parseXLTransfer  
@@ -241,7 +238,7 @@ parseXLToConsensus = do
   amount <- parseXLExpr1               
   semi
   conk <- parseXLExprT Nothing
-  return $ XL_ToConsensus who vs amount (XL_Let Nothing Nothing (XL_Claim CT_Require (XL_PrimApp (CP PEQ) [ (XL_PrimApp (CP TXN_VALUE) []), amount ])) False conk)
+  return $ XL_ToConsensus who vs amount (XL_Let Nothing Nothing (XL_Claim CT_Require (XL_PrimApp (CP PEQ) [ (XL_PrimApp (CP TXN_VALUE) []), amount ])) conk)
 
 parseAt :: Parser XLExpr
 parseAt = do
@@ -251,7 +248,7 @@ parseAt = do
 
 parseXLFromConsensus :: Parser XLExpr
 parseXLFromConsensus = do
-  exact "return"
+  exact "commit"
   semi
   k <- parseXLExprT Nothing
   return $ XL_FromConsensus k
@@ -262,7 +259,7 @@ parseXLDeclassifyBang who =
      v <- parseXLVar
      semi
      k <- parseXLExprT who
-     return $ XL_Let who (Just [v]) (XL_Declassify (XL_Var v)) False k
+     return $ XL_Let who (Just [v]) (XL_Declassify (XL_Var v)) k
 
 parseXLLetValues :: Maybe Participant -> Parser XLExpr
 parseXLLetValues who = do
@@ -272,17 +269,13 @@ parseXLLetValues who = do
   ve <- parseXLExpr1
   semi
   k <- parseXLExprT who
-  return $ XL_Let who (Just vs) ve False k
+  return $ XL_Let who (Just vs) ve k
 
-parseXLLetVars :: Maybe Participant -> Parser XLExpr
-parseXLLetVars who = do
-  exact "var"
-  vs <- parseXLVars
-  exact "="
-  ve <- parseXLExpr1
-  semi
-  k <- parseXLExprT who
-  return $ XL_Let who (Just vs) ve True k
+parseXLContinue :: Maybe Participant -> Parser XLExpr
+parseXLContinue _who = do
+  exact "continue"
+  next_e <- parseXLExpr1
+  return $ XL_Continue next_e
 
 parseXLExprT :: Maybe Participant -> Parser XLExpr
 parseXLExprT who =
@@ -292,11 +285,12 @@ parseXLExprT who =
    <|> parseXLFromConsensus
    <|> parseXLDeclassifyBang who
    <|> parseXLLetValues who
-   <|> parseXLLetVars who
+   <|> parseXLContinue who
+   <|> parseXLWhile who
    <|> (do before <- parseXLExpr1
            ((do semi
                 after <- parseXLExprT who
-                return $ XL_Let who Nothing before False after)
+                return $ XL_Let who Nothing before after)
             <|> (return before))))
 
 parseImport :: Parser [XLDef]
@@ -315,7 +309,7 @@ parseDefineFun = do
   e <- ((do exact ":"
             post <- parseXLVar
             body <- parseXLExpr1
-            return (XL_Let Nothing (Just ["result"]) body False (XL_Let Nothing Nothing (XL_Claim CT_Assert (XL_FunApp post [XL_Var "result"])) False (XL_Var "result"))))
+            return (XL_Let Nothing (Just ["result"]) body (XL_Let Nothing Nothing (XL_Claim CT_Assert (XL_FunApp post [XL_Var "result"])) (XL_Var "result"))))
          <|> parseXLExpr1)
   return $ [XL_DefineFun f args e]
 

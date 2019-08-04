@@ -122,18 +122,11 @@ const lt    = A => (a, b) => toBN(A)(a).lt( toBN(A)(b));
 const encode = ({ ethers }) => (t, v) =>
   ethers.utils.defaultAbiCoder.encode([t], [v]);
 
-
 const mkConstructSC = A => () =>
   new Promise((resolve, reject) => {
     A.web3.shh.newIdentity((err_id, result_id) =>
-    !!err_id ? reject(err_id) : resolve(result_id))
+    !!err_id ? reject(err_id) : resolve(result_id));
   });
-
-/*
-Questions to ask to Matt:
-1) Use of newAccount without password nor key.
-2) construction of operations
-*/
 
 
 
@@ -142,47 +135,49 @@ Questions to ask to Matt:
 const sendTransactionSC = A => (myIdentity, to, payload) =>
   new Promise((resolve, reject) => {
     const pSend = new Promise((resolve_loc, reject) =>
-      A.web3.shh.post({"from": myIdentity, "to": to, "payload": payload},
+      A.web3.shh.post({'from': myIdentity, 'to': to, 'payload': payload},
           (err, result) =>
           !!err ? reject(err) : resolve(result)));
     pSend.catch((message) => reject('Error in post'))
     .then((result) =>
     new Promise((resolve, result) => {
-      const pTimeout = new Promise(function(resolve, reject) { 
+      const pTimeOut = new Promise(function(resolve, reject) {
         setTimeout(resolve, 500, 'timeout');
       });
       const pWait = new Promise((resolve, reject) => {
-        const fct = (paylod_input, result_filt) => {
+        const fct = (payload_input, result_filt) => {
           A.SC.state = A.SC.state + payload_input;
           resolve(result_filt);
         };
         A.web3.filter({'topics':'state-channel', 'to':myIdentity},
-        (err_filt, result_filt) => !!err_filt ? reject(err_filt) : fct(payload, result_filt))
+          (err_filt, result_filt) => !!err_filt ? reject(err_filt) : fct(payload, result_filt));
         });
       return Promise.race([pTimeOut,pWait]);
-    })
-  )
+    }));});
+
 
 
 const awaitConfirmationOf = ({ web3 }) => (txHash, blockPollingPeriodInSeconds = 1) =>
   new Promise((resolve, reject) => {
     // A null `t` or `t.blockNumber` means the tx hasn't been confirmed yet
-    const query = () => web3.eth.getTransaction(txHash, (err, t) =>
+    const query = () => web3.eth.getTransaction(txHash, (err, t) => {
+      return (
         !!err                  ? clearInterval(i) || reject(err)
       : !!t && !!t.blockNumber ? clearInterval(i) || resolve(txHash)
-      : null);
+      : null); });
 
     const i = setInterval(query, blockPollingPeriodInSeconds * 1000);
   });
 
 
 const txReceiptFor = ({ web3 }) => txHash =>
-  new Promise((resolve, reject) =>
-    web3.eth.getTransactionReceipt(txHash, (err, r) =>
+  new Promise((resolve, reject) => {
+    return web3.eth.getTransactionReceipt(txHash, (err, r) => {
+      return (
         !!err                        ? reject(err)
       : r.transactionHash !== txHash ? reject(`Bad txHash; ${txHash} !== ${r.transactionHash}`)
       : r.status          !== '0x1'  ? reject(`Transaction: ${txHash} failed for unspecified reason`)
-      : resolve(r)));
+      : resolve(r)); }); });
 
 
 // https://github.com/ethereum/wiki/wiki/JavaScript-API#web3ethsendtransaction
@@ -192,6 +187,7 @@ const transfer = ({ web3 }) => (to, from, value) =>
       !!e ? reject(e)
           : resolve(to)));
 
+/*
 const mkSendSC = A => (address, from, ctors) => (funcname, args, value, cb) =>
   A.stateChannel
     .contract(A.abi)
@@ -201,26 +197,35 @@ const mkSendSC = A => (address, from, ctors) => (funcname, args, value, cb) =>
         .then(() => txReceiptForSC(A)(txHash))
         .then(cb)
         .catch(panic)));
-
+*/
 
 // https://github.com/ethereum/wiki/wiki/JavaScript-API#contract-methods
-const mkSendETH = A => (address, from, ctors) => (funcName, args, value, cb) =>
-  A.web3.eth
+
+const mkSendRecvETH = A => (address, from, ctors) => (label, funcName, args, value, eventName, cb) => {
+  // console.log(`${label} sendrecv m ${funcName}/${eventName} ${args}`);
+  return A.web3.eth
     .contract(A.abi)
     .at(address)[funcName]
     .sendTransaction(...ctors, ...args, { from, value }, k(panic, txHash =>
       awaitConfirmationOf(A)(txHash)
         .then(() => txReceiptFor(A)(txHash))
-        .then(cb)
-        .catch(panic)));
+        .then(() => { // console.log(`${label} sendrecv f ${funcName}/${eventName} ${args}`);
+                      // XXX We may need to actually see the event. I don't know if the transaction confirmation is enough.
+                      // XXX Replace 0 below with the contract's balance
+                      cb({ value: value, balance: 0 }); })
+        .catch(panic))); };
+
+const mkSendRecv = mkSendRecvETH;
 
 
 
 // https://docs.ethers.io/ethers.js/html/api-contract.html#configuring-events
-const mkRecv = A => address => (eventName, cb) =>
-  new A.ethers
-    .Contract(address, A.abi, new ethers.providers.Web3Provider(web3.currentProvider))
-    .on(eventName, (...a) => {
+const mkRecv = ({ web3, ethers, abi }) => address => (label, eventName, cb) => {
+  // console.log(`${label} recv m ${eventName}`);
+  return new ethers
+    .Contract(address, abi, new ethers.providers.Web3Provider(web3.currentProvider))
+    .once(eventName, (...a) => {
+      // console.log(`${label} recv e ${eventName} ${a}`);
       const b = a.map(b => b); // Preserve `a` w/ copy
       const e = b.pop();       // The final element represents an `ethers` event object
 
@@ -229,16 +234,17 @@ const mkRecv = A => address => (eventName, cb) =>
 
       // TODO FIXME replace arbitrary delay with something more intelligent to
       // mitigate mystery race condition
-      A.web3.eth.getTransaction(e.transactionHash, k(panic, t =>
-        // XXX Replace 0 below with the contract's balance
-        setTimeout(() => cb(...bns, { value: t.value, balance: 0 }), 1000)));
-    });
+      web3.eth.getTransaction(e.transactionHash, k(panic, t =>
+        setTimeout(() => { // console.log(`${label} recv f ${eventName} ${bns}`);
+                           // XXX Replace 0 below with the contract's balance
+                           cb(...bns, { value: t.value, balance: 0 }); }, 1000)));
+    }); };
 
 
 const Contract = A => userAddress => (ctors, address) =>
   ({ abi:      A.abi
    , bytecode: A.bytecode
-   , send:     mkSend(A)(address, userAddress, ctors)
+   , sendrecv: mkSendRecv(A)(address, userAddress, ctors)
    , recv:     mkRecv(A)(address)
    , ctors
    , address
@@ -293,7 +299,7 @@ const prefundedDevnetAcct = ({ web3 }) =>
   || panic('Cannot infer prefunded account!');
 
 
-const createAndUnlockAcct = A => password =>
+const createAndUnlockAcct = A => () =>
   new Promise(resolve =>
     A.web3.personal.newAccount((z, i) =>
       A.web3.personal.unlockAccount(i, () => resolve(i))));

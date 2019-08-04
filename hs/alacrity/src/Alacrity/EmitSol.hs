@@ -25,6 +25,9 @@ solMsg_evt i = "e" ++ show i
 solMsg_fun :: Show i => i -> String
 solMsg_fun i = "m" ++ show i
 
+solLoop_fun :: Show i => i -> String
+solLoop_fun i = "l" ++ show i
+
 solType :: BaseType -> String
 solType AT_UInt256 = "uint256"
 solType AT_Bool = "bool"
@@ -72,6 +75,9 @@ usesCTail (C_Let _ ce kt) = cmerge cs1 cs2
 usesCTail (C_Do cs kt) = cmerge cs1 cs2
   where cs1 = usesCStmt cs
         cs2 = usesCTail kt
+usesCTail (C_Jump which vs a) = cmerge cs1 cs2
+  where cs1 = usesCTail (C_Wait which vs)
+        cs2 = usesBLArg a
 
 {- Compilation to Solidity
 
@@ -229,7 +235,7 @@ solCTail ps emitp ρ ccs ct =
     C_Wait i svs ->
       emitp <> (solSet ("current_state") (solHashState ρ i ps svs)) <> semi
     C_If ca tt ft ->
-      "if" <+> parens (solArg ρ ca) <> bp tt <> hardline <> "else" <> bp ft
+      "if" <+> parens (solArg ρ ca) <+> bp tt <> hardline <> "else" <+> bp ft
       where bp at = solBraces $ solCTail ps emitp ρ ccs at
     C_Let bv ce kt ->
       case M.lookup bv ccs of
@@ -239,6 +245,8 @@ solCTail ps emitp ρ ccs ct =
         _ -> vsep [ solVarDecl bv <+> "=" <+> solCExpr ρ ce <> semi,
                     solCTail ps emitp ρ ccs kt ]
     C_Do cs kt -> solCStmt ρ cs <> (solCTail ps emitp ρ ccs kt)
+    C_Jump which vs a ->
+      emitp <> solApply (solLoop_fun which) ((map solPartVar ps) ++ (map solRawVar vs) ++ [ solArg ρ a ]) <> semi
 
 solHandler :: [Participant] -> Int -> CHandler -> Doc a
 solHandler ps i (C_Handler from svs msg body) = vsep [ evtp, funp ]
@@ -256,6 +264,12 @@ solHandler ps i (C_Handler from svs msg body) = vsep [ evtp, funp ]
         bodyp = vsep [ (solRequire $ solEq ("current_state") (solHashState ρ i ps svs)) <> semi,
                        solRequireSender from <> semi,
                        solCTail ps emitp ρ ccs body ]
+solHandler ps i (C_Loop svs arg _inv body) = funp
+  where funp = solFunction (solLoop_fun i) arg_ds retp bodyp
+        arg_ds = map solPartDecl ps ++  map solArgDecl svs ++ [ solArgDecl arg ]
+        retp = "internal"
+        ccs = usesCTail body
+        bodyp = solCTail ps "" M.empty ccs body
 
 solHandlers :: [Participant] -> [CHandler] -> Doc a
 solHandlers ps hs = vsep $ intersperse emptyDoc $ zipWith (solHandler ps) [0..] hs

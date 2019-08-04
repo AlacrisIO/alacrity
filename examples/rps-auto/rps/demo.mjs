@@ -1,10 +1,11 @@
 // vim: filetype=javascript
 
 import * as RPS       from '../build/rps.mjs';
+import * as RPSW      from '../build/rps_while.mjs';
 import { stdlibNode } from './stdlib/web3/node.mjs';
 
-const init = (wagerInEth, escrowInEth, uri) =>
-  stdlibNode(RPS.ABI, RPS.Bytecode, uri)
+const init = (theRPS, wagerInEth, escrowInEth, uri) =>
+  stdlibNode(theRPS.ABI, theRPS.Bytecode, uri)
     .then(stdlib => {
       const wagerInWei  = stdlib.toBN(stdlib.web3.toWei(wagerInEth,  'ether'));
       const escrowInWei = stdlib.toBN(stdlib.web3.toWei(escrowInEth, 'ether'));
@@ -12,7 +13,7 @@ const init = (wagerInEth, escrowInEth, uri) =>
       return { stdlib, gameState: { wagerInWei, escrowInWei }};
     });
 
-const play = interactWith => ({ stdlib, gameState }) => {
+const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
   const { web3, balanceOf, devnet, transfer } = stdlib;
   const { prefundedDevnetAcct               } = devnet;
   const { wagerInWei, escrowInWei           } = gameState;
@@ -35,18 +36,28 @@ const play = interactWith => ({ stdlib, gameState }) => {
     Promise.resolve(Object.assign(gameState, { outcomeAlice, outcomeBob }));
 
   const randomArray = (a) => { return a[Math.floor(Math.random() * a.length)]; };
-  const randomHand = () => { return randomArray(['ROCK', 'PAPER', 'SCISSORS']); };
+  const randomHand = () => randomArray(['ROCK', 'PAPER', 'SCISSORS']);
+  const makeDrawFirstHand = (first) => {
+      var called = false;
+      return () => {
+          if ( called ) {
+              return randomHand(); }
+          else {
+              called = true;
+              return first; } }; };
+  const shared = randomHand();
+  const makeWhichHand = drawFirst ? (() => makeDrawFirstHand(shared)) : (() => randomHand);
 
   const txn0 = { balance: 0, value: 0 };
 
   const bobShoot = ctcAlice =>
     new Promise(resolve =>
       gameState.bob.attach(gameState.ctors, ctcAlice.address)
-      .then(ctcBob => RPS.B(stdlib, ctcBob, txn0, interactWith('Bob',randomHand()), resolve)));
+      .then(ctcBob => theRPS.B(stdlib, ctcBob, txn0, interactWith('Bob',makeWhichHand()), resolve)));
 
   const aliceShoot = ctc =>
     new Promise(resolve =>
-      RPS.A(stdlib, ctc, txn0, interactWith('Alice',randomHand()), wagerInWei, escrowInWei, resolve));
+      theRPS.A(stdlib, ctc, txn0, interactWith('Alice',makeWhichHand()), wagerInWei, escrowInWei, resolve));
 
   return Promise.all([ newPlayer('pass1_alice_784543222392'), newPlayer('pass2_bob_604523') ])
     .then(captureOpeningGameState)
@@ -55,6 +66,7 @@ const play = interactWith => ({ stdlib, gameState }) => {
     .then(captureClosingGameState);
 };
 
-export const runGameWith = (interactWith, wagerInEth, escrowInEth, uri) =>
-  init(wagerInEth, escrowInEth, uri)
-    .then(play(interactWith));
+export const runGameWith = (doWhile, drawFirst, interactWith, wagerInEth, escrowInEth, uri) =>
+    { const theRPS = doWhile ? RPSW : RPS;
+      return init(theRPS, wagerInEth, escrowInEth, uri)
+      .then(play(theRPS, drawFirst, interactWith)); };

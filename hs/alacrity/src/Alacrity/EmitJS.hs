@@ -37,6 +37,9 @@ jsVar (n, _, _) = pretty $ "v" ++ show n
 jsVar' :: BLVar -> Doc a
 jsVar' (n, _, _) = pretty $ "p" ++ show n
 
+jsLoopName :: Int -> String
+jsLoopName i = "l" ++ show i
+
 jsVarType :: BLVar -> Doc a
 jsVarType (_, _, bt) = jsString $ solType bt
 
@@ -124,31 +127,26 @@ jsEPStmt (EP_Claim CT_Possible _) kp = (kp, Set.empty)
 jsEPStmt (EP_Claim CT_Assert _) kp = (kp, Set.empty)
 jsEPStmt (EP_Claim _ a) kp = (vsep [ jsAssert ap, kp ], afvs)
   where (ap, afvs) = jsArg a
-jsEPStmt (EP_Send i svs msg amt) kp = (tp, tfvs)
-  where tp = jsApply "ctc.send" [ jsString (solMsg_fun i), vs, amtp, jsLambda [] kp ] <> semi
-        tfvs = Set.union amtfvs $ Set.fromList args
-        (amtp, amtfvs) = jsArg amt
-        args = svs ++ msg
-        vs = jsArray $ map jsVar args
+jsEPStmt (EP_Send _ _ _ _) _ = error "Impossible"
 
-jsEPTail :: EPTail -> (Doc a, Set.Set BLVar)
-jsEPTail (EP_Ret al) = ((jsApply "kTop" $ map fst alp) <> semi, Set.unions $ map snd alp)
+jsEPTail :: String -> EPTail -> (Doc a, Set.Set BLVar)
+jsEPTail _who (EP_Ret al) = ((jsApply "kTop" $ map fst alp) <> semi, Set.unions $ map snd alp)
   where alp = map jsArg al
-jsEPTail (EP_If ca tt ft) = (tp, tfvs)
-  where (ttp', ttfvs) = jsEPTail tt
+jsEPTail who (EP_If ca tt ft) = (tp, tfvs)
+  where (ttp', ttfvs) = jsEPTail who tt
         ttp = jsBraces ttp'
-        (ftp', ftfvs) = jsEPTail ft
+        (ftp', ftfvs) = jsEPTail who ft
         ftp = jsBraces ftp'
         (cap, cafvs) = jsArg ca
-        tp = pretty "if" <+> parens cap <> ttp <> hardline <> pretty "else" <> ftp
+        tp = pretty "if" <+> parens cap <+> ttp <> hardline <> pretty "else" <+> ftp
         tfvs = Set.unions [ cafvs, ttfvs, ftfvs ]
-jsEPTail (EP_Let v (EP_PrimApp INTERACT al) kt) = (tp, tfvs)
+jsEPTail who (EP_Let v (EP_PrimApp INTERACT al) kt) = (tp, tfvs)
   where kp = jsLambda [ jsVar v ] ktp
-        (ktp, ktfvs) = jsEPTail kt
+        (ktp, ktfvs) = jsEPTail who kt
         alp = map jsArg al
         tp = jsApply "interact" ((map fst alp) ++ [ kp ]) <> semi
         tfvs = Set.union ktfvs $ Set.unions $ map snd alp
-jsEPTail (EP_Let bv ee kt) = (tp, tfvs)
+jsEPTail who (EP_Let bv ee kt) = (tp, tfvs)
   where used = elem bv ktfvs
         tp = if used then
                vsep [ bvdeclp, ktp ]
@@ -158,28 +156,55 @@ jsEPTail (EP_Let bv ee kt) = (tp, tfvs)
         tfvs = if used then Set.union eefvs tfvs' else tfvs'
         bvdeclp = jsVarDecl bv <+> pretty "=" <+> eep <> semi
         (eep, eefvs) = jsEPExpr ee
-        (ktp, ktfvs) = jsEPTail kt
-jsEPTail (EP_Do es kt) = (tp, tfvs)
+        (ktp, ktfvs) = jsEPTail who kt
+jsEPTail who (EP_Do (EP_Send i svs msg amt) (EP_Recv True _ _ _ kt)) = (tp, tfvs)
+  where tp = jsApply "ctc.sendrecv" [ jsString who
+                                    , jsString (solMsg_fun i), vs, amtp
+                                    , jsString (solMsg_evt i)
+                                    , jsLambda ([ pretty "txn" ]) skp ]
+             <> semi
+        --- XXX This commented out stuff might be useful, but requires a JS stdlib change
+        skp = debugp <> {- require_and <> hardline <> -} ktp
+        debugp = if global_debug then jsApply "console.log" [ jsString $ who ++ " sent/recv " ++ show i ] <> semi <> hardline else emptyDoc
+        tfvs = Set.unions [ kfvs, amtfvs, Set.fromList svs, Set.fromList msg ]
+        (amtp, amtfvs) = jsArg amt
+        msg_vs = map jsVar msg
+        --- msg'_vs = map jsVar' msg
+        --- require_and = vsep $ zipWith require_match msg_vs msg'_vs
+        --- require_match mvp mv'p = jsAssert $ jsApply "stdlib.equal" [ mvp, mv'p ]
+        vs = jsArray $ (map jsVar svs) ++ msg_vs
+        (ktp, kfvs) = jsEPTail who kt
+jsEPTail who (EP_Do es kt) = (tp, tfvs)
   where (tp, esfvs) = jsEPStmt es ktp
         tfvs = Set.union esfvs kfvs
-        (ktp, kfvs) = jsEPTail kt
-jsEPTail (EP_Recv fromme i _ msg kt) = (tp, tfvs)
-  where tp = jsApply "ctc.recv" [ jsString (solMsg_evt i), kp ] <> semi
+        (ktp, kfvs) = jsEPTail who kt
+jsEPTail _ (EP_Recv True _ _ _ _) =
+  error "Impossible"
+jsEPTail who (EP_Recv False i _ msg kt) = (tp, tfvs)
+  where tp = jsApply "ctc.recv" [ jsString who, jsString (solMsg_evt i), kp ] <> semi
         tfvs = Set.unions [Set.fromList msg, ktfvs]
-        kp = jsLambda (the_vs ++ [pretty "txn"]) ktp
+        kp = jsLambda (msg_vs ++ [pretty "txn"]) (debugp <> ktp)
         msg_vs = map jsVar msg
-        msg'_vs = map jsVar' msg
-        the_vs = if fromme then msg'_vs else msg_vs
-        require_and_kt = vsep $ zipWith require_match msg_vs msg'_vs
-        require_match mvp mv'p = jsAssert $ jsApply "stdlib.equal" [ mvp, mv'p ]
-        (ktp', ktfvs) = jsEPTail kt
-        ktp = (if fromme then require_and_kt <> hardline else emptyDoc) <> ktp'
+        (ktp, ktfvs) = jsEPTail who kt
+        debugp = if global_debug then jsApply "console.log" [ jsString $ who ++ " received " ++ show i ] <> semi <> hardline else emptyDoc
+jsEPTail who (EP_Loop which loopv inita bt) = (tp, tfvs)
+  where tp = vsep [ defp, callp ]
+        (callp, callvs) = jsEPTail who (EP_Continue which inita)
+        defp = jsFunction (jsLoopName which) [ jsVar loopv ] bodyp <> semi
+        (bodyp, bodyvs) = jsEPTail who bt
+        tfvs = Set.union callvs bodyvs
+jsEPTail _who (EP_Continue which arg) = (tp, argvs)
+  where tp = jsApply (jsLoopName which) [ argp ] <> semi
+        (argp, argvs) = jsArg arg
 
 jsPart :: (Participant, EProgram) -> Doc a
 jsPart (p, (EP_Prog pargs et)) =
   pretty "export" <+> jsFunction p ([ pretty "stdlib", pretty "ctc", pretty "txn", pretty "interact" ] ++ pargs_vs ++ [ pretty "kTop" ]) bodyp
   where pargs_vs = map jsVar pargs
-        (bodyp, _) = jsEPTail et
+        (bodyp, _) = jsEPTail p et
+
+global_debug :: Bool
+global_debug = False
 
 vsep_with_blank :: [Doc a] -> Doc a
 vsep_with_blank l = vsep $ intersperse emptyDoc l

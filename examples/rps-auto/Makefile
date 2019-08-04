@@ -4,9 +4,7 @@ export STACK_YAML=../../hs/alacrity/stack.yaml
 
 all: lint start_geth test demo stop_geth
 
-build: build/rps.ala.mjs
-
-while: build build/rps_while.ala.mjs
+build: build/rps.ala.mjs build/rps_while.ala.mjs
 
 build/%.ala.mjs: rps/%.ala
 	stack build
@@ -21,11 +19,11 @@ start_geth:
 stop_geth:
 	@killall geth
 
-test: build/rps.ala.mjs
+test: build
 	@node --experimental-modules rps/spec/index.mjs
 
 logs:
 	@tail -f ../../_ethereum/geth-data/logs/testnet.log
 
-demo: build/rps.ala.mjs
+demo: build
 	@node --experimental-modules rps/demo-run-stdout.mjs

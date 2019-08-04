@@ -205,9 +205,9 @@ data XLExpr
   | XL_Transfer Participant XLExpr
   | XL_Declassify XLExpr
   --- Where x Vars x Expression x Body
-  | XL_Let (Maybe Participant) (Maybe [XLVar]) XLExpr Bool XLExpr
-  | XL_While XLExpr XLExpr XLExpr
-  | XL_Set XLVar XLExpr
+  | XL_Let (Maybe Participant) (Maybe [XLVar]) XLExpr XLExpr
+  | XL_While XLVar XLExpr XLExpr XLExpr XLExpr XLExpr
+  | XL_Continue XLExpr
   --- Impossible in inlined
   | XL_FunApp XLVar [XLExpr]
   deriving (Show,Eq)
@@ -281,6 +281,8 @@ data ILTail
   --- A FromConsensus moves back from the consensus; the tail is
   --- "local" again.
   | IL_FromConsensus ILTail
+  | IL_While ILVar ILArg ILTail ILTail ILTail ILTail
+  | IL_Continue ILArg
   deriving (Show,Eq)
 
 type ILPartArgs = [(ILVar, BaseType)]
@@ -333,6 +335,8 @@ data EPTail
   {- This recv is what the sender sent; we will be doing the same
      computation as the contract. -}
   | EP_Recv Bool Int [BLVar] [BLVar] EPTail
+  | EP_Loop Int BLVar BLArg EPTail
+  | EP_Continue Int BLArg
   deriving (Show,Eq)
 
 data EProgram
@@ -355,11 +359,13 @@ data CTail
   | C_If BLArg CTail CTail
   | C_Let BLVar CExpr CTail
   | C_Do CStmt CTail
+  | C_Jump Int [BLVar] BLArg
   deriving (Show,Eq)
 
 data CHandler
   --- Each handler has a message that it expects to receive
   = C_Handler Participant [BLVar] [BLVar] CTail
+  | C_Loop [BLVar] BLVar CTail CTail
   deriving (Show,Eq)
 
 --- A contract program is just a sequence of handlers.
@@ -428,6 +434,12 @@ prettyClaim ct a = group $ parens $ pretty cts <+> pretty a
 prettyTransfer :: Pretty a => Participant -> a -> Doc ann
 prettyTransfer to a = group $ parens $ pretty "transfer!" <+> pretty to <+> pretty a
 
+prettyWhile :: Pretty b => Pretty c => (a -> Doc ann) -> a -> b -> c -> c -> c -> c -> Doc ann
+prettyWhile prettyVar loopv inita untilt invt bodyt kt = vsep [ group $ parens $ pretty "do" <+> brackets (prettyVar loopv <+> pretty inita) <> nest 2 (hardline <> pretty "until" <+> prettyBegin untilt <> hardline <> pretty "invariant" <+> prettyBegin invt <> hardline <> prettyBegin bodyt), pretty kt ]
+
+prettyBegin :: Pretty a => a -> Doc ann
+prettyBegin x = group $ parens $ pretty "begin" <+> (nest 2 $ hardline <> pretty x)
+
 instance Pretty ILExpr where
   pretty (IL_PrimApp p al) = prettyApp p al
   pretty (IL_Declassify a) = group $ parens $ pretty "declassify" <+> pretty a
@@ -466,8 +478,10 @@ instance Pretty ILTail where
     where svsp = parens $ pretty "publish!" <+> prettyILVars svs
           pap = parens $ pretty "pay!" <+> pretty pa
   pretty (IL_FromConsensus lt) =
-    vsep [(group $ parens $ pretty "return!"),
+    vsep [(group $ parens $ pretty "commit!"),
           pretty lt]
+  pretty (IL_While loopv inita untilt invt bodyt kt) = prettyWhile prettyILVar loopv inita untilt invt bodyt kt
+  pretty (IL_Continue a) = parens $ pretty "continue!" <+> pretty a
 
 prettyILVar :: ILVar -> Doc ann
 prettyILVar (n, s) = pretty n <> pretty "/" <> pretty s
@@ -520,6 +534,9 @@ instance Pretty EPTail where
   pretty (EP_Recv fromme hi svs vs bt) =
     vsep [group $ parens $ pretty "define-values" <+> pretty fromme <+> prettyBLVars svs <+> prettyBLVars vs <+> (parens $ pretty "recv!" <+> pretty hi),
           pretty bt]
+  pretty (EP_Loop which loopv inita bt) =
+    group $ parens $ pretty "loop" <+> pretty which <+> prettyBLVar loopv <+> pretty inita <> nest 2 (hardline <> prettyBegin bt)
+  pretty (EP_Continue which arg) = group $ parens $ pretty "continue" <+> pretty which <+> pretty arg
 
 instance Pretty CTail where
   pretty (C_Halt) = group $ parens $ pretty "halt!"
@@ -527,10 +544,13 @@ instance Pretty CTail where
   pretty (C_If ca tt ft) = prettyIf ca tt ft
   pretty (C_Let mv e bt) = prettyLet prettyBLVar (\x -> x) mv e bt
   pretty (C_Do s bt) = prettyDo (\x -> x) s bt
+  pretty (C_Jump which svs a) = group $ parens $ pretty "jump" <+> pretty which <+> prettyBLVars svs <+> pretty a
 
 prettyCHandler :: Int -> CHandler -> Doc ann
 prettyCHandler i (C_Handler who svs args ct) =
   group $ brackets $ pretty i <+> pretty who <+> prettyBLVars svs <+> prettyBLVars args <+> (nest 2 $ hardline <> pretty ct)
+prettyCHandler i (C_Loop svs arg it ct) =
+  group $ brackets $ pretty i <+> pretty "!loop!" <+> prettyBLVars svs <+> prettyBLVar arg <+> pretty "invariant" <+> prettyBegin it <> (nest 2 $ hardline <> pretty ct)
 
 instance Pretty CProgram where
   pretty (C_Prog ps hs) = group $ parens $ pretty "define-contract" <+> (nest 2 $ hardline <> vsep (psp : hsp))

@@ -55,30 +55,31 @@ main {
     @A interact("params");
     >A publish! wagerAmount, escrowAmount
        w/ (wagerAmount + escrowAmount);
-    return;
+    commit;
 
     @B interact("accepts");
     >B pay! wagerAmount;
 
-    var outcome = DRAW;
-    while (outcome == DRAW)
-        invariant (balance() == ((2 * wagerAmount) + escrowAmount))
+    do const outcome = DRAW
+       until not((outcome == DRAW))
+       invariant ((balance() == ((2 * wagerAmount) + escrowAmount))
+               && isOutcome(outcome))
     {
-        return;
+        commit;
 
         @A const handA = getHand();
         @A const commitA, saltA = precommit(handA);
         @A declassify! commitA;
         @A interact("commits");
         >A publish! commitA w/ 0;
-        return;
+        commit;
 
         @B const handB = getHand();
         @B declassify! handB;
         @B interact("shows");
         >B publish! handB w/ 0;
         require! isHand(handB);
-        return;
+        commit;
 
         @A declassify! saltA;
         @A declassify! handA;
@@ -86,10 +87,12 @@ main {
         >A publish! saltA, handA w/ 0;
         check_commit(commitA, saltA, handA);
         require! isHand(handA);
-        set! outcome = winner(handA, handB);
-        assert! ((outcome == A_WINS) => isHand(handA));
-        assert! ((outcome == B_WINS) => isHand(handB));
-        fair_game(handA, handB, outcome)
+        const this_outcome = winner(handA, handB);
+        assert! ((this_outcome == A_WINS) => isHand(handA));
+        assert! ((this_outcome == B_WINS) => isHand(handB));
+        fair_game(handA, handB, this_outcome);
+
+        continue this_outcome
     };
 
     assert! not((outcome == DRAW));
@@ -100,7 +103,7 @@ main {
               values 0, (2 * wagerAmount) };
     transfer! A <- (escrowAmount + getsA);
     transfer! B <- getsB;
-    return;
+    commit;
 
     interact("outcome");
     showOutcome(outcome) }
