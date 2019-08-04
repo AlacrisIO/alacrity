@@ -152,18 +152,16 @@ const sendTransactionSC = A => (myIdentity, to, payload) =>
         setTimeout(resolve, 500, 'timeout');
       });
       const pWait = new Promise((resolve, reject) => {
+        const fct = (paylod_input, result_filt) => {
+          A.SC.state = A.SC.state + payload_input;
+          resolve(result_filt);
+        };
         A.web3.filter({'topics':'state-channel', 'to':myIdentity},
-        (err_filt, result_filt) => !!err_filt ? reject(err_filt) :
-            {A.SC.state = A.SC.state + payload;
-             resolve(result_filt)})
+        (err_filt, result_filt) => !!err_filt ? reject(err_filt) : fct(payload, result_filt))
         });
       return Promise.race([pTimeOut,pWait]);
     })
-  });
-
-const awaitConfirmationOfSC = A => (txHash, blockPollingPeriodInSeconds = 1) =>
-  new Promise((resolve, 
-
+  )
 
 
 const awaitConfirmationOf = ({ web3 }) => (txHash, blockPollingPeriodInSeconds = 1) =>
