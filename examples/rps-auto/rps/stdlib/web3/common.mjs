@@ -134,15 +134,15 @@ const mkConstructSC = A => () =>
 
 const sendTransactionSC = A => (myIdentity, to, payload) =>
   new Promise((resolve, reject) => {
-    const pSend = new Promise((resolve_loc, reject) =>
+    const pSend = new Promise((resolve_loc, reject_loc) =>
       A.web3.shh.post({'from': myIdentity, 'to': to, 'payload': payload},
           (err, result) =>
-          !!err ? reject(err) : resolve(result)));
-    pSend.catch((message) => reject('Error in post'))
+          !!err ? reject_loc(err) : resolve_loc(result)));
+    pSend.catch((message) => reject(message))
     .then((result) =>
     new Promise((resolve, result) => {
-      const pTimeOut = new Promise(function(resolve, reject) {
-        setTimeout(resolve, 500, 'timeout');
+      const pTimeOut = new Promise((resolve, reject) => {
+        setTimeout(reject, 500, 'timeout');
       });
       const pWait = new Promise((resolve, reject) => {
         const fct = (payload_input, result_filt) => {
