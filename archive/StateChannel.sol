@@ -5,34 +5,45 @@ A state channel is a contract guaranteeing the correct behavior of participants
 in an interaction where the normal behavior is for participants to
 send messages to each other and collect unanimous signatures
 about the resulting *states* of the interaction.
-But if one of them times out, the others can get out without his collaboration
-by posting a state on the contract, and challenging the other party to either
-resume participation or timeout and forfeit any contested assets.
+But if one of the participants times out during off-chain communications,
+the others can get out without his collaboration by posting a state on the contract,
+and challenging the stalling participant to either resume participation or
+timeout on-chain and forfeit any collateral assets.
 
 As a contract, the channel has the following state variables:
 A set of participants p : P, with n = cardinal(p).
 Usually, n = 2 and the participants are called Alice and Bob, or A and B.
 But when creating the contract, for instance, A is the only member and n=1.
 Also, if A (or B) wants to leave but the other wants to stay, we will be back to n=1.
+Some contracts may have more than two participants at a time.
 
-Ideally, we could use Schnorr signatures or some similar O(1) scheme for multisig,
-but any stupid old list-of-signatures scheme is fine if that's what the network provides;
-for n=2 especially it's not worth the trouble of reimplementing crypto primitives,
+Ideally, we could use Schnorr signatures or some similar O(1) scheme for unanimous multisig,
+but we still need a simple list-of-signatures scheme as a fallback when a participant times out.
+For n=2 especially, it's not worth the trouble of reimplementing crypto primitives,
 and list-of-signatures is actually better because of some obvious optimizations.
 Actually, for n>2, it might be better if the contract accepts two kinds of signatures,
-so participants have a fast path to confirmation, and a path to cheap confirmation.
+so participants have a fast path to unanimous confirmation, and a path to adversarial confirmation.
 
 A state message is:
-  * nonce: a contract nonce, obtained with the usual shared random number protocol.
-  * clock: a clock number, increasing with every batch of message--sometimes by more than one
+  * session: a nonce, obtained off-chain with the usual shared random number protocol, as session id.
+  * clock: a clock number, increasing with every message (or message batch)--sometimes by more than one
     when optional messages are omitted, sometimes by less than one when messages are batched.
   * participants: a commitment to the individual (and, if applicable, combined) public keys that
     identify who can participate in the interaction.
     Starts with cardinality, followed by sequence of keys, and, if present, combined key
-  * balancedContinuation: continuation plus balance, made of:
-    * continuation: the continuation: describes how to process a message
-    * owned: per-player distribution of assets definitely returned to them even if they timeout
-    * collaterals: per-player distribution of assets they'll lose if they timeout.
+  * balancedState: ProcessState plus Balance, where:
+    * processState:
+      * the address of a MessageProcessor contract, possibly pre-computed from a CREATE2
+        formula with NULL sender, so that it contract only has to be instantiated in case of dispute, and
+      * a bytes32 piece of data that will typically be the root of a merklized data structure
+        for the state of the computation.
+    * balances:
+      * owned: per-player distribution of assets definitely returned to them even if they timeout
+      * collaterals: per-player distribution of assets they'll lose if they timeout but otherwise keep
+      * failures: table of failed participants, their index, their address and collateral
+      * deadlines: for each player who *must* to publish a message on time, the block number before which
+        they must publish, or else be expelled from the contract, losing their collateral
+        that is added to the pot (TODO: figure out how the pot is represented).
 
 If all participants agree to end the interaction, they sign message that describes
 (1) The final distribution of assets for this nonce-identified interaction.
@@ -42,7 +53,7 @@ When posted on the contract, the effect is immediate.
 
 Off-chain communication happens as follows, in a way reminiscent of token ring networks.
 (For two-participant communications, that's just a back-and-forth.)
-We assume each participant has an IP address, tor routing address
+We assume each participant has an IP address, a tor routing address, an elixxir address,
 or is otherwise reachable by other participants.
 We assume that there is an agreed-upon order for the participants.
 At any moment, one of the participants, determined in a round-robin fashion,
@@ -60,8 +71,7 @@ in the case of a single participant failure.)
 
 If the protocol reaches a point where all messages are optional, and
 no message was sent in the round, then the current proposer becomes a listener
-for the next round: he sends that state around for everyone to sign,
-and waits for himself or someone else to send a new message;
+for the next round: he waits for himself or someone else to send a new message;
 anyone can initiate a new message and send it to the proposer,
 with a clock number that skips other participants before them in the round.
 The proposer signs his update with at most one other such participant,
@@ -90,8 +100,8 @@ A challenged proposer may simply post an update signed by everyone
 with a clock larger than the current one, and this cancels the challenge.
 This state update may or may not be accompanied by a further challenge
 to the same or another proposer.
-If others refuse to sign the proposed state, then the proposer may instead
-post the new state, signed by them only, together with a proof
+If some others refuse to sign the proposed state, then the proposer may instead
+post the new state, signed by him only, together with a proof
 that the old state leads to the new state through a message they send:
 typically, the list of actual messages plus any ancillary data
 to help the proof check (revealing the relevant parts of the merklized state).
@@ -135,28 +145,22 @@ and fail validation since it's invalid, and/or possibly timeout,
 or they publish different data and get punished.
 
 
-Adding assets and/or participants is problematic, because in a state-channel,
-the state is off-chain, and thus cannot be updated by the contract as it receives
-those assets. There are two solutions, synchronous and asynchronous:
-1- In the synchronous solution, the active participants make a settlement
-   to set the contract in a direct style where the contract manages the state;
-   then the new participant (or existing participant adding assets)
-   can join in a way directly handled by the contract,
-   after which the contract can go back in state-channel mode.
-   Other attempts to add assets or join the interaction are rejected.
-2- In the asynchronous solution, the new participants (or existing participants
-   adding assets) will send arbitrary assets registered in a table as in an ERC20,
-   where they are locked for some time (to prevent race conditions between
-   settlement and withdrawal).
-   Then, if all participants *and* the new participants sign a settlement,
-   the new participant can be added an the deposit balance is cleared.
-   In case of timeout or denial of settlement,
-   the new person can withdraw what they deposited.
-   It's not clear that this is better than the above.
-   Participants could "simply" sign a settlement, and have the depositor
-   publish the settlement together with their deposit
-   and the deposit-conditional agreement to go back to state-channel mode.
-   If the depositor times out, they publish an alternate settlement.
+Adding assets and/or participants is done through settlement.
+The settlement handler takes as parameter of the settlement an amount of tokens
+that some participant must deposit as a condition for the new settlement to be valid.
+To use this strategy, first, participants sign a settlement corresponding to
+the current state of the interaction; they keep that settlement as fallback
+in case the prospective new entrant fails to post his transaction.
+If one participant refuses to cooperate, other participants exit with the last state and messages.
+Then, participants sign a settlement corresponding to the entry of the new participant.
+The new participant can sign the agreement and post it with the required amount of money,
+until one of the previous participants grows tired (and/or a timeout happens)
+and posts the fallback transaction.
+TODO: Probably, settlements should have add timeins and timeouts too.
+Probably no need for too much additional logic in the settlement function,
+since logic can be implemented through messages.
+TODO: Also, in the future, a protocol to specially accept or disburse ERC20 / ERC777 tokens
+or ERC721 NFTs.
 
 Because each and every participant can stall the interaction,
 state channels don't scale to more participants than you'd care to bear
@@ -172,58 +176,126 @@ therefore it mightn't be safe to play those games on the blockchain.
 
 pragma solidity ^0.5.9;
 
-contract StateChannel {
+contract StateChannelTypes {
+    struct ProcessState {
+        address processor; // message processor contract
+        bytes32 stateRoot; // root of merklized data describing the state of the interaction.
+    }
 
-    /** First of two functions that must be provided: return the timeout duration in blocks */
-    function timeoutInBlocks() public pure returns(uint);
+    struct Balances { // TODO: should each of these data items be salted and merklized?
+        uint[] owned; // per-player distribution of assets definitely owned even if they timeout
+        uint[] collaterals; // per-player distribution of assets they'll lose if they timeout.
+        uint[] failures; // list of failed participants, their former index, address and collateral
+        uint[] deadlines; // per-player deadlines for when the player must post his next message or else
+            // deadline 0 means the player doesn't have to post a message at this point
+            // deadline 1 means the player must post a message at this point, but hasn't been challenged
+            // deadline N>1 means the player has been challenged and must post a message before block N
+    }
 
-    /** Second of two functions that must be provided: process a message.
-        This must be a pure function.
+    struct BalancedState {
+        bytes32 processState; // merklized continuation
+        bytes32 balances; // merklized assets structure
+    }
+
+    struct State {
+        bytes32 session; // a session nonce, obtained with the usual shared random number protocol offchain
+        uint clock; // a clock number, increasing at every step in the token ring
+        address[] participants; // also have a Schnorr public key? Make it a fixed-size array? a pair?
+        bytes32 balancedState; // digest of balancedState
+    }
+}
+
+contract StateChannelFunctions is StateChannelTypes {
+
+    function digestProcessState(address processor, bytes32 stateRoot)
+        internal
+        pure
+        returns(bytes32 digest)
+    {
+            return keccak256(abi.encodePacked(processor, stateRoot));
+    }
+
+    function digestBalances (
+        uint[] memory owned,
+        uint[] memory collaterals,
+        uint[] memory failures,
+        uint[] memory deadlines)
+        internal
+        pure
+        returns(bytes32 digest)
+    {
+        return keccak256(abi.encodePacked(owned, collaterals, failures, deadlines));
+    }
+
+    function digestBalancedState(bytes32 processState, bytes32 balances)
+        internal
+        pure
+        returns(bytes32 digest)
+    {
+        return keccak256(abi.encodePacked(processState, balances));
+    }
+
+    function digestState(
+        bytes32 session,
+        uint clock,
+        address payable[] memory participants,
+        bytes32 balancedState
+    )
+        internal
+        pure
+        returns(bytes32 digest)
+    {
+        return keccak256(abi.encodePacked(session, clock, participants, balancedState));
+    }
+}
+
+contract MessageProcessor is StateChannelTypes {
+    /** Main function that must be provided: process a message.
+        This must be a pure function, that as input takes
         The message data is what gets logged in an event,
         and MUST include all new information.
         The ancillary data it accepts MUST be comprised only
         of data that is already know to every participant because they either signed it
         or saw it as data logged in Message events on the contract.
         The ancillary data probably includes
-        decoding for data as a BalancedData data structure, as well as further
+        decoding for data as a BalancedState data structure, as well as further
         merkle witnesses to decode relevant parts of the state, etc.
+        TODO: make that a call to a different contract, which is more expensive, but that's OK
+        since it's not supposed to be used in normal case.
      */
     function processMessage(
-        bytes32 nonce,
-        uint clock,
-        address payable[] memory participants,
-        bytes32 data,
-        bytes memory message,
-        bytes memory ancillaryData
-    ) public pure returns(bytes32);
+        bytes32 session, // Mutually-generated random nonce that identifies the StateChannel session.
+        uint clock, // serial number for the off-chain state within the session.
+        address payable[] calldata participants, // the list of current participants in the state channel.
+        address processor, // address of the MessageProcessor contract
+        bytes32 stateRoot, // root of merklized data describing the state of the interaction.
+        bytes32 balances, // the digest for the balancedState
+        bytes calldata message, // new data, that will be logged as event
+        bytes calldata evidence // old data that won't be logged because users already know it, but that will be used to convince the judge that the transition is correct. Typically, it consists in revealing a subgraph of the merklized balancedState.
+    ) external pure returns(bytes32 newBalancedState);
+}
 
-    struct BalancedData {
-        bytes32 state ; // merklized data describing the state of the interaction.
-        uint[] owned; // per-player distribution of assets definitely owned even if they timeout
-        uint[] collaterals; // per-player distribution of assets they'll lose if they timeout.
-        uint[] failures; // list of failed participants, their former index, address and collateral
-    }
+contract StateChannelBase is StateChannelTypes, StateChannelFunctions {
+    // This function returns the number of blocks before a timeout
+    function timeoutInBlocks() public pure returns(uint timeout);
+}
 
-    struct State {
-        uint256 nonce; // a contract nonce, obtained with the usual shared random number protocol offchain
-        uint clock; // a clock number, increasing at every step in the token ring
-        address[] participants; // also have a Schnorr public key? Make it a fixed-size array? a pair?
-        bytes32 balancedData; // digest of balancedData
-    }
 
-    enum StateAction {
-        Updating, // update the state of the channel
-        Settling, // settle the channel
-        Closing // close the channel
-    }
+contract StateChannel is StateChannelBase {
 
     bytes32 currentState;
 
-    /** Create the contract from the state.
-        Be sure to only partake if you know the preimage of the digest,
-        and have checked that the contract creation transaction matches that preimage. */
-    constructor(bytes32 state) public payable {
-        currentState = state;
+    /** Check that the previous state is what we believe it is. */
+    function checkState(
+        bytes32 session,
+        uint clock,
+        address payable[] memory participants,
+        bytes32 balancedState
+    )
+        internal
+        view
+    {
+        require(currentState == digestState(session, clock, participants, balancedState));
     }
 
     /** Check that the signatures match the digested data.
@@ -253,55 +325,34 @@ contract StateChannel {
         }
     }
 
-    function digestState(
-        bytes32 nonce,
-        uint clock,
+    function withdraw(
         address payable[] memory participants,
-        bytes32 data,
-        uint timeout
-    )
-        internal
-        pure
-        returns(bytes32 digest)
-    {
-        return keccak256(abi.encode(nonce, clock, participants, data, timeout));
-    }
-
-    /** Check that the previous state is what we believe it is. */
-    function checkState(
-        bytes32 nonce,
-        uint clock,
-        address payable[] memory participants,
-        bytes32 data,
-        uint timeout
-    )
-        internal
-        view
-    {
-        require(currentState == digestState(nonce, clock, participants, data, timeout));
-    }
-
-    function distribute(
-        address payable[] memory participants,
-        uint[] memory distribution
+        uint[] memory withdrawals
     )
         internal
     {
         uint len = participants.length;
         for (uint i = 0; i < len; i++) {
-            participants[i].transfer(distribution[i]);
+            participants[i].transfer(withdrawals[i]);
         }
     }
 
-    event Unanymously(bytes32);
+    // Participants already have all the data to interpret the meaning of a unanimous action,
+    // so we don't need to reveal more than the digest of that action.
+    event Unanimously(bytes32);
+
+    enum UnanimousAction {
+        Updating, // update the state of the channel
+        Settling, // settle the channel
+        Closing // close the channel
+    }
 
     function close(
-        bytes32 nonce,
+        bytes32 session,
         uint clock,
         address payable[] calldata participants,
         bytes32 data,
-        uint timeout,
-        uint[] calldata distribution,
+        uint[] calldata withdrawals,
         address payable beneficiary,
         bytes calldata signatures_v,
         bytes32[] calldata signatures_r,
@@ -310,22 +361,23 @@ contract StateChannel {
         external
         payable
     {
-        checkState(nonce, clock, participants, data, timeout);
-        bytes32 digest = keccak256(abi.encode(nonce, StateAction.Closing, distribution, beneficiary));
+        require(msg.value == 0);
+        checkState(session, clock, participants, data);
+        bytes32 digest = keccak256(abi.encode(session, UnanimousAction.Closing, withdrawals, beneficiary));
         checkSignatures(digest, participants, signatures_v, signatures_r, signatures_s);
-        emit Unanymously(digest);
-        distribute(participants, distribution);
+        emit Unanimously(digest);
+        withdraw(participants, withdrawals);
         currentState = 0;
         selfdestruct(beneficiary);
     }
 
     function settle(
-        bytes32 nonce,
+        bytes32 session,
         uint clock,
         address payable[] calldata participants,
         bytes32 data,
-        uint timeout,
-        uint[] calldata distribution,
+        uint deposit,
+        uint[] calldata withdrawals,
         bytes32 newState,
         bytes calldata signatures_v,
         bytes32[] calldata signatures_r,
@@ -334,53 +386,64 @@ contract StateChannel {
         external
         payable
     {
-        checkState(nonce, clock, participants, data, timeout);
-        bytes32 digest = keccak256(abi.encode(nonce, StateAction.Settling, distribution, newState));
+        require(msg.value == deposit);
+        checkState(session, clock, participants, data);
+        bytes32 digest = keccak256(abi.encode(session, UnanimousAction.Settling, deposit, withdrawals, newState));
         checkSignatures(digest, participants, signatures_v, signatures_r, signatures_s);
-        emit Unanymously(digest);
-        distribute(participants, distribution);
+        emit Unanimously(digest);
+        withdraw(participants, withdrawals);
         currentState = newState;
     }
 
-    event Challenge();
+    event Challenge(uint challengedParticipant);
 
     function challenge(
-        bytes32 nonce,
+        bytes32 session,
         uint clock,
         address payable[] calldata participants,
-        bytes32 data,
-        uint timeout,
-        uint participant
+        bytes32 processState,
+        uint[] calldata owned,
+        uint[] calldata collaterals,
+        uint[] calldata failures,
+        uint[] calldata _deadlines,
+        uint challengingParticipant,
+        uint challengedParticipant
     )
         external
     {
-        require(msg.sender == participants[participant]);
-        require(timeout == 0);
-        checkState(nonce, clock, participants, data, timeout);
-        emit Challenge();
-        currentState = digestState(nonce, clock, participants, data, block.number + timeoutInBlocks());
+        require(msg.sender == participants[challengingParticipant]);
+        require(_deadlines[challengedParticipant] == 1);
+        bytes32 balances = digestBalances(owned, collaterals, failures, _deadlines);
+        bytes32 balancedState = digestBalancedState(processState, balances);
+        checkState(session, clock, participants, balancedState);
+        emit Challenge(challengedParticipant);
+        uint[] memory deadlines = _deadlines;
+        deadlines[challengedParticipant] = block.number + timeoutInBlocks();
+        bytes32 newBalances = digestBalances(owned, collaterals, failures, deadlines);
+        bytes32 newBalancedState = digestBalancedState(processState, newBalances);
+        currentState = digestState(session, clock, participants, newBalancedState);
     }
 
-    function update(
-        bytes32 nonce,
+    function updateState(
+        bytes32 session,
         uint clock,
-        uint timeout,
         address payable[] calldata participants,
-        bytes32 data,
-        uint new_clock,
-        bytes32 new_data,
+        bytes32 balancedState,
+        uint newClock,
+        bytes32 newBalancedState,
         bytes calldata signatures_v,
         bytes32[] calldata signatures_r,
         bytes32[] calldata signatures_s
     )
         external
     {
-        checkState(nonce, clock, participants, data, timeout);
-        require(new_clock > clock);
-        bytes32 digest = keccak256(abi.encode(nonce, StateAction.Updating, new_clock, new_data));
+        checkState(session, clock, participants, balancedState);
+        require(newClock > clock);
+        bytes32 digest = keccak256(
+                abi.encode(session, UnanimousAction.Updating, newClock, newBalancedState));
         checkSignatures(digest, participants, signatures_v, signatures_r, signatures_s);
-        emit Unanymously(digest);
-        currentState = digestState(nonce, new_clock, participants, new_data, uint(0));
+        emit Unanimously(digest);
+        currentState = digestState(session, newClock, participants, newBalancedState);
     }
 
     function nextClock(uint clock, address payable[] memory participants) public pure returns(uint) {
@@ -391,82 +454,74 @@ contract StateChannel {
         return clock;
     }
 
-    function digestData(
-        bytes32 state,
-        uint[] memory owned,
-        uint[] memory collaterals,
-        address[] memory failures
-    )
-        internal
-        pure
-        returns(bytes32 digest)
-    {
-        return keccak256(abi.encode(state,
-                                    keccak256(abi.encode(owned)),
-                                    keccak256(abi.encode(collaterals)),
-                                    keccak256(abi.encode(failures))));
-    }
-
-    event TimeOut(uint clock, address participant);
+    event TimeOut(uint clock, uint failedParticipant);
 
     function timeOut(
-        bytes32 nonce,
+        bytes32 session,
         uint clock,
         address payable[] calldata _participants,
-        bytes32 state,
+        bytes32 processState,
         uint[] calldata _owned,
         uint[] calldata _collaterals,
-        address[] calldata _failures,
-        uint timeout
+        uint[] calldata _failures,
+        uint[] calldata _deadlines,
+        uint failedParticipant
     )
         external payable
     {
         address payable[] memory participants = _participants;
         uint[] memory owned = _owned;
         uint[] memory collaterals = _collaterals;
-        address[] memory failures = _failures;
-        bytes32 data = digestData(state, owned, collaterals, failures);
-        checkState(nonce, clock, participants, data, timeout);
-        require(block.number > timeout);
+        uint[] memory failures = _failures;
+        uint[] memory deadlines = _deadlines;
+        bytes32 balances = digestBalances(owned, collaterals, failures, deadlines);
+        bytes32 balancedState = digestBalancedState(processState, balances);
+        checkState(session, clock, participants, balancedState);
+        uint deadline = deadlines[failedParticipant];
+        require(deadline > 1 && block.number > deadline);
 
-        uint new_clock = nextClock(clock, participants);
-        uint failedParticipant = new_clock % participants.length;
         address payable failedParticipantAddress = participants[failedParticipant];
-        emit TimeOut(new_clock, failedParticipantAddress);
-
         failedParticipantAddress.transfer(owned[failedParticipant]);
-        failures[failedParticipant] = failedParticipantAddress;
         participants[failedParticipant] = address(0);
+        failures[failedParticipant] = uint(failedParticipantAddress);
         owned[failedParticipant] = 0;
-        data = digestData(state, owned, collaterals, failures);
-        currentState = digestState(nonce, new_clock, participants, data, uint(0));
+
+        uint newClock = nextClock(clock, participants);
+        emit TimeOut(newClock, failedParticipant);
+
+        bytes32 newBalances = digestBalances(_owned, _collaterals, _failures, deadlines);
+        bytes32 newBalancedState = digestBalancedState(processState, newBalances);
+        currentState = digestState(session, newClock, participants, newBalancedState);
     }
 
-    event Message(uint clock, bytes messageData);
+    event Message(uint clock, bytes message);
 
-    function message(
-        bytes32 nonce,
-        uint clock,
+    function sendMessage(
+        bytes32 _session,
+        uint _clock,
         address payable[] calldata _participants,
-        bytes32 data,
-        uint timeout,
-        bytes calldata messageData,
-        bytes calldata ancillaryData
-    )
+        address _processor,
+        bytes32 _stateRoot,
+        bytes32 _balances,
+        bytes calldata _message,
+        bytes calldata _evidence)
         external payable
     {
         address payable[] memory participants = _participants;
-        checkState(nonce, clock, participants, data, timeout);
+        bytes32 processState = digestProcessState(_processor, _stateRoot);
+        bytes32 balancedState = digestBalancedState(processState, _balances);
+        checkState(_session, _clock, participants, balancedState);
 
-        uint new_clock = nextClock(clock, participants);
-        uint participant = new_clock % participants.length;
+        uint new_clock = nextClock(_clock, participants);
+        uint participant = new_clock % _participants.length;
         address payable participantAddress = participants[participant];
         require(msg.sender == participantAddress);
 
-        bytes32 new_data = processMessage(nonce, new_clock, participants, data,
-                                          messageData, ancillaryData);
+        bytes32 newBalancedState = MessageProcessor(_processor).processMessage(
+                _session, new_clock, participants,
+                _processor, _stateRoot, _balances, _message, _evidence);
 
-        emit Message(new_clock, messageData);
-        currentState = digestState(nonce, new_clock, participants, new_data, uint(0));
+        emit Message(new_clock, _message);
+        currentState = digestState(_session, new_clock, participants, newBalancedState);
     }
 }
