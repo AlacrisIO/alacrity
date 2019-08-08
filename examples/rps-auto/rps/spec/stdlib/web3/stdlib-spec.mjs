@@ -46,13 +46,13 @@ describe('The `web3` stdlib', () => {
       expect(toBN(500).toString()).toBe('500'));
 
     it('correctly translates string inputs to their `BigNumber` equivalents', () =>
-      expect(toBN('12345.67').toString()).toBe('12345.67'));
+      expect(toBN('1234567').toString()).toBe('1234567'));
   });
 
 
   describe('exposes an `isBN` function that', () => {
     it('returns `true` for `BigNumber` arguments', () =>
-      expect(stdlib.isBN(toBN('98765.4321'))).toBe(true));
+      expect(stdlib.isBN(toBN('987654321'))).toBe(true));
 
     it('returns `false` for non-`BigNumber` arguments', () => {
       const { isBN } = stdlib;
@@ -68,7 +68,7 @@ describe('The `web3` stdlib', () => {
 
     describe('`eq` (a synonym of `equal`) that', () => {
       it('returns `true` when its arguments match', () =>
-        expect(stdlib.eq(toBN(5678.90), toBN(5678.90)))
+        expect(stdlib.eq(toBN(567890), toBN(567890)))
           .toBe(true));
 
       it('returns `false` when provided mismatched arguments', () =>
@@ -78,7 +78,7 @@ describe('The `web3` stdlib', () => {
 
     describe('`equal` (a synonym of `eq`) that', () => {
       it('returns `true` when its arguments match', () =>
-        expect(stdlib.equal(toBN(5678.90), toBN(5678.90)))
+        expect(stdlib.equal(toBN(567890), toBN(567890)))
           .toBe(true));
 
       it('returns `false` when provided mismatched arguments', () =>
@@ -168,7 +168,7 @@ describe('The `web3` stdlib', () => {
       const a = 'cddcbafdec2cfaf2c9b716fe3f4f09ef59874fc4201fffe3bf1382a5bbe8c010';
       const b = '0000000000000000000000000000000000000000000000000000000000000000';
 
-      expect(stdlib.bytes_cat(a, b)).toBe(`0020${a}${b}`);
+      expect(stdlib.bytes_cat(a, b)).toBe(`0x0020${a}${b}`);
     });
   });
 });

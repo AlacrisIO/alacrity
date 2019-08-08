@@ -6,10 +6,7 @@ const k = (reject, f) => (err, ...d) =>
   !!err ? reject(err)
         : f(...d);
 
-// TODO this should be async
-const balanceOf = a =>
-  a.web3.eth.getBalance(a.userAddress);
-
+const un0x           = h => h.replace(/^0x/, '');
 const hexTo0x        = h => '0x' + h;
 const byteToHex      = b => (b & 0xFF).toString(16).padStart(2, '0');
 const byteArrayToHex = b => Array.from(b, byteToHex).join('');
@@ -33,43 +30,31 @@ const nat16_to_fixed_size_hex =
 
 // Parameterized ///////////////////////////////////////////////////////////////
 
+const balanceOf = A => a =>
+  a.web3.eth.getBalance(a.userAddress)
+    .then(toBN(A));
+
 const assert = ({ asserter }) => d => asserter(d);
 
-const toBN      = ({ web3 }) =>      web3.toBigNumber;
-const digestHex = ({ web3 }) => x => web3.sha3(x, { encoding: 'hex' });
+const toWei     = ({ web3 }) => web3.utils.toWei;
+const toBN      = ({ web3 }) => web3.utils.toBN;
+const isBN      = ({ web3 }) => web3.utils.isBN;
+const keccak256 = ({ web3 }) => web3.utils.keccak256;
 
 const hexToBN          = A => h => toBN(A)(hexTo0x(h));
-const keccak256        = A => b => digestHex(A)(hexOf(A)(b));
 const uint256_to_bytes = A => i => bnToHex(A)(i);
 
-// https://github.com/ethereum/web3.js/blob/0.20.7/lib/utils/utils.js#L495
-const isBN = ({ web3 }) => n =>
-  n && (n instanceof web3.BigNumber || (n.constructor && n.constructor.name === 'BigNumber'));
+
+const bnToHex = A => (u, size = 32) =>
+  toBN(A)(u)
+    .toTwos(8 * size)
+    .toString(16, 2 * size);
 
 
-const bnToHex = A => (u, size = 32) => {
-  const n = toBN(A)(u);
-  // TODO: if/when we switch to web3 v1.0:
-  //       return n.toTwos(8 * size).toString(16, 2 * size);
-
-  if (n.isNegative()) {
-    const top   = toBN(A)(256).pow(size);
-    const nTwos = n.modulo(top).add(top);
-    return nTwos.toString(16).padStart(2 * size, 'f');
-
-  } else {
-    return n.toString(16).padStart(2 * size, '0');
-  }
-};
-
-
-// Gets the hex bytes of a number or byte-string, without the 0x prefix
-const hexOf = A => x =>
-    typeof x === 'number'  ? bnToHex(A)(toBN(A)(x))
-  : isBN(A)(x)             ? bnToHex(A)(x)
-  : typeof x !== 'string'  ? panic(`Cannot convert to hex: ${x}`)
-  : x.slice(0, 2) === '0x' ? x.slice(2)
-  : x; // Assume `x` is already in hexadecimal form
+const hexOf = ({ web3 }) => x =>
+  typeof x === 'string' && x.slice(0, 2) === '0x'
+    ? un0x(web3.utils.toHex(x))
+    : un0x(web3.utils.toHex(`0x${x}`));
 
 
 const bytes_eq = A => (x, y) =>
@@ -95,7 +80,7 @@ const bytes_cat = A => (a, b) => {
   const bh = hexOf(A)(b);
   const n  = nat16_to_fixed_size_hex(bytes_len(A)(ah));
 
-  return n + ah + bh;
+  return '0x' +  n + ah + bh;
 };
 
 
@@ -119,60 +104,45 @@ const encode = ({ ethers }) => (t, v) =>
   ethers.utils.defaultAbiCoder.encode([t], [v]);
 
 
-const awaitConfirmationOf = ({ web3 }) => (txHash, blockPollingPeriodInSeconds = 1) =>
-  new Promise((resolve, reject) => {
-    // A null `t` or `t.blockNumber` means the tx hasn't been confirmed yet
-    const query = () => web3.eth.getTransaction(txHash, (err, t) => {
-      return (
-        !!err                  ? clearInterval(i) || reject(err)
-      : !!t && !!t.blockNumber ? clearInterval(i) || resolve(txHash)
-      : null); });
-
-    const i = setInterval(query, blockPollingPeriodInSeconds * 1000);
-  });
+const rejectInvalidReceiptFor = txHash => r =>
+    !r                           ? Promise.reject(`No receipt for txHash: ${txHash}`)
+  : r.transactionHash !== txHash ? Promise.reject(`Bad txHash; ${txHash} !== ${r.transactionHash}`)
+  : !r.status                    ? Promise.reject(`Transaction: ${txHash} was reverted by EVM\n${r}`)
+  : Promise.resolve(r);
 
 
-const txReceiptFor = ({ web3 }) => txHash =>
-  new Promise((resolve, reject) => {
-    return web3.eth.getTransactionReceipt(txHash, (err, r) => {
-      return (
-        !!err                        ? reject(err)
-      : r.transactionHash !== txHash ? reject(`Bad txHash; ${txHash} !== ${r.transactionHash}`)
-      : r.status          !== '0x1'  ? reject(`Transaction: ${txHash} failed for unspecified reason`)
-      : resolve(r)); }); });
+const fetchAndRejectInvalidReceiptFor = ({ web3 }) => txHash =>
+  web3.eth.getTransactionReceipt(txHash)
+    .then(rejectInvalidReceiptFor(txHash));
 
 
-// https://github.com/ethereum/wiki/wiki/JavaScript-API#web3ethsendtransaction
+// https://web3js.readthedocs.io/en/v1.2.0/web3-eth.html#sendtransaction
 const transfer = ({ web3 }) => (to, from, value) =>
-  new Promise((resolve, reject) =>
-    web3.eth.sendTransaction({ to, from, value }, e =>
-      !!e ? reject(e)
-          : resolve(to)));
+  web3.eth.sendTransaction({ to, from, value });
 
 
-// https://github.com/ethereum/wiki/wiki/JavaScript-API#contract-methods
+// https://web3js.readthedocs.io/en/v1.2.0/web3-eth-contract.html#web3-eth-contract
 const mkSendRecv = A => (address, from, ctors) => (label, funcName, args, value, eventName, cb) => {
-  // console.log(`${label} sendrecv m ${funcName}/${eventName} ${args}`);
-  return A.web3.eth
-    .contract(A.abi)
-    .at(address)[funcName]
-    .sendTransaction(...ctors, ...args, { from, value }, k(panic, txHash =>
-      awaitConfirmationOf(A)(txHash)
-        .then(() => txReceiptFor(A)(txHash))
-        .then(() => { // console.log(`${label} sendrecv f ${funcName}/${eventName} ${args}`);
-                      // XXX We may need to actually see the event. I don't know if the transaction confirmation is enough.
-                      // XXX Replace 0 below with the contract's balance
-                      cb({ value: value, balance: 0 }); })
-        .catch(panic))); };
+  // https://github.com/ethereum/web3.js/issues/2077
+  const munged = [ ...ctors, ...args ]
+    .map(m => isBN(A)(m) ? m.toString() : m);
+
+  return new A.web3.eth.Contract(A.abi, address)
+    .methods[funcName](...munged)
+    .send({ from, value })
+    .then(r  => fetchAndRejectInvalidReceiptFor(A)(r.transactionHash))
+    // XXX We may need to actually see the event. I don't know if the
+    //     transaction confirmation is enough.
+    // XXX Replace 0 below with the contract's balance
+    .then(() => cb({ value: value, balance: 0 }));
+};
 
 
 // https://docs.ethers.io/ethers.js/html/api-contract.html#configuring-events
-const mkRecv = ({ web3, ethers, abi }) => address => (label, eventName, cb) => {
-  // console.log(`${label} recv m ${eventName}`);
-  return new ethers
+const mkRecv = ({ web3, ethers, abi }) => address => (label, eventName, cb) =>
+  new ethers
     .Contract(address, abi, new ethers.providers.Web3Provider(web3.currentProvider))
     .once(eventName, (...a) => {
-      // console.log(`${label} recv e ${eventName} ${a}`);
       const b = a.map(b => b); // Preserve `a` w/ copy
       const e = b.pop();       // The final element represents an `ethers` event object
 
@@ -181,11 +151,10 @@ const mkRecv = ({ web3, ethers, abi }) => address => (label, eventName, cb) => {
 
       // TODO FIXME replace arbitrary delay with something more intelligent to
       // mitigate mystery race condition
-      web3.eth.getTransaction(e.transactionHash, k(panic, t =>
-        setTimeout(() => { // console.log(`${label} recv f ${eventName} ${bns}`);
-                           // XXX Replace 0 below with the contract's balance
-                           cb(...bns, { value: t.value, balance: 0 }); }, 1000)));
-    }); };
+      return web3.eth.getTransaction(e.transactionHash, k(panic, t =>
+        // XXX Replace 0 below with the contract's balance
+        setTimeout(() => cb(...bns, { value: t.value, balance: 0 }), 2000)));
+    });
 
 
 const Contract = A => userAddress => (ctors, address) =>
@@ -198,34 +167,30 @@ const Contract = A => userAddress => (ctors, address) =>
    });
 
 
-const mkDeploy = A => userAddress => (ctors, blockPollingPeriodInSeconds = 1) =>
-  new Promise((resolve, reject) => {
-    // TODO track down solid docs RE: why the ABI would have extra constructor
-    // fields and when/how/why dropping leading `0x`s is necessary
-    const ctorTypes = A.abi
-      .find(a => a.constructor)
-      .inputs
-      .map(i => i.type)
-      .slice(0, ctors.length);
+// https://web3js.readthedocs.io/en/v1.2.0/web3-eth.html#sendtransaction
+const mkDeploy = A => userAddress => ctors => {
+  // TODO track down solid docs RE: why the ABI would have extra constructor
+  // fields and when/how/why dropping leading `0x`s is necessary
+  const ctorTypes = A.abi
+    .find(a => a.constructor)
+    .inputs
+    .map(i => i.type)
+    .slice(0, ctors.length);
 
-    const encodedCtors = ctors
-      .map(c => encode(A.ethers)(ctorTypes[ctors.indexOf(c)], c))
-      .map(c => c.replace(/^0x/, ''));
+  const encodedCtors = ctors
+    .map(c => encode(A.ethers)(ctorTypes[ctors.indexOf(c)], c))
+    .map(un0x);
 
-    const data = [ A.bytecode, ...encodedCtors ].join('');
+  const data = [ A.bytecode, ...encodedCtors ].join('');
 
-    const o = { data, from: userAddress, gas: A.web3.eth.estimateGas({ data }) };
+  const contractFromReceipt = r =>
+    Contract(A)(userAddress)(ctors, r.contractAddress);
 
-    const gatherContractInfo = txHash =>
-      txReceiptFor(A)(txHash)
-        .then(r => Contract(A)(userAddress)(ctors, r.contractAddress))
-        .then(resolve)
-        .catch(reject);
-
-    return A.web3.eth.sendTransaction(o, k(reject, txHash =>
-      awaitConfirmationOf(A)(txHash, blockPollingPeriodInSeconds)
-        .then(gatherContractInfo)));
-  });
+  return A.web3.eth.estimateGas({ data })
+    .then(gas => A.web3.eth.sendTransaction({ data, gas, from: userAddress }))
+    .then(r => rejectInvalidReceiptFor(r.transactionHash)(r))
+    .then(contractFromReceipt);
+};
 
 
 const EthereumNetwork = A => userAddress =>
@@ -241,15 +206,16 @@ const EthereumNetwork = A => userAddress =>
 // This matches the logic in legicash-facts'
 // src/legilogic_ethereum/ethereum_transaction.ml:get_first_account
 // function (which is also what its prefunder script uses)
-const prefundedDevnetAcct = ({ web3 }) =>
-     web3.personal.listAccounts[0]
-  || panic('Cannot infer prefunded account!');
+const prefundedDevnetAcct = ({ web3 }) => () =>
+  web3.eth.personal.getAccounts()
+    .then(a => a[0])
+    .catch(e => panic(`Cannot infer prefunded account!\n${e}`));
 
 
 const createAndUnlockAcct = ({ web3 }) => () =>
   new Promise(resolve =>
-    web3.personal.newAccount((z, i) =>
-      web3.personal.unlockAccount(i, () => resolve(i))));
+    web3.eth.personal.newAccount((z, i) =>
+      web3.eth.personal.unlockAccount(i, () => resolve(i))));
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -257,37 +223,36 @@ const createAndUnlockAcct = ({ web3 }) => () =>
 
 export const mkStdlib = A =>
  ({ hexTo0x
+  , un0x
   , k
-  , balanceOf
-  , web3:                A.web3
-  , ethers:              A.ethers
-  , random_uint256:      random_uint256(A)
-  , uint256_to_bytes:    uint256_to_bytes(A)
-  , bytes_cat:           bytes_cat(A)
-  , bytes_len:           bytes_len(A)
-  , bytes_eq:            bytes_eq(A)
-  , keccak256:           keccak256(A)
-  , digestHex:           digestHex(A)
-  , assert:              assert(A)
-  , equal:               equal(A)
-  , eq:                  equal(A)
-  , add:                 add(A)
-  , sub:                 sub(A)
-  , mod:                 mod(A)
-  , mul:                 mul(A)
-  , ge:                  ge(A)
-  , gt:                  gt(A)
-  , le:                  le(A)
-  , lt:                  lt(A)
-  , encode:              encode(A)
-  , toBN:                toBN(A)
-  , bnToHex:             bnToHex(A)
-  , isBN:                isBN(A)
-  , awaitConfirmationOf: awaitConfirmationOf(A)
-  , txReceiptFor:        txReceiptFor(A)
-  , transfer:            transfer(A)
-  , Contract:            Contract(A)
-  , EthereumNetwork:     EthereumNetwork(A)
+  , web3:             A.web3
+  , ethers:           A.ethers
+  , balanceOf:        balanceOf(A)
+  , random_uint256:   random_uint256(A)
+  , uint256_to_bytes: uint256_to_bytes(A)
+  , bytes_cat:        bytes_cat(A)
+  , bytes_len:        bytes_len(A)
+  , bytes_eq:         bytes_eq(A)
+  , keccak256:        keccak256(A)
+  , assert:           assert(A)
+  , equal:            equal(A)
+  , eq:               equal(A)
+  , add:              add(A)
+  , sub:              sub(A)
+  , mod:              mod(A)
+  , mul:              mul(A)
+  , ge:               ge(A)
+  , gt:               gt(A)
+  , le:               le(A)
+  , lt:               lt(A)
+  , encode:           encode(A)
+  , toWei:            toWei(A)
+  , toBN:             toBN(A)
+  , bnToHex:          bnToHex(A)
+  , isBN:             isBN(A)
+  , transfer:         transfer(A)
+  , Contract:         Contract(A)
+  , EthereumNetwork:  EthereumNetwork(A)
 
   , devnet: { prefundedDevnetAcct: prefundedDevnetAcct(A)
             , createAndUnlockAcct: createAndUnlockAcct(A)
