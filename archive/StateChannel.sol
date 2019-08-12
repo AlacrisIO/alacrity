@@ -524,4 +524,10 @@ contract StateChannel is StateChannelBase {
         emit Message(new_clock, _message);
         currentState = digestState(_session, new_clock, participants, newBalancedState);
     }
+
+    constructor (bytes32 state) public payable
+    {
+        emit Unanimously(state);
+        currentState = state;
+    }
 }
