@@ -130,6 +130,29 @@ const mkConstructSC = A => () =>
 
 
 
+const ProvideVRS = A => (myIdentity) =>
+  new Promise((resolve, reject) => {
+    const fctSendVRS = (result_sign) => {
+      A.web3.shh.post({'from':myIdentity, 'to':result_sign.from, 'payload':result_sign.XXXX},
+        (err_post, result_post) => !!err_post ? reject(ProvideVRS(A)(myIdentity)) : resolve(result_post));
+    };
+    const fctProcess = (state_to_sign) => {
+      A.web3.eth.sign(myIdentity, data_to_sign,
+        (err_sign, result_sign) => !!err_sign ? reject(err_sign) : fctSendVRS(result_sign));
+    };
+    const fctComputeHash = (data_to_sign) => {
+      // Need to check if a state is valid.
+      state_to_sign = keccak256(A)(data_to_sign)
+      return fctProcess(state_to_sign);
+    };
+    A.web3.filter({'topics':'signatureVRS', 'to':myIdentity},
+    (err_filt, result_filt) => !!err_filt ? ProvideVRS(A)(myIdentity) : fctComputeHash(result_filt))
+       .then(ProvideVRS(A)(myIdentity));
+  });
+
+
+
+
 
 
 const sendTransactionSC = A => (myIdentity, to, payload) =>
