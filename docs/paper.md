@@ -150,14 +150,14 @@ before performing the transfer.
     @A declassify! wagerAmount;
     @A declassify! escrowAmount;
     @A declassify! commitA;
-    @A publish! wagerAmount, escrowAmount, commitA
+    >A publish! wagerAmount, escrowAmount, commitA
        w/ (wagerAmount + escrowAmount);
-    return;
+    commit;
 ```
 
 The first two lines perform the declassification, while the next two
 perform the publishing and payment to the contract. The last line
-(`return;`) finishes the consensual block and returns to the next
+(`commit;`) finishes the consensual block and returns to the next
 local block. After this statement, it is now consensual knowledge that
 Alice shared these three values and transferred the appropriate
 amount.
@@ -176,7 +176,7 @@ wager amount, which he has just learned from the last consensus block.
     @B declassify! handB;
     @B publish! handB w/ wagerAmount;
     require! isHand(handB);
-    return;
+    commit;
 ```
 
 This consensus block, however, does not immediately return to local
@@ -200,7 +200,7 @@ commitment actually is made from these inputs:
 ```
     @A declassify! saltA;
     @A declassify! handA;
-    @A publish! saltA, handA w/ 0;
+    >A publish! saltA, handA w/ 0;
     check_commit(commitA, saltA, handA);
 ```
 
@@ -229,7 +229,7 @@ them to the appropriate parties:
               values wagerAmount, wagerAmount };
     transfer! A <- (escrowAmount + getsA);
     transfer! B <- getsB;
-    return;
+    commit;
 ```
 
 The computation is now over and the two parties simply return the
@@ -561,7 +561,7 @@ efficient.
 ```
 contract ALAContract is Stdlib {
   uint256 current_state;
-  
+
   constructor(address payable pA, address payable pB) public payable {
     current_state = uint256(keccak256(abi.encodePacked(uint256(0), pA, pB))); }
 ```
