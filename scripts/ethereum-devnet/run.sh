@@ -30,7 +30,9 @@ mkdir $DATADIR
 LOGDIR=$DATADIR/logs
 mkdir -p $LOGDIR
 
-geth \
+V1_9_X_ARGS=$(geth version 2>/dev/null |grep -q "^Version: 1.9" && echo "--allow-insecure-unlock" || echo "")
+
+geth ${V1_9_X_ARGS} \
     --dev \
     --mine \
     --identity "AlacrisEthereumDevNet" \

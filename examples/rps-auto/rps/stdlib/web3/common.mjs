@@ -213,9 +213,10 @@ const prefundedDevnetAcct = ({ web3 }) => () =>
 
 
 const createAndUnlockAcct = ({ web3 }) => () =>
-  new Promise(resolve =>
-    web3.eth.personal.newAccount((z, i) =>
-      web3.eth.personal.unlockAccount(i, () => resolve(i))));
+  web3.eth.personal.newAccount('')
+    .then(i => web3.eth.personal.unlockAccount(i, '', 999999999)
+                 .then(u => u ? Promise.resolve(i)
+                              : Promise.reject(`Couldn't unlock account ${i}!`)));
 
 
 ////////////////////////////////////////////////////////////////////////////////

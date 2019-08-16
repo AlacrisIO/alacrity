@@ -7,7 +7,7 @@ listed:
 - `npm` v6.9.0
 - `stack` v2.1.3
 - GNU `make` v4.1 (or greater)
-- `geth` v1.8.21
+- `geth` v1.9.2
 - `z3` v4.8.5
 - `solc` v0.5.2
 
@@ -73,21 +73,21 @@ Fetch pre-built `z3` + `geth` packages from the web and stage them in a `~/bin`
 $ mkdir -p ~/bin && cd ~/bin
 
 $ wget https://github.com/Z3Prover/z3/releases/download/Z3-4.8.5/z3-4.8.5-x64-osx-10.14.2.zip
-$ wget https://gethstore.blob.core.windows.net/builds/geth-darwin-amd64-1.8.27-4bcc0a37.tar.gz
+$ wget https://gethstore.blob.core.windows.net/builds/geth-darwin-amd64-1.9.2-e76047e9.tar.gz
 
 $ unzip z3-4.8.5-x64-osx-10.14.2.zip
-$ gnutar -xvf geth-darwin-amd64-1.8.27-4bcc0a37.tar.gz
+$ gnutar -xvf geth-darwin-amd64-1.9.2-e76047e9.tar.gz
 
 # Update ~/.bashrc (or ~/.profile, etc), substituting `<you>` with your
 # username, so the new binaries become visible in your $PATH:
-export PATH="/Users/<you>/bin/geth-darwin-amd64-1.8.27-4bcc0a37:$PATH"
+export PATH="/Users/<you>/bin/geth-darwin-amd64-1.9.2-e76047e9:$PATH"
 export PATH="/Users/<you>/bin/z3-4.8.5-x64-osx-10.14.2/bin:$PATH"
 
 # Activate the $PATH changes and verify the binaries are available now:
 $ source ~/.bashrc
 
 $ which geth
-/Users/<you>/bin/geth-darwin-amd64-1.8.27-4bcc0a37/geth
+/Users/<you>/bin/geth-darwin-amd64-1.9.2-e76047e9/geth
 
 $ which z3
 /Users/<you>/bin/z3-4.8.5-x64-osx-10.14.2/bin/z3
