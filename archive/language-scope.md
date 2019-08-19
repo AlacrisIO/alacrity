@@ -915,10 +915,38 @@ See the [examples](examples/index.md) directory.
   and steal resources. Thus, the economic limitation of the Cosmos architecture above
   is a direct consequence of the technical limitation of its application language Go.
 
+* [Statebox](https://statebox.org/) uses Category Theory to model computations as Petri Nets.
+  Their approach seems quite powerful, and particularly fit to model the bounded processes
+  involved in most ordinary transactions.
+  They don't seem to currently consider many of the concerns weren't interested in,
+  and many interesting DApps are not expressible within that computational model,
+  but the model could probably be extended to address these issues if the authors were to care.
+  A serious competitor, if they are not too enamored with their current unextended model.
+
+* [cashscript](https://github.com/Bitcoin-com/cashscript) allows you to metaprogram
+  bitcoin cash scripts from typescript.
+  This is indeed is the right thing to do if you don't know yet have
+  a higher-level programming model for contracts (or covenants, or whatever they are called):
+  it gives you latitude to experiment and build things up, in the same language that you use
+  in client code.
+  But Alacrity provides exactly the missing higher-level programming model.
+
+
+
 * DeepSea, other Coq-based systems...
 
 * [Actus](https://www.actusfrf.org/), works by [Fritz Henglein](http://hjemmesider.diku.dk/~henglein/).
 
-* See what Statebox has, what O(1)labs has, etc.
+* See what O(1)labs has, etc.
+
+* [Abridged](https://abridged.github.io/splash/)
 
 * [E](https://erights.org/): capabilities and smart contracts from before blockchain.
+
+* ??? Is there anything useful in this article? [Impossibility of the Obama-Trump contract](https://eprint.iacr.org/2018/252.pdf) - looks like they assume a successful 51% attack.
+
+* https://www.cs.tau.ac.il/~odedp/modularity-for-decidability.pdf
+* https://www.csail.mit.edu/event/type-system-resource-bounds-type-preserving-compilation-and-its-application-ethereum-smart
+* https://arxiv.org/pdf/1812.08829.pdf
+* https://eprint.iacr.org/2018/416.pdf
+

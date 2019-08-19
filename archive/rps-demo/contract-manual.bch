@@ -150,6 +150,7 @@ https://github.com/Bitcoin-com/cashscript
     ENDIF
   ELSE
     48(2) SPLIT 20(2) SPLIT DROP 4 PICK HASH160 EQUALVERIFY  \\ check that H(pk) = pkHB
+    \\ TODO: Use CTLV with fixed date instead, because CSV isn't safe on BCH due to transaction malleability
     "2d"(3) CHECKSEQUENCEVERIFY 2DROP  \\ check timeout
     \\ No need to check the outputs: we trust the user to take all the money, anyway.
   ENDIF
@@ -192,6 +193,7 @@ https://github.com/Bitcoin-com/cashscript
 ( 40, 14)
   ELSE \\ A RESCINDS!
     28(2) SPLIT NIP 3 PICK HASH160 EQUALVERIFY  \\ check that H(pk) = pkHA
+    \\ TODO: Use CTLV with fixed date instead, because CSV isn't safe on BCH due to transaction malleability
     \\ "2d"(3) CHECKSEQUENCEVERIFY 2DROP \\ No need to check a timeout: just rescind at any time.
     \\ No need to check the outputs: we trust the user to take all the money, anyway.
   ENDIF
