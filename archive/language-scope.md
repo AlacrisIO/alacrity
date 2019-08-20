@@ -945,6 +945,8 @@ See the [examples](examples/index.md) directory.
 
 * ??? Is there anything useful in this article? [Impossibility of the Obama-Trump contract](https://eprint.iacr.org/2018/252.pdf) - looks like they assume a successful 51% attack.
 
+* [Enigma](https://enigma.co/discovery-documentation/) like us uses the notion of multiparty computation, and uses Intel SGX to run the private encrypted computations in a market-selected trusted worker. The final outcome of the computation is necessarily more expensive than if done privately on a state channel; so it's only interesting if you can trust the platform to run computations privately, that would be quite expensive if done with homomorphic encryption, that you don't care if the NSA sees. (They also don't have End-Point Projection.)
+
 * https://www.cs.tau.ac.il/~odedp/modularity-for-decidability.pdf
 * https://www.csail.mit.edu/event/type-system-resource-bounds-type-preserving-compilation-and-its-application-ethereum-smart
 * https://arxiv.org/pdf/1812.08829.pdf
