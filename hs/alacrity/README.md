@@ -16,7 +16,7 @@ you just need to install stack, and stack will use Nix to install z3:
     nix-env -f '<nixpkgs>' -iA stack
 
 On Ubuntu or Debian, you would use the following, except that as of June 11th 2019,
-Debian only provides z3 4.4.1 whereas the Haskell Z3 library requires z3 4.8.4,
+Debian only provides z3 4.4.1 whereas we depend on features from z3 4.8.5,
 so you'll instead have to install z3 from source or binary release
 (or build using nix with `stack --nix`):
 
