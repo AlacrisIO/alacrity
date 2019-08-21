@@ -6,8 +6,11 @@ const k = (reject, f) => (err, ...d) =>
   !!err ? reject(err)
         : f(...d);
 
+const flip = (f, a, b) =>
+  f(b, a);
+
 const un0x           = h => h.replace(/^0x/, '');
-const hexTo0x        = h => '0x' + h;
+const hexTo0x        = h => '0x' + h.replace(/^0x/, '');
 const byteToHex      = b => (b & 0xFF).toString(16).padStart(2, '0');
 const byteArrayToHex = b => Array.from(b, byteToHex).join('');
 
@@ -107,7 +110,7 @@ const encode = ({ ethers }) => (t, v) =>
 const rejectInvalidReceiptFor = txHash => r =>
     !r                           ? Promise.reject(`No receipt for txHash: ${txHash}`)
   : r.transactionHash !== txHash ? Promise.reject(`Bad txHash; ${txHash} !== ${r.transactionHash}`)
-  : !r.status                    ? Promise.reject(`Transaction: ${txHash} was reverted by EVM\n${r}`)
+  : !r.status                    ? Promise.reject(`Transaction: ${txHash} was reverted by EVM\n${r}`) // eslint-disable-line max-len
   : Promise.resolve(r);
 
 
@@ -138,10 +141,76 @@ const mkSendRecv = A => (address, from, ctors) => (label, funcName, args, value,
 };
 
 
+const consumedEventKeyOf = (name, e) =>
+  `${name}:${e.blockNumber}:${e.transactionHash}`;
+
+
 // https://docs.ethers.io/ethers.js/html/api-contract.html#configuring-events
-const mkRecv = ({ web3, ethers, abi }) => address => (label, eventName, cb) =>
-  new ethers
-    .Contract(address, abi, new ethers.providers.Web3Provider(web3.currentProvider))
+const mkRecv = ({ web3, ethers }) => c => (label, eventName, cb) => {
+  let alreadyConsumed = false;
+
+  const consume = (e, bns, resolve, reject) =>
+    fetchAndRejectInvalidReceiptFor({ web3 })(e.transactionHash)
+      .then(() => web3.eth.getTransaction(e.transactionHash, k(reject, t => {
+        const key = consumedEventKeyOf(eventName, e);
+
+        if (alreadyConsumed || (c.consumedEvents[key] !== undefined))
+          return reject(`${label} has already consumed ${key}!`);
+
+        // Sanity check: events ought to be consumed monotonically
+        const latestPrevious = Object.values(c.consumedEvents)
+          .filter(x => x.eventName === eventName)
+          .sort((x, y) => x.blockNumber - y.blockNumber)
+          .pop();
+
+        if (!!latestPrevious && latestPrevious.blockNumber >= e.blockNumber) {
+          reject(`${label} attempted to consume ${eventName} out of sequential block # order!`);
+        }
+
+        alreadyConsumed = true;
+        Object.assign(c.consumedEvents, { [key]: Object.assign({}, e, { eventName }) });
+
+        resolve();
+        // XXX Replace 0 below with the contract's balance
+        cb(...bns, { value: t.value, balance: 0 });
+      })));
+
+
+  const past = () => new Promise((resolve, reject) =>
+    new web3.eth.Contract(c.abi, c.address)
+      .getPastEvents(eventName, { toBlock: 999999999 }) // TODO `toBlock`
+      .then(es => {
+        const e = es
+          .find(x => c.consumedEvents[consumedEventKeyOf(eventName, x)] === undefined);
+
+        if (!e)
+          return reject();
+
+        const argsAbi = c.abi
+          .find(a => a.name === eventName)
+          .inputs;
+
+        const decoded = web3.eth.abi.decodeLog(argsAbi, e.raw.data, e.raw.topics);
+
+        const bns = argsAbi
+          .map(a => a.name)
+          .map(n => decoded[n]);
+
+        return consume(e, bns, resolve, reject);
+      }));
+
+
+  const pollPast = () => new Promise(resolve => {
+    const attempt = () => past()
+      .then(resolve)
+      .catch(() => flip(setTimeout, 500, () => !alreadyConsumed && attempt()));
+
+    return attempt();
+  });
+
+
+  const next = () => new Promise((resolve, reject) => new ethers
+    .Contract(c.address, c.abi, new ethers.providers.Web3Provider(web3.currentProvider))
     .once(eventName, (...a) => {
       const b = a.map(b => b); // Preserve `a` w/ copy
       const e = b.pop();       // The final element represents an `ethers` event object
@@ -149,22 +218,28 @@ const mkRecv = ({ web3, ethers, abi }) => address => (label, eventName, cb) =>
       // Swap ethers' BigNumber wrapping for web3's
       const bns = b.map(x => toBN({ web3 })(x.toString()));
 
-      // TODO FIXME replace arbitrary delay with something more intelligent to
-      // mitigate mystery race condition
-      return web3.eth.getTransaction(e.transactionHash, k(panic, t =>
-        // XXX Replace 0 below with the contract's balance
-        setTimeout(() => cb(...bns, { value: t.value, balance: 0 }), 2000)));
-    });
+      return consume(e, bns, resolve, reject);
+    }));
 
 
-const Contract = A => userAddress => (ctors, address) =>
-  ({ abi:      A.abi
-   , bytecode: A.bytecode
-   , sendrecv: mkSendRecv(A)(address, userAddress, ctors)
-   , recv:     mkRecv(A)(address)
-   , ctors
-   , address
-   });
+  return past()
+    .catch(() => Promise.race([ pollPast(), next() ]).catch(panic));
+};
+
+
+const Contract = A => userAddress => (ctors, address) => {
+  const c =
+    { abi:            A.abi
+    , bytecode:       A.bytecode
+    , sendrecv:       mkSendRecv(A)(address, userAddress, ctors)
+    , recv:           (l, n, cb) => mkRecv(A)(c)(l, n, cb)
+    , consumedEvents: {}
+    , ctors
+    , address
+    };
+
+  return c;
+};
 
 
 // https://web3js.readthedocs.io/en/v1.2.0/web3-eth.html#sendtransaction
@@ -226,6 +301,7 @@ export const mkStdlib = A =>
  ({ hexTo0x
   , un0x
   , k
+  , flip
   , web3:             A.web3
   , ethers:           A.ethers
   , balanceOf:        balanceOf(A)
