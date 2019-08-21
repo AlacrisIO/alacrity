@@ -23,7 +23,13 @@ describe('A rock/paper/scissors game using the `web3` stdlib', () => {
     const wagerInEth  = '1.5';
     const escrowInEth = '0.15';
 
-    it('both participants agreeing on who won and the winner\'s balance being increased + loser\'s balance being reduced by wager', done =>
+    const msgAgreeAndSaneBalances =
+      [ 'both participants agreeing on who won'
+      , 'and the winner\'s balance being increased'
+      , '+ loser\'s balance being reduced by wager'
+      ].join(' ');
+
+    it(msgAgreeAndSaneBalances, done =>
       runGameWith(RPS, stdlib, false, false, interactWith, wagerInEth, escrowInEth, uri)
         .then(g => {
           const { balanceStartAlice, balanceStartBob, balanceEndAlice, balanceEndBob } = g;

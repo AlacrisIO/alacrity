@@ -7,6 +7,7 @@ const init = (stdlib, wagerInEth, escrowInEth) => {
   return Promise.resolve({ stdlib, gameState: { wagerInWei, escrowInWei }});
 };
 
+
 const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
   const { balanceOf, devnet, transfer } = stdlib;
   const { prefundedDevnetAcct         } = devnet;
@@ -90,6 +91,8 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
     .then(captureClosingGameState);
 };
 
+
+// eslint-disable-next-line max-len
 export const runGameWith = (theRPS, stdlib, doWhile, drawFirst, interactWith, wagerInEth, escrowInEth, uri) =>
   init(stdlib, wagerInEth, escrowInEth, uri)
     .then(play(theRPS, drawFirst, interactWith));
