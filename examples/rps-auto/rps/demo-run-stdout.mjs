@@ -13,8 +13,14 @@ const uri = process.env.ETH_NODE_URI || 'http://localhost:8545';
 const makeInteractWith = label => (name, handf) => (a, cb) => {
   const res = a === 'getHand' ? handf() : '';
 
+  const paramsMsg =
+    [ `${name} publishes parameters of game:`
+    , `wager of ${wagerInEth}ETH`
+    , `and escrow of ${escrowInEth}ETH.`
+    ].join(' ');
+
   const msg
-    = a === 'params'  ? `${name} publishes parameters of game: wager of ${wagerInEth}ETH and escrow of ${escrowInEth}ETH.`
+    = a === 'params'  ? paramsMsg
     : a === 'accepts' ? `${name} accepts the terms.`
     : a === 'getHand' ? `(local: ${name} plays ${res}.)`
     : a === 'commits' ? `${name} commits to play with (hidden) hand.`
@@ -43,17 +49,23 @@ const makeDemo = (doWhile, drawFirst) => {
 
   const theRPS = doWhile ? RPSW : RPS;
 
+  const runGameWithTheRPS = s =>
+    runGameWith(theRPS, s, doWhile, drawFirst, makeInteractWith(label), wagerInEth, escrowInEth, uri)
+
   return new Promise(resolve =>
     Promise.resolve(console.log(introMsg))
       .then(() => stdlibNode(theRPS.ABI, theRPS.Bytecode, uri))
-      .then(s  => runGameWith(theRPS, s, doWhile, drawFirst, makeInteractWith(label), wagerInEth, escrowInEth, uri))
+      .then(runGameWithTheRPS)
       .then(gs => console.log(outcomeMsgs(gs)))
       .then(() => console.log(`${label} Done!`))
       .then(resolve));
 };
 
-makeDemo(true, true)
-  .then(() => makeDemo(false, true))
+// TODO re-enable `WHILE` demo
+// makeDemo(true, true)
+//   .then(() => makeDemo(false, true))
+
+makeDemo(false, true)
   .then(() => makeDemo(false, false))
   .then(() => process.exit(0))
   .catch(e => console.error(e) || process.exit(1));
