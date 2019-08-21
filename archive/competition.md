@@ -1,5 +1,43 @@
 # Competition for Alacrity
 
+There are many competitors writing DSLs to write smart contracts—but already,
+these languages only handle the smart-contract, and not the entire DApp.
+Any bug in the client or server code, or any discrepancy between that code and the contract,
+and the users’ assets will disappear as surely as if the bug were in the contract.
+However few competitor seem to even be aware of the issue;
+a couple of these languages allow for a little bit more integration
+with a language to build client code than others (Plutus, Michelson),
+but it still remains very low-level and error-prone,
+checking data types of messages but not the state of the computation.
+
+Our DSL, Alacrity, can be used to specify and formally verify
+contract and client code at the same time, and
+make sure they are generated in a coherent way,
+using End-Point Projection, a technique unique to us.
+A few of these languages are well-suited to formal verification (e.g. Scilla).
+Most aren’t, worse or verify the wrong things (Simplicity).
+Some companies like CertiK or Runtime Verification
+have built great tools and framework to verify smart contracts.
+However, once again they tend to only verify the smart contract, and not the entire DApp.
+They also seem not to take into account the adversarial aspect of the blockchain
+in the properties they verify and thus miss key safety properties.
+No one but us verifies both client and contract.
+
+Also, almost all of these smart contract languages are chain-specific.
+One language, DAML, is portable, but is designed for permissioned blockchains;
+it is excellent on the financial contract side,
+but despite being so much better than all other solutions for permissioned blockchains,
+it is still not at all suited for the adversarial environment of permissionless blockchains
+(no doubt it could become so if they learn from us,
+just like we can improve our support for financial transactions by learning from them).
+
+Some companies claim to be building an “Operating System”,
+but what they mean is very different from us.
+For instance, Zeppelin OS does an amazing job at building tools on the Ethereum ecosystem;
+but their vision has no cross-chain portability;
+they write contract and client code separately in Solidity and Javascript;
+they do not offer deployment services.
+
 * [Scilla](https://scilla-lang.org/)
   is the smart contract language for Zilliqa.
   It is embedded in Coq, and features total functions with eventual message sends.
