@@ -50,7 +50,14 @@ const makeDemo = (doWhile, drawFirst) => {
   const theRPS = doWhile ? RPSW : RPS;
 
   const runGameWithTheRPS = s =>
-    runGameWith(theRPS, s, doWhile, drawFirst, makeInteractWith(label), wagerInEth, escrowInEth, uri)
+    runGameWith(theRPS
+              , s
+              , doWhile
+              , drawFirst
+              , makeInteractWith(label)
+              , wagerInEth
+              , escrowInEth
+              , uri);
 
   return new Promise(resolve =>
     Promise.resolve(console.log(introMsg))
