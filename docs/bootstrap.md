@@ -39,6 +39,7 @@ from our MVP, the direct-style Alacrity compiler.
 They are annotated with due dates according to our best plan,
 which will be updated as we refine our plan:
 
+  * zero-knowledge proofs for verification of arbitrary Alacrity interactions (end of 2021?)
   * Sufficient models of existing blockchains for interoperability [#110](https://github.com/AlacrisIO/meta/issues/110) (July 2020)
   * Side-chain Markets with MKB [#54](https://github.com/AlacrisIO/meta/issues/54) (June 2020) ⇐ *Beta network that enables a Token event*
   * Operator Markets (May 2020)
@@ -159,3 +160,4 @@ as well as cleanups, simplifications and documentation to make it usable outside
 
 For each task, list tasks it directly depends on, tasks that directly depend on it,
 a time estimate, an estimated delivery date, and a detailed description...
+or just create an issue for each of them, and discuss the issue there and reference it here.
