@@ -112,7 +112,7 @@ const SC_mkConstruct = A => () =>
     const fctSet = (result_id) => {
       A.SC.myIdentity = result_id;
       resolve(result_id);
-    }
+    };
     A.web3.shh.newIdentity((err_id, result_id) =>
     !!err_id ? reject(err_id) : fctSet(result_id));
   });
@@ -125,40 +125,40 @@ const SC_ProvideVRS = A => () =>
   new Promise((resolve, reject) => {
     const fctSendVRS = (result_sign) => {
       A.web3.shh.post({'from':A.SC.myIdentity, 'to':result_sign.from, 'payload':result_sign.XXXX},
-        (err_post, result_post) => !!err_post ? reject("error shh.pos") : resolve("success shh.post"));
+        (err_post, result_post) => !!err_post ? reject('error shh.pos') : resolve('success shh.post' + result_post));
     };
-    const fctProcess = (state_to_sign) => {
-      A.web3.eth.sign(myIdentity, data_to_sign,
-        (err_sign, result_sign) => !!err_sign ? reject("error signature") : fctSendVRS(result_sign));
+    const fctProcess = (data_to_sign) => {
+      A.web3.eth.sign(A.SC.myIdentity, data_to_sign,
+        (err_sign, result_sign) => !!err_sign ? reject('error signature') : fctSendVRS(result_sign));
     };
     const fctComputeHash = (data_to_sign) => {
       // Need to check that the operation is valid.
       //
-      state_to_sign = keccak256(A)(data_to_sign)
+      const state_to_sign = keccak256(A)(data_to_sign);
       return fctProcess(state_to_sign);
     };
-    A.web3.filter({'topics':'signatureVRS', 'to':myIdentity},
-    (err_filt, result_filt) => !!err_filt ? reject("error web3.filter") : fctComputeHash(result_filt));
+    A.web3.filter({'topics':'signatureVRS', 'to':A.SC.myIdentity},
+    (err_filt, result_filt) => !!err_filt ? reject('error web3.filter') : fctComputeHash(result_filt));
   });
 
 
-const async SC_InfiniteProvideVRS = A => () => {
+async function SC_InfiniteProvideVRS(A) {
   let iter = 0;
   while(1) {
-    let var_reply = SC_ProvideVRS(A)();
+    let var_reply = await SC_ProvideVRS(A)();
     iter = iter + 1;
-    console.log("SC_InfiniteProvideVRS, iter=" + iter + " var_reply=" + var_reply);
+    console.log('SC_InfiniteProvideVRS, iter=' + iter + ' var_reply=' + var_reply);
   }
 }
 
 
 const SC_WaitEvents = A => () =>
   new Promise((resolve, reject) => {
-    
+    resolve('foo');
   });
 
-const SC_SpansThreads = A => () =>
-  new Promise.race([SC_InfiniteProvideVRS(A)() , SC_WaitEvents(A)()]);
+const SC_mkSpanThreads = A => () =>
+  new Promise.race([SC_InfiniteProvideVRS(A) , SC_WaitEvents(A)()]);
 
 
 
@@ -171,7 +171,7 @@ const SC_sendTransaction = A => (myIdentity, to, payload) =>
           !!err ? reject_loc(err) : resolve_loc(result)));
     pSend.catch((message) => reject(message))
     .then((result) =>
-    new Promise((resolve, result) => {
+    new Promise((resolve, reject) => {
       const pTimeOut = new Promise((resolve, reject) => {
         setTimeout(reject, 500, 'timeout');
       });
@@ -260,6 +260,8 @@ const Contract = A => userAddress => (ctors, address) =>
   ({ abi:      A.abi
    , bytecode: A.bytecode
    , sendrecv: mkSendRecv(A)(address, userAddress, ctors)
+   , SC_construct: SC_mkConstruct
+   , SC_SpanThreads: SC_mkSpanThreads
    , recv:     mkRecv(A)(address)
    , ctors
    , address
@@ -325,7 +327,8 @@ export const mkStdlib = A =>
  ({ hexTo0x
   , un0x
   , k
-  , SC: {'participants':[], 'ListStatus':[]},
+  , SC: {participants:[], ListStatus:[]}
+  , myIdentity: 'undef'
   , web3:             A.web3
   , ethers:           A.ethers
   , balanceOf:        balanceOf(A)
