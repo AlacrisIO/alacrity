@@ -165,20 +165,57 @@ const SC_WaitEvents = A => () => {
   });
 */
 
-const SC_WaitForEvent (A,) {
+const SC_ScanUnanimous = A => contractAddress =>
+  new A.ethers
+    .Contract(contractAddress, A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider))
+    .on('Unanimously', (a_digest) => {
+      console.log('a_digest=', a_digest);
+      console.log('A.SC.myIdentity=', A.SC.myIdentity);
+      console.log('Code needs to be written to handle unanimous events');
+      process.exit();
+    });
 
-};
+const SC_ScanChallenge = A => contractAddress =>
+  new A.ethers
+    .Contract(contractAddress, A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider))
+    .on('Challenge', (challengedParticipant) => {
+      console.log('challengedParticipant=', challengedParticipant);
+      console.log('A.SC.myIdentity=', A.SC.myIdentity);
+      console.log('Code needs to be written to handle challenge events');
+      process.exit();
+    });
 
-async function A = 
+const SC_ScanTimeOut = A => contractAddress =>
+  new A.ethers
+    .Contract(contractAddress, A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider))
+    .on('TimeOut', (clock, failedParticipant) => {
+      console.log('clock=', clock, ' failedParticipant=', failedParticipant);
+      console.log('A.SC.myIdentity=', A.SC.myIdentity);
+      console.log('Code needs to be written to handle challenge events');
+      process.exit();
+    });
 
-const SC_WaitEvents = A => {
-}
+const SC_ScanMessage = A => contractAddress =>
+  new A.ethers
+    .Contract(contractAddress, A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider))
+    .on('Message', (clock, message) => {
+      console.log('clock=', clock, ' message=', message);
+      console.log('A.SC.myIdentity=', A.SC.myIdentity);
+      console.log('Code needs to be written to handle challenge events');
+      process.exit();
+    });
+
+
+const SC_WaitEvents = A => (contractAddress) =>
+  new Promise.race([SC_ScanUnanimous(A)(contractAddress),
+  SC_ScanChallenge(A)(contractAddress),
+  SC_ScanTimeOut(A)(contractAddress),
+  SC_ScanMessage(A)(contractAddress)]);
 
 
 
-
-const SC_mkSpanThreads = A => () =>
-  new Promise.race([SC_InfiniteProvideVRS(A) , SC_WaitEvents(A)()]);
+const SC_mkSpanThreads = A => (contractAddress) =>
+  new Promise.race([SC_InfiniteProvideVRS(A) , SC_WaitEvents(A)(contractAddress)]);
 
 
 
