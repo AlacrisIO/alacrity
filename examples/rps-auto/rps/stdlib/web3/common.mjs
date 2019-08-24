@@ -144,18 +144,38 @@ const SC_ProvideVRS = A => () =>
 
 async function SC_InfiniteProvideVRS(A) {
   let iter = 0;
-  while(1) {
+  while (iter >= 0)
+  {
     let var_reply = await SC_ProvideVRS(A)();
     iter = iter + 1;
     console.log('SC_InfiniteProvideVRS, iter=' + iter + ' var_reply=' + var_reply);
   }
 }
 
+/*
+const SC_WaitEvents = A => () => {
+  let retval = 'foo';
+  return Promise.resolve(retval);
+};
 
-const SC_WaitEvents = A => () =>
-  new Promise((resolve, reject) => {
+
+const SC_WaitEvents = A => () => {
+  new Promise((resolve, reject) => { // eslint-disable-line no-unused-vars
     resolve('foo');
   });
+*/
+
+const SC_WaitForEvent (A,) {
+
+};
+
+async function A = 
+
+const SC_WaitEvents = A => {
+}
+
+
+
 
 const SC_mkSpanThreads = A => () =>
   new Promise.race([SC_InfiniteProvideVRS(A) , SC_WaitEvents(A)()]);
@@ -163,28 +183,29 @@ const SC_mkSpanThreads = A => () =>
 
 
 
-const SC_sendTransaction = A => (myIdentity, to, payload) =>
+const SC_mkSendTransaction = A => (myIdentity, to, payload) =>
   new Promise((resolve, reject) => {
     const pSend = new Promise((resolve_loc, reject_loc) =>
       A.web3.shh.post({'from': myIdentity, 'to': to, 'payload': payload},
           (err, result) =>
           !!err ? reject_loc(err) : resolve_loc(result)));
     pSend.catch((message) => reject(message))
-    .then((result) =>
+    .then((result) => // eslint-disable-line no-unused-vars
     new Promise((resolve, reject) => {
-      const pTimeOut = new Promise((resolve, reject) => {
-        setTimeout(reject, 500, 'timeout');
+      const pTimeOut = new Promise((resolve_time, reject_time) => {
+        setTimeout(reject_time, 500, 'timeout');
       });
-      const pWait = new Promise((resolve, reject) => {
+      const pWait = new Promise((resolve_wait, reject_wait) => { // eslint-disable-line no-unused-vars
         const fct = (payload_input, result_filt) => {
           A.SC.state = A.SC.state + payload_input;
-          resolve(result_filt);
+          resolve_wait(result_filt);
         };
         A.web3.shh.filter({'topics':'state-channel', 'to':myIdentity},
           (err_filt, result_filt) => !!err_filt ? reject(err_filt) : fct(payload, result_filt));
         });
       return Promise.race([pTimeOut,pWait]);
-    }));});
+    }));
+  });
 
 
 
@@ -204,26 +225,15 @@ const fetchAndRejectInvalidReceiptFor = ({ web3 }) => txHash =>
 const transfer = ({ web3 }) => (to, from, value) =>
   web3.eth.sendTransaction({ to, from, value });
 
-/*
-const mkSendSC = A => (address, from, ctors) => (funcname, args, value, cb) =>
-  A.stateChannel
-    .contract(A.abi)
-    .at(address)[funcName]
-    .sendTransactionSC(...ctors, ...args, { from, value }, k(panic, txHash =>
-      awaitConfirmationOfSC(A)(txHash)
-        .then(() => txReceiptForSC(A)(txHash))
-        .then(cb)
-        .catch(panic)));
-*/
 
 // https://github.com/ethereum/wiki/wiki/JavaScript-API#contract-methods
 // https://web3js.readthedocs.io/en/v1.2.0/web3-eth-contract.html#web3-eth-contract
-const mkSendRecvETH = A => (address, from, ctors) => (label, funcName, args, value, eventName, cb) => {
+const mkSendRecvETH = A => (contractAddress, from, ctors) => (label, funcName, args, value, eventName, cb) => {
   // https://github.com/ethereum/web3.js/issues/2077
   const munged = [ ...ctors, ...args ]
     .map(m => isBN(A)(m) ? m.toString() : m);
 
-  return new A.web3.eth.Contract(A.abi, address)
+  return new A.web3.eth.Contract(A.abi, contractAddress)
     .methods[funcName](...munged)
     .send({ from, value })
     .then(r  => fetchAndRejectInvalidReceiptFor(A)(r.transactionHash))
@@ -238,9 +248,9 @@ const mkSendRecv = mkSendRecvETH;
 
 
 // https://docs.ethers.io/ethers.js/html/api-contract.html#configuring-events
-const mkRecv = ({ web3, ethers, abi }) => address => (label, eventName, cb) =>
+const mkRecv = ({ web3, ethers, abi }) => contractAddress => (label, eventName, cb) =>
   new ethers
-    .Contract(address, abi, new ethers.providers.Web3Provider(web3.currentProvider))
+    .Contract(contractAddress, abi, new ethers.providers.Web3Provider(web3.currentProvider))
     .once(eventName, (...a) => {
       const b = a.map(b => b); // Preserve `a` w/ copy
       const e = b.pop();       // The final element represents an `ethers` event object
@@ -256,15 +266,16 @@ const mkRecv = ({ web3, ethers, abi }) => address => (label, eventName, cb) =>
     });
 
 
-const Contract = A => userAddress => (ctors, address) =>
+const Contract = A => userAddress => (ctors, contractAddress) =>
   ({ abi:      A.abi
    , bytecode: A.bytecode
-   , sendrecv: mkSendRecv(A)(address, userAddress, ctors)
+   , sendrecv: mkSendRecv(A)(contractAddress, userAddress, ctors)
    , SC_construct: SC_mkConstruct
+   , SC_sendTransaction: SC_mkSendTransaction
    , SC_SpanThreads: SC_mkSpanThreads
-   , recv:     mkRecv(A)(address)
+   , recv:     mkRecv(A)(contractAddress)
    , ctors
-   , address
+   , contractAddress
    });
 
 

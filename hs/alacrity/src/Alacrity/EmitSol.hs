@@ -158,8 +158,17 @@ solContract s body = "contract" <+> pretty s <+> solBraces body
 solVersion :: Doc a
 solVersion = "pragma solidity ^0.5.2;"
 
+{-
+solStdLibStateChannel :: Doc a
+solStdLibStateChannel = pretty $ BS.unpack $(embedFile "../../sol/stdlib_statechannel.sol")
+-}
+
 solStdLib :: Doc a
 solStdLib = pretty $ BS.unpack $(embedFile "../../sol/stdlib.sol")
+
+solStateChannel :: Doc a
+solStateChannel = pretty $ BS.unpack $(embedFile "../../sol/StateChannel_parsed.sol")
+
 
 solApply :: String -> [Doc a] -> Doc a
 solApply f args = pretty f <> parens (hcat $ intersperse (comma <> space) args)
@@ -279,7 +288,7 @@ vsep_with_blank l = vsep $ intersperse emptyDoc l
 
 emit_sol :: BLProgram -> Doc a
 emit_sol (BL_Prog _ (C_Prog ps hs)) =
-  vsep_with_blank $ [ solVersion, solStdLib, ctcp ]
+  vsep_with_blank $ [ solVersion, solStdLib, solStateChannel, ctcp ]
   where ctcp = solContract "ALAContract is Stdlib"
                $ ctcbody
         ctcbody = vsep $ [state_defn, emptyDoc, consp, emptyDoc, solHandlers ps hs]
@@ -294,7 +303,8 @@ extract :: Value -> CompiledSol
 extract v = (abi, code)
   where Object hm = v
         Just (Object ctcs) = HM.lookup "contracts" hm
-        [ thectc, _ ] = HM.keys ctcs
+        list_keys = HM.keys ctcs
+        thectc = head list_keys
         Just (Object ctc) = HM.lookup thectc ctcs
         Just (String abit) = HM.lookup "abi" ctc
         abi = T.unpack abit
