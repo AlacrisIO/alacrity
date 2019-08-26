@@ -23,6 +23,9 @@ const nat_to_fixed_size_hex = size => n => {
        : n.toString(16).padStart((2 * size), '0');
 };
 
+const ABI_StateChannel = [{"constant":false,"inputs":[{"name":"session","type":"bytes32"},{"name":"clock","type":"uint256"},{"name":"participants","type":"address[]"},{"name":"balancedState","type":"bytes32"},{"name":"newClock","type":"uint256"},{"name":"newBalancedState","type":"bytes32"},{"name":"signatures_v","type":"bytes"},{"name":"signatures_r","type":"bytes32[]"},{"name":"signatures_s","type":"bytes32[]"}],"name":"updateState","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[{"name":"clock","type":"uint256"},{"name":"participants","type":"address[]"}],"name":"nextClock","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"pure","type":"function"},{"constant":false,"inputs":[{"name":"session","type":"bytes32"},{"name":"clock","type":"uint256"},{"name":"participants","type":"address[]"},{"name":"data","type":"bytes32"},{"name":"deposit","type":"uint256"},{"name":"withdrawals","type":"uint256[]"},{"name":"newState","type":"bytes32"},{"name":"signatures_v","type":"bytes"},{"name":"signatures_r","type":"bytes32[]"},{"name":"signatures_s","type":"bytes32[]"}],"name":"settle","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":false,"inputs":[{"name":"_session","type":"bytes32"},{"name":"_clock","type":"uint256"},{"name":"_participants","type":"address[]"},{"name":"_processor","type":"address"},{"name":"_stateRoot","type":"bytes32"},{"name":"_balances","type":"bytes32"},{"name":"_message","type":"bytes"},{"name":"_evidence","type":"bytes"}],"name":"sendMessage","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":false,"inputs":[{"name":"session","type":"bytes32"},{"name":"clock","type":"uint256"},{"name":"_participants","type":"address[]"},{"name":"processState","type":"bytes32"},{"name":"_owned","type":"uint256[]"},{"name":"_collaterals","type":"uint256[]"},{"name":"_failures","type":"uint256[]"},{"name":"_deadlines","type":"uint256[]"},{"name":"failedParticipant","type":"uint256"}],"name":"timeOut","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":true,"inputs":[],"name":"timeoutInBlocks","outputs":[{"name":"timeout","type":"uint256"}],"payable":false,"stateMutability":"pure","type":"function"},{"constant":false,"inputs":[{"name":"session","type":"bytes32"},{"name":"clock","type":"uint256"},{"name":"participants","type":"address[]"},{"name":"data","type":"bytes32"},{"name":"withdrawals","type":"uint256[]"},{"name":"beneficiary","type":"address"},{"name":"signatures_v","type":"bytes"},{"name":"signatures_r","type":"bytes32[]"},{"name":"signatures_s","type":"bytes32[]"}],"name":"close","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":false,"inputs":[{"name":"session","type":"bytes32"},{"name":"clock","type":"uint256"},{"name":"participants","type":"address[]"},{"name":"processState","type":"bytes32"},{"name":"owned","type":"uint256[]"},{"name":"collaterals","type":"uint256[]"},{"name":"failures","type":"uint256[]"},{"name":"_deadlines","type":"uint256[]"},{"name":"challengingParticipant","type":"uint256"},{"name":"challengedParticipant","type":"uint256"}],"name":"challenge","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[{"name":"digest","type":"bytes32"},{"name":"participants","type":"address[]"},{"name":"signatures_v","type":"bytes"},{"name":"signatures_r","type":"bytes32[]"},{"name":"signatures_s","type":"bytes32[]"}],"name":"checkSignatures","outputs":[],"payable":false,"stateMutability":"pure","type":"function"},{"inputs":[{"name":"state","type":"bytes32"}],"payable":true,"stateMutability":"payable","type":"constructor"},{"anonymous":false,"inputs":[{"indexed":false,"name":"","type":"bytes32"}],"name":"Unanimously","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"name":"challengedParticipant","type":"uint256"}],"name":"Challenge","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"name":"clock","type":"uint256"},{"indexed":false,"name":"failedParticipant","type":"uint256"}],"name":"TimeOut","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"name":"clock","type":"uint256"},{"indexed":false,"name":"message","type":"bytes"}],"name":"Message","type":"event"}];
+
+abiDecoder.addABI(ABI_StateChannel);
 
 
 
@@ -109,12 +112,8 @@ const encode = ({ ethers }) => (t, v) =>
 
 const SC_mkConstruct = A => () =>
   new Promise((resolve, reject) => {
-    const fctSet = (result_id) => {
-      A.SC.myIdentity = result_id;
-      resolve(result_id);
-    };
     A.web3.shh.newIdentity((err_id, result_id) =>
-    !!err_id ? reject(err_id) : fctSet(result_id));
+    !!err_id ? reject(err_id) : resolve(result_id));
   });
 
 
@@ -152,24 +151,18 @@ async function SC_InfiniteProvideVRS(A) {
   }
 }
 
-/*
-const SC_WaitEvents = A => () => {
-  let retval = 'foo';
-  return Promise.resolve(retval);
-};
 
+const SC_ProcessUnamimous = A => (trans) =>
+  new Promise((resolve, reject) => {
+    
 
-const SC_WaitEvents = A => () => {
-  new Promise((resolve, reject) => { // eslint-disable-line no-unused-vars
-    resolve('foo');
   });
-*/
 
-const SC_ScanUnanimous = A => contractAddress =>
+
+const SC_ScanUnanimously = A => contractAddress =>
   new A.ethers
     .Contract(contractAddress, A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider))
-    .on('Unanimously', (a_digest) => {
-      console.log('a_digest=', a_digest);
+    .on('Unanimously', (...a) => {
       console.log('A.SC.myIdentity=', A.SC.myIdentity);
       console.log('Code needs to be written to handle unanimous events');
       process.exit();
@@ -207,7 +200,7 @@ const SC_ScanMessage = A => contractAddress =>
 
 
 const SC_WaitEvents = A => (contractAddress) =>
-  new Promise.race([SC_ScanUnanimous(A)(contractAddress),
+  new Promise.race([SC_ScanUnanimously(A)(contractAddress),
   SC_ScanChallenge(A)(contractAddress),
   SC_ScanTimeOut(A)(contractAddress),
   SC_ScanMessage(A)(contractAddress)]);
@@ -307,7 +300,6 @@ const Contract = A => userAddress => (ctors, contractAddress) =>
   ({ abi:      A.abi
    , bytecode: A.bytecode
    , sendrecv: mkSendRecv(A)(contractAddress, userAddress, ctors)
-   , SC_construct: SC_mkConstruct
    , SC_sendTransaction: SC_mkSendTransaction
    , SC_SpanThreads: SC_mkSpanThreads
    , recv:     mkRecv(A)(contractAddress)
@@ -345,6 +337,7 @@ const mkDeploy = A => userAddress => ctors => {
 const EthereumNetwork = A => userAddress =>
   ({ deploy: mkDeploy(A)(userAddress)
    , attach: (ctors, address) => Promise.resolve(Contract(A)(userAddress)(ctors, address))
+   , sc_identity: () => Promise.resolve(SC_mkConstruct(A)())
    , web3:   A.web3
    , userAddress
    });

@@ -4,6 +4,7 @@ import Web3            from 'web3';
 import * as crypto     from 'crypto';
 import * as nodeAssert from 'assert';
 import ethers          from 'ethers';
+import abiDecoder      from 'abi-decoder';
 
 import { mkStdlib } from './common.mjs';
 

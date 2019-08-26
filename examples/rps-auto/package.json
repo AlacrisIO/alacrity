@@ -10,7 +10,8 @@
     "ethers": "4.0.33",
     "jasmine": "^3.4.0",
     "jasmine-console-reporter": "^3.1.0",
-    "web3": "1.2.1"
+    "web3": "1.2.1",
+    "abi-decoder": "2.2.0"
   },
   "repository": {
     "type": "git",

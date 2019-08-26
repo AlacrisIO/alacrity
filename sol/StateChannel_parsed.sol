@@ -1,33 +1,33 @@
- 
+
 
 pragma solidity ^0.5.9;
 
 contract StateChannelTypes {
     struct ProcessState {
-        address processor;  
-        bytes32 stateRoot;  
+        address processor;
+        bytes32 stateRoot;
     }
 
-    struct Balances {  
-        uint[] owned;  
-        uint[] collaterals;  
-        uint[] failures;  
-        uint[] deadlines;  
-             
-             
-             
+    struct Balances {
+        uint[] owned;
+        uint[] collaterals;
+        uint[] failures;
+        uint[] deadlines;
+
+
+
     }
 
     struct BalancedState {
-        bytes32 processState;  
-        bytes32 balances;  
+        bytes32 processState;
+        bytes32 balances;
     }
 
     struct State {
-        bytes32 session;  
-        uint clock;  
-        address[] participants;  
-        bytes32 balancedState;  
+        bytes32 session;
+        uint clock;
+        address[] participants;
+        bytes32 balancedState;
     }
 }
 
@@ -76,21 +76,21 @@ contract StateChannelFunctions is StateChannelTypes {
 }
 
 contract MessageProcessor is StateChannelTypes {
-     
+
     function processMessage(
-        bytes32 session,  
-        uint clock,  
-        address payable[] calldata participants,  
-        address processor,  
-        bytes32 stateRoot,  
-        bytes32 balances,  
-        bytes calldata message,  
-        bytes calldata evidence  
+        bytes32 session,
+        uint clock,
+        address payable[] calldata participants,
+        address processor,
+        bytes32 stateRoot,
+        bytes32 balances,
+        bytes calldata message,
+        bytes calldata evidence
     ) external pure returns(bytes32 newBalancedState);
 }
 
 contract StateChannelBase is StateChannelTypes, StateChannelFunctions {
-     
+
     function timeoutInBlocks() public pure returns(uint timeout);
 }
 
@@ -99,7 +99,7 @@ contract StateChannel is StateChannelBase {
 
     bytes32 currentState;
 
-     
+
     function checkState(
         bytes32 session,
         uint clock,
@@ -112,7 +112,7 @@ contract StateChannel is StateChannelBase {
         require(currentState == digestState(session, clock, participants, balancedState));
     }
 
-     
+
     function checkSignatures(
         bytes32 digest,
         address payable[] memory participants,
@@ -149,14 +149,14 @@ contract StateChannel is StateChannelBase {
         }
     }
 
-     
-     
+
+
     event Unanimously(bytes32);
 
     enum UnanimousAction {
-        Updating,  
-        Settling,  
-        Closing  
+        Updating,
+        Settling,
+        Closing
     }
 
     function close(
