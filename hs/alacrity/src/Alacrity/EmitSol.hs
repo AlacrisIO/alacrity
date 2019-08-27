@@ -158,8 +158,12 @@ solContract s body = "contract" <+> pretty s <+> solBraces body
 solVersion :: Doc a
 solVersion = "pragma solidity ^0.5.2;"
 
+withoutSolVersionPragmas :: BS.ByteString -> String
+withoutSolVersionPragmas b = (BS.unpack . BS.unlines) s
+  where s = filter (not . ("pragma solidity " `BS.isInfixOf`)) $ BS.lines b
+
 solStdLib :: Doc a
-solStdLib = pretty $ BS.unpack $(embedFile "../../sol/stdlib.sol")
+solStdLib = pretty $ withoutSolVersionPragmas $(embedFile "../../sol/stdlib.sol")
 
 solApply :: String -> [Doc a] -> Doc a
 solApply f args = pretty f <> parens (hcat $ intersperse (comma <> space) args)
