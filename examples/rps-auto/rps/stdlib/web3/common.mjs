@@ -107,11 +107,11 @@ const encode = ({ ethers }) => (t, v) =>
   ethers.utils.defaultAbiCoder.encode([t], [v]);
 
 
-const rejectInvalidReceiptFor = txHash => r =>
-    !r                           ? Promise.reject(`No receipt for txHash: ${txHash}`)
-  : r.transactionHash !== txHash ? Promise.reject(`Bad txHash; ${txHash} !== ${r.transactionHash}`)
-  : !r.status                    ? Promise.reject(`Transaction: ${txHash} was reverted by EVM\n${r}`) // eslint-disable-line max-len
-  : Promise.resolve(r);
+const rejectInvalidReceiptFor = txHash => r => new Promise((resolve, reject) =>
+    !r                           ? reject(`No receipt for txHash: ${txHash}`)
+  : r.transactionHash !== txHash ? reject(`Bad txHash; ${txHash} !== ${r.transactionHash}`)
+  : !r.status                    ? reject(`Transaction: ${txHash} was reverted by EVM\n${r}`)
+  : resolve(r));
 
 
 const fetchAndRejectInvalidReceiptFor = ({ web3 }) => txHash =>
