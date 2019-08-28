@@ -8,7 +8,7 @@ const init = (stdlib, wagerInEth, escrowInEth) => {
 };
 
 const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
-  const { balanceOf, devnet, transfer } = stdlib;
+  const { balanceOf, devnet, transfer, SC_construct } = stdlib;
   const { prefundedDevnetAcct         } = devnet;
   const { wagerInWei, escrowInWei     } = gameState;
 

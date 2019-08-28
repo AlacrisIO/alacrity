@@ -1,4 +1,5 @@
 // vim: filetype=javascript
+import abiDecoder      from 'abi-decoder';
 
 const panic = e => { throw Error(e); };
 
@@ -334,12 +335,14 @@ const mkDeploy = A => userAddress => ctors => {
 };
 
 
-const EthereumNetwork = A => userAddress =>
+const EthereumNetwork = A => userAddress => sc_identity =>
   ({ deploy: mkDeploy(A)(userAddress)
    , attach: (ctors, address) => Promise.resolve(Contract(A)(userAddress)(ctors, address))
    , sc_identity: () => Promise.resolve(SC_mkConstruct(A)())
+   , sc_participants: []
+   , sc_status_sequence: []
    , web3:   A.web3
-   , userAddress
+   , userAddress: [userAddress, sc_identity]
    });
 
 
@@ -368,8 +371,6 @@ export const mkStdlib = A =>
  ({ hexTo0x
   , un0x
   , k
-  , SC: {participants:[], ListStatus:[]}
-  , myIdentity: 'undef'
   , web3:             A.web3
   , ethers:           A.ethers
   , balanceOf:        balanceOf(A)
