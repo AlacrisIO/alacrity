@@ -8,7 +8,7 @@ const init = (stdlib, wagerInEth, escrowInEth) => {
 };
 
 const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
-  const { balanceOf, devnet, transfer, SC_construct } = stdlib;
+  const { balanceOf, devnet, transfer, SC_createIdentity } = stdlib;
   const { prefundedDevnetAcct         } = devnet;
   const { wagerInWei, escrowInWei     } = gameState;
 
@@ -17,7 +17,8 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
   const newPlayer = prefunder =>
     devnet.createAndUnlockAcct()
       .then(to => transfer(to, prefunder, startingBalance)
-                    .then(() => stdlib.EthereumNetwork(to)));
+                    .then(() => Promise.resolve(SC_createIdentity()))
+                    .then(sc_identity => stdlib.EthereumNetwork(to)(sc_identity)));
 
   const captureOpeningGameState = ([ a, b ]) =>
     Promise.all([ balanceOf(a), balanceOf(b) ])
@@ -25,7 +26,7 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
           Object.assign(gameState
                      , { alice: a
                        , bob:   b
-                       , ctors: [ a.userAddress, b.userAddress ]
+                       , ctors: [ a.userAddress[0], b.userAddress[0] ]
                        , balanceStartAlice
                        , balanceStartBob
                        }));

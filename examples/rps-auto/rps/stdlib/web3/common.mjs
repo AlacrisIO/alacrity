@@ -39,7 +39,7 @@ const nat16_to_fixed_size_hex =
 // Parameterized ///////////////////////////////////////////////////////////////
 
 const balanceOf = A => a =>
-  a.web3.eth.getBalance(a.userAddress)
+  A.web3.eth.getBalance(a.userAddress[0])
     .then(toBN(A));
 
 const assert = ({ asserter }) => d => asserter(d);
@@ -111,7 +111,7 @@ const lt    = A => (a, b) => toBN(A)(a).lt( toBN(A)(b));
 const encode = ({ ethers }) => (t, v) =>
   ethers.utils.defaultAbiCoder.encode([t], [v]);
 
-const SC_mkConstruct = A => () =>
+const SC_mkCreateIdentity = A => () =>
   new Promise((resolve, reject) => {
     A.web3.shh.newIdentity((err_id, result_id) =>
     !!err_id ? reject(err_id) : resolve(result_id));
@@ -338,10 +338,8 @@ const mkDeploy = A => userAddress => ctors => {
 const EthereumNetwork = A => userAddress => sc_identity =>
   ({ deploy: mkDeploy(A)(userAddress)
    , attach: (ctors, address) => Promise.resolve(Contract(A)(userAddress)(ctors, address))
-   , sc_identity: () => Promise.resolve(SC_mkConstruct(A)())
    , sc_participants: []
    , sc_status_sequence: []
-   , web3:   A.web3
    , userAddress: [userAddress, sc_identity]
    });
 
@@ -372,6 +370,7 @@ export const mkStdlib = A =>
   , un0x
   , k
   , web3:             A.web3
+  , SC_createIdentity: SC_mkCreateIdentity(A)
   , ethers:           A.ethers
   , balanceOf:        balanceOf(A)
   , random_uint256:   random_uint256(A)
