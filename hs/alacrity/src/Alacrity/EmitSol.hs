@@ -237,7 +237,7 @@ solCTail ps emitp ρ ccs ct =
       emitp <> vsep [ solSet ("current_state") ("0x0") <> semi,
                       solApply "selfdestruct" [ solApply "address" [ pretty alacrisAddress ] ] <> semi ]
     C_Wait i svs ->
-      emitp <> (solSet ("current_state") (solHashState ρ i ps svs)) <> semi
+      emitp <> (solSet ("current_state") (solHashState ρ i ps svs)) <> semi <> hardline
     C_If ca tt ft ->
       "if" <+> parens (solArg ρ ca) <+> bp tt <> hardline <> "else" <+> bp ft
       where bp at = solBraces $ solCTail ps emitp ρ ccs at
@@ -286,10 +286,11 @@ emit_sol (BL_Prog _ (C_Prog ps hs)) =
   vsep_with_blank $ [ solVersion, solStdLib, ctcp ]
   where ctcp = solContract "ALAContract is Stdlib"
                $ ctcbody
-        ctcbody = vsep $ [state_defn, emptyDoc, consp, emptyDoc, solHandlers ps hs]
+        ctcbody = vsep $ [state_defn, block_nbr_defn, emptyDoc, consp, emptyDoc, solHandlers ps hs]
         consp = solApply "constructor" p_ds <+> "public payable" <+> solBraces consbody
         consbody = solCTail ps emptyDoc M.empty M.empty (C_Wait 0 [])
         state_defn = "uint256 current_state;"
+        block_nbr_defn = "int block_nbr;"
         p_ds = map solPartDecl ps
 
 type CompiledSol = (String, String)
