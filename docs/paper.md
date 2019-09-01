@@ -150,7 +150,7 @@ before performing the transfer.
     @A declassify! wagerAmount;
     @A declassify! escrowAmount;
     @A declassify! commitA;
-    >A publish! wagerAmount, escrowAmount, commitA
+    @A publish! wagerAmount, escrowAmount, commitA
        w/ (wagerAmount + escrowAmount);
     commit;
 ```
@@ -200,7 +200,7 @@ commitment actually is made from these inputs:
 ```
     @A declassify! saltA;
     @A declassify! handA;
-    >A publish! saltA, handA w/ 0;
+    @A publish! saltA, handA w/ 0;
     check_commit(commitA, saltA, handA);
 ```
 
