@@ -50,8 +50,6 @@ participant A {
 participant B { }
 
 main {
-    @A declassify! wagerAmount;
-    @A declassify! escrowAmount;
     @A interact("params");
     @A publish! wagerAmount, escrowAmount
        w/ (wagerAmount + escrowAmount);
@@ -63,20 +61,16 @@ main {
 
     @A const handA = getHand();
     @A const commitA, saltA = precommit(handA);
-    @A declassify! commitA;
     @A interact("commits");
     @A publish! commitA w/ 0;
     commit;
 
     @B const handB = getHand();
-    @B declassify! handB;
     @B interact("shows");
     @B publish! handB w/ 0;
     require! isHand(handB);
     commit;
 
-    @A declassify! saltA;
-    @A declassify! handA;
     @A interact("reveals");
     @A publish! saltA, handA w/ 0;
     check_commit(commitA, saltA, handA);

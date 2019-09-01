@@ -195,12 +195,6 @@ parseXLTransfer = do
   xe <- parseXLExpr1
   return $ XL_Transfer p xe
 
-parseXLDeclassify :: Parser XLExpr
-parseXLDeclassify =
-  do exact "declassify"
-     xe <- parens $ parseXLExpr1
-     return $ XL_Declassify xe
-
 parseXLFunApp :: Parser XLExpr
 parseXLFunApp = do
   f <- parseXLVar
@@ -216,7 +210,6 @@ parseXLExpr1 =
    <|> parseXLClaim
    <|> parseXLValues
    <|> parseXLTransfer
-   <|> parseXLDeclassify
    <|> (braces $ parseXLExprT Nothing)
    <|> try parseXLFunApp
    <|> (XL_Var <$> parseXLVar))
@@ -251,14 +244,6 @@ parseXLFromConsensus = do
   k <- parseXLExprT Nothing
   return $ XL_FromConsensus k
 
-parseXLDeclassifyBang :: Maybe Participant -> Parser XLExpr
-parseXLDeclassifyBang who =
-  do exact "declassify!"
-     v <- parseXLVar
-     semi
-     k <- parseXLExprT who
-     return $ XL_Let who (Just [v]) (XL_Declassify (XL_Var v)) k
-
 parseXLLetValues :: Maybe Participant -> Parser XLExpr
 parseXLLetValues who = do
   exact "const"
@@ -280,7 +265,6 @@ parseXLExprT who =
   label "XLExprT"
   (parseAt
    <|> parseXLFromConsensus
-   <|> parseXLDeclassifyBang who
    <|> parseXLLetValues who
    <|> parseXLContinue who
    <|> parseXLWhile who
