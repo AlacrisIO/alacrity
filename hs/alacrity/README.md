@@ -22,6 +22,10 @@ so you'll instead have to install z3 from source or binary release
 
     apt install haskell-stack libz3-dev
 
+Instead, download a release zip file from < https://github.com/Z3Prover/z3/releases >
+and put the `bin/` directory in your `PATH`, e.g. using `stow`.
+
+
 Building and Testing the Alacrity Compiler
 ------------------------------------------
 
