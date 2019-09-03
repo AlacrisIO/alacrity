@@ -286,11 +286,19 @@ emit_sol (BL_Prog _ (C_Prog ps hs)) =
   vsep_with_blank $ [ solVersion, solStdLib, ctcp ]
   where ctcp = solContract "ALAContract is Stdlib"
                $ ctcbody
-        ctcbody = vsep $ [state_defn, block_nbr_defn, emptyDoc, consp, emptyDoc, solHandlers ps hs]
+        ctcbody = vsep $ [state_defn, block_nbr_defn, last_address_defn, timeout_depth_defn, emptyDoc, timeout_defn1, timeout_defn2, timeout_defn3, timeout_defn4, timeout_defn5, emptyDoc, consp, emptyDoc, solHandlers ps hs]
         consp = solApply "constructor" p_ds <+> "public payable" <+> solBraces consbody
         consbody = solCTail ps emptyDoc M.empty M.empty (C_Wait 0 [])
         state_defn = "uint256 current_state;"
         block_nbr_defn = "int block_nbr;"
+        last_address_defn = "address last_address;"
+        timeout_depth_defn = "int timeout_depth = 10;"
+        timeout_defn1 = "function timeout() public payable {"
+        timeout_defn2 = "  require(msg.sender == last_address);"
+        timeout_defn3 = "  require(get_block_number() > block_nbr + timeout_depth);"
+        timeout_defn4 = "  selfdestruct(msg.sender);"
+        timeout_defn5 = "}"
+        
         p_ds = map solPartDecl ps
 
 type CompiledSol = (String, String)
