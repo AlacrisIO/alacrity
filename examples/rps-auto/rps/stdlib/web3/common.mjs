@@ -28,7 +28,7 @@ const ABI_StateChannel = [{"constant":false,"inputs":[{"name":"session","type":"
 
 abiDecoder.addABI(ABI_StateChannel);
 
-
+const use_state_channels = true;
 
 
 // Encodes a 16-bit unsigned integer as 2 hex bytes or 4 hex characters
@@ -118,17 +118,18 @@ const SC_mkCreateIdentity = A => () =>
   });
 
 
-
-
-
-const SC_ProvideVRS = A => () =>
+//
+// Functionality for signing
+//
+const SC_ProvideVRS = A => Aidentity => (iter) =>
   new Promise((resolve, reject) => {
+    const myIdentity = Aidentity.userAddress[1];
     const fctSendVRS = (result_sign) => {
-      A.web3.shh.post({'from':A.SC.myIdentity, 'to':result_sign.from, 'payload':result_sign.XXXX},
+      A.web3.shh.post({'from':myIdentity, 'to':result_sign.from, 'payload':result_sign.XXXX},
         (err_post, result_post) => !!err_post ? reject('error shh.pos') : resolve('success shh.post' + result_post));
     };
     const fctProcess = (data_to_sign) => {
-      A.web3.eth.sign(A.SC.myIdentity, data_to_sign,
+      A.web3.eth.sign(myIdentity, data_to_sign,
         (err_sign, result_sign) => !!err_sign ? reject('error signature') : fctSendVRS(result_sign));
     };
     const fctComputeHash = (data_to_sign) => {
@@ -137,20 +138,49 @@ const SC_ProvideVRS = A => () =>
       const state_to_sign = keccak256(A)(data_to_sign);
       return fctProcess(state_to_sign);
     };
-    A.web3.filter({'topics':'signatureVRS', 'to':A.SC.myIdentity},
+    A.web3.filter({'topics':'signatureVRS', 'to':Aidentity.userAddress[1]},
     (err_filt, result_filt) => !!err_filt ? reject('error web3.filter') : fctComputeHash(result_filt));
   });
 
-
-async function SC_InfiniteProvideVRS(A) {
+async function SC_InfiniteProvideVRS(A,Aidentity) {
   let iter = 0;
   while (iter >= 0)
   {
-    let var_reply = await SC_ProvideVRS(A)();
+    let var_reply = await SC_ProvideVRS(A)(Aidentity)(iter);
     iter = iter + 1;
     console.log('SC_InfiniteProvideVRS, iter=' + iter + ' var_reply=' + var_reply);
   }
 }
+
+
+
+
+//
+// Functionality for signing
+//
+const SC_ProvideListParticipant = A => Aidentity => (iter) =>
+  new Promise((resolve, reject) => {
+    const myIdentity = Aidentity.userAddress[1];
+    const fctSendListParticipant = (result_filt) => {
+      A.web3.shh.post({'from':myIdentity, 'to':result_list.from, 'payload':Aidentity.sc_participants},
+        (err_post, result_post) => !!err_post ? reject('error shh.pos') : resolve('success shh.post' + result_post));
+    };
+    A.web3.filter({'topics':'listparticipant', 'to':Aidentity.userAddress[1]},
+    (err_filt, result_filt) => !!err_filt ? reject('error web3.filter') : fctSendListParticipant(result_filt));
+  });
+
+async function SC_InfiniteProvideListParticipant(A,Aidentity) {
+  let iter = 0;
+  while (iter >= 0)
+  {
+    let var_reply = await SC_ProvideListParticipant(A)(Aidentity)(iter);
+    iter = iter + 1;
+    console.log('SC_InfiniteProvideVRS, iter=' + iter + ' var_reply=' + var_reply);
+  }
+}
+
+
+
 
 
 const SC_ProcessUnamimous = A => (trans) =>
@@ -160,31 +190,30 @@ const SC_ProcessUnamimous = A => (trans) =>
   });
 
 
-const SC_ScanUnanimously = A => contractAddress =>
+const SC_ScanUnanimously = A => Aidentity => contractAddress =>
   new A.ethers
     .Contract(contractAddress, A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider))
     .on('Unanimously', (...a) => {
-      console.log('A.SC.myIdentity=', A.SC.myIdentity);
       console.log('Code needs to be written to handle unanimous events');
       process.exit();
     });
 
-const SC_ScanChallenge = A => contractAddress =>
+const SC_ScanChallenge = A => Aidentity => contractAddress =>
   new A.ethers
     .Contract(contractAddress, A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider))
     .on('Challenge', (challengedParticipant) => {
       console.log('challengedParticipant=', challengedParticipant);
-      console.log('A.SC.myIdentity=', A.SC.myIdentity);
+      console.log('myIdentity=', Aidentity.userAddress[1]);
       console.log('Code needs to be written to handle challenge events');
       process.exit();
     });
 
-const SC_ScanTimeOut = A => contractAddress =>
+const SC_ScanTimeOut = A => Aidentity => contractAddress =>
   new A.ethers
     .Contract(contractAddress, A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider))
     .on('TimeOut', (clock, failedParticipant) => {
       console.log('clock=', clock, ' failedParticipant=', failedParticipant);
-      console.log('A.SC.myIdentity=', A.SC.myIdentity);
+      console.log('myIdentity=', Aidentity.userAddress[1]);
       console.log('Code needs to be written to handle challenge events');
       process.exit();
     });
@@ -194,7 +223,7 @@ const SC_ScanMessage = A => contractAddress =>
     .Contract(contractAddress, A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider))
     .on('Message', (clock, message) => {
       console.log('clock=', clock, ' message=', message);
-      console.log('A.SC.myIdentity=', A.SC.myIdentity);
+      console.log('myIdentity=', Aidentity.userAddress[1]);
       console.log('Code needs to be written to handle challenge events');
       process.exit();
     });
@@ -208,14 +237,15 @@ const SC_WaitEvents = A => (contractAddress) =>
 
 
 
-const SC_mkSpanThreads = A => (contractAddress) =>
-  new Promise.race([SC_InfiniteProvideVRS(A) , SC_WaitEvents(A)(contractAddress)]);
+const SC_mkSpanThreads = A => Aidentity => (contractAddress) =>
+  new Promise.race([SC_InfiniteProvideVRS(A)(Aidentity) , SC_WaitEvents(A)(Aidentity)(contractAddress)]);
 
 
 
 
-const SC_mkSendTransaction = A => (myIdentity, to, payload) =>
+const SC_mkSendTransaction = A => Aidentity => (to, payload) =>
   new Promise((resolve, reject) => {
+    const myIdentity = Aidentity.userAddress[1];
     const pSend = new Promise((resolve_loc, reject_loc) =>
       A.web3.shh.post({'from': myIdentity, 'to': to, 'payload': payload},
           (err, result) =>
@@ -275,6 +305,15 @@ const mkSendRecvETH = A => (contractAddress, from, ctors) => (label, funcName, a
 };
 
 const mkSendRecv = mkSendRecvETH;
+
+
+const SC_mkGetListParticipant = A => (contractAddress) =>
+  new Promise.resolve(
+
+const SC_mkJoinStateChannel = A => Aidentity =>
+  new Promise((resolve, reject) => {
+    
+  });
 
 
 
@@ -338,7 +377,7 @@ const mkDeploy = A => userAddress => ctors => {
 const EthereumNetwork = A => userAddress => sc_identity =>
   ({ deploy: mkDeploy(A)(userAddress)
    , attach: (ctors, address) => Promise.resolve(Contract(A)(userAddress)(ctors, address))
-   , sc_participants: []
+   , sc_participants: [] // This should contain the ethereum addresses as well as shh ones.
    , sc_status_sequence: []
    , userAddress: [userAddress, sc_identity]
    });

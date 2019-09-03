@@ -489,7 +489,7 @@ contract StateChannel is StateChannelBase {
         uint newClock = nextClock(clock, participants);
         emit TimeOut(newClock, failedParticipant);
 
-        bytes32 newBalances = digestBalances(_owned, _collaterals, _failures, deadlines);
+        bytes32 newBalances = digestBalances(owned, _collaterals, failures, deadlines);
         bytes32 newBalancedState = digestBalancedState(processState, newBalances);
         currentState = digestState(session, newClock, participants, newBalancedState);
     }

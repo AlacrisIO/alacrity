@@ -87,6 +87,7 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
     .then(p   => Promise.all([ newPlayer(p), newPlayer(p) ]))
     .then(captureOpeningGameState)
     .then(()  => gameState.alice.deploy(gameState.ctors))
+    .then(
     .then(ctc => Promise.all([ bobShoot(ctc), aliceShoot(ctc) ]))
     .then(captureClosingGameState);
 };
