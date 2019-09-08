@@ -272,7 +272,7 @@ const mkRecvWithin = A => c => (label, eventName, blocks, tcb, cb) => {
 const mkTimeoutTerminate = A => (contractaddress, userAddress) => () => {
   return new A.web3.eth.Contract(A.abi, contractaddress)
     .methods['timeout']()
-    .send({ userAddress, value: 0 })
+    .send({ from: userAddress, value: 0 })
     .then(r  => fetchAndRejectInvalidReceiptFor(A)(r.transactionHash))
     .then(() => 'Termination by timeout of the program');
 
