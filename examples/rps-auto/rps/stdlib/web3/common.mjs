@@ -130,12 +130,12 @@ const now = ({ web3 }) =>
 
 
 // https://web3js.readthedocs.io/en/v1.2.0/web3-eth-contract.html#web3-eth-contract
-const mkSendRecv = A => (address, from, ctors) => (label, funcName, args, value, eventName, cb) => {
+const mkSendRecv = A => (contractaddress, from, ctors) => (label, funcName, args, value, eventName, cb) => {
   // https://github.com/ethereum/web3.js/issues/2077
   const munged = [ ...ctors, ...args ]
     .map(m => isBN(A)(m) ? m.toString() : m);
 
-  return new A.web3.eth.Contract(A.abi, address)
+  return new A.web3.eth.Contract(A.abi, contractaddress)
     .methods[funcName](...munged)
     .send({ from, value })
     .then(r  => fetchAndRejectInvalidReceiptFor(A)(r.transactionHash))
@@ -181,7 +181,7 @@ const mkRecv = ({ web3, ethers }) => (c, w) => (label, eventName, cb) => {
 
 
   const past = () => new Promise((resolve, reject) =>
-    new web3.eth.Contract(c.abi, c.address)
+    new web3.eth.Contract(c.abi, c.contractaddress)
       .getPastEvents(eventName, { toBlock: 999999999 }) // TODO `toBlock`
       .then(es => {
         const e = es
@@ -214,7 +214,7 @@ const mkRecv = ({ web3, ethers }) => (c, w) => (label, eventName, cb) => {
 
 
   const next = () => new Promise((resolve, reject) => new ethers
-    .Contract(c.address, c.abi, new ethers.providers.Web3Provider(web3.currentProvider))
+    .Contract(c.contractaddress, c.abi, new ethers.providers.Web3Provider(web3.currentProvider))
     .once(eventName, (...a) => {
       const b = a.map(b => b); // Preserve `a` w/ copy
       const e = b.pop();       // The final element represents an `ethers` event object
@@ -231,7 +231,7 @@ const mkRecv = ({ web3, ethers }) => (c, w) => (label, eventName, cb) => {
 };
 
 
-const mkRecvWithin = A => c => (label, eventName, blocks, cb, tcb) => {
+const mkRecvWithin = A => c => (label, eventName, blocks, tcb, cb) => {
   if (blocks < 0)
     return Promise.reject('`blocks` cannot be less than 0!');
 
@@ -269,20 +269,32 @@ const mkRecvWithin = A => c => (label, eventName, blocks, cb, tcb) => {
 };
 
 
-const Contract = A => userAddress => (ctors, address) => {
+const mkTimeoutTerminate = A => (contractaddress, userAddress) => () => {
+  return new A.web3.eth.Contract(A.abi, contractaddress)
+    .methods['timeout']();
+    .send({ userAddress, 0 })
+    .then(r  => fetchAndRejectInvalidReceiptFor(A)(r.transactionHash))
+    .then(() => 'Termination by timeout of the program');
+
+};
+
+
+
+const Contract = A => userAddress => (ctors, contractaddress) => {
   const recv = (label, eventName, cb) =>
     mkRecv(A)(c, { alreadyConsumed: false })(label, eventName, cb);
 
-  const recvWithin = (label, eventName, blocks, cb, tcb) =>
-    mkRecvWithin(A)(c)(label, eventName, blocks, cb, tcb);
+  const recvWithin = (label, eventName, blocks, tcb, cb) =>
+    mkRecvWithin(A)(c)(label, eventName, blocks, tcb, cb);
 
   const c =
     { abi:            A.abi
     , bytecode:       A.bytecode
-    , sendrecv:       mkSendRecv(A)(address, userAddress, ctors)
+    , sendrecv:       mkSendRecv(A)(contractaddress, userAddress, ctors)
+    , timeoutterminate:  mkTimeoutTerminate(A)(contractaddress, userAddress)
     , consumedEvents: {}
     , ctors
-    , address
+    , contractaddress
     };
 
   Object.assign(c, { recv, recvWithin });
