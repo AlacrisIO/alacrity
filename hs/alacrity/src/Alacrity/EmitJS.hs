@@ -31,6 +31,9 @@ import Alacrity.EmitSol
 jsString :: String -> Doc a
 jsString s = dquotes $ pretty s
 
+jsInt :: Integer -> Doc a
+jsInt a = pretty a
+
 jsVar :: BLVar -> Doc a
 jsVar (n, _, _) = pretty $ "v" ++ show n
 
@@ -181,8 +184,13 @@ jsEPTail who (EP_Do es kt) = (tp, tfvs)
 jsEPTail _ (EP_Recv True _ _ _ _) =
   error "Impossible"
 jsEPTail who (EP_Recv False i _ msg kt) = (tp, tfvs)
-  where tp = jsApply "ctc.recv" [ jsString who, jsString (solMsg_evt i), kp ] <> semi
+  where tp = if use_timeout then
+          jsApply "ctc.recvWithin" [ jsString who, jsString (solMsg_evt i), jsBlock, jsTcb, kp ] <> semi
+        else
+          jsApply "ctc.recv" [ jsString who, jsString (solMsg_evt i), kp ] <> semi
         tfvs = Set.unions [Set.fromList msg, ktfvs]
+        jsBlock = jsInt blockdepth
+        jsTcb = pretty "ctc.timeoutterminate"
         kp = jsLambda (msg_vs ++ [pretty "txn"]) (debugp <> ktp)
         msg_vs = map jsVar msg
         (ktp, ktfvs) = jsEPTail who kt

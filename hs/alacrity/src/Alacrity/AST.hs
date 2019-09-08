@@ -8,6 +8,15 @@ import Control.Monad.Except
 
 -- Shared types
 
+
+blockdepth :: Integer
+blockdepth = 10
+
+use_timeout :: Bool
+use_timeout = True
+
+
+
 data BaseType
   = AT_UInt256
   | AT_Bool
