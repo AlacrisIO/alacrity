@@ -5,10 +5,8 @@
 
 const panic = e => {
     console.log('panic with e=', e);
-//    process.abort();
     throw Error(e);
     };
-//    throw Error(e); };
 
 const k = (reject, f) => (err, ...d) =>
   !!err ? reject(err)
@@ -149,15 +147,13 @@ const now = ({ web3 }) =>
 
 
 // https://web3js.readthedocs.io/en/v1.2.0/web3-eth-contract.html#web3-eth-contract
-const mkSendRecv = A => (contractaddress, from, ctors) =>
+const mkSendRecv = A => (address, from, ctors) =>
   (label, funcName, args, value, eventName, cb) => {
   // https://github.com/ethereum/web3.js/issues/2077
-  console.log('mkSendRecv: step 1, funcName=', funcName, ' from=', from);
   const munged = [ ...ctors, ...args ]
     .map(m => isBN(A)(m) ? m.toString() : m);
-  console.log('mkSendRecv: step 2');
 
-  return new A.web3.eth.Contract(A.abi, contractaddress)
+  return new A.web3.eth.Contract(A.abi, address)
     .methods[funcName](...munged)
     .send({ from, value })
     .then(r  => fetchAndRejectInvalidReceiptFor(A)(r.transactionHash))
@@ -165,7 +161,6 @@ const mkSendRecv = A => (contractaddress, from, ctors) =>
     //     transaction confirmation is enough.
     // XXX Replace 0 below with the contract's balance
     .then(() => {
-      console.log('mkSendRecv: Before the callback');
       cb({ value: value, balance: 0 });
     });
 
@@ -179,102 +174,75 @@ const consumedEventKeyOf = (name, e) =>
 
 // https://docs.ethers.io/ethers.js/html/api-contract.html#configuring-events
 const mkRecv = ({ web3, ethers }) => (c, w) => (label, eventName, cb) => {
-    console.log('mkRecv step 1');
   const consume = (e, bns, resolve, reject) =>
     fetchAndRejectInvalidReceiptFor({ web3 })(e.transactionHash)
       .then(() => web3.eth.getTransaction(e.transactionHash, k(reject, t => {
         const key = consumedEventKeyOf(eventName, e);
-          console.log('consume, step 1');
         if (w.alreadyConsumed || (c.consumedEvents[key] !== undefined))
           return reject(`${label} has already consumed ${key}!`);
-          console.log('consume, step 2');
 
         // Sanity check: events ought to be consumed monotonically
         const latestPrevious = Object.values(c.consumedEvents)
           .filter(x => x.eventName === eventName)
           .sort((x, y) => x.blockNumber - y.blockNumber)
           .pop();
-          console.log('consume, step 3');
 
         if (!!latestPrevious && latestPrevious.blockNumber >= e.blockNumber) {
           reject(`${label} attempted to consume ${eventName} out of sequential block # order!`);
         }
-          console.log('consume, step 4');
 
         w.alreadyConsumed = true;
         Object.assign(c.consumedEvents, { [key]: Object.assign({}, e, { eventName }) });
-          console.log('consume, step 5');
 
         resolve();
-          console.log('consume, step 6');
         // XXX Replace 0 below with the contract's balance
         cb(...bns, { value: t.value, balance: 0 });
       })));
-    console.log('mkRecv step 2');
 
 
   const past = () => new Promise((resolve, reject) =>
-    new web3.eth.Contract(c.abi, c.contractaddress)
+    new web3.eth.Contract(c.abi, c.address)
       .getPastEvents(eventName, { toBlock: 999999999 }) // TODO `toBlock`
       .then(es => {
-          console.log('past, step 1 es=', es);
         const e = es
           .find(x => c.consumedEvents[consumedEventKeyOf(eventName, x)] === undefined);
-          console.log('past, step 2 e=', e, ' eventName=', eventName);
-          console.log('|c.consumedEvents|=', Object.keys(c.consumedEvents).length);
 
-        if (!e) {
-          console.log('Before reject statement');
+        if (!e)
           return reject();
-          }
-          console.log('past, step 3');
 
         const argsAbi = c.abi
           .find(a => a.name === eventName)
           .inputs;
-          console.log('past, step 4');
 
         const decoded = web3.eth.abi.decodeLog(argsAbi, e.raw.data, e.raw.topics);
-          console.log('past, step 5');
 
         const bns = argsAbi
           .map(a => a.name)
           .map(n => decoded[n]);
-          console.log('past, step 6');
 
         return consume(e, bns, resolve, reject);
       }));
-    console.log('mkRecv step 3');
 
 
   const pollPast = () => new Promise(resolve => {
-      console.log('pollpast, step 1');
     const attempt = () => past()
       .then(resolve)
       .catch(() => flip(setTimeout, 500, () => !w.alreadyConsumed && attempt()));
-      console.log('pollpast, step 2');
-    sleep(1000);
     return attempt();
   });
-    console.log('mkRecv step 4');
 
 
   const next = () => new Promise((resolve, reject) => new ethers
-    .Contract(c.contractaddress, c.abi, new ethers.providers.Web3Provider(web3.currentProvider))
+    .Contract(c.address, c.abi, new ethers.providers.Web3Provider(web3.currentProvider))
     .once(eventName, (...a) => {
-      console.log('next, step 1');
       const b = a.map(b => b); // Preserve `a` w/ copy
-      console.log('next, step 2');
       const e = b.pop();       // The final element represents an `ethers` event object
-      console.log('next, step 3');
 
       // Swap ethers' BigNumber wrapping for web3's
       const bns = b.map(x => toBN({ web3 })(x.toString()));
-      console.log('next, step 4');
 
       return consume(e, bns, resolve, reject);
     }));
-    console.log('mkRecv step 5');
 
 
   return past()
@@ -285,51 +253,36 @@ const mkRecv = ({ web3, ethers }) => (c, w) => (label, eventName, cb) => {
 
 
 const mkRecvWithin = A => c => (label, eventName, blocks, tcb, cb) => {
-  console.log('mkRecvWithin, step 1 blocks=', blocks);
   if (blocks < 0)
     return Promise.reject('`blocks` cannot be less than 0!');
 
-  console.log('mkRecvWithin, step 2');
   const w = { alreadyConsumed: false };
-  console.log('mkRecvWithin, step 3');
 
   const runAlternativeAfter = timeoutBlock => new Promise((resolve, reject) => {
-    console.log('runAlternativelyAfter, step 1');
     const subs = new A.ethers.providers.Web3Provider(A.web3.currentProvider);
-    console.log('runAlternativelyAfter, step 2');
 
     subs.on('error', e => {
       subs.removeAllListeners('block');
       reject(e);
     });
-    console.log('runAlternativelyAfter, step 3');
 
     subs.on('block', n => {
-      console.log('runAlternativelyAfter, step 1');
       if (w.alreadyConsumed)
         return subs.removeAllListeners('block');
 
-      console.log('runAlternativelyAfter, step 2');
       if (n < timeoutBlock)
         return;
 
-      console.log('runAlternativelyAfter, step 3');
       w.alreadyConsumed = true;
-      console.log('runAlternativelyAfter, step 4');
       subs.removeAllListeners('block');
-      console.log('runAlternativelyAfter, step 5');
       resolve();
-      console.log('runAlternativelyAfter, step 6');
       tcb();
     });
-    console.log('runAlternativelyAfter, step 4');
   });
-  console.log('mkRecvWithin, step 4, eventName=', eventName);
 
   const raceUntil = timeoutBlock =>
     Promise.race([ mkRecv(A)(c, w)(label, eventName, cb)
                  , runAlternativeAfter(timeoutBlock) ]);
-  console.log('mkRecvWithin, step 5');
 
   return now(A)()
     .then(currentBlock => raceUntil(currentBlock + blocks))
@@ -337,8 +290,8 @@ const mkRecvWithin = A => c => (label, eventName, blocks, tcb, cb) => {
 };
 
 
-const mkTimeoutTerminate = A => (contractaddress, userAddress) => () => {
-  return new A.web3.eth.Contract(A.abi, contractaddress)
+const mkTimeoutTerminate = A => (address, userAddress) => () => {
+  return new A.web3.eth.Contract(A.abi, address)
     .methods['timeout']()
     .send({ from: userAddress, value: 0 })
     .then(r  => fetchAndRejectInvalidReceiptFor(A)(r.transactionHash))
@@ -348,7 +301,7 @@ const mkTimeoutTerminate = A => (contractaddress, userAddress) => () => {
 
 
 
-const Contract = A => userAddress => (ctors, contractaddress) => {
+const Contract = A => userAddress => (ctors, address) => {
   const recv = (label, eventName, cb) =>
     mkRecv(A)(c, { alreadyConsumed: false })(label, eventName, cb);
 
@@ -358,11 +311,11 @@ const Contract = A => userAddress => (ctors, contractaddress) => {
   const c =
     { abi:            A.abi
     , bytecode:       A.bytecode
-    , sendrecv:       mkSendRecv(A)(contractaddress, userAddress, ctors)
-    , timeoutterminate:  mkTimeoutTerminate(A)(contractaddress, userAddress)
+    , sendrecv:       mkSendRecv(A)(address, userAddress, ctors)
+    , timeoutterminate:  mkTimeoutTerminate(A)(address, userAddress)
     , consumedEvents: {}
     , ctors
-    , contractaddress
+    , address
     };
 
   Object.assign(c, { recv, recvWithin });
