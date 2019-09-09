@@ -43,7 +43,7 @@ V1_9_X_ARGS=$(geth version 2>/dev/null |grep -q "^Version: 1.9" && echo "--allow
 # speed)
 geth ${V1_9_X_ARGS} \
   --dev \
-  --dev.period=12 \
+  --dev.period=1 \
   --mine \
   --identity "AlacrisEthereumDevNet" \
   --datadir $DATADIR \

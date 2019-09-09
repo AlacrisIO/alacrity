@@ -13,8 +13,7 @@ blockdepth :: Integer
 blockdepth = 10
 
 use_timeout :: Bool
-use_timeout = True
-
+use_timeout = False
 
 
 data BaseType
