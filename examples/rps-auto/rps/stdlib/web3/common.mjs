@@ -37,10 +37,41 @@ const nat16_to_fixed_size_hex =
   nat_to_fixed_size_hex(2);
 
 
+
+
+let SimpleSelfTransfer = A => (userAddress,prefunder) => {
+  const smallAmount = toBN(A)(toWei(A)('1', 'szabo'));
+  Promise.resolve(transfer(A)(userAddress, prefunder, smallAmount));
+};
+
+
+
+async function KernelConstantActivity(A, userAddress, prefunder) {
+  let iter = 0;
+  const promise1 = () => new Promise(resolve => {
+    setTimeout(function() {
+        resolve('foo');
+    }, 3000);
+  });
+  while (iter >= 0)
+  {
+    await SimpleSelfTransfer(A)(userAddress,prefunder);
+    await promise1(iter);
+    iter = iter + 1;
+//    console.log('KernelConstantActivity, iter=' + iter);
+  }
+}
+
+const ConstantActivity = A => () =>
+  prefundedDevnetAcct(A)()
+  .then(prefunder => createAndUnlockAcct(A)()
+  .then(userAddress => KernelConstantActivity(A, userAddress, prefunder)));
+
+
 // Parameterized ///////////////////////////////////////////////////////////////
 
 const balanceOf = A => a =>
-  a.web3.eth.getBalance(a.userAddress)
+  A.web3.eth.getBalance(a.userAddress)
     .then(toBN(A));
 
 const assert = ({ asserter }) => d => asserter(d);
@@ -107,15 +138,6 @@ const gt    = A => (a, b) => toBN(A)(a).gt( toBN(A)(b));
 const le    = A => (a, b) => toBN(A)(a).lte(toBN(A)(b));
 const lt    = A => (a, b) => toBN(A)(a).lt( toBN(A)(b));
 
-
-function sleep(milliseconds) {
-  var start = new Date().getTime();
-  for (var i = 0; i < 1e7; i++) {
-    if ((new Date().getTime() - start) > milliseconds){
-      break;
-    }
-  }
-}
 
 
 
@@ -354,7 +376,6 @@ const mkDeploy = A => userAddress => ctors => {
 const EthereumNetwork = A => userAddress =>
   ({ deploy: mkDeploy(A)(userAddress)
    , attach: (ctors, address) => Promise.resolve(Contract(A)(userAddress)(ctors, address))
-   , web3:   A.web3
    , userAddress
    });
 
@@ -413,6 +434,7 @@ export const mkStdlib = A =>
   , transfer:         transfer(A)
   , now:              now(A)
   , Contract:         Contract(A)
+  , ConstantActivity: ConstantActivity(A)
   , EthereumNetwork:  EthereumNetwork(A)
 
   , devnet: { prefundedDevnetAcct: prefundedDevnetAcct(A)
