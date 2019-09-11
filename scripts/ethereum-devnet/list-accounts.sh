@@ -1,5 +1,8 @@
-#!/bin/sh
+#!/usr/bin/env sh
 
-# use "curl" to show accounts (list of addresses) on our test net
+# Use `curl` to show accounts (list of addresses) on our test net
 
-curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"eth_accounts","params":[],"id":1}' localhost:8545
+curl -X POST \
+  -H "Content-Type: application/json" \
+  --data '{"jsonrpc": "2.0", "method": "eth_accounts", "params": [], "id": 1}' \
+  http://localhost:8545
