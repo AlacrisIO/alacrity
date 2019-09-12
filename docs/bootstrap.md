@@ -50,7 +50,7 @@ which will be updated as we refine our plan:
   * Time Compression [#129](https://github.com/AlacrisIO/meta/issues/129) (December 2019)
   * Space Compression [#128](https://github.com/AlacrisIO/meta/issues/128) (November 2019)
   * State Channels [#56](https://github.com/AlacrisIO/meta/issues/56) (October 2019)
-  * **Direct-style Alacrity** (August 2019) ⇐ *MVP, base layer from with other layers extend up and down*
+  * **Direct-style Alacrity** (September 2019) ⇐ *MVP, base layer from with other layers extend up and down*
   * Auctions for posting messages despite FOMO3D-style block-buying attacks (October 2019)
   * Support for Bitcoin Cash [#112](https://github.com/AlacrisIO/meta/issues/112), Tezos, Cardano, Zilliqa, Hedera, Algorand, etc., as well as Ethereum (first one in November 2019)
   * Multi-datacenter redundancy for robust and secure DApp deployments (April 2020)
@@ -105,9 +105,9 @@ Our system will grow features from the initial MVP along the following multiple 
        (or side chain *market*, if a single operator can be adversarial) (July 2020)
 
   * *Non-linearity in Control Flow*:
-     * MVP: Choice by one party to default or fail to respond by a timeout (August 2019)
-     * MVP: While loops and/or recursive tail calls, with user-specified loop invariants
-       (August 2019)
+     * MVP: Choice by one party to default or fail to respond by a timeout (September 2019)
+     * While loops and/or recursive tail calls, with user-specified loop invariants
+       (September 2019 ?)
      * Choice by one party (or randomness?) between alternatives
        that affect the control flow (September 2019)
      * Race condition between multiple participants,

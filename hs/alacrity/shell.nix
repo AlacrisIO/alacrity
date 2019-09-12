@@ -5,7 +5,7 @@ with (import <nixpkgs> {});
 haskell.lib.buildStackProject {
   inherit ghc;
   name = "alacrity";
-  buildInputs = [ z3 solc ];
+  buildInputs = [ z3 solc zlib ];
   shellHook = if glibcLocales != null then ''
     export LOCALE_ARCHIVE="${glibcLocales}/lib/locale/locale-archive"
     export LC_ALL=C.UTF-8
@@ -46,7 +46,7 @@ haskell.lib.buildStackProject {
 # https://www.snoyman.com/blog/2016/12/beware-of-readfile
 # https://github.com/agda/agda/issues/2922
 #
-# Bug reported:
+# Bug reported, but closed without suit:
 # https://github.com/NixOS/nixpkgs/issues/63014
 # https://github.com/commercialhaskell/stack/issues/4859
 # https://github.com/haskell/cabal/issues/6076

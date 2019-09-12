@@ -7,6 +7,5 @@ maybeDie :: IO ExitCode -> IO ()
 maybeDie ma = do
   ec <- ma
   unless (ec == ExitSuccess)
-    (do putStr "maybeDie"
-        (exitWith ec))
+    (do (exitWith ec))
   return ()

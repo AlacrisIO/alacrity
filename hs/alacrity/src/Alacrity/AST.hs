@@ -211,7 +211,6 @@ data XLExpr
   --- on a local side of a transaction that collects all the transfers
   --- and puts them in the pay position.
   | XL_Transfer Participant XLExpr
-  | XL_Declassify XLExpr
   --- Where x Vars x Expression x Body
   | XL_Let (Maybe Participant) (Maybe [XLVar]) XLExpr XLExpr
   | XL_While XLVar XLExpr XLExpr XLExpr XLExpr XLExpr
@@ -267,7 +266,6 @@ data ILArg
 
 data ILExpr
   = IL_PrimApp EP_Prim [ILArg]
-  | IL_Declassify ILArg
   deriving (Show,Eq)
 
 data ILStmt
@@ -450,7 +448,6 @@ prettyBegin x = group $ parens $ pretty "begin" <+> (nest 2 $ hardline <> pretty
 
 instance Pretty ILExpr where
   pretty (IL_PrimApp p al) = prettyApp p al
-  pretty (IL_Declassify a) = group $ parens $ pretty "declassify" <+> pretty a
 
 instance Pretty ILStmt where
   pretty (IL_Transfer to a) = prettyTransfer to a

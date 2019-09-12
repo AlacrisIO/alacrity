@@ -195,12 +195,6 @@ parseXLTransfer = do
   xe <- parseXLExpr1
   return $ XL_Transfer p xe
 
-parseXLDeclassify :: Parser XLExpr
-parseXLDeclassify =
-  do exact "declassify"
-     xe <- parens $ parseXLExpr1
-     return $ XL_Declassify xe
-
 parseXLFunApp :: Parser XLExpr
 parseXLFunApp = do
   f <- parseXLVar
@@ -215,8 +209,7 @@ parseXLExpr1 =
    <|> parseXLIf
    <|> parseXLClaim
    <|> parseXLValues
-   <|> parseXLTransfer  
-   <|> parseXLDeclassify
+   <|> parseXLTransfer
    <|> (braces $ parseXLExprT Nothing)
    <|> try parseXLFunApp
    <|> (XL_Var <$> parseXLVar))
@@ -224,10 +217,8 @@ parseXLExpr1 =
 parseXLExprs :: Parser [XLExpr]
 parseXLExprs = sepBy parseXLExpr1 comma
 
-parseXLToConsensus :: Parser XLExpr
-parseXLToConsensus = do
-  exact ">"
-  who <- parseParticipant
+parseXLToConsensus :: Participant -> Parser XLExpr
+parseXLToConsensus who = do
   vs <- ((do exact "publish!"
              vs <- parseXLVars
              exact "w/"
@@ -235,7 +226,7 @@ parseXLToConsensus = do
          <|>
          (do exact "pay!"
              return []))
-  amount <- parseXLExpr1               
+  amount <- parseXLExpr1
   semi
   conk <- parseXLExprT Nothing
   return $ XL_ToConsensus who vs amount (XL_Let Nothing Nothing (XL_Claim CT_Require (XL_PrimApp (CP PEQ) [ (XL_PrimApp (CP TXN_VALUE) []), amount ])) conk)
@@ -244,7 +235,7 @@ parseAt :: Parser XLExpr
 parseAt = do
   exact "@"
   who <- parseParticipant
-  parseXLExprT (Just who)
+  (parseXLToConsensus who <|> parseXLExprT (Just who))
 
 parseXLFromConsensus :: Parser XLExpr
 parseXLFromConsensus = do
@@ -252,14 +243,6 @@ parseXLFromConsensus = do
   semi
   k <- parseXLExprT Nothing
   return $ XL_FromConsensus k
-
-parseXLDeclassifyBang :: Maybe Participant -> Parser XLExpr
-parseXLDeclassifyBang who =
-  do exact "declassify!"
-     v <- parseXLVar
-     semi
-     k <- parseXLExprT who
-     return $ XL_Let who (Just [v]) (XL_Declassify (XL_Var v)) k
 
 parseXLLetValues :: Maybe Participant -> Parser XLExpr
 parseXLLetValues who = do
@@ -280,10 +263,8 @@ parseXLContinue _who = do
 parseXLExprT :: Maybe Participant -> Parser XLExpr
 parseXLExprT who =
   label "XLExprT"
-  (parseXLToConsensus
-   <|> parseAt
+  (parseAt
    <|> parseXLFromConsensus
-   <|> parseXLDeclassifyBang who
    <|> parseXLLetValues who
    <|> parseXLContinue who
    <|> parseXLWhile who

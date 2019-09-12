@@ -50,15 +50,13 @@ participant A {
 participant B { }
 
 main {
-    @A declassify! wagerAmount;
-    @A declassify! escrowAmount;
     @A interact("params");
-    >A publish! wagerAmount, escrowAmount
+    @A publish! wagerAmount, escrowAmount
        w/ (wagerAmount + escrowAmount);
     commit;
 
     @B interact("accepts");
-    >B pay! wagerAmount;
+    @B pay! wagerAmount;
 
     do const outcome = DRAW
        until not((outcome == DRAW))
@@ -69,22 +67,18 @@ main {
 
         @A const handA = getHand();
         @A const commitA, saltA = precommit(handA);
-        @A declassify! commitA;
         @A interact("commits");
-        >A publish! commitA w/ 0;
+        @A publish! commitA w/ 0;
         commit;
 
         @B const handB = getHand();
-        @B declassify! handB;
         @B interact("shows");
-        >B publish! handB w/ 0;
+        @B publish! handB w/ 0;
         require! isHand(handB);
         commit;
 
-        @A declassify! saltA;
-        @A declassify! handA;
         @A interact("reveals");
-        >A publish! saltA, handA w/ 0;
+        @A publish! saltA, handA w/ 0;
         check_commit(commitA, saltA, handA);
         require! isHand(handA);
         const this_outcome = winner(handA, handB);

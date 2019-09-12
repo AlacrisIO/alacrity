@@ -249,8 +249,6 @@ z3_vardecl z3 (iv, bt) = void $ declare z3 (z3Var iv) s
 
 z3_expr :: Solver -> Int -> ILVar -> ILExpr -> IO ()
 z3_expr z3 cbi out how = case how of
-  IL_Declassify a ->
-    assert z3 (z3Eq (z3VarRef out) (emit_z3_arg a))
   IL_PrimApp pr al -> z3PrimEq z3 cbi pr alt out
     where alt = map emit_z3_arg al
 
