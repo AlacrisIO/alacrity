@@ -237,7 +237,7 @@ solCTail ps emitp ρ ccs ct =
       emitp <> vsep [ solSet ("current_state") ("0x0") <> semi,
                       solApply "selfdestruct" [ solApply "address" [ pretty alacrisAddress ] ] <> semi <> hardline ]
     C_Wait i svs ->
-      emitp <> vsep [ ("block_nbr = get_block_number()") <> semi, (solSet ("current_state") (solHashState ρ i ps svs)) <> semi <> hardline]
+      emitp <> vsep [ ("last_address = msg.sender") <> semi, ("block_nbr = get_block_number()") <> semi, (solSet ("current_state") (solHashState ρ i ps svs)) <> semi <> hardline]
     C_If ca tt ft ->
       "if" <+> parens (solArg ρ ca) <+> bp tt <> hardline <> "else" <+> bp ft
       where bp at = solBraces $ solCTail ps emitp ρ ccs at

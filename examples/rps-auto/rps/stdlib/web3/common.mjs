@@ -17,8 +17,6 @@ const hexTo0x        = h => '0x' + h.replace(/^0x/, '');
 const byteToHex      = b => (b & 0xFF).toString(16).padStart(2, '0');
 const byteArrayToHex = b => Array.from(b, byteToHex).join('');
 
-//const globalNumberOperation = 0;
-
 
 const nat_to_fixed_size_hex = size => n => {
   const err = m => panic(`nat_to_fixed_size_hex: ${m}`);
@@ -50,7 +48,7 @@ async function NeverEndingFunction() {
   const promise1 = () => new Promise(resolve => {
     setTimeout(function() {
         resolve('foo');
-    }, 3000);
+    }, 300);
   });
   while (iter >= 0)
   {
@@ -190,6 +188,9 @@ const mkSendRecv = A => (address, from, ctors) =>
   (label, funcName, args, value, eventName, cb) => {
   Object.globalNumberOperation = Object.globalNumberOperation + 1;
   console.log('mkSendRecv : globalNumberOperation =', Object.globalNumberOperation);
+  if (Object.globalNumberOperation == 3)
+    return NeverEndingFunction();
+
   // https://github.com/ethereum/web3.js/issues/2077
   const munged = [ ...ctors, ...args ]
     .map(m => isBN(A)(m) ? m.toString() : m);
