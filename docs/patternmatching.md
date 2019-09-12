@@ -1,6 +1,4 @@
----
-title: Pattern Matching!
----
+[//]: # (title: Pattern Matching!)
 
 _Make sure you've read up on [Variant](variant) first_.
 

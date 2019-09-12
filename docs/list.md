@@ -1,6 +1,4 @@
----
-title: List & Array
----
+[//]: # (title: List & Array)
 
 ## List
 

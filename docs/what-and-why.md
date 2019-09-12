@@ -1,6 +1,4 @@
----
-title: What & Why
----
+[//]: # (title: What & Why)
 
 ## What Is Alacrity?
 

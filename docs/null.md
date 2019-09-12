@@ -1,6 +1,4 @@
----
-title: Null, Undefined & Option
----
+[//]: # (title: Null, Undefined & Option)
 
 Alacrity itself doesn't have the notion of `null` or `undefined`. This is a _great_ thing, as it wipes out an entire category of bugs. No more `undefined is not a function`, and `cannot access foo of undefined`!
 

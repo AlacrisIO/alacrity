@@ -1,6 +1,4 @@
----
-title: More on Type
----
+[//]: # (title: More on Type)
 
 ## Type Argument!
 

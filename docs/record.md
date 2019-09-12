@@ -1,6 +1,4 @@
----
-title: Record
----
+[//]: # (title: Record)
 
 Records are like JavaScript objects but are
 

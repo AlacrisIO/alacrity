@@ -1,6 +1,4 @@
----
-title: If-Else
----
+[//]: # (title: If-Else)
 
 Alacrity `if`s are expressions; they're evaluated to their body's content:
 

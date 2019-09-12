@@ -1,6 +1,4 @@
----
-title: Tuple
----
+[//]: # (title: Tuple)
 
 Tuples are
 

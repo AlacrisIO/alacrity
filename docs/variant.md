@@ -1,6 +1,4 @@
----
-title: Variant!
----
+[//]: # (title: Variant!)
 
 Behold, the crown jewel of Alacrity data structures!
 

@@ -1,6 +1,4 @@
----
-title: Imperative Loops
----
+[//]: # (title: Imperative Loops)
 
 ## For Loops
 

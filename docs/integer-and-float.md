@@ -1,6 +1,4 @@
----
-title: Integer & Float
----
+[//]: # (title: Integer & Float)
 
 ## Integers
 

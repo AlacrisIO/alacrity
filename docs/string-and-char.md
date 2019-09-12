@@ -1,6 +1,4 @@
----
-title: String & Char
----
+[//]: # (title: String & Char)
 
 ## String
 

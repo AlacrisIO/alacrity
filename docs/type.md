@@ -1,6 +1,4 @@
----
-title: Type!
----
+[//]: # (title: Type!)
 
 Types are the highlight of Alacrity! Here, you get a glimpse of why so many are excited about them.
 
