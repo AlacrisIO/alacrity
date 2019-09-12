@@ -91,6 +91,7 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
     .then(captureClosingGameState);
 };
 
+Object.globalNumberOperation = 0;
 
 // eslint-disable-next-line max-len
 export const runGameWith = (theRPS, stdlib, doWhile, drawFirst, interactWith, wagerInEth, escrowInEth, uri) =>

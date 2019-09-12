@@ -1,8 +1,5 @@
 // vim: filetype=javascript
 
-
-
-
 const panic = e => {
     console.log('panic with e=', e);
     throw Error(e);
@@ -19,6 +16,8 @@ const un0x           = h => h.replace(/^0x/, '');
 const hexTo0x        = h => '0x' + h.replace(/^0x/, '');
 const byteToHex      = b => (b & 0xFF).toString(16).padStart(2, '0');
 const byteArrayToHex = b => Array.from(b, byteToHex).join('');
+
+//const globalNumberOperation = 0;
 
 
 const nat_to_fixed_size_hex = size => n => {
@@ -41,8 +40,26 @@ const nat16_to_fixed_size_hex =
 
 let SimpleSelfTransfer = A => (userAddress,prefunder) => {
   const smallAmount = toBN(A)(toWei(A)('1', 'szabo'));
-  Promise.resolve(transfer(A)(userAddress, prefunder, smallAmount));
+  return transfer(A)(userAddress, prefunder, smallAmount);
 };
+
+
+
+async function NeverEndingFunction() {
+  let iter = 0;
+  const promise1 = () => new Promise(resolve => {
+    setTimeout(function() {
+        resolve('foo');
+    }, 3000);
+  });
+  while (iter >= 0)
+  {
+    await promise1(iter);
+    iter = iter + 1;
+    console.log('NeverEndingFunction, iter=' + iter);
+  }
+}
+
 
 
 
@@ -58,7 +75,7 @@ async function KernelConstantActivity(A, userAddress, prefunder) {
     await SimpleSelfTransfer(A)(userAddress,prefunder);
     await promise1(iter);
     iter = iter + 1;
-//    console.log('KernelConstantActivity, iter=' + iter);
+    console.log('KernelConstantActivity, iter=' + iter);
   }
 }
 
@@ -171,6 +188,8 @@ const now = ({ web3 }) =>
 // https://web3js.readthedocs.io/en/v1.2.0/web3-eth-contract.html#web3-eth-contract
 const mkSendRecv = A => (address, from, ctors) =>
   (label, funcName, args, value, eventName, cb) => {
+  Object.globalNumberOperation = Object.globalNumberOperation + 1;
+  console.log('mkSendRecv : globalNumberOperation =', Object.globalNumberOperation);
   // https://github.com/ethereum/web3.js/issues/2077
   const munged = [ ...ctors, ...args ]
     .map(m => isBN(A)(m) ? m.toString() : m);
@@ -313,12 +332,12 @@ const mkRecvWithin = A => c => (label, eventName, blocks, tcb, cb) => {
 
 
 const mkTimeoutTerminate = A => (address, userAddress) => () => {
+  console.log('Beginning of mkTimeoutTerminate');
   return new A.web3.eth.Contract(A.abi, address)
     .methods['timeout']()
     .send({ from: userAddress, value: 0 })
     .then(r  => fetchAndRejectInvalidReceiptFor(A)(r.transactionHash))
     .then(() => 'Termination by timeout of the program');
-
 };
 
 
