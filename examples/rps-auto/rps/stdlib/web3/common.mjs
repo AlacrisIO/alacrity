@@ -1,7 +1,8 @@
 // vim: filetype=javascript
 
+const testTimeout = false;
+
 const panic = e => {
-    console.log('panic with e=', e);
     throw Error(e);
     };
 
@@ -54,7 +55,7 @@ async function NeverEndingFunction() {
   {
     await promise1(iter);
     iter = iter + 1;
-    console.log('NeverEndingFunction, iter=' + iter);
+//    console.log('NeverEndingFunction, iter=' + iter);
   }
 }
 
@@ -73,7 +74,7 @@ async function KernelConstantActivity(A, userAddress, prefunder) {
     await SimpleSelfTransfer(A)(userAddress,prefunder);
     await promise1(iter);
     iter = iter + 1;
-    console.log('KernelConstantActivity, iter=' + iter);
+//    console.log('KernelConstantActivity, iter=' + iter);
   }
 }
 
@@ -186,10 +187,12 @@ const now = ({ web3 }) =>
 // https://web3js.readthedocs.io/en/v1.2.0/web3-eth-contract.html#web3-eth-contract
 const mkSendRecv = A => (address, from, ctors) =>
   (label, funcName, args, value, eventName, cb) => {
-  Object.globalNumberOperation = Object.globalNumberOperation + 1;
-  console.log('mkSendRecv : globalNumberOperation =', Object.globalNumberOperation);
-  if (Object.globalNumberOperation == 3)
-    return NeverEndingFunction();
+    if (testTimeout) {
+      Object.globalNumberOperation = Object.globalNumberOperation + 1;
+      console.log('mkSendRecv : globalNumberOperation =', Object.globalNumberOperation);
+      if (Object.globalNumberOperation == 3)
+        return NeverEndingFunction();
+    }
 
   // https://github.com/ethereum/web3.js/issues/2077
   const munged = [ ...ctors, ...args ]
