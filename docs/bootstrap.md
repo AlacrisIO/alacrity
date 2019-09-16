@@ -46,13 +46,15 @@ which will be updated as we refine our plan:
   * Plasma Chains (April 2020)
   * Game-semantic enforcement of contractual obligations as logical predicates (March 2020)
   * Logical queries about a monotonic verifiable data structure (February 2020)
-  * Alacrity VM in Alacrity [#59](https://github.com/AlacrisIO/meta/issues/59) [#60](https://github.com/AlacrisIO/meta/issues/60) [#131](https://github.com/AlacrisIO/meta/issues/131) (January 2019)
+  * Alacrity VM in Alacrity [#59](https://github.com/AlacrisIO/meta/issues/59) [#60](https://github.com/AlacrisIO/meta/issues/60) [#131](https://github.com/AlacrisIO/meta/issues/131) (January 2020)
   * Time Compression [#129](https://github.com/AlacrisIO/meta/issues/129) (December 2019)
   * Space Compression [#128](https://github.com/AlacrisIO/meta/issues/128) (November 2019)
   * State Channels [#56](https://github.com/AlacrisIO/meta/issues/56) (October 2019)
   * **Direct-style Alacrity** (September 2019) ⇐ *MVP, base layer from with other layers extend up and down*
   * Auctions for posting messages despite FOMO3D-style block-buying attacks (October 2019)
   * Support for Bitcoin Cash [#112](https://github.com/AlacrisIO/meta/issues/112), Tezos, Cardano, Zilliqa, Hedera, Algorand, etc., as well as Ethereum (first one in November 2019)
+  * Operator markets to post messages (?)
+  * Operator markets for GAS computation / insurance
   * Multi-datacenter redundancy for robust and secure DApp deployments (April 2020)
   * Admin console and alerts to monitor operators (December 2020)
   * Data analytics to measure and optimize operations from an economic point of view (March 2021)
