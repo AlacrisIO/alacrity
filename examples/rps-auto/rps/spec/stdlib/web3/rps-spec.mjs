@@ -3,7 +3,7 @@ jasmine.DEFAULT_TIMEOUT_INTERVAL = 60 * 1000 * 10;
 
 import * as RPS        from '../../../../build/rps.mjs';
 import { stdlibNode  } from '../../../stdlib/web3/node.mjs';
-import { runGameWith } from '../../../demo.mjs';
+import { runGameWith, ROCK, PAPER, SCISSORS, A_WINS, DRAW, B_WINS } from '../../../demo.mjs';
 
 
 const uri = process.env.ETH_NODE_URI || 'http://localhost:8545';
@@ -34,19 +34,20 @@ describe('A rock/paper/scissors game using the `web3` stdlib', () => {
         .then(g => {
           const { balanceStartAlice, balanceStartBob, balanceEndAlice, balanceEndBob } = g;
 
-          expect(g.outcomeAlice === g.outcomeBob).toBe(true);
+          //console.log('\nOUTCOME: @A %s, @B %s\n', g.outcomeAlice, g.outcomeBob);
+          expect(stdlib.equal(g.outcomeAlice, g.outcomeBob)).toBe(true);
 
           // "The Man" always gets his cut regardless - this is just a
           // rough guesstimate of processing fees
           const estimatedGas = stdlib.toBN(stdlib.toWei('5000000', 'wei'));
 
-          if (g.outcomeAlice === 'Draw') {
+          if (stdlib.equal(g.outcomeAlice, DRAW)) {
             expect(balanceStartAlice.gte(balanceEndAlice.sub(estimatedGas))).toBe(true);
             expect(balanceStartBob.gte(balanceEndBob.sub(estimatedGas))).toBe(true);
           } else {
 
             const [ balStartWinner, balStartLoser, balEndWinner, balEndLoser ]
-              = g.outcomeAlice === 'Alice wins'
+              = stdlib.equal(g.outcomeAlice, A_WINS)
                 ? [ balanceStartAlice, balanceStartBob, balanceEndAlice, balanceEndBob ]
                 : [ balanceStartBob, balanceStartAlice, balanceEndBob, balanceEndAlice ];
 

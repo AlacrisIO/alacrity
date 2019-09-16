@@ -1,35 +1,19 @@
 #lang alacrity/exe
 
 enum isHand { ROCK, PAPER, SCISSORS };
+// TODO: automatically extract getHand, handOfString, stringOfHand, etc.
 
 function getHand() : isHand {
     const s = interact("getHand");
-    const rockP = bytes_equal(s, "ROCK");
-    const paperP = bytes_equal(s, "PAPER");
-    const scissorsP = bytes_equal(s, "SCISSORS");
-    assume! (rockP || (paperP || scissorsP));
-    if rockP ROCK
-    else if paperP PAPER
-    else SCISSORS }
+    assume! isHand(s);
+    s }
 
 enum isOutcome { B_WINS, DRAW, A_WINS };
-function showOutcome(o) {
-    require! isOutcome(o);
-    if (o == B_WINS) "Bob wins"
-    else if (o == DRAW) "Draw"
-    else "Alice wins" }
 
 function winner(handA, handB) : isOutcome {
-    const validA = isHand(handA);
-    const validB = isHand(handB);
-    if (validA && validB) {
-        ((handA + (4 - handB)) % 3) }
-    else if validA {
-        A_WINS }
-    else if validB {
-        B_WINS }
-    else {
-        DRAW } }
+    assert! isHand(handA);
+    assert! isHand(handB);
+    ((handA + (4 - handB)) % 3) }
 
 function fair_if(handX, optionX, canWinX) {
     possible? ((handX == optionX) && canWinX) }
@@ -50,34 +34,21 @@ participant A {
 participant B { }
 
 main {
-    @A interact("params");
-    @A publish! wagerAmount, escrowAmount
+    @A const handA = getHand();
+    @A const commitA, saltA = precommit(handA);
+    @A publish! wagerAmount, escrowAmount, commitA
        w/ (wagerAmount + escrowAmount);
     commit;
 
-    @B interact("accepts");
-    @B pay! wagerAmount;
-    commit;
-
-    @A const handA = getHand();
-    @A const commitA, saltA = precommit(handA);
-    @A interact("commits");
-    @A publish! commitA w/ 0;
-    commit;
-
     @B const handB = getHand();
-    @B interact("shows");
-    @B publish! handB w/ 0;
+    @B publish! handB w/ wagerAmount;
     require! isHand(handB);
     commit;
 
-    @A interact("reveals");
     @A publish! saltA, handA w/ 0;
     check_commit(commitA, saltA, handA);
     require! isHand(handA);
     const outcome = winner(handA, handB);
-    assert! ((outcome == A_WINS) => isHand(handA));
-    assert! ((outcome == B_WINS) => isHand(handB));
     fair_game(handA, handB, outcome);
 
     const getsA, getsB =
@@ -91,5 +62,5 @@ main {
     transfer! B <- getsB;
     commit;
 
-    interact("outcome");
-    showOutcome(outcome) }
+    outcome
+}
