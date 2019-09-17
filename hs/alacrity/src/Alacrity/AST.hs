@@ -327,13 +327,20 @@ data EPStmt
   | EP_Send Int [BLVar] [BLVar] BLArg
   deriving (Show,Eq)
 
+{- This data type is of the kind of a block in LLVM -}
 data EPTail
   = EP_Ret [BLArg]
+  {- An if test branches in two possibilities -}
   | EP_If BLArg EPTail EPTail
   | EP_Let BLVar EPExpr EPTail
   | EP_Do EPStmt EPTail
   {- This recv is what the sender sent; we will be doing the same
-     computation as the contract. -}
+     computation as the contract.
+     ---First boolean is a "fromme" and actually should always be false.
+     ---The "Int" is the index of the solidity event considered
+     ---First [BLVar] is a svs. XXX What is this?
+     ---Second [BLVar] is a msg. In "(v39, txn) =>" the msg is [v39]
+     ---The EPTail is a callback. -}
   | EP_Recv Bool Int [BLVar] [BLVar] EPTail
   | EP_Loop Int BLVar BLArg EPTail
   | EP_Continue Int BLArg

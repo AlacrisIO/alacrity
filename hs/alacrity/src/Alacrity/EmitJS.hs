@@ -182,7 +182,7 @@ jsEPTailSC who (EP_Do es kt) = (tp, tfvs)
         tfvs = Set.union esfvs kfvs
         (ktp, kfvs) = jsEPTailSC who kt
 jsEPTailSC _ (EP_Recv True _ _ _ _) =
-  error "Impossible"
+  error "Impossible to receive from oneself"
 jsEPTailSC who (EP_Recv False i _ msg kt) = (tp, tfvs)
   where tp = jsApply "ctc.recv" [ jsString who, jsString (solMsg_evt i), kp ] <> semi
         tfvs = Set.unions [Set.fromList msg, ktfvs]
@@ -252,7 +252,7 @@ jsEPTail who (EP_Do es kt) = (tp, tfvs)
         tfvs = Set.union esfvs kfvs
         (ktp, kfvs) = jsEPTail who kt
 jsEPTail _ (EP_Recv True _ _ _ _) =
-  error "Impossible"
+  error "Impossible to receive from oneself"
 jsEPTail who (EP_Recv False i _ msg kt) = (tp, tfvs)
   where tp = jsApply "ctc.recv" [ jsString who, jsString (solMsg_evt i), kp ] <> semi
         tfvs = Set.unions [Set.fromList msg, ktfvs]
