@@ -1,0 +1,114 @@
+#lang alacrity/exe
+
+enum isFinger {one, two, three, four, five };
+enum isSum {two, three, four, five, six, seven, eight, nine, ten };
+
+enum isOutcome { B_WINS, DRAW, A_WINS };
+enum boolean{FALSE, TRUE};
+
+function value(handValue) : isFinger {
+  const redValue = (handValue % 5);
+  redValue
+}
+
+function sum(handValue) : isSum {
+  const redValue = (handValue % 5);
+  const sumValue = ((handValue - redValue) / 5);
+  sumValue
+}
+
+function isValid(handValue) : boolean {
+  const test = ((handValue >= 0) && (handValue < 50));
+  if test {
+    FALSE
+  }
+  else {
+    TRUE
+  }
+}
+
+
+
+
+function winner_valid(handA, handB) : isOutcome {
+  const validA = value(handA);
+  const validB = value(handB);
+  const sumA = sum(handA);
+  const sumB = sum(handB);
+  const sum = (validA + validB);
+  if ((sum == sumA) && (sum == sumB)) {
+    DRAW
+  }
+  else if (sum == sumA) {
+    A_WINS
+  }
+  else if (sum == sumB) {
+    B_WINS
+  }
+  else {
+    DRAW
+  }
+}
+
+function winner(handA, handB) : isOutcome {
+    const validA = boolean(isValid(handA));
+    const validB = boolean(isValid(handB));
+    if (validA && validB) {
+        winner_valid(handA, handB) }
+    else if validA {
+        A_WINS }
+    else if validB {
+        B_WINS }
+    else {
+        DRAW }
+}
+
+
+
+participant A {
+    uint256 wagerAmount,
+    uint256 escrowAmount,
+    uint256 handA }
+
+participant B {
+    uint256 handB }
+
+main {
+    @A assume! boolean(isValid(handA));
+    @B assume! boolean(isValid(handB));
+    @A const commitA, saltA = precommit(handA);
+
+    @A declassify! wagerAmount;
+    @A declassify! escrowAmount;
+    @A declassify! commitA;
+    @A interact("commits");
+    >A publish! wagerAmount, escrowAmount, commitA
+       w/ (wagerAmount + escrowAmount);
+    return;
+
+    @B declassify! handB;
+    @B interact("accepts");
+    >B publish! handB w/ wagerAmount;
+    require! boolean(isValid(handB));
+    return;
+
+    @A declassify! saltA;
+    @A declassify! handA;
+    @A interact("reveals");
+    >A publish! saltA, handA w/ 0;
+    check_commit(commitA, saltA, handA);
+    require! boolean(isValid(handA));
+    const outcome = winner(handA, handB);
+    const getsA, getsB =
+          if (outcome == A_WINS) {
+              values (2 * wagerAmount), 0 }
+          else if (outcome == B_WINS) {
+              values 0, (2 * wagerAmount) }
+          else {
+              values wagerAmount, wagerAmount };
+    transfer! A <- (escrowAmount + getsA);
+    transfer! B <- getsB;
+    return;
+
+    interact("outcome");
+    outcome }
