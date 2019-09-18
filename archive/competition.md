@@ -183,9 +183,26 @@ they do not offer deployment services.
 
 * [Abridged](https://abridged.github.io/splash/)
 
-* [E](https://erights.org/): capabilities and smart contracts from before blockchain.
+* [Agoric](https://agoric.com) is Mark Miller's take on a smart contract language:
+  [E-rights](https://erights.org/) over ocaps over vats over (blockchain, solo, quorum, etc.).
+  While Agoric's approach is similar to Alacrity's in some ways (abstraction, layering),
+  in other ways, it is very different in ways that inspire me doubt:
+  (1) Agoric is object-oriented when Alacrity being functional,
+  which will make it harder to prove correctness of programs;
+  (2) Agoric requires three complex layers of abstraction *before* they can even start writing DApps,
+  whereas Alacrity is useful at each simple layer of abstraction, for a growing set of DApps;
+  (3) Agoric is retrofitting a previous model (E) on top of blockchains,
+  rather than trying to seek what the essence of either blockchains or DApps is;
+  (4) their vats provide isolation against process or network errors
+  (and quorum vats provide much needed redundancy
+  that is on Alacris's roadmap but that we don't handle yet),
+  but they have no builtin support for incentive alignment in an adversarial environment.
+  In the end, instead of being able to provide a language that minimizes the complexity of writing DApps,
+  they end up introducing a complex, arbitrary language (E, just with JavaScript syntax)
+  in between the contracts and the blockchain, with its impedance mismatch, with no obvious gain.
+  The vat layer is very relevant, the other layers less so.
 
-* [Agoric](https://agoric.com): Mark Miller's take on a smart contract language
+* [Archetype](https://docs.archetype-lang.org/) looks very interesting. Currently Tezos-focused, but the approach seems to be general. They also feature extraction to several outputs. They don't seem to have the adversarial aspect, but on the other hand seem competitive with the usual crowd of "formally verified" languages.
 
 * ??? Is there anything useful in this article? [Impossibility of the Obama-Trump contract](https://eprint.iacr.org/2018/252.pdf) - looks like they assume a successful 51% attack, which makes the entire article moot.
 
@@ -193,4 +210,3 @@ they do not offer deployment services.
 * https://www.csail.mit.edu/event/type-system-resource-bounds-type-preserving-compilation-and-its-application-ethereum-smart
 * https://arxiv.org/pdf/1812.08829.pdf
 * https://eprint.iacr.org/2018/416.pdf
-
