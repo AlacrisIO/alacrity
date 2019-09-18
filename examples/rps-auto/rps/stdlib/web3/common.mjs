@@ -240,13 +240,13 @@ const SC_WaitEvents = A => (contractAddress) =>
 
 
 
-const SC_mkSpanThreads = A => Aidentity => (contractAddress) =>
-  new Promise.race([SC_InfiniteProvideVRS(A)(Aidentity) , SC_WaitEvents(A)(Aidentity)(contractAddress)]);
+const SC_mkSpanThreads = A => B => () =>
+  new Promise.race([SC_InfiniteProvideVRS(A)(B) , SC_WaitEvents(A)(B)]);
 
 
 
 
-const SC_mkSendTransaction = A => Aidentity => (to, payload) =>
+const SC_mkSendTransaction = A => B => (to, payload) =>
   new Promise((resolve, reject) => {
     const myIdentity = Aidentity.userAddress[1];
     const pSend = new Promise((resolve_loc, reject_loc) =>
@@ -382,21 +382,10 @@ const MutableState = (contractAddress,ctors,userpairaddress,initiatorpairaddress
     , ctors
     });
 
-const mkSpanCTC = A => B =>
-  ({ abi:      A.abi
-   , bytecode: A.bytecode
-   , sendrecv: mkSendRecv(A)(B)
-   , recv:     mkRecv(A)(B)
-   , SC_sendTransaction: SC_mkSendTransaction(A)
-   , SC_SpanThreads: SC_mkSpanThreads(A)
-   });
 
 
 
-
-
-
-mkCreateSC = A => B => (mypairAddress, initiatorpairAddress) => {
+const SC_mkCreateSC = A => B => () => {
   if initiatorpairAddress[0] == 0 {
 
 
@@ -411,6 +400,23 @@ mkCreateSC = A => B => (mypairAddress, initiatorpairAddress) => {
     new A.
   }
 };
+
+
+
+const mkSpanCTC = A => B =>
+  ({ abi:      A.abi
+   , bytecode: A.bytecode
+   , sendrecv: mkSendRecv(A)(B)
+   , recv:     mkRecv(A)(B)
+   , SC_sendTransaction: SC_mkSendTransaction(A)
+   , SC_SpanThreads: SC_mkSpanThreads(A)(B)
+   , SC_CreateSC: SC_mkCreateSC(A)(B)
+   , B
+   });
+
+
+
+
 
 
 const EthereumNetwork = A => (userAddress, sc_identity) =>

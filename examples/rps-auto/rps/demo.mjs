@@ -65,25 +65,27 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
 
   const txn0 = { balance: 0, value: 0 };
 
-  const bobShoot = contractAddress => (mypairAddress,initpairAddress) =>
+  const bobShoot = contractAddress =>
     new Promise(resolve =>
-      SpanMutableState(gameState.ctors, ctcAlice.address)
-      .then(ctc => theRPS.B(stdlib
-                            , ctc
-                            , txn0
-                            , interactWith('Bob', makeWhichHand())
-                            , resolve)));
+      MutableState(contractAddress, gameState.ctors, gameState.bob, gameState.alice)
+      .then(mutStat => SpanCTC(mutStat))
+      .then(ctc => Promise.race([ctc.SC_SpanThreads(),
+          new Promise.resolve(ctc =>
+            ctc.SC_CreateSC()
+            .then(ctc => theRPS.B(stdlib
+                  , ctc, txn0, interactWith('Bob', makeWhichHand())
+                  , resolve)))]));
 
-  const aliceShoot = ctc => (=>
+  const aliceShoot = ctc =>
     new Promise(resolve =>
-      gameState.bob.attach(gameState.ctors, ctcAlice.address)
-      theRPS.A(stdlib
-             , ctc
-             , txn0
-             , interactWith('Alice', makeWhichHand())
-             , wagerInWei
-             , escrowInWei
-             , resolve));
+      MutableState(contractAddress, gameState.ctors, gameState.alice, [0,0])
+      .then(mutStat => SpanCTC(mutStat))
+      .then(ctc => Promise.race([ctc.SC_SpanThreads(),
+          new Promise.resolve(ctc =>
+            ctc.SC_CreateSC()
+            .then(ctc => theRPS.A(stdlib
+                  , ctc, txn0, interactWith('Alice', makeWhichHand())
+                  , wagerInWei, escrowInWei, resolve)));
 
   return prefundedDevnetAcct()
     .then(p   => Promise.all([ newPlayer(p), newPlayer(p) ]))
