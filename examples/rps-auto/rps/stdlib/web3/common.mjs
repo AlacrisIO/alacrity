@@ -118,6 +118,10 @@ const SC_mkCreateIdentity = A => () =>
   });
 
 
+const SC_nullparticipant = () => [0, 0]
+
+
+
 //
 // Functionality for signing
 //
@@ -185,7 +189,6 @@ async function SC_InfiniteProvideListParticipant(A,Aidentity) {
 
 const SC_ProcessUnamimous = A => (trans) =>
   new Promise((resolve, reject) => {
-    
 
   });
 
@@ -289,14 +292,14 @@ const transfer = ({ web3 }) => (to, from, value) =>
 
 // https://github.com/ethereum/wiki/wiki/JavaScript-API#contract-methods
 // https://web3js.readthedocs.io/en/v1.2.0/web3-eth-contract.html#web3-eth-contract
-const mkSendRecvETH = A => (contractAddress, from, ctors) => (label, funcName, args, value, eventName, cb) => {
+const mkSendRecvETH = A => B => (label, funcName, args, value, eventName, cb) => {
   // https://github.com/ethereum/web3.js/issues/2077
-  const munged = [ ...ctors, ...args ]
+  const munged = [ ...B.ctors, ...args ]
     .map(m => isBN(A)(m) ? m.toString() : m);
 
-  return new A.web3.eth.Contract(A.abi, contractAddress)
+  return new A.web3.eth.Contract(A.abi, B.contractAddress)
     .methods[funcName](...munged)
-    .send({ from, value })
+    .send({ from: B.userpairaddress[0], value })
     .then(r  => fetchAndRejectInvalidReceiptFor(A)(r.transactionHash))
     // XXX We may need to actually see the event. I don't know if the
     //     transaction confirmation is enough.
@@ -312,43 +315,32 @@ const SC_mkGetListParticipant = A => (contractAddress) =>
 
 const SC_mkJoinStateChannel = A => Aidentity =>
   new Promise((resolve, reject) => {
-    
+
   });
 
 
 
 // https://docs.ethers.io/ethers.js/html/api-contract.html#configuring-events
-const mkRecv = ({ web3, ethers, abi }) => contractAddress => (label, eventName, cb) =>
+const mkRecv = A => B => (label, eventName, cb) =>
   new ethers
-    .Contract(contractAddress, abi, new ethers.providers.Web3Provider(web3.currentProvider))
+    .Contract(B.contractAddress, abi, new ethers.providers.Web3Provider(web3.currentProvider))
     .once(eventName, (...a) => {
       const b = a.map(b => b); // Preserve `a` w/ copy
       const e = b.pop();       // The final element represents an `ethers` event object
 
       // Swap ethers' BigNumber wrapping for web3's
-      const bns = b.map(x => toBN({ web3 })(x.toString()));
+      const bns = b.map(x => toBN(A)(x.toString()));
 
       // TODO FIXME replace arbitrary delay with something more intelligent to
       // mitigate mystery race condition
-      return web3.eth.getTransaction(e.transactionHash, k(panic, t =>
+      return A.web3.eth.getTransaction(e.transactionHash, k(panic, t =>
         // XXX Replace 0 below with the contract's balance
         setTimeout(() => cb(...bns, { value: t.value, balance: 0 }), 2000)));
     });
 
 
-const Contract = A => userAddress => (ctors, contractAddress) =>
-  ({ abi:      A.abi
-   , bytecode: A.bytecode
-   , sendrecv: mkSendRecv(A)(contractAddress, userAddress, ctors)
-   , SC_sendTransaction: SC_mkSendTransaction
-   , SC_SpanThreads: SC_mkSpanThreads
-   , recv:     mkRecv(A)(contractAddress)
-   , ctors
-   , contractAddress
-   });
-
-
 // https://web3js.readthedocs.io/en/v1.2.0/web3-eth.html#sendtransaction
+// Change of code. We no longer return a full contract, just the contract address.
 const mkDeploy = A => userAddress => ctors => {
   // TODO track down solid docs RE: why the ABI would have extra constructor
   // fields and when/how/why dropping leading `0x`s is necessary
@@ -364,21 +356,66 @@ const mkDeploy = A => userAddress => ctors => {
 
   const data = [ A.bytecode, ...encodedCtors ].join('');
 
-  const contractFromReceipt = r =>
-    Contract(A)(userAddress)(ctors, r.contractAddress);
+//  const contractFromReceipt = r =>
+//    Contract(A)(userAddress)(ctors, r.contractAddress);
 
   return A.web3.eth.estimateGas({ data })
     .then(gas => A.web3.eth.sendTransaction({ data, gas, from: userAddress }))
     .then(r => rejectInvalidReceiptFor(r.transactionHash)(r))
-    .then(contractFromReceipt);
+    .then(r => r.contractAddress);
 };
 
 
-const EthereumNetwork = A => userAddress => sc_identity =>
+
+
+// This array should contain all the data
+// of the process.
+const MutableState = (contractAddress,ctors,userpairaddress,initiatorpairaddress) =>
+   ({sc_list_address: [] // This should contain the ethereum addresses as well as shh ones.
+                         // Not everyone in this list has joined the SC. It is just a lookup
+                         // table
+    , sc_participants: [] // The list of participants of the SC (list of index of sc_list_address)
+    , sc_status_sequence: []
+    , userpairaddress
+    , initiatorpairaddress
+    , contractAddress
+    , ctors
+    });
+
+const mkSpanCTC = A => B =>
+  ({ abi:      A.abi
+   , bytecode: A.bytecode
+   , sendrecv: mkSendRecv(A)(B)
+   , recv:     mkRecv(A)(B)
+   , SC_sendTransaction: SC_mkSendTransaction(A)
+   , SC_SpanThreads: SC_mkSpanThreads(A)
+   });
+
+
+
+
+
+
+mkCreateSC = A => B => (mypairAddress, initiatorpairAddress) => {
+  if initiatorpairAddress[0] == 0 {
+
+
+
+    new A.web3.eth.Contract(A.abi, contractaddress)
+        .methods['constructor']()
+        .send({ from: mypairAddress[0], value: 0 })
+        .then(r  => fetchAndRejectInvalidReceiptFor(A)(r.transactionHash))
+        .then(() => 'Successful construction of contract');
+  }
+  else {
+    new A.
+  }
+};
+
+
+const EthereumNetwork = A => (userAddress, sc_identity) =>
   ({ deploy: mkDeploy(A)(userAddress)
-   , attach: (ctors, address) => Promise.resolve(Contract(A)(userAddress)(ctors, address))
-   , sc_participants: [] // This should contain the ethereum addresses as well as shh ones.
-   , sc_status_sequence: []
+   , joinSC: mkCreateSC(A)(myAddress, initiatorAddress)
    , userAddress: [userAddress, sc_identity]
    });
 
@@ -436,6 +473,7 @@ export const mkStdlib = A =>
   , isBN:             isBN(A)
   , transfer:         transfer(A)
   , Contract:         Contract(A)
+  , SpanCTC:          mkSpanCTC(A)
   , EthereumNetwork:  EthereumNetwork(A)
 
   , devnet: { prefundedDevnetAcct: prefundedDevnetAcct(A)

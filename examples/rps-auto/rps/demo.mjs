@@ -18,14 +18,15 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
     devnet.createAndUnlockAcct()
       .then(to => transfer(to, prefunder, startingBalance)
                     .then(() => Promise.resolve(SC_createIdentity()))
-                    .then(sc_identity => stdlib.EthereumNetwork(to)(sc_identity)));
+                    .then(sc_identity => stdlib.EthereumNetwork(to,sc_identity)));
 
   const captureOpeningGameState = ([ a, b ]) =>
-    Promise.all([ balanceOf(a), balanceOf(b) ])
+    Promise.all([ balanceOf(a), balanceOf(b) )]
       .then(([ balanceStartAlice, balanceStartBob ]) =>
           Object.assign(gameState
                      , { alice: a
                        , bob:   b
+                       , list_nodes: [a.userAddress, b.userAddress]
                        , ctors: [ a.userAddress[0], b.userAddress[0] ]
                        , balanceStartAlice
                        , balanceStartBob
@@ -64,17 +65,18 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
 
   const txn0 = { balance: 0, value: 0 };
 
-  const bobShoot = ctcAlice =>
+  const bobShoot = contractAddress => (mypairAddress,initpairAddress) =>
+    new Promise(resolve =>
+      SpanMutableState(gameState.ctors, ctcAlice.address)
+      .then(ctc => theRPS.B(stdlib
+                            , ctc
+                            , txn0
+                            , interactWith('Bob', makeWhichHand())
+                            , resolve)));
+
+  const aliceShoot = ctc => (=>
     new Promise(resolve =>
       gameState.bob.attach(gameState.ctors, ctcAlice.address)
-        .then(ctcBob => theRPS.B(stdlib
-                               , ctcBob
-                               , txn0
-                               , interactWith('Bob', makeWhichHand())
-                               , resolve)));
-
-  const aliceShoot = ctc =>
-    new Promise(resolve =>
       theRPS.A(stdlib
              , ctc
              , txn0
@@ -87,7 +89,6 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
     .then(p   => Promise.all([ newPlayer(p), newPlayer(p) ]))
     .then(captureOpeningGameState)
     .then(()  => gameState.alice.deploy(gameState.ctors))
-    .then(
     .then(ctc => Promise.all([ bobShoot(ctc), aliceShoot(ctc) ]))
     .then(captureClosingGameState);
 };
