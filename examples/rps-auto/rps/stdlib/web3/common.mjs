@@ -1,10 +1,6 @@
 // vim: filetype=javascript
 
-const testTimeout = false;
-
-const panic = e => {
-    throw Error(e);
-    };
+const panic = e => { throw Error(e); };
 
 const k = (reject, f) => (err, ...d) =>
   !!err ? reject(err)
@@ -33,55 +29,6 @@ const nat_to_fixed_size_hex = size => n => {
 // Encodes a 16-bit unsigned integer as 2 hex bytes or 4 hex characters
 const nat16_to_fixed_size_hex =
   nat_to_fixed_size_hex(2);
-
-
-
-
-let SimpleSelfTransfer = A => (userAddress,prefunder) => {
-  const smallAmount = toBN(A)(toWei(A)('1', 'szabo'));
-  return transfer(A)(userAddress, prefunder, smallAmount);
-};
-
-
-
-async function NeverEndingFunction() {
-  let iter = 0;
-  const promise1 = () => new Promise(resolve => {
-    setTimeout(function() {
-        resolve('foo');
-    }, 300);
-  });
-  while (iter >= 0)
-  {
-    await promise1(iter);
-    iter = iter + 1;
-//    console.log('NeverEndingFunction, iter=' + iter);
-  }
-}
-
-
-
-
-async function KernelConstantActivity(A, userAddress, prefunder) {
-  let iter = 0;
-  const promise1 = () => new Promise(resolve => {
-    setTimeout(function() {
-        resolve('foo');
-    }, 3000);
-  });
-  while (iter >= 0)
-  {
-    await SimpleSelfTransfer(A)(userAddress,prefunder);
-    await promise1(iter);
-    iter = iter + 1;
-//    console.log('KernelConstantActivity, iter=' + iter);
-  }
-}
-
-const ConstantActivity = A => () =>
-  prefundedDevnetAcct(A)()
-  .then(prefunder => createAndUnlockAcct(A)()
-  .then(userAddress => KernelConstantActivity(A, userAddress, prefunder)));
 
 
 // Parameterized ///////////////////////////////////////////////////////////////
@@ -155,8 +102,6 @@ const le    = A => (a, b) => toBN(A)(a).lte(toBN(A)(b));
 const lt    = A => (a, b) => toBN(A)(a).lt( toBN(A)(b));
 
 
-
-
 // `t` is a type name in string form; `v` is the value to cast
 const encode = ({ ethers }) => (t, v) =>
   ethers.utils.defaultAbiCoder.encode([t], [v]);
@@ -185,14 +130,7 @@ const now = ({ web3 }) =>
 
 
 // https://web3js.readthedocs.io/en/v1.2.0/web3-eth-contract.html#web3-eth-contract
-const mkSendRecv = A => (address, from, ctors) =>
-  (label, funcName, args, value, eventName, cb) => {
-    if (testTimeout) {
-      Object.globalNumberOperation = Object.globalNumberOperation + 1;
-      console.log('mkSendRecv : globalNumberOperation =', Object.globalNumberOperation);
-      if (Object.globalNumberOperation == 3)
-        return NeverEndingFunction();
-    }
+const mkSendRecv = A => (address, from, ctors) => (label, funcName, args, value, eventName, cb) => {
 
   // https://github.com/ethereum/web3.js/issues/2077
   const munged = [ ...ctors, ...args ]
@@ -205,11 +143,7 @@ const mkSendRecv = A => (address, from, ctors) =>
     // XXX We may need to actually see the event. I don't know if the
     //     transaction confirmation is enough.
     // XXX Replace 0 below with the contract's balance
-    .then(() => {
-      cb({ value: value, balance: 0 });
-    });
-
-
+    .then(() => cb({ value: value, balance: 0 }));
 };
 
 
@@ -223,6 +157,7 @@ const mkRecv = ({ web3, ethers }) => (c, w) => (label, eventName, cb) => {
     fetchAndRejectInvalidReceiptFor({ web3 })(e.transactionHash)
       .then(() => web3.eth.getTransaction(e.transactionHash, k(reject, t => {
         const key = consumedEventKeyOf(eventName, e);
+
         if (w.alreadyConsumed || (c.consumedEvents[key] !== undefined))
           return reject(`${label} has already consumed ${key}!`);
 
@@ -273,6 +208,7 @@ const mkRecv = ({ web3, ethers }) => (c, w) => (label, eventName, cb) => {
     const attempt = () => past()
       .then(resolve)
       .catch(() => flip(setTimeout, 500, () => !w.alreadyConsumed && attempt()));
+
     return attempt();
   });
 
@@ -291,9 +227,7 @@ const mkRecv = ({ web3, ethers }) => (c, w) => (label, eventName, cb) => {
 
 
   return past()
-    .catch(() =>
-        Promise.race([ pollPast(), next() ])
-    .catch(e => panic(`Error with mkRecv e=${e} End of error`)));
+    .catch(() => Promise.race([ pollPast(), next() ]).catch(panic));
 };
 
 
@@ -331,19 +265,15 @@ const mkRecvWithin = A => c => (label, eventName, blocks, tcb, cb) => {
 
   return now(A)()
     .then(currentBlock => raceUntil(currentBlock + blocks))
-    .catch(e => panic(`Error with mkRecvWithin e=${e} End of error`));
+    .catch(panic);
 };
 
 
-const mkTimeoutTerminate = A => (address, userAddress) => () => {
-  console.log('Beginning of mkTimeoutTerminate');
-  return new A.web3.eth.Contract(A.abi, address)
+const mkTimeoutTerminate = A => (address, userAddress) => () =>
+  new A.web3.eth.Contract(A.abi, address)
     .methods['timeout']()
     .send({ from: userAddress, value: 0 })
-    .then(r  => fetchAndRejectInvalidReceiptFor(A)(r.transactionHash))
-    .then(() => 'Termination by timeout of the program');
-};
-
+    .then(r => fetchAndRejectInvalidReceiptFor(A)(r.transactionHash));
 
 
 const Contract = A => userAddress => (ctors, address) => {
@@ -354,11 +284,11 @@ const Contract = A => userAddress => (ctors, address) => {
     mkRecvWithin(A)(c)(label, eventName, blocks, tcb, cb);
 
   const c =
-    { abi:            A.abi
-    , bytecode:       A.bytecode
-    , sendrecv:       mkSendRecv(A)(address, userAddress, ctors)
-    , timeoutterminate:  mkTimeoutTerminate(A)(address, userAddress)
-    , consumedEvents: {}
+    { abi:              A.abi
+    , bytecode:         A.bytecode
+    , sendrecv:         mkSendRecv(A)(address, userAddress, ctors)
+    , timeoutTerminate: mkTimeoutTerminate(A)(address, userAddress)
+    , consumedEvents:   {}
     , ctors
     , address
     };
@@ -396,11 +326,19 @@ const mkDeploy = A => userAddress => ctors => {
 };
 
 
-const EthereumNetwork = A => userAddress =>
-  ({ deploy: mkDeploy(A)(userAddress)
-   , attach: (ctors, address) => Promise.resolve(Contract(A)(userAddress)(ctors, address))
-   , userAddress
-   });
+const EthereumNetwork = A => userAddress => {
+  const attach = (ctors, address) =>
+    Promise.resolve(Contract(A)(userAddress)(ctors, address));
+
+  const onTimeout = (contract, label, cb) =>
+    mkRecv(A)(contract, { alreadyConsumed: false })(label, 'etimeout', cb);
+
+  return { deploy: mkDeploy(A)(userAddress)
+         , attach
+         , onTimeout
+         , userAddress
+         };
+};
 
 
 // devnet-specific /////////////////////////////////////////////////////////////
@@ -411,7 +349,7 @@ const EthereumNetwork = A => userAddress =>
 const prefundedDevnetAcct = ({ web3 }) => () =>
   web3.eth.personal.getAccounts()
     .then(a => a[0])
-    .catch(e => panic(`Cannot infer prefunded account! e=${e} End of error`));
+    .catch(() => panic(`Cannot infer prefunded account!\n`));
 
 
 const createAndUnlockAcct = ({ web3 }) => () =>
@@ -457,7 +395,6 @@ export const mkStdlib = A =>
   , transfer:         transfer(A)
   , now:              now(A)
   , Contract:         Contract(A)
-  , ConstantActivity: ConstantActivity(A)
   , EthereumNetwork:  EthereumNetwork(A)
 
   , devnet: { prefundedDevnetAcct: prefundedDevnetAcct(A)

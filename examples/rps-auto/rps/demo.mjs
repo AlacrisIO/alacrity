@@ -44,7 +44,7 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
   const randomArray = a  => a[ Math.floor(Math.random() * a.length) ];
   const randomHand  = () => randomArray([ 'ROCK', 'PAPER', 'SCISSORS' ]);
 
-  const makeDrawFirstHand = first => {
+  const mkDrawFirstHand = first => {
     let called = false;
     return () => {
       if (called) {
@@ -58,30 +58,46 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
 
   const shared = randomHand();
 
-  const makeWhichHand = drawFirst
-    ? () => makeDrawFirstHand(shared)
+  const mkWhichHand = drawFirst
+    ? () => mkDrawFirstHand(shared)
     : () => randomHand;
 
   const txn0 = { balance: 0, value: 0 };
 
+  // NB: Remember it's the _waiter_ who asserts their claim of a timeout
+  // condition! In other words, the waiter's "<opponent> timed out"
+  const awaitTimeoutFor = (ctc, label, participant, resolve) =>
+    participant.onTimeout(ctc, label, addr =>
+        addr  !== participant.userAddress ? resolve(`${label} timed out`)
+      : label === 'Alice'                 ? resolve(`Bob timed out`)
+      :                                     resolve(`Alice timed out`));
+
+
   const bobShoot = ctcAlice =>
     new Promise(resolve =>
       gameState.bob.attach(gameState.ctors, ctcAlice.address)
-        .then(ctcBob => theRPS.B(stdlib
-                               , ctcBob
-                               , txn0
-                               , interactWith('Bob', makeWhichHand())
-                               , resolve)));
+        .then(ctcBob => {
+          awaitTimeoutFor(ctcBob, 'Bob', gameState.bob, resolve);
+          return theRPS.B(stdlib
+                        , ctcBob
+                        , txn0
+                        , interactWith('Bob', mkWhichHand())
+                        , resolve);
+        }));
+
 
   const aliceShoot = ctc =>
-    new Promise(resolve =>
-      theRPS.A(stdlib
-             , ctc
-             , txn0
-             , interactWith('Alice', makeWhichHand())
-             , wagerInWei
-             , escrowInWei
-             , resolve));
+    new Promise(resolve => {
+      awaitTimeoutFor(ctc, 'Alice', gameState.alice, resolve);
+      return theRPS.A(stdlib
+                    , ctc
+                    , txn0
+                    , interactWith('Alice', mkWhichHand())
+                    , wagerInWei
+                    , escrowInWei
+                    , resolve);
+    });
+
 
   return prefundedDevnetAcct()
     .then(p   => Promise.all([ newPlayer(p), newPlayer(p) ]))
@@ -91,9 +107,23 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
     .then(captureClosingGameState);
 };
 
-Object.globalNumberOperation = 0;
 
-// eslint-disable-next-line max-len
-export const runGameWith = (theRPS, stdlib, doWhile, drawFirst, interactWith, wagerInEth, escrowInEth, uri) =>
+export const timeoutPred =
+  { never:       ()        => false
+  , aliceForces: (name, a) => name == 'Alice' && a == 'reveals'
+  , bobForces:   (name, a) => name == 'Bob'   && a == 'shows'
+  };
+
+
+export const runGameWith =
+    ( theRPS
+    , stdlib
+    , doWhile
+    , drawFirst
+    , interactWith
+    , wagerInEth
+    , escrowInEth
+    , uri
+    ) =>
   init(stdlib, wagerInEth, escrowInEth, uri)
     .then(play(theRPS, drawFirst, interactWith));

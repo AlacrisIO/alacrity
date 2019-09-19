@@ -1,16 +1,22 @@
 // vim: filetype=javascript
 
-import * as RPS        from '../build/rps.mjs';
-import * as RPSW       from '../build/rps_while.mjs';
-import { runGameWith } from './demo.mjs';
-import { stdlibNode  } from './stdlib/web3/node.mjs';
+import * as RPS                     from '../build/rps.mjs';
+import * as RPSW                    from '../build/rps_while.mjs';
+import { runGameWith, timeoutPred } from './demo.mjs';
+import { stdlibNode               } from './stdlib/web3/node.mjs';
 
 const wagerInEth  = '1.5';
 const escrowInEth = '0.15';
 
 const uri = process.env.ETH_NODE_URI || 'http://localhost:8545';
 
-const makeInteractWith = label => (name, handf) => (a, cb) => {
+
+const mkInteractWith = (label, shouldForceTimeout) => (name, handf) => (a, cb) => {
+  if (shouldForceTimeout(name, a)) {
+    console.log(`${label} ${name} deliberately forces a timeout!`);
+    return;
+  }
+
   const res = a === 'getHand' ? handf() : '';
 
   const paramsMsg =
@@ -34,7 +40,8 @@ const makeInteractWith = label => (name, handf) => (a, cb) => {
   return cb(res);
 };
 
-const makeDemo = (doWhile, drawFirst) => {
+
+const mkDemo = (doWhile, drawFirst, shouldForceTimeout) => {
   const label = doWhile ? `[Loop]:` : `[Single]:`;
 
   const introMsg =
@@ -54,7 +61,7 @@ const makeDemo = (doWhile, drawFirst) => {
               , s
               , doWhile
               , drawFirst
-              , makeInteractWith(label)
+              , mkInteractWith(label, shouldForceTimeout)
               , wagerInEth
               , escrowInEth
               , uri);
@@ -64,25 +71,15 @@ const makeDemo = (doWhile, drawFirst) => {
       .then(() => stdlibNode(theRPS.ABI, theRPS.Bytecode, uri))
       .then(runGameWithTheRPS)
       .then(gs => console.log(outcomeMsgs(gs)))
-      .then(() => console.log(`${label} Done!`))
+      .then(() => console.log(`${label} Done!\n`))
       .then(resolve));
 };
 
+
 // TODO re-enable `WHILE` demo
-// makeDemo(true, true)
-//   .then(() => makeDemo(false, true))
-
-
-const runSmallActivity = () => {
-   return Promise.resolve(stdlibNode(RPS.ABI, RPS.Bytecode, uri))
-     .then(stdlib => stdlib.ConstantActivity());
-};
-
-
-const fullDemo = () =>
-      makeDemo(false, true)
-        .then(() => makeDemo(false, false))
-        .then(() => process.exit(0))
-        .catch(e => console.error(e) || process.exit(1));
-
-Promise.race([fullDemo(), runSmallActivity()]);
+mkDemo(false, true, timeoutPred.aliceForces)
+  .then(() => mkDemo(false, false, timeoutPred.bobForces))
+  .then(() => mkDemo(false, true,  timeoutPred.never))
+  .then(() => mkDemo(false, false, timeoutPred.never))
+  .then(() => process.exit(0))
+  .catch(e => console.error(e) || process.exit(1));
