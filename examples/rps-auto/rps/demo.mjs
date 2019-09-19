@@ -7,12 +7,12 @@ const init = (stdlib, wagerInEth, escrowInEth) => {
   return Promise.resolve({ stdlib, gameState: { wagerInWei, escrowInWei }});
 };
 
-export const ROCK = 0;
-export const PAPER = 1;
+export const ROCK     = 0;
+export const PAPER    = 1;
 export const SCISSORS = 2;
 
 export const B_WINS = 0;
-export const DRAW = 1;
+export const DRAW   = 1;
 export const A_WINS = 2;
 
 const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
