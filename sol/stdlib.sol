@@ -50,7 +50,4 @@ contract Stdlib {
     }
     return nbr;
   }
-
-
-
 }
