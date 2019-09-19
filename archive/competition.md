@@ -155,6 +155,8 @@ they do not offer deployment services.
 
 * [Enigma](https://enigma.co/discovery-documentation/) like us uses the notion of multiparty computation, and uses Intel SGX to run the private encrypted computations in a market-selected trusted worker. The final outcome of the computation is necessarily more expensive than if done privately on a state channel; so it's only interesting if you can trust the platform to run computations privately, that would be quite expensive if done with homomorphic encryption, that you don't care if the NSA sees. (They also don't have End-Point Projection.) But if your application fits their slightly weird security model, it could be somewhat interesting.
 
+* [Taxa](https://taxa.network/) — also uses a TEE; similar to Enigma?
+
 * [cashscript](https://github.com/Bitcoin-com/cashscript) allows you to metaprogram
   bitcoin cash scripts from typescript.
   This is indeed is the right thing to do if you don't know yet have
@@ -182,6 +184,8 @@ they do not offer deployment services.
 * [Abridged](https://abridged.github.io/splash/)
 
 * [E](https://erights.org/): capabilities and smart contracts from before blockchain.
+
+* [Agoric](https://agoric.com): Mark Miller's take on a smart contract language
 
 * ??? Is there anything useful in this article? [Impossibility of the Obama-Trump contract](https://eprint.iacr.org/2018/252.pdf) - looks like they assume a successful 51% attack, which makes the entire article moot.
 

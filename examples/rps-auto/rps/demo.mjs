@@ -7,6 +7,13 @@ const init = (stdlib, wagerInEth, escrowInEth) => {
   return Promise.resolve({ stdlib, gameState: { wagerInWei, escrowInWei }});
 };
 
+export const ROCK = 0;
+export const PAPER = 1;
+export const SCISSORS = 2;
+
+export const B_WINS = 0;
+export const DRAW = 1;
+export const A_WINS = 2;
 
 const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
   const { balanceOf, devnet, transfer } = stdlib;
@@ -40,9 +47,8 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
                                  , balanceEndBob
                                  }));
 
-
   const randomArray = a  => a[ Math.floor(Math.random() * a.length) ];
-  const randomHand  = () => randomArray([ 'ROCK', 'PAPER', 'SCISSORS' ]);
+  const randomHand  = () => randomArray([ ROCK, PAPER, SCISSORS ]);
 
   const mkDrawFirstHand = first => {
     let called = false;

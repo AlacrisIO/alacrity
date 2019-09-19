@@ -104,7 +104,7 @@ primType (CP BCAT_RIGHT) = ([tBytes] --> tBytes)
 primType (CP BALANCE) = ([] --> tUInt256)
 primType (CP TXN_VALUE) = ([] --> tUInt256)
 primType RANDOM = ([] --> tUInt256)
-primType INTERACT = ([tBytes] --> tBytes)
+primType INTERACT = ([tBytes] --> tUInt256)
 
 type TypeVarEnv = M.Map String BaseType
 
