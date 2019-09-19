@@ -1,8 +1,8 @@
 // vim: filetype=javascript
 jasmine.DEFAULT_TIMEOUT_INTERVAL = 60 * 1000 * 10;
 
-import * as RPS        from '../../../../build/rps.mjs';
-import { stdlibNode  } from '../../../stdlib/web3/node.mjs';
+import * as RPS                      from '../../../../build/rps.mjs';
+import { stdlibNode                } from '../../../stdlib/web3/node.mjs';
 import { runGameWith, A_WINS, DRAW } from '../../../demo.mjs';
 
 
@@ -34,7 +34,6 @@ describe('A rock/paper/scissors game using the `web3` stdlib', () => {
         .then(g => {
           const { balanceStartAlice, balanceStartBob, balanceEndAlice, balanceEndBob } = g;
 
-          //console.log('\nOUTCOME: @A %s, @B %s\n', g.outcomeAlice, g.outcomeBob);
           expect(stdlib.equal(g.outcomeAlice, g.outcomeBob)).toBe(true);
 
           // "The Man" always gets his cut regardless - this is just a
