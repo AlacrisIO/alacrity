@@ -8,7 +8,8 @@ const init = (stdlib, wagerInEth, escrowInEth) => {
 };
 
 const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
-  const { balanceOf, devnet, transfer, SC_createIdentity } = stdlib;
+  const { balanceOf, devnet, transfer, SC_createIdentity,
+            MutableState, SpanCTC } = stdlib;
   const { prefundedDevnetAcct         } = devnet;
   const { wagerInWei, escrowInWei     } = gameState;
 
@@ -21,7 +22,7 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
                     .then(sc_identity => stdlib.EthereumNetwork(to,sc_identity)));
 
   const captureOpeningGameState = ([ a, b ]) =>
-    Promise.all([ balanceOf(a), balanceOf(b) )]
+    Promise.all([ balanceOf(a), balanceOf(b) ])
       .then(([ balanceStartAlice, balanceStartBob ]) =>
           Object.assign(gameState
                      , { alice: a
@@ -74,9 +75,12 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
             ctc.SC_CreateSC()
             .then(ctc => theRPS.B(stdlib
                   , ctc, txn0, interactWith('Bob', makeWhichHand())
-                  , resolve)))]));
+                                  , resolve)))])));
 
-  const aliceShoot = ctc =>
+
+
+
+  const aliceShoot = contractAddress =>
     new Promise(resolve =>
       MutableState(contractAddress, gameState.ctors, gameState.alice, [0,0])
       .then(mutStat => SpanCTC(mutStat))
@@ -85,7 +89,7 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
             ctc.SC_CreateSC()
             .then(ctc => theRPS.A(stdlib
                   , ctc, txn0, interactWith('Alice', makeWhichHand())
-                  , wagerInWei, escrowInWei, resolve)));
+                                  , wagerInWei, escrowInWei, resolve)))])));
 
   return prefundedDevnetAcct()
     .then(p   => Promise.all([ newPlayer(p), newPlayer(p) ]))

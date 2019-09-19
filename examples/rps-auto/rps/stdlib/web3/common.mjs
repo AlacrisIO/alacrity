@@ -118,16 +118,13 @@ const SC_mkCreateIdentity = A => () =>
   });
 
 
-const SC_nullparticipant = () => [0, 0]
-
-
 
 //
 // Functionality for signing
 //
-const SC_ProvideVRS = A => Aidentity => (iter) =>
+const SC_ProvideVRS = A => B => (iter) =>
   new Promise((resolve, reject) => {
-    const myIdentity = Aidentity.userAddress[1];
+    const myIdentity = B.userpairaddress[1];
     const fctSendVRS = (result_sign) => {
       A.web3.shh.post({'from':myIdentity, 'to':result_sign.from, 'payload':result_sign.XXXX},
         (err_post, result_post) => !!err_post ? reject('error shh.pos') : resolve('success shh.post' + result_post));
@@ -146,11 +143,11 @@ const SC_ProvideVRS = A => Aidentity => (iter) =>
     (err_filt, result_filt) => !!err_filt ? reject('error web3.filter') : fctComputeHash(result_filt));
   });
 
-async function SC_InfiniteProvideVRS(A,Aidentity) {
+async function SC_InfiniteProvideVRS(A,B) {
   let iter = 0;
   while (iter >= 0)
   {
-    let var_reply = await SC_ProvideVRS(A)(Aidentity)(iter);
+    let var_reply = await SC_ProvideVRS(A)(B)(iter);
     iter = iter + 1;
     console.log('SC_InfiniteProvideVRS, iter=' + iter + ' var_reply=' + var_reply);
   }
@@ -162,22 +159,22 @@ async function SC_InfiniteProvideVRS(A,Aidentity) {
 //
 // Functionality for signing
 //
-const SC_ProvideListParticipant = A => Aidentity => (iter) =>
+const SC_ProvideListParticipant = A => B => (iter) =>
   new Promise((resolve, reject) => {
-    const myIdentity = Aidentity.userAddress[1];
+    const myIdentity = B.userpairaddress[1];
     const fctSendListParticipant = (result_filt) => {
-      A.web3.shh.post({'from':myIdentity, 'to':result_list.from, 'payload':Aidentity.sc_participants},
+      A.web3.shh.post({'from':myIdentity, 'to':result_list.from, 'payload':B.sc_participants},
         (err_post, result_post) => !!err_post ? reject('error shh.pos') : resolve('success shh.post' + result_post));
     };
-    A.web3.filter({'topics':'listparticipant', 'to':Aidentity.userAddress[1]},
+    A.web3.filter({'topics':'listparticipant', 'to':B.userpairaddress[1]},
     (err_filt, result_filt) => !!err_filt ? reject('error web3.filter') : fctSendListParticipant(result_filt));
   });
 
-async function SC_InfiniteProvideListParticipant(A,Aidentity) {
+async function SC_InfiniteProvideListParticipant(A,B) {
   let iter = 0;
   while (iter >= 0)
   {
-    let var_reply = await SC_ProvideListParticipant(A)(Aidentity)(iter);
+    let var_reply = await SC_ProvideListParticipant(A)(B)(iter);
     iter = iter + 1;
     console.log('SC_InfiniteProvideVRS, iter=' + iter + ' var_reply=' + var_reply);
   }
@@ -187,13 +184,8 @@ async function SC_InfiniteProvideListParticipant(A,Aidentity) {
 
 
 
-const SC_ProcessUnamimous = A => (trans) =>
-  new Promise((resolve, reject) => {
 
-  });
-
-
-const SC_ScanUnanimously = A => Aidentity => contractAddress =>
+const SC_ScanUnanimously = A => B =>
   new A.ethers
     .Contract(contractAddress, A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider))
     .on('Unanimously', (...a) => {
@@ -201,42 +193,43 @@ const SC_ScanUnanimously = A => Aidentity => contractAddress =>
       process.exit();
     });
 
-const SC_ScanChallenge = A => Aidentity => contractAddress =>
+const SC_ScanChallenge = A => B =>
   new A.ethers
-    .Contract(contractAddress, A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider))
+    .Contract(B.contractAddress, A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider))
     .on('Challenge', (challengedParticipant) => {
       console.log('challengedParticipant=', challengedParticipant);
-      console.log('myIdentity=', Aidentity.userAddress[1]);
+      console.log('myIdentity=', B.userpairaddress[1]);
       console.log('Code needs to be written to handle challenge events');
       process.exit();
     });
 
-const SC_ScanTimeOut = A => Aidentity => contractAddress =>
+const SC_ScanTimeOut = A => B =>
   new A.ethers
-    .Contract(contractAddress, A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider))
+    .Contract(B.contractAddress, A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider))
     .on('TimeOut', (clock, failedParticipant) => {
       console.log('clock=', clock, ' failedParticipant=', failedParticipant);
-      console.log('myIdentity=', Aidentity.userAddress[1]);
+      console.log('myIdentity=', B.userpairaddress[1]);
       console.log('Code needs to be written to handle challenge events');
       process.exit();
     });
 
-const SC_ScanMessage = A => contractAddress =>
+const SC_ScanMessage = A => B =>
   new A.ethers
-    .Contract(contractAddress, A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider))
+    .Contract(B.contractAddress, A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider))
     .on('Message', (clock, message) => {
       console.log('clock=', clock, ' message=', message);
-      console.log('myIdentity=', Aidentity.userAddress[1]);
+      console.log('myIdentity=', B.userpairaddress[1]);
       console.log('Code needs to be written to handle challenge events');
       process.exit();
     });
 
 
-const SC_WaitEvents = A => (contractAddress) =>
-  new Promise.race([SC_ScanUnanimously(A)(contractAddress),
-  SC_ScanChallenge(A)(contractAddress),
-  SC_ScanTimeOut(A)(contractAddress),
-  SC_ScanMessage(A)(contractAddress)]);
+const SC_WaitEvents = A => B =>
+  new Promise.race([
+      SC_ScanUnanimously(A)(B),
+      SC_ScanChallenge(A)(B),
+      SC_ScanTimeOut(A)(B),
+      SC_ScanMessage(A)(B)]);
 
 
 
@@ -310,16 +303,6 @@ const mkSendRecvETH = A => B => (label, funcName, args, value, eventName, cb) =>
 const mkSendRecv = mkSendRecvETH;
 
 
-const SC_mkGetListParticipant = A => (contractAddress) =>
-  new Promise.resolve(
-
-const SC_mkJoinStateChannel = A => Aidentity =>
-  new Promise((resolve, reject) => {
-
-  });
-
-
-
 // https://docs.ethers.io/ethers.js/html/api-contract.html#configuring-events
 const mkRecv = A => B => (label, eventName, cb) =>
   new ethers
@@ -385,18 +368,16 @@ const MutableState = (contractAddress,ctors,userpairaddress,initiatorpairaddress
 
 
 
-const SC_mkCreateSC = A => B => () => {
-  if initiatorpairAddress[0] == 0 {
-
-
-
+const SC_mkCreateSC = A => B => (state) => {
+  if (initiatorpairAddress[0] == 0) {
     new A.web3.eth.Contract(A.abi, contractaddress)
-        .methods['constructor']()
-        .send({ from: mypairAddress[0], value: 0 })
+        .methods['constructor'](state)
+        .send({ from: B.userpairaddress[0], value: 0 })
         .then(r  => fetchAndRejectInvalidReceiptFor(A)(r.transactionHash))
         .then(() => 'Successful construction of contract');
   }
   else {
+  
     new A.
   }
 };
@@ -453,6 +434,7 @@ export const mkStdlib = A =>
   , k
   , web3:             A.web3
   , SC_createIdentity: SC_mkCreateIdentity(A)
+  , MutableState:     MutableState
   , ethers:           A.ethers
   , balanceOf:        balanceOf(A)
   , random_uint256:   random_uint256(A)
