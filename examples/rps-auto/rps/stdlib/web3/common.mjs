@@ -118,38 +118,136 @@ const SC_mkCreateIdentity = A => () =>
   });
 
 
+// The cases to cover for digest computations are
+// 1: close
+//   digest = keccak256(abi.encode(session, UnanimousAction.Closing, withdrawals, beneficiary))
+// 2: settle
+//   digest = keccak256(abi.encode(session, UnanimousAction.Settling, deposit, withdrawals, newState)
+// 3: updateState
+//   digest = keccak256(abi.encode(session, UnanimousAction.Updating, newClock, newBalancedState))
+// The signature
+const get_digest = A => B => (oper) => {
+    if (oper.nature == 0)
+        return keccak256(abi.encode(oper.session, "closing", oper.withdrawals, oper.beneficiary));
+    if (oper.nature == 1)
+        return keccak256(abi.encode(oper.session, "settling", oper.deposit, oper.withdrawals, oper.newState));
+    if (oper.nature == 2)
+        return keccak256(abi.encode(oper.session, "updating", oper.clock, oper.data))
+};
+
+let CheckCorrectnessOperation = A => B => (oper) => {
+    // We need to insert code for checking correctness of operation
+    return true;
+};
+
+
+let SC_SignState = A => B => (oper) => {
+    if (CheckCorrectnessOperation(A)(B)(oper)) {
+        const digest = get_digest(A)(B)(operation_digest);
+        B.pending_unanimous_operations[B.pending_unanimous_operations.length] = {digest, oper};
+        const myId_eth = B.userpairaddress[0];
+        return A.web3.eth.sign(myId_eth, digest);
+    }
+};
 
 //
-// Functionality for signing
+// SHH: Functionality for signing messages from the computing side.
 //
-const SC_ProvideVRS = A => B => (iter) =>
+const SC_Send_VRSsignature = A => B => (iter) =>
   new Promise((resolve, reject) => {
-    const myIdentity = B.userpairaddress[1];
+    const myId_shh = B.userpairaddress[1];
+    const myId_eth = B.userpairaddress[0];
     const fctSendVRS = (result_sign) => {
-      A.web3.shh.post({'from':myIdentity, 'to':result_sign.from, 'payload':result_sign.XXXX},
+        A.web3.shh.post({'from':myId_shh, 'to':result_sign.from, 'topics':['VRSsignature2'], 'payload':result_sign.XXXX},
         (err_post, result_post) => !!err_post ? reject('error shh.pos') : resolve('success shh.post' + result_post));
     };
-    const fctProcess = (data_to_sign) => {
-      A.web3.eth.sign(myIdentity, data_to_sign,
-        (err_sign, result_sign) => !!err_sign ? reject('error signature') : fctSendVRS(result_sign));
-    };
+//    const fctProcess = (data_to_sign) => {
+//      A.web3.eth.sign(myId_eth, data_to_sign,
+//        (err_sign, result_sign) => !!err_sign ? reject('error signature') : fctSendVRS(result_sign));
+//    };
     const fctComputeHash = (data_to_sign) => {
-      // Need to check that the operation is valid.
-      //
       const state_to_sign = keccak256(A)(data_to_sign);
-      return fctProcess(state_to_sign);
+        return SC_SignState(A)(B)(state_to_sign);
     };
-    A.web3.filter({'topics':'signatureVRS', 'to':Aidentity.userAddress[1]},
+    A.web3.filter({'topics':['VRSsignature1'], 'to':B.userpairaddress[1]},
     (err_filt, result_filt) => !!err_filt ? reject('error web3.filter') : fctComputeHash(result_filt));
   });
 
-async function SC_InfiniteProvideVRS(A,B) {
+
+
+const SC_GetSingle_VRSsignature = A => B => (requestpair, state) =>
+  new Promise((resolve, reject) => {
+      const myId_shh = B.userpairaddress[1];
+      const request_shh = request_address[1];
+      const fctProcess = () => {
+          A.web3.filter(
+              {'topics':['VRSsignature2'], 'to':myId_shh},
+              (err_filt, result_filt) => !!err_filt ? reject('error web3.filter') : resole(result_filt));
+      };
+      A.web3.shh.post(
+          {'from':myId_shh, 'to':result_sign.from, 'topics':['VRSsignature1'], 'payload':state},
+          (err_post, result_post) => !!err_post ? reject('error shh.pos') : waitForSignature());
+  });
+
+
+
+const digestState = full_state => {
+    return keccak(abi.encoded(full_state.session, full_state.clock, full_state.participant, full_state.data));
+};
+
+
+const SC_SubmitSettleOperation = A => B => (prev_state, new_state, list_signature) => {
+    const session = prev_state.session;
+    const clock = prev_state.clock;
+    const participants = prev_state.participants.map(x => x[0]);
+    const data = prev_state.data;
+    //
+    const signatures_v = list_signature.map(x => x.v);
+    const signatures_r = list_signature.map(x => x.r);
+    const signatures_s = list_signature.map(x => x.s);
+    //
+    const newState = digestState(full_state);
+    return new A.web3.eth.Contract(A.abi, B.contractAddress)
+        .methods['settle'](session, clock, participants, data, deposit, withdrawals,
+                           newState, signatures_v, signatures_r, signatures_v)
+        .send({ from: B.userpairaddress[0], value })
+        .then(r  => fetchAndRejectInvalidReceiptFor(A)(r.transactionHash))
+};
+
+
+
+
+
+
+
+async function SC_GetAll_VRSsignatures(A,B, state) {
+    const nb_part = B.sc_idx_participants.length;
+    const ListSignature = [];
+    for (i=0; i<nb_part; i++) {
+        if (i == B.sc_my_idx) {
+            // my signature is needed
+            let the_sign = await SC_SignState(A)(B)(state);
+            ListSignature[i] = the_sign;
+        }
+        else {
+            // others participants
+            let requestpair = B.sc_list_address[B.sc_idx_participants[i]];
+            let the_sign = await SC_GetSingle_VRSsignature(A)(B)(requestpair, state);
+            ListSignature[i] = the_sign;
+        }
+    }
+    return ListSignatures;
+}
+
+
+
+async function SC_Inf_Send_VRSsignature(A,B) {
   let iter = 0;
   while (iter >= 0)
   {
-    let var_reply = await SC_ProvideVRS(A)(B)(iter);
+    let var_reply = await SC_Send_VRSsignature(A)(B)(iter);
     iter = iter + 1;
-    console.log('SC_InfiniteProvideVRS, iter=' + iter + ' var_reply=' + var_reply);
+    console.log('SC_Inf_Send_VRSsignature, iter=' + iter + ' var_reply=' + var_reply);
   }
 }
 
@@ -157,41 +255,83 @@ async function SC_InfiniteProvideVRS(A,B) {
 
 
 //
-// Functionality for signing
+// SHH: Functionality for obtaining list of participants
 //
-const SC_ProvideListParticipant = A => B => (iter) =>
+const SC_Send_ListParticipant = A => B => (iter) =>
   new Promise((resolve, reject) => {
-    const myIdentity = B.userpairaddress[1];
-    const fctSendListParticipant = (result_filt) => {
-      A.web3.shh.post({'from':myIdentity, 'to':result_list.from, 'payload':B.sc_participants},
-        (err_post, result_post) => !!err_post ? reject('error shh.pos') : resolve('success shh.post' + result_post));
+      const myId_shh = B.userpairaddress[1];
+      const fctSendListParticipant = (result_filt) => {
+          const list_part = B.sc_idx_participants.map(x => B.sc_list_address[x]);
+          A.web3.shh.post(
+              {'from':myId_shh, 'to':result_list.from, 'topics':['listparticipant2'], 'payload':list_part},
+              (err_post, result_post) => !!err_post ? reject('error shh.pos') : resolve('success shh.post' + result_post));
     };
-    A.web3.filter({'topics':'listparticipant', 'to':B.userpairaddress[1]},
+    A.web3.filter({'topics':['listparticipant1'], 'to':myId_shh},
     (err_filt, result_filt) => !!err_filt ? reject('error web3.filter') : fctSendListParticipant(result_filt));
   });
 
-async function SC_InfiniteProvideListParticipant(A,B) {
+const SC_Get_ListParticipant = A => B =>
+  new Promise((resolve, reject) => {
+      const myId_shh = B.userpairaddress[1];
+      const initiatorId = B.initiatorpairaddress[1];
+      const updateListPart = (listpart) => {
+          B.sc_list_address = B.sc_list_address.concat(listpart);
+          resolve('successful update of list_address');
+      };
+      const fctRecvListParticipant = (result_filt) => {
+          A.web3.filter(
+              {'topics':['listparticipant2'], 'to':myId_shh}, 'payload':listparticipant,
+              (err_filt, result_filt) => !!err_filt ? updateListPart(listparticipant) : fctRecvListParticipant(result_filt));
+      };
+      A.web3.shh.post(
+          {'from':myId_shh, 'to':initiatorId, 'payload':'', 'topics':['listparticipant1']},
+          (err_post, result_post) => !!err_post ? reject('error shh.pos') : resolve('success shh.post' + result_post));
+  });
+
+
+const SC_Get_ListSignatures = A => B =>
+  new Promise((resolve, reject) => {
+      const myId_shh = B.userpairaddress[1];
+      const initiatorId = B.initiatorpairaddress[1];
+      const fctRecvListParticipant = (result_filt) => {
+          A.web3.filter(
+              {'topics':['listparticipant2'], 'to':B.userpairaddress[1]}, 'payload':listparticipant,
+              (err_filt, result_filt) => !!err_filt ? reject('error web3.filter') : fctRecvListParticipant(result_filt));
+      };
+      A.web3.shh.post(
+          {'from':myId_shh, 'to':initiatorId, 'payload':'', 'topics':['listparticipant1']},
+          (err_post, result_post) => !!err_post ? reject('error shh.pos') : resolve('success shh.post' + result_post));
+  });
+
+
+
+async function SC_Inf_Send_ListParticipant(A,B) {
   let iter = 0;
   while (iter >= 0)
   {
-    let var_reply = await SC_ProvideListParticipant(A)(B)(iter);
+    let var_reply = await SC_Send_ListParticipant(A)(B)(iter);
     iter = iter + 1;
-    console.log('SC_InfiniteProvideVRS, iter=' + iter + ' var_reply=' + var_reply);
+    console.log('SC_Inf_Send_ListParticipant, iter=' + iter + ' var_reply=' + var_reply);
   }
 }
 
 
 
 
+const SC_UpdateCurrentState = A => B => (oper) => {
+    // We need to correct 
+    console.log('Code needs to be written to handle unanimous events');
+    process.exit();
+};
 
 
 const SC_ScanUnanimously = A => B =>
-  new A.ethers
-    .Contract(contractAddress, A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider))
-    .on('Unanimously', (...a) => {
-      console.log('Code needs to be written to handle unanimous events');
-      process.exit();
-    });
+      new A.ethers
+      .Contract(contractAddress, A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider))
+      .on('Unanimously', (digest) => {
+          const oper = B.pending_unanimous_operations.find(x => x.digest === digest);
+          SC_UpdateCurrentState(A)(B)(oper);
+      });
 
 const SC_ScanChallenge = A => B =>
   new A.ethers
@@ -231,19 +371,31 @@ const SC_WaitEvents = A => B =>
       SC_ScanTimeOut(A)(B),
       SC_ScanMessage(A)(B)]);
 
+async function SC_Inf_WaitEvents(A,B) {
+    let iter = 0;
+    while (iter >= 0)
+    {
+        let var_reply = await SC_WaitEvents(A)(B);
+        iter = iter + 1;
+        console.log('SC_Inf_Send_ListParticipant, iter=' + iter + ' var_reply=' + var_reply);
+    }
+}
+
 
 
 const SC_mkSpanThreads = A => B => () =>
-  new Promise.race([SC_InfiniteProvideVRS(A)(B) , SC_WaitEvents(A)(B)]);
+      new Promise.race([SC_Inf_Send_ListParticipant(A,B),
+                        SC_Inf_Send_VRSsignature(A,B),
+                        SC_Inf_WaitEvents(A,B)]);
 
 
 
 
 const SC_mkSendTransaction = A => B => (to, payload) =>
   new Promise((resolve, reject) => {
-    const myIdentity = Aidentity.userAddress[1];
+    const myId_shh = B.userpairaddress[1];
     const pSend = new Promise((resolve_loc, reject_loc) =>
-      A.web3.shh.post({'from': myIdentity, 'to': to, 'payload': payload},
+      A.web3.shh.post({'from': myId_shh, 'to': to, 'payload': payload},
           (err, result) =>
           !!err ? reject_loc(err) : resolve_loc(result)));
     pSend.catch((message) => reject(message))
@@ -257,7 +409,7 @@ const SC_mkSendTransaction = A => B => (to, payload) =>
           A.SC.state = A.SC.state + payload_input;
           resolve_wait(result_filt);
         };
-        A.web3.shh.filter({'topics':'state-channel', 'to':myIdentity},
+        A.web3.shh.filter({'topics':['state-channel'], 'to':myId_shh},
           (err_filt, result_filt) => !!err_filt ? reject(err_filt) : fct(payload, result_filt));
         });
       return Promise.race([pTimeOut,pWait]);
@@ -353,33 +505,36 @@ const mkDeploy = A => userAddress => ctors => {
 
 // This array should contain all the data
 // of the process.
-const MutableState = (contractAddress,ctors,userpairaddress,initiatorpairaddress) =>
+const MutableState = (contractAddress,ctors,userpairaddress,initiatorpairaddress,deposit,full_state) =>
    ({sc_list_address: [] // This should contain the ethereum addresses as well as shh ones.
                          // Not everyone in this list has joined the SC. It is just a lookup
                          // table
-    , sc_participants: [] // The list of participants of the SC (list of index of sc_list_address)
-    , sc_status_sequence: []
-    , userpairaddress
-    , initiatorpairaddress
-    , contractAddress
-    , ctors
+     , sc_idx_participants: [] // The list of participants of the SC (list of index of sc_list_address)
+     , sc_my_idx: 0
+     , sc_status_sequence: [full_state]
+     , pending_unanimous_operations: []
+     , deposit
+     , userpairaddress
+     , initiatorpairaddress
+     , contractAddress
+     , ctors
     });
 
 
 
 
 const SC_mkCreateSC = A => B => (state) => {
-  if (initiatorpairAddress[0] == 0) {
-    new A.web3.eth.Contract(A.abi, contractaddress)
-        .methods['constructor'](state)
-        .send({ from: B.userpairaddress[0], value: 0 })
-        .then(r  => fetchAndRejectInvalidReceiptFor(A)(r.transactionHash))
-        .then(() => 'Successful construction of contract');
-  }
-  else {
-  
-    new A.
-  }
+    if (initiatorpairAddress[0] == 0) {
+        new A.web3.eth.Contract(A.abi, contractaddress)
+            .methods['constructor'](state)
+            .send({ from: B.userpairaddress[0], value: 0 })
+            .then(r  => fetchAndRejectInvalidReceiptFor(A)(r.transactionHash))
+            .then(() => 'Successful construction of contract');
+    }
+    else {
+        SC_Get_ListParticipant(A)(B)
+        .then(mesg => SC_GetAll_VRSsignatures(A,B, state))
+    }
 };
 
 
@@ -402,7 +557,6 @@ const mkSpanCTC = A => B =>
 
 const EthereumNetwork = A => (userAddress, sc_identity) =>
   ({ deploy: mkDeploy(A)(userAddress)
-   , joinSC: mkCreateSC(A)(myAddress, initiatorAddress)
    , userAddress: [userAddress, sc_identity]
    });
 

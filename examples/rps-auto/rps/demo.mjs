@@ -9,11 +9,12 @@ const init = (stdlib, wagerInEth, escrowInEth) => {
 
 const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
   const { balanceOf, devnet, transfer, SC_createIdentity,
-            MutableState, SpanCTC } = stdlib;
+          MutableState, SpanCTC, random_uint256 } = stdlib;
   const { prefundedDevnetAcct         } = devnet;
   const { wagerInWei, escrowInWei     } = gameState;
 
   const startingBalance = stdlib.toBN(stdlib.toWei('100', 'ether'));
+  const deposit = stdlib.toBN(stdlib.toWei('1', 'ether'));
 
   const newPlayer = prefunder =>
     devnet.createAndUnlockAcct()
@@ -23,23 +24,25 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
 
   const captureOpeningGameState = ([ a, b ]) =>
     Promise.all([ balanceOf(a), balanceOf(b) ])
-      .then(([ balanceStartAlice, balanceStartBob ]) =>
-          Object.assign(gameState
-                     , { alice: a
-                       , bob:   b
-                       , list_nodes: [a.userAddress, b.userAddress]
-                       , ctors: [ a.userAddress[0], b.userAddress[0] ]
-                       , balanceStartAlice
-                       , balanceStartBob
-                       }));
+    .then(([ balanceStartAlice, balanceStartBob ]) =>
+    Object.assign(gameState
+       , { alice: a
+           , bob:   b
+           , list_nodes: [a.userAddress, b.userAddress]
+           , ctors: [ a.userAddress[0], b.userAddress[0] ]
+           , full_state: {session: random_uint256(), clock: 0, participants: [a], data: 0};
+           , deposit
+           , balanceStartAlice
+           , balanceStartBob
+         }));
 
   const captureClosingGameState = ([ outcomeBob, outcomeAlice ]) =>
     Promise.all([ balanceOf(gameState.alice), balanceOf(gameState.bob) ])
       .then(([ balanceEndAlice, balanceEndBob ]) =>
         Object.assign(gameState, { outcomeAlice
-                                 , outcomeBob
-                                 , balanceEndAlice
-                                 , balanceEndBob
+                                   , outcomeBob
+                                   , balanceEndAlice
+                                   , balanceEndBob
                                  }));
 
 
@@ -68,7 +71,8 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
 
   const bobShoot = contractAddress =>
     new Promise(resolve =>
-      MutableState(contractAddress, gameState.ctors, gameState.bob, gameState.alice)
+      MutableState(contractAddress, gameState.ctors, gameState.bob, gameState.alice,
+                   gameState.deposit, gameState.full_state)
       .then(mutStat => SpanCTC(mutStat))
       .then(ctc => Promise.race([ctc.SC_SpanThreads(),
           new Promise.resolve(ctc =>
@@ -78,11 +82,10 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
                                   , resolve)))])));
 
 
-
-
   const aliceShoot = contractAddress =>
     new Promise(resolve =>
-      MutableState(contractAddress, gameState.ctors, gameState.alice, [0,0])
+      MutableState(contractAddress, gameState.ctors, gameState.alice, [0,0],
+                   gameState.deposit, gameState.full_state)
       .then(mutStat => SpanCTC(mutStat))
       .then(ctc => Promise.race([ctc.SC_SpanThreads(),
           new Promise.resolve(ctc =>
