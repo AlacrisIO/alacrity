@@ -30,7 +30,7 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
            , bob:   b
            , list_nodes: [a.userAddress, b.userAddress]
            , ctors: [ a.userAddress[0], b.userAddress[0] ]
-           , full_state: {session: random_uint256(), clock: 0, participants: [a], data: 0};
+           , full_state: {session: random_uint256(), clock: 0, participants: [a], data: 0}
            , deposit
            , balanceStartAlice
            , balanceStartBob

@@ -24,11 +24,11 @@ const nat_to_fixed_size_hex = size => n => {
        : n.toString(16).padStart((2 * size), '0');
 };
 
-const ABI_StateChannel = [{"constant":false,"inputs":[{"name":"session","type":"bytes32"},{"name":"clock","type":"uint256"},{"name":"participants","type":"address[]"},{"name":"balancedState","type":"bytes32"},{"name":"newClock","type":"uint256"},{"name":"newBalancedState","type":"bytes32"},{"name":"signatures_v","type":"bytes"},{"name":"signatures_r","type":"bytes32[]"},{"name":"signatures_s","type":"bytes32[]"}],"name":"updateState","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[{"name":"clock","type":"uint256"},{"name":"participants","type":"address[]"}],"name":"nextClock","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"pure","type":"function"},{"constant":false,"inputs":[{"name":"session","type":"bytes32"},{"name":"clock","type":"uint256"},{"name":"participants","type":"address[]"},{"name":"data","type":"bytes32"},{"name":"deposit","type":"uint256"},{"name":"withdrawals","type":"uint256[]"},{"name":"newState","type":"bytes32"},{"name":"signatures_v","type":"bytes"},{"name":"signatures_r","type":"bytes32[]"},{"name":"signatures_s","type":"bytes32[]"}],"name":"settle","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":false,"inputs":[{"name":"_session","type":"bytes32"},{"name":"_clock","type":"uint256"},{"name":"_participants","type":"address[]"},{"name":"_processor","type":"address"},{"name":"_stateRoot","type":"bytes32"},{"name":"_balances","type":"bytes32"},{"name":"_message","type":"bytes"},{"name":"_evidence","type":"bytes"}],"name":"sendMessage","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":false,"inputs":[{"name":"session","type":"bytes32"},{"name":"clock","type":"uint256"},{"name":"_participants","type":"address[]"},{"name":"processState","type":"bytes32"},{"name":"_owned","type":"uint256[]"},{"name":"_collaterals","type":"uint256[]"},{"name":"_failures","type":"uint256[]"},{"name":"_deadlines","type":"uint256[]"},{"name":"failedParticipant","type":"uint256"}],"name":"timeOut","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":true,"inputs":[],"name":"timeoutInBlocks","outputs":[{"name":"timeout","type":"uint256"}],"payable":false,"stateMutability":"pure","type":"function"},{"constant":false,"inputs":[{"name":"session","type":"bytes32"},{"name":"clock","type":"uint256"},{"name":"participants","type":"address[]"},{"name":"data","type":"bytes32"},{"name":"withdrawals","type":"uint256[]"},{"name":"beneficiary","type":"address"},{"name":"signatures_v","type":"bytes"},{"name":"signatures_r","type":"bytes32[]"},{"name":"signatures_s","type":"bytes32[]"}],"name":"close","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":false,"inputs":[{"name":"session","type":"bytes32"},{"name":"clock","type":"uint256"},{"name":"participants","type":"address[]"},{"name":"processState","type":"bytes32"},{"name":"owned","type":"uint256[]"},{"name":"collaterals","type":"uint256[]"},{"name":"failures","type":"uint256[]"},{"name":"_deadlines","type":"uint256[]"},{"name":"challengingParticipant","type":"uint256"},{"name":"challengedParticipant","type":"uint256"}],"name":"challenge","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[{"name":"digest","type":"bytes32"},{"name":"participants","type":"address[]"},{"name":"signatures_v","type":"bytes"},{"name":"signatures_r","type":"bytes32[]"},{"name":"signatures_s","type":"bytes32[]"}],"name":"checkSignatures","outputs":[],"payable":false,"stateMutability":"pure","type":"function"},{"inputs":[{"name":"state","type":"bytes32"}],"payable":true,"stateMutability":"payable","type":"constructor"},{"anonymous":false,"inputs":[{"indexed":false,"name":"","type":"bytes32"}],"name":"Unanimously","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"name":"challengedParticipant","type":"uint256"}],"name":"Challenge","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"name":"clock","type":"uint256"},{"indexed":false,"name":"failedParticipant","type":"uint256"}],"name":"TimeOut","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"name":"clock","type":"uint256"},{"indexed":false,"name":"message","type":"bytes"}],"name":"Message","type":"event"}];
+const ABI_StateChannel = [{'constant':false,'inputs':[{'name':'session','type':'bytes32'},{'name':'clock','type':'uint256'},{'name':'participants','type':'address[]'},{'name':'balancedState','type':'bytes32'},{'name':'newClock','type':'uint256'},{'name':'newBalancedState','type':'bytes32'},{'name':'signatures_v','type':'bytes'},{'name':'signatures_r','type':'bytes32[]'},{'name':'signatures_s','type':'bytes32[]'}],'name':'updateState','outputs':[],'payable':false,'stateMutability':'nonpayable','type':'function'},{'constant':true,'inputs':[{'name':'clock','type':'uint256'},{'name':'participants','type':'address[]'}],'name':'nextClock','outputs':[{'name':'','type':'uint256'}],'payable':false,'stateMutability':'pure','type':'function'},{'constant':false,'inputs':[{'name':'session','type':'bytes32'},{'name':'clock','type':'uint256'},{'name':'participants','type':'address[]'},{'name':'data','type':'bytes32'},{'name':'deposit','type':'uint256'},{'name':'withdrawals','type':'uint256[]'},{'name':'newState','type':'bytes32'},{'name':'signatures_v','type':'bytes'},{'name':'signatures_r','type':'bytes32[]'},{'name':'signatures_s','type':'bytes32[]'}],'name':'settle','outputs':[],'payable':true,'stateMutability':'payable','type':'function'},{'constant':false,'inputs':[{'name':'_session','type':'bytes32'},{'name':'_clock','type':'uint256'},{'name':'_participants','type':'address[]'},{'name':'_processor','type':'address'},{'name':'_stateRoot','type':'bytes32'},{'name':'_balances','type':'bytes32'},{'name':'_message','type':'bytes'},{'name':'_evidence','type':'bytes'}],'name':'sendMessage','outputs':[],'payable':true,'stateMutability':'payable','type':'function'},{'constant':false,'inputs':[{'name':'session','type':'bytes32'},{'name':'clock','type':'uint256'},{'name':'_participants','type':'address[]'},{'name':'processState','type':'bytes32'},{'name':'_owned','type':'uint256[]'},{'name':'_collaterals','type':'uint256[]'},{'name':'_failures','type':'uint256[]'},{'name':'_deadlines','type':'uint256[]'},{'name':'failedParticipant','type':'uint256'}],'name':'timeOut','outputs':[],'payable':true,'stateMutability':'payable','type':'function'},{'constant':true,'inputs':[],'name':'timeoutInBlocks','outputs':[{'name':'timeout','type':'uint256'}],'payable':false,'stateMutability':'pure','type':'function'},{'constant':false,'inputs':[{'name':'session','type':'bytes32'},{'name':'clock','type':'uint256'},{'name':'participants','type':'address[]'},{'name':'data','type':'bytes32'},{'name':'withdrawals','type':'uint256[]'},{'name':'beneficiary','type':'address'},{'name':'signatures_v','type':'bytes'},{'name':'signatures_r','type':'bytes32[]'},{'name':'signatures_s','type':'bytes32[]'}],'name':'close','outputs':[],'payable':true,'stateMutability':'payable','type':'function'},{'constant':false,'inputs':[{'name':'session','type':'bytes32'},{'name':'clock','type':'uint256'},{'name':'participants','type':'address[]'},{'name':'processState','type':'bytes32'},{'name':'owned','type':'uint256[]'},{'name':'collaterals','type':'uint256[]'},{'name':'failures','type':'uint256[]'},{'name':'_deadlines','type':'uint256[]'},{'name':'challengingParticipant','type':'uint256'},{'name':'challengedParticipant','type':'uint256'}],'name':'challenge','outputs':[],'payable':false,'stateMutability':'nonpayable','type':'function'},{'constant':true,'inputs':[{'name':'digest','type':'bytes32'},{'name':'participants','type':'address[]'},{'name':'signatures_v','type':'bytes'},{'name':'signatures_r','type':'bytes32[]'},{'name':'signatures_s','type':'bytes32[]'}],'name':'checkSignatures','outputs':[],'payable':false,'stateMutability':'pure','type':'function'},{'inputs':[{'name':'state','type':'bytes32'}],'payable':true,'stateMutability':'payable','type':'constructor'},{'anonymous':false,'inputs':[{'indexed':false,'name':'','type':'bytes32'}],'name':'Unanimously','type':'event'},{'anonymous':false,'inputs':[{'indexed':false,'name':'challengedParticipant','type':'uint256'}],'name':'Challenge','type':'event'},{'anonymous':false,'inputs':[{'indexed':false,'name':'clock','type':'uint256'},{'indexed':false,'name':'failedParticipant','type':'uint256'}],'name':'TimeOut','type':'event'},{'anonymous':false,'inputs':[{'indexed':false,'name':'clock','type':'uint256'},{'indexed':false,'name':'message','type':'bytes'}],'name':'Message','type':'event'}];
 
 abiDecoder.addABI(ABI_StateChannel);
 
-const use_state_channels = true;
+//const use_state_channels = true;
 
 
 // Encodes a 16-bit unsigned integer as 2 hex bytes or 4 hex characters
@@ -126,24 +126,27 @@ const SC_mkCreateIdentity = A => () =>
 // 3: updateState
 //   digest = keccak256(abi.encode(session, UnanimousAction.Updating, newClock, newBalancedState))
 // The signature
-const get_digest = A => B => (oper) => {
+//
+const get_digest = A => (oper) => {
     if (oper.nature == 0)
-        return keccak256(abi.encode(oper.session, "closing", oper.withdrawals, oper.beneficiary));
+        return keccak256(A)(A.abi.encode(oper.session, 'closing', oper.withdrawals, oper.beneficiary));
     if (oper.nature == 1)
-        return keccak256(abi.encode(oper.session, "settling", oper.deposit, oper.withdrawals, oper.newState));
+        return keccak256(A)(A.abi.encode(oper.session, 'settling', oper.deposit, oper.withdrawals, oper.newState));
     if (oper.nature == 2)
-        return keccak256(abi.encode(oper.session, "updating", oper.clock, oper.data))
+        return keccak256(A)(A.abi.encode(oper.session, 'updating', oper.clock, oper.data));
 };
 
 let CheckCorrectnessOperation = A => B => (oper) => {
     // We need to insert code for checking correctness of operation
+    console.log('Code need to be inserted here');
+    console.log('A=', A, ' B=', B, ' oper=', oper);
     return true;
 };
 
 
 let SC_SignState = A => B => (oper) => {
     if (CheckCorrectnessOperation(A)(B)(oper)) {
-        const digest = get_digest(A)(B)(operation_digest);
+        const digest = get_digest(A)(oper);
         B.pending_unanimous_operations[B.pending_unanimous_operations.length] = {digest, oper};
         const myId_eth = B.userpairaddress[0];
         return A.web3.eth.sign(myId_eth, digest);
@@ -153,10 +156,9 @@ let SC_SignState = A => B => (oper) => {
 //
 // SHH: Functionality for signing messages from the computing side.
 //
-const SC_Send_VRSsignature = A => B => (iter) =>
+const SC_Send_VRSsignature = A => B =>
   new Promise((resolve, reject) => {
     const myId_shh = B.userpairaddress[1];
-    const myId_eth = B.userpairaddress[0];
     const fctSendVRS = (result_sign) => {
         A.web3.shh.post({'from':myId_shh, 'to':result_sign.from, 'topics':['VRSsignature2'], 'payload':result_sign.XXXX},
         (err_post, result_post) => !!err_post ? reject('error shh.pos') : resolve('success shh.post' + result_post));
@@ -166,11 +168,11 @@ const SC_Send_VRSsignature = A => B => (iter) =>
 //        (err_sign, result_sign) => !!err_sign ? reject('error signature') : fctSendVRS(result_sign));
 //    };
     const fctComputeHash = (data_to_sign) => {
-      const state_to_sign = keccak256(A)(data_to_sign);
-        return SC_SignState(A)(B)(state_to_sign);
+        const state_to_sign = keccak256(A)(data_to_sign);
+        SC_SignState(A)(B)(state_to_sign).then(fctSendVRS);
     };
-    A.web3.filter({'topics':['VRSsignature1'], 'to':B.userpairaddress[1]},
-    (err_filt, result_filt) => !!err_filt ? reject('error web3.filter') : fctComputeHash(result_filt));
+    A.web3.shh.filter({'topics':['VRSsignature1'], 'to':B.userpairaddress[1]},
+    (err_filt, result_filt) => !!err_filt ? reject('error web3.shh.filter') : fctComputeHash(result_filt));
   });
 
 
@@ -178,25 +180,25 @@ const SC_Send_VRSsignature = A => B => (iter) =>
 const SC_GetSingle_VRSsignature = A => B => (requestpair, state) =>
   new Promise((resolve, reject) => {
       const myId_shh = B.userpairaddress[1];
-      const request_shh = request_address[1];
-      const fctProcess = () => {
-          A.web3.filter(
+      const request_shh = requestpair[1];
+      const waitForSignature = () => {
+          A.web3.shh.filter(
               {'topics':['VRSsignature2'], 'to':myId_shh},
-              (err_filt, result_filt) => !!err_filt ? reject('error web3.filter') : resole(result_filt));
+              (err_filt, result_filt) => !!err_filt ? reject('error web3.filter') : resolve(result_filt));
       };
       A.web3.shh.post(
-          {'from':myId_shh, 'to':result_sign.from, 'topics':['VRSsignature1'], 'payload':state},
-          (err_post, result_post) => !!err_post ? reject('error shh.pos') : waitForSignature());
+          {'from':myId_shh, 'to':request_shh, 'topics':['VRSsignature1'], 'payload':state},
+          (err_post, _result_post) => !!err_post ? reject('error shh.pos') : waitForSignature());
   });
 
 
 
-const digestState = full_state => {
-    return keccak(abi.encoded(full_state.session, full_state.clock, full_state.participant, full_state.data));
+const digestState = A => full_state => {
+    return keccak256(A)(A.abi.encoded(full_state.session, full_state.clock, full_state.participant, full_state.data));
 };
 
 
-const SC_SubmitSettleOperation = A => B => (prev_state, new_state, list_signature) => {
+const SC_SubmitSettleOperation = A => B => (prev_state, new_state, deposit, withdrawals, list_signature) => {
     const session = prev_state.session;
     const clock = prev_state.clock;
     const participants = prev_state.participants.map(x => x[0]);
@@ -206,12 +208,12 @@ const SC_SubmitSettleOperation = A => B => (prev_state, new_state, list_signatur
     const signatures_r = list_signature.map(x => x.r);
     const signatures_s = list_signature.map(x => x.s);
     //
-    const newState = digestState(full_state);
+    const newState = digestState(A)(new_state);
     return new A.web3.eth.Contract(A.abi, B.contractAddress)
         .methods['settle'](session, clock, participants, data, deposit, withdrawals,
-                           newState, signatures_v, signatures_r, signatures_v)
-        .send({ from: B.userpairaddress[0], value })
-        .then(r  => fetchAndRejectInvalidReceiptFor(A)(r.transactionHash))
+                           newState, signatures_v, signatures_r, signatures_s)
+        .send({ from: B.userpairaddress[0], value: deposit })
+        .then(r => fetchAndRejectInvalidReceiptFor(A)(r.transactionHash));
 };
 
 
@@ -222,18 +224,18 @@ const SC_SubmitSettleOperation = A => B => (prev_state, new_state, list_signatur
 
 async function SC_GetAll_VRSsignatures(A,B, state) {
     const nb_part = B.sc_idx_participants.length;
-    const ListSignature = [];
-    for (i=0; i<nb_part; i++) {
+    const ListSignatures = [];
+    for (var i=0; i<nb_part; i++) {
         if (i == B.sc_my_idx) {
             // my signature is needed
             let the_sign = await SC_SignState(A)(B)(state);
-            ListSignature[i] = the_sign;
+            ListSignatures[i] = the_sign;
         }
         else {
             // others participants
             let requestpair = B.sc_list_address[B.sc_idx_participants[i]];
             let the_sign = await SC_GetSingle_VRSsignature(A)(B)(requestpair, state);
-            ListSignature[i] = the_sign;
+            ListSignatures[i] = the_sign;
         }
     }
     return ListSignatures;
@@ -245,7 +247,7 @@ async function SC_Inf_Send_VRSsignature(A,B) {
   let iter = 0;
   while (iter >= 0)
   {
-    let var_reply = await SC_Send_VRSsignature(A)(B)(iter);
+    let var_reply = await SC_Send_VRSsignature(A)(B);
     iter = iter + 1;
     console.log('SC_Inf_Send_VRSsignature, iter=' + iter + ' var_reply=' + var_reply);
   }
@@ -257,17 +259,17 @@ async function SC_Inf_Send_VRSsignature(A,B) {
 //
 // SHH: Functionality for obtaining list of participants
 //
-const SC_Send_ListParticipant = A => B => (iter) =>
+const SC_Send_ListParticipant = A => B =>
   new Promise((resolve, reject) => {
       const myId_shh = B.userpairaddress[1];
       const fctSendListParticipant = (result_filt) => {
           const list_part = B.sc_idx_participants.map(x => B.sc_list_address[x]);
           A.web3.shh.post(
-              {'from':myId_shh, 'to':result_list.from, 'topics':['listparticipant2'], 'payload':list_part},
+              {'from':myId_shh, 'to':result_filt.from, 'topics':['listparticipant2'], 'payload':list_part},
               (err_post, result_post) => !!err_post ? reject('error shh.pos') : resolve('success shh.post' + result_post));
     };
-    A.web3.filter({'topics':['listparticipant1'], 'to':myId_shh},
-    (err_filt, result_filt) => !!err_filt ? reject('error web3.filter') : fctSendListParticipant(result_filt));
+    A.web3.shh.filter({'topics':['listparticipant1'], 'to':myId_shh},
+    (err_filt, result_filt) => !!err_filt ? reject('error web3.shh.filter') : fctSendListParticipant(result_filt));
   });
 
 const SC_Get_ListParticipant = A => B =>
@@ -278,38 +280,22 @@ const SC_Get_ListParticipant = A => B =>
           B.sc_list_address = B.sc_list_address.concat(listpart);
           resolve('successful update of list_address');
       };
-      const fctRecvListParticipant = (result_filt) => {
-          A.web3.filter(
-              {'topics':['listparticipant2'], 'to':myId_shh}, 'payload':listparticipant,
-              (err_filt, result_filt) => !!err_filt ? updateListPart(listparticipant) : fctRecvListParticipant(result_filt));
+      const fctRecvListParticipant = () => {
+          A.web3.shh.filter(
+              {'topics':['listparticipant2'], 'to':myId_shh},
+              (err_filt, result_filt) => !!err_filt ? updateListPart(result_filt) : fctRecvListParticipant(result_filt));
       };
       A.web3.shh.post(
           {'from':myId_shh, 'to':initiatorId, 'payload':'', 'topics':['listparticipant1']},
-          (err_post, result_post) => !!err_post ? reject('error shh.pos') : resolve('success shh.post' + result_post));
+          (err_post, result_post) => !!err_post ? reject('error shh.pos') : fctRecvListParticipant());
   });
-
-
-const SC_Get_ListSignatures = A => B =>
-  new Promise((resolve, reject) => {
-      const myId_shh = B.userpairaddress[1];
-      const initiatorId = B.initiatorpairaddress[1];
-      const fctRecvListParticipant = (result_filt) => {
-          A.web3.filter(
-              {'topics':['listparticipant2'], 'to':B.userpairaddress[1]}, 'payload':listparticipant,
-              (err_filt, result_filt) => !!err_filt ? reject('error web3.filter') : fctRecvListParticipant(result_filt));
-      };
-      A.web3.shh.post(
-          {'from':myId_shh, 'to':initiatorId, 'payload':'', 'topics':['listparticipant1']},
-          (err_post, result_post) => !!err_post ? reject('error shh.pos') : resolve('success shh.post' + result_post));
-  });
-
 
 
 async function SC_Inf_Send_ListParticipant(A,B) {
   let iter = 0;
   while (iter >= 0)
   {
-    let var_reply = await SC_Send_ListParticipant(A)(B)(iter);
+    let var_reply = await SC_Send_ListParticipant(A)(B);
     iter = iter + 1;
     console.log('SC_Inf_Send_ListParticipant, iter=' + iter + ' var_reply=' + var_reply);
   }
@@ -319,15 +305,15 @@ async function SC_Inf_Send_ListParticipant(A,B) {
 
 
 const SC_UpdateCurrentState = A => B => (oper) => {
-    // We need to correct 
-    console.log('Code needs to be written to handle unanimous events');
+    console.log('Code needs to be written to update state from the operation');
+    console.log('A=', A, ' B=', B, ' oper=', oper);
     process.exit();
 };
 
 
 const SC_ScanUnanimously = A => B =>
       new A.ethers
-      .Contract(contractAddress, A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider))
+      .Contract(B.contractAddress, A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider))
       .on('Unanimously', (digest) => {
           const oper = B.pending_unanimous_operations.find(x => x.digest === digest);
           SC_UpdateCurrentState(A)(B)(oper);
@@ -457,8 +443,8 @@ const mkSendRecv = mkSendRecvETH;
 
 // https://docs.ethers.io/ethers.js/html/api-contract.html#configuring-events
 const mkRecv = A => B => (label, eventName, cb) =>
-  new ethers
-    .Contract(B.contractAddress, abi, new ethers.providers.Web3Provider(web3.currentProvider))
+  new A.ethers
+    .Contract(B.contractAddress, A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider))
     .once(eventName, (...a) => {
       const b = a.map(b => b); // Preserve `a` w/ copy
       const e = b.pop();       // The final element represents an `ethers` event object
@@ -524,8 +510,8 @@ const MutableState = (contractAddress,ctors,userpairaddress,initiatorpairaddress
 
 
 const SC_mkCreateSC = A => B => (state) => {
-    if (initiatorpairAddress[0] == 0) {
-        new A.web3.eth.Contract(A.abi, contractaddress)
+    if (B.initiatorpairaddress[0] == 0) {
+        new A.web3.eth.Contract(A.abi, B.contractaddress)
             .methods['constructor'](state)
             .send({ from: B.userpairaddress[0], value: 0 })
             .then(r  => fetchAndRejectInvalidReceiptFor(A)(r.transactionHash))
@@ -533,7 +519,20 @@ const SC_mkCreateSC = A => B => (state) => {
     }
     else {
         SC_Get_ListParticipant(A)(B)
-        .then(mesg => SC_GetAll_VRSsignatures(A,B, state))
+            .then(mesg => SC_GetAll_VRSsignatures(A,B, state)
+                  .then(list_signature => {
+                      const prev_state = B.list_full_state[0];
+                      const participants = prev_state.participants;
+                      participants[participants.length] = B.userpairaddress[0];
+                      const new_state = {session: prev_state.session, data: prev_state.data,
+                                         participants, clock: prev_state.clock };
+                      const deposit = B.deposit;
+                      const withdrawals = [];
+                      for (var i=0; i<mesg.length; i++) {
+                          withdrawals[i] = 0;
+                      }
+                      SC_SubmitSettleOperation(A)(B)(prev_state, new_state, deposit, withdrawals, list_signature);
+                  }));
     }
 };
 
@@ -547,7 +546,6 @@ const mkSpanCTC = A => B =>
    , SC_sendTransaction: SC_mkSendTransaction(A)
    , SC_SpanThreads: SC_mkSpanThreads(A)(B)
    , SC_CreateSC: SC_mkCreateSC(A)(B)
-   , B
    });
 
 
@@ -580,8 +578,6 @@ const createAndUnlockAcct = ({ web3 }) => () =>
 
 
 ////////////////////////////////////////////////////////////////////////////////
-
-
 export const mkStdlib = A =>
  ({ hexTo0x
   , un0x
@@ -614,7 +610,7 @@ export const mkStdlib = A =>
   , bnToHex:          bnToHex(A)
   , isBN:             isBN(A)
   , transfer:         transfer(A)
-  , Contract:         Contract(A)
+//  , Contract:         Contract(A)
   , SpanCTC:          mkSpanCTC(A)
   , EthereumNetwork:  EthereumNetwork(A)
 
