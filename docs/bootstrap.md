@@ -148,6 +148,24 @@ Our system will grow features from the initial MVP along the following multiple 
      * Asset migration from one contract to the next (October 2020)
      * Support for centralized upgradable contracts with grace period for migration (October 2020)
 
+  * *Type System*
+     * ADTs
+     * many integer types
+     * string/bytes types?
+     * abstract asset types
+     * higher-order module
+     * implicits or typeclasses
+
+  * *Tooling*
+     * property-based
+     * debug
+     * editor
+     * better err msg
+     * better ui integration
+     * better monitoring ...
+     * better macros for haskell or types for racket
+
+
 ## Chronological Details
 
 ### Status pre-MVP: Having a Compiler At All
