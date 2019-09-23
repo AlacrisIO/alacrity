@@ -129,37 +129,37 @@ jsEPStmt (EP_Claim _           a) kp = (vsep [ jsAssert ap, kp ], afvs)
 jsEPStmt (EP_Send  _ _ _ _)       _  = error "Impossible"
 
 
-jsEPTail :: String -> EPTail -> (Doc a, Set.Set BLVar)
-jsEPTail _who (EP_Ret al) = (d, s)
+jsEPTail :: String -> TimeoutWindowInBlocks -> EPTail -> (Doc a, Set.Set BLVar)
+jsEPTail _who _timeoutWithin (EP_Ret al) = (d, s)
   where a = map jsArg al
         d = (jsApply "kTop" $ map fst a) <> semi
         s = Set.unions      $ map snd a
 
-jsEPTail who (EP_If ca tt ft) = (tp, Set.unions [ cafvs, ttfvs, ftfvs ])
-  where (ttp, ttfvs) = jsEPTail who tt
-        (ftp, ftfvs) = jsEPTail who ft
+jsEPTail who timeoutWithin (EP_If ca tt ft) = (tp, Set.unions [ cafvs, ttfvs, ftfvs ])
+  where (ttp, ttfvs) = jsEPTail who timeoutWithin tt
+        (ftp, ftfvs) = jsEPTail who timeoutWithin ft
         (cap, cafvs) = jsArg ca
         tp           = pretty "if"   <+> parens   cap <+> jsBraces ttp <> hardline
                     <> pretty "else" <+> jsBraces ftp
 
-jsEPTail who (EP_Let v (EP_PrimApp INTERACT al) kt) = (tp, tfvs)
-  where (ktp, ktfvs) = jsEPTail who kt
+jsEPTail who timeoutWithin (EP_Let v (EP_PrimApp INTERACT al) kt) = (tp, tfvs)
+  where (ktp, ktfvs) = jsEPTail who timeoutWithin kt
         alp          = map jsArg al
         tp           = jsApply "interact" ((map fst alp) ++ [ (jsLambda [ jsVar v ] ktp) ]) <> semi
         tfvs         = Set.union ktfvs $ Set.unions $ map snd alp
 
-jsEPTail who (EP_Let bv ee kt) = (tp, tfvs)
+jsEPTail who timeoutWithin (EP_Let bv ee kt) = (tp, tfvs)
   where used         = elem bv ktfvs
         tfvs'        = Set.difference ktfvs (Set.singleton bv)
         bvdeclp      = jsVarDecl bv <+> pretty "=" <+> eep <> semi
         (eep, eefvs) = jsEPExpr ee
-        (ktp, ktfvs) = jsEPTail who kt
+        (ktp, ktfvs) = jsEPTail who timeoutWithin kt
         tp           = if used then vsep [ bvdeclp, ktp ] else ktp
         tfvs         = if used then Set.union eefvs tfvs' else tfvs'
 
-jsEPTail who (EP_Do (EP_Send i svs msg amt) (EP_Recv True _ _ _ kt)) = (tp, tfvs)
+jsEPTail who timeoutWithin (EP_Do (EP_Send i svs msg amt) (EP_Recv True _ _ _ kt)) = (tp, tfvs)
   where (amtp, amtfvs) = jsArg amt
-        (ktp,  kfvs)   = jsEPTail who kt
+        (ktp,  kfvs)   = jsEPTail who timeoutWithin kt
         vs             = jsArray $ (map jsVar svs) ++ map jsVar msg
         tfvs           = Set.unions [ kfvs, amtfvs, Set.fromList svs, Set.fromList msg ]
         tp             = jsApply "ctc.sendrecv" [ jsString who
@@ -170,50 +170,50 @@ jsEPTail who (EP_Do (EP_Send i svs msg amt) (EP_Recv True _ _ _ kt)) = (tp, tfvs
                                                 , jsLambda [ pretty "txn" ] ktp
                                                 ] <> semi
 
-jsEPTail who (EP_Do es kt) = (tp, tfvs)
+jsEPTail who timeoutWithin (EP_Do es kt) = (tp, tfvs)
   where (tp, esfvs) = jsEPStmt es ktp
         tfvs        = Set.union esfvs kfvs
-        (ktp, kfvs) = jsEPTail who kt
+        (ktp, kfvs) = jsEPTail who timeoutWithin kt
 
-jsEPTail _ (EP_Recv True _ _ _ _) =
+jsEPTail _ _ (EP_Recv True _ _ _ _) =
   error "Impossible"
 
-jsEPTail who (EP_Recv False i _ msg kt) = (tp, tfvs)
-  where (ktp,  ktfvs) = jsEPTail who kt
+jsEPTail who timeoutWithin (EP_Recv False i _ msg kt) = (tp, tfvs)
+  where (ktp,  ktfvs) = jsEPTail who timeoutWithin kt
         (who', event) = (jsString who, jsString (solMsg_evt i))
-        block         = pretty blockdepth
+        blocks        = pretty timeoutWithin
         tcb           = pretty "ctc.timeoutTerminate"
         msg_vs        = map jsVar msg
         cb            = jsLambda (msg_vs ++ [pretty "txn"]) ktp
         tfvs          = Set.unions [Set.fromList msg, ktfvs]
 
         tp = if use_timeout
-          then jsApply "ctc.recvWithin" [ who', event, block, tcb, cb ] <> semi
-          else jsApply "ctc.recv"       [ who', event, cb             ] <> semi
+          then jsApply "ctc.recvWithin" [ who', event, blocks, tcb, cb ] <> semi
+          else jsApply "ctc.recv"       [ who', event, cb              ] <> semi
 
-jsEPTail who (EP_Loop which loopv inita bt) = (tp, tfvs)
-  where (callp, callvs) = jsEPTail who (EP_Continue which inita)
-        (bodyp, bodyvs) = jsEPTail who bt
+jsEPTail who timeoutWithin (EP_Loop which loopv inita bt) = (tp, tfvs)
+  where (callp, callvs) = jsEPTail who timeoutWithin (EP_Continue which inita)
+        (bodyp, bodyvs) = jsEPTail who timeoutWithin bt
         tp              = vsep [ defp, callp ]
         defp            = jsFunction (jsLoopName which) [ jsVar loopv ] bodyp <> semi
         tfvs            = Set.union callvs bodyvs
 
-jsEPTail _who (EP_Continue which arg) = (tp, argvs)
+jsEPTail _who _timeoutWithin (EP_Continue which arg) = (tp, argvs)
   where (argp, argvs) = jsArg arg
         tp            = jsApply (jsLoopName which) [ argp ] <> semi
 
 
-jsPart :: (Participant, EProgram) -> Doc a
-jsPart (p, (EP_Prog pargs et)) =
-  pretty "export" <+> jsFunction p args (fst $ jsEPTail p et)
+jsPart :: TimeoutWindowInBlocks -> (Participant, EProgram) -> Doc a
+jsPart timeoutWithin (p, (EP_Prog pargs et)) =
+  pretty "export" <+> jsFunction p args (fst $ jsEPTail p timeoutWithin et)
   where args = [ pretty "stdlib", pretty "ctc", pretty "txn", pretty "interact" ]
             <> map jsVar pargs
             <> [ pretty "kTop" ]
 
 
-emit_js :: BLProgram -> CompiledSol -> Doc a
-emit_js (BL_Prog pm _) (abi, code) = modp
+emit_js :: TimeoutWindowInBlocks -> BLProgram -> CompiledSol -> Doc a
+emit_js timeoutWithin (BL_Prog pm _) (abi, code) = modp
   where modp   = vsep_with_blank $ partsp ++ [ abip, codep ]
-        partsp = map jsPart $ M.toList pm
+        partsp = jsPart timeoutWithin <$> M.toList pm
         abip   = pretty $ "export const ABI = "      <> abi  <> ";"
         codep  = pretty $ "export const Bytecode = " <> code <> ";"
