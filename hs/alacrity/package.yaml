@@ -1,9 +1,9 @@
 name:                alacrity
 version:             0.1.0.0
 github:              "AlacrisIO/alacrity"
-license:             BSD3
+license:             Apache-2.0
 author:              "Alacris"
-maintainer:          "jay@alacris.io"
+maintainer:          "fare@alacris.io"
 copyright:           "2019 Alacris"
 
 extra-source-files:

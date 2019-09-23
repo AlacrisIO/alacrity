@@ -2,7 +2,11 @@
 
 ## Integers
 
-32-bits, truncated when necessary. Alacrity provides the usual operations on them: `+`, `-`, `*`, `/`, etc.
+There is only one type of Integers supported at the moment `uint256`, which is a 256-bits unsigned integer. Alacrity provides the usual operations on integer data type as:
+- Comparisons: `<=`, `<`, `==`, `!=`, `>=`, `>` (evaluate to bool)
+- Bit operators: `&`, `|`, `^` (bitwise exclusive or), `~` (bitwise negation)
+- Shift operators: `<< `(left shift), `>>` (right shift)
+- Arithmetic operators: `+`, `-`, `unary -`, `*`, `/`, `%` (modulo), `**` (exponentiation)
 
 ## Floats
 
