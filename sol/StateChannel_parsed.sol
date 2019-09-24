@@ -1,33 +1,33 @@
-
+ 
 
 pragma solidity ^0.5.9;
 
 contract StateChannelTypes {
     struct ProcessState {
-        address processor;
-        bytes32 stateRoot;
+        address processor;  
+        bytes32 stateRoot;  
     }
 
-    struct Balances {
-        uint[] owned;
-        uint[] collaterals;
-        uint[] failures;
-        uint[] deadlines;
-
-
-
+    struct Balances {  
+        uint[] owned;  
+        uint[] collaterals;  
+        uint[] failures;  
+        uint[] deadlines;  
+             
+             
+             
     }
 
     struct BalancedState {
-        bytes32 processState;
-        bytes32 balances;
+        bytes32 processState;  
+        bytes32 balances;  
     }
 
     struct State {
-        bytes32 session;
-        uint clock;
-        address[] participants;
-        bytes32 balancedState;
+        bytes32 session;  
+        uint clock;  
+        address[] participants;  
+        bytes32 balancedState;  
     }
 }
 
@@ -76,22 +76,25 @@ contract StateChannelFunctions is StateChannelTypes {
 }
 
 contract MessageProcessor is StateChannelTypes {
-
+     
     function processMessage(
-        bytes32 session,
-        uint clock,
-        address payable[] calldata participants,
-        address processor,
-        bytes32 stateRoot,
-        bytes32 balances,
-        bytes calldata message,
-        bytes calldata evidence
+        bytes32 session,  
+        uint clock,  
+        address payable[] calldata participants,  
+        address processor,  
+        bytes32 stateRoot,  
+        bytes32 balances,  
+        bytes calldata message,  
+        bytes calldata evidence  
     ) external pure returns(bytes32 newBalancedState);
 }
 
 contract StateChannelBase is StateChannelTypes, StateChannelFunctions {
-
-    function timeoutInBlocks() public pure returns(uint timeout);
+     
+    function timeoutInBlocks() public pure returns(uint)
+    {
+      return 42;
+    }
 }
 
 
@@ -99,7 +102,7 @@ contract StateChannel is StateChannelBase {
 
     bytes32 currentState;
 
-
+     
     function checkState(
         bytes32 session,
         uint clock,
@@ -112,7 +115,7 @@ contract StateChannel is StateChannelBase {
         require(currentState == digestState(session, clock, participants, balancedState));
     }
 
-
+     
     function checkSignatures(
         bytes32 digest,
         address payable[] memory participants,
@@ -149,14 +152,14 @@ contract StateChannel is StateChannelBase {
         }
     }
 
-
-
+     
+     
     event Unanimously(bytes32);
 
     enum UnanimousAction {
-        Updating,
-        Settling,
-        Closing
+        Updating,  
+        Settling,  
+        Closing  
     }
 
     function close(
@@ -208,34 +211,7 @@ contract StateChannel is StateChannelBase {
     }
 
     event Challenge(uint challengedParticipant);
-
-    function challenge(
-        bytes32 session,
-        uint clock,
-        address payable[] calldata participants,
-        bytes32 processState,
-        uint[] calldata owned,
-        uint[] calldata collaterals,
-        uint[] calldata failures,
-        uint[] calldata _deadlines,
-        uint challengingParticipant,
-        uint challengedParticipant
-    )
-        external
-    {
-        require(msg.sender == participants[challengingParticipant]);
-        require(_deadlines[challengedParticipant] == 1);
-        bytes32 balances = digestBalances(owned, collaterals, failures, _deadlines);
-        bytes32 balancedState = digestBalancedState(processState, balances);
-        checkState(session, clock, participants, balancedState);
-        emit Challenge(challengedParticipant);
-        uint[] memory deadlines = _deadlines;
-        deadlines[challengedParticipant] = block.number + timeoutInBlocks();
-        bytes32 newBalances = digestBalances(owned, collaterals, failures, deadlines);
-        bytes32 newBalancedState = digestBalancedState(processState, newBalances);
-        currentState = digestState(session, clock, participants, newBalancedState);
-    }
-
+ 
     function updateState(
         bytes32 session,
         uint clock,
@@ -267,76 +243,9 @@ contract StateChannel is StateChannelBase {
     }
 
     event TimeOut(uint clock, uint failedParticipant);
-
-    function timeOut(
-        bytes32 session,
-        uint clock,
-        address payable[] calldata _participants,
-        bytes32 processState,
-        uint[] calldata _owned,
-        uint[] calldata _collaterals,
-        uint[] calldata _failures,
-        uint[] calldata _deadlines,
-        uint failedParticipant
-    )
-        external payable
-    {
-        address payable[] memory participants = _participants;
-        uint[] memory owned = _owned;
-        uint[] memory collaterals = _collaterals;
-        uint[] memory failures = _failures;
-        uint[] memory deadlines = _deadlines;
-        bytes32 balances = digestBalances(owned, collaterals, failures, deadlines);
-        bytes32 balancedState = digestBalancedState(processState, balances);
-        checkState(session, clock, participants, balancedState);
-        uint deadline = deadlines[failedParticipant];
-        require(deadline > 1 && block.number > deadline);
-
-        address payable failedParticipantAddress = participants[failedParticipant];
-        failedParticipantAddress.transfer(owned[failedParticipant]);
-        participants[failedParticipant] = address(0);
-        failures[failedParticipant] = uint(failedParticipantAddress);
-        owned[failedParticipant] = 0;
-
-        uint newClock = nextClock(clock, participants);
-        emit TimeOut(newClock, failedParticipant);
-
-        bytes32 newBalances = digestBalances(_owned, _collaterals, _failures, deadlines);
-        bytes32 newBalancedState = digestBalancedState(processState, newBalances);
-        currentState = digestState(session, newClock, participants, newBalancedState);
-    }
-
+ 
     event Message(uint clock, bytes message);
-
-    function sendMessage(
-        bytes32 _session,
-        uint _clock,
-        address payable[] calldata _participants,
-        address _processor,
-        bytes32 _stateRoot,
-        bytes32 _balances,
-        bytes calldata _message,
-        bytes calldata _evidence)
-        external payable
-    {
-        address payable[] memory participants = _participants;
-        bytes32 processState = digestProcessState(_processor, _stateRoot);
-        bytes32 balancedState = digestBalancedState(processState, _balances);
-        checkState(_session, _clock, participants, balancedState);
-
-        uint new_clock = nextClock(_clock, participants);
-        uint participant = new_clock % _participants.length;
-        address payable participantAddress = participants[participant];
-        require(msg.sender == participantAddress);
-
-        bytes32 newBalancedState = MessageProcessor(_processor).processMessage(
-                _session, new_clock, participants,
-                _processor, _stateRoot, _balances, _message, _evidence);
-
-        emit Message(new_clock, _message);
-        currentState = digestState(_session, new_clock, participants, newBalancedState);
-    }
-
+ 
     constructor (bytes32 state) public payable
     {
         emit Unanimously(state);

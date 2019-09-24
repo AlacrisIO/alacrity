@@ -277,7 +277,10 @@ contract MessageProcessor is StateChannelTypes {
 
 contract StateChannelBase is StateChannelTypes, StateChannelFunctions {
     // This function returns the number of blocks before a timeout
-    function timeoutInBlocks() public pure returns(uint timeout);
+    function timeoutInBlocks() public pure returns(uint)
+    {
+      return 42;
+    }
 }
 
 
@@ -396,7 +399,7 @@ contract StateChannel is StateChannelBase {
     }
 
     event Challenge(uint challengedParticipant);
-
+/*
     function challenge(
         bytes32 session,
         uint clock,
@@ -423,7 +426,7 @@ contract StateChannel is StateChannelBase {
         bytes32 newBalancedState = digestBalancedState(processState, newBalances);
         currentState = digestState(session, clock, participants, newBalancedState);
     }
-
+*/
     function updateState(
         bytes32 session,
         uint clock,
@@ -455,7 +458,7 @@ contract StateChannel is StateChannelBase {
     }
 
     event TimeOut(uint clock, uint failedParticipant);
-
+/*
     function timeOut(
         bytes32 session,
         uint clock,
@@ -493,9 +496,9 @@ contract StateChannel is StateChannelBase {
         bytes32 newBalancedState = digestBalancedState(processState, newBalances);
         currentState = digestState(session, newClock, participants, newBalancedState);
     }
-
+*/
     event Message(uint clock, bytes message);
-
+/*
     function sendMessage(
         bytes32 _session,
         uint _clock,
@@ -524,7 +527,7 @@ contract StateChannel is StateChannelBase {
         emit Message(new_clock, _message);
         currentState = digestState(_session, new_clock, participants, newBalancedState);
     }
-
+*/
     constructor (bytes32 state) public payable
     {
         emit Unanimously(state);
