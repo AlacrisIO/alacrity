@@ -439,7 +439,7 @@ contract StateChannel is StateChannelBase {
         uint64 clock,
         address payable[] calldata participants,
         bytes32 balancedState,
-        uint newClock,
+        uint64 newClock,
         bytes32 newBalancedState,
         bytes calldata signatures_v,
         bytes32[] calldata signatures_r,
@@ -503,7 +503,7 @@ contract StateChannel is StateChannelBase {
         failures[failedParticipant] = uint(failedParticipantAddress);
         owned[failedParticipant] = 0;
 
-        uint newClock = nextClock(clock, participants);
+        uint64 newClock = nextClock(clock, participants);
         emit TimeOut(newClock, failedParticipant);
 
         bytes32 newBalances = digestBalances(owned, collaterals, failures, deadlines);
