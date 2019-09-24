@@ -6,6 +6,10 @@ import Data.Text.Prettyprint.Doc
 import Data.List (intersperse)
 import Control.Monad.Except
 
+
+use_state_channel :: Bool
+use_state_channel = True
+
 -- Shared types
 
 data BaseType

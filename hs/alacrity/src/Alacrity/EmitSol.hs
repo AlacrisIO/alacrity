@@ -288,8 +288,12 @@ vsep_with_blank l = vsep $ intersperse emptyDoc l
 
 emit_sol :: BLProgram -> Doc a
 emit_sol (BL_Prog _ (C_Prog ps hs)) =
-  vsep_with_blank $ [ solVersion, solStdLib, solStateChannel, ctcp ]
-  where ctcp = solContract "ALAContract is Stdlib"
+  vsep_with_blank $ listBlock
+  where listBlock = if use_state_channel then
+          [ solVersion, solStateChannel ]
+        else
+          [ solVersion, solStdLib, ctcp ]
+        ctcp = solContract "ALAContract is Stdlib"
                $ ctcbody
         ctcbody = vsep $ [state_defn, emptyDoc, consp, emptyDoc, solHandlers ps hs]
         consp = solApply "constructor" p_ds <+> "public payable" <+> solBraces consbody
@@ -299,13 +303,19 @@ emit_sol (BL_Prog _ (C_Prog ps hs)) =
 
 type CompiledSol = (String, String)
 
-extract :: Value -> CompiledSol
-extract v = (abi, code)
+extract :: Value -> String -> CompiledSol
+extract v filename = (abi, code)
   where Object hm = v
         Just (Object ctcs) = HM.lookup "contracts" hm
-        list_keys = HM.keys ctcs
-        thectc = head list_keys
-        Just (Object ctc) = HM.lookup thectc ctcs
+{-        list_keys = HM.keys ctcs -}
+{-        the_ctc = head list_keys -}
+{-        the_key_ctc = the_key ++ the_ctc -}
+        contract_name = if use_state_channel then
+                          "StateChannel"
+                        else
+                          "ALAContract"
+        the_key = T.pack $ filename ++ ":" ++ contract_name
+        Just (Object ctc) = HM.lookup the_key ctcs
         Just (String abit) = HM.lookup "abi" ctc
         abi = T.unpack abit
         Just (String codebodyt) = HM.lookup "bin" ctc
@@ -322,7 +332,7 @@ compile_sol solf blp = do
       ++ "STDERR:\n" ++ stderr ++ "\n"
     ExitSuccess ->
       case (eitherDecode $ B.pack stdout) of
-        Right v -> return $ extract v
+        Right v -> return $ extract v solf
         Left err ->
           die $ "solc failed to produce valid output:\n"
           ++ "STDOUT:\n" ++ stdout ++ "\n"

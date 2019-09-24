@@ -112,11 +112,11 @@ const encode = ({ ethers }) => (t, v) =>
   ethers.utils.defaultAbiCoder.encode([t], [v]);
 
 const SC_mkCreateIdentity = A => () =>
-  new Promise((resolve, reject) => {
-    A.web3.shh.newIdentity((err_id, result_id) =>
-    !!err_id ? reject(err_id) : resolve(result_id));
-  });
-
+      new Promise(resolve => {
+          var identities = [];
+          A.web3.shh.newSymKey().then((id) => {identities.push(id);}),
+          A.web3.shh.newKeyPair().then((id) => {identities.push(id);})
+          resolve(identities);});
 
 // The cases to cover for digest computations are
 // 1: close
@@ -464,7 +464,8 @@ const mkRecv = A => B => (label, eventName, cb) =>
 // Change of code. We no longer return a full contract, just the contract address.
 const mkDeploy = A => userAddress => ctors => {
   // TODO track down solid docs RE: why the ABI would have extra constructor
-  // fields and when/how/why dropping leading `0x`s is necessary
+    // fields and when/how/why dropping leading `0x`s is necessary
+    console.log('A.abi=', A.abi);
   const ctorTypes = A.abi
     .find(a => a.constructor)
     .inputs
