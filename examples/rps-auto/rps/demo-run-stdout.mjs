@@ -17,22 +17,20 @@ const mkInteractWith = (label, shouldForceTimeout) => (name, handf) => (a, cb) =
     return;
   }
 
-  const res = a === 'getHand' ? handf() : '';
+  const res        = a === 'getHand' ? handf() : '';
+  const commitsMsg = `${name} commits to play with (hidden) hand`;
 
   const paramsMsg =
-    [ `${name} publishes parameters of game:`
+    [ `and publishes parameters of game:`
     , `wager of ${wagerInEth}ETH`
     , `and escrow of ${escrowInEth}ETH.`
     ].join(' ');
 
   const msg
-    = a === 'params'  ? paramsMsg
-    : a === 'accepts' ? `${name} accepts the terms.`
-    : a === 'getHand' ? `(local: ${name} plays ${D.stringOfHand(res)}.)`
-    : a === 'commits' ? `${name} commits to play with (hidden) hand.`
+    = a === 'getHand' ? `(Local: ${name} plays ${D.stringOfHand(res)}.)`
+    : a === 'commits' ? commitsMsg + (label === `[Loop]:` ? `.` : ` ${paramsMsg}`)
     : a === 'shows'   ? `${name} sends hand in clear.`
     : a === 'reveals' ? `${name} reveals salt and hand.`
-    : a === 'outcome' ? `${name} agrees that game is over.`
     : null;
 
   !!msg && console.log(`${label} ${msg}`);
