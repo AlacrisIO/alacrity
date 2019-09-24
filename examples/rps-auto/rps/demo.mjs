@@ -11,9 +11,27 @@ export const ROCK     = 0;
 export const PAPER    = 1;
 export const SCISSORS = 2;
 
-export const B_WINS = 0;
-export const DRAW   = 1;
-export const A_WINS = 2;
+export const stringOfHand = a =>
+    a === ROCK     ? 'rock'
+  : a === PAPER    ? 'paper'
+  : a === SCISSORS ? 'scissors'
+  : `${a} is not a valid hand!`;
+
+
+export const B_WINS      = 0;
+export const DRAW        = 1;
+export const A_WINS      = 2;
+export const A_TIMED_OUT = 3;
+export const B_TIMED_OUT = 4;
+
+export const stringOfOutcome = a =>
+    a == B_WINS      ? 'Bob won'
+  : a == A_WINS      ? 'Alice won'
+  : a == DRAW        ? 'draw'
+  : a == A_TIMED_OUT ? 'Alice timed out'
+  : a == B_TIMED_OUT ? 'Bob timed out'
+  : `${a} is not a valid outcome!`;
+
 
 const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
   const { balanceOf, devnet, transfer } = stdlib;
@@ -74,9 +92,10 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
   // condition! In other words, the waiter's "<opponent> timed out"
   const awaitTimeoutFor = (ctc, label, participant, resolve) =>
     participant.onTimeout(ctc, label, addr =>
-        addr  !== participant.userAddress ? resolve(`${label} timed out`)
-      : label === 'Alice'                 ? resolve(`Bob timed out`)
-      :                                     resolve(`Alice timed out`));
+        addr !== participant.userAddress && label === 'Alice' ? resolve(A_TIMED_OUT)
+      : addr !== participant.userAddress && label === 'Bob'   ? resolve(B_TIMED_OUT)
+      :                                     label === 'Alice' ? resolve(B_TIMED_OUT)
+      :                                                         resolve(A_TIMED_OUT));
 
 
   const bobShoot = ctcAlice =>

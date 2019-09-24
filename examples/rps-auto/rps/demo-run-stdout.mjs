@@ -1,9 +1,9 @@
 // vim: filetype=javascript
 
-import * as RPS                     from '../build/rps.mjs';
-import * as RPSW                    from '../build/rps_while.mjs';
-import { runGameWith, timeoutPred } from './demo.mjs';
-import { stdlibNode               } from './stdlib/web3/node.mjs';
+import * as RPS       from '../build/rps.mjs';
+import * as RPSW      from '../build/rps_while.mjs';
+import * as D         from './demo.mjs';
+import { stdlibNode } from './stdlib/web3/node.mjs';
 
 const wagerInEth  = '1.5';
 const escrowInEth = '0.15';
@@ -28,7 +28,7 @@ const mkInteractWith = (label, shouldForceTimeout) => (name, handf) => (a, cb) =
   const msg
     = a === 'params'  ? paramsMsg
     : a === 'accepts' ? `${name} accepts the terms.`
-    : a === 'getHand' ? `(local: ${name} plays ${res}.)`
+    : a === 'getHand' ? `(local: ${name} plays ${D.stringOfHand(res)}.)`
     : a === 'commits' ? `${name} commits to play with (hidden) hand.`
     : a === 'shows'   ? `${name} sends hand in clear.`
     : a === 'reveals' ? `${name} reveals salt and hand.`
@@ -50,21 +50,21 @@ const mkDemo = (doWhile, drawFirst, shouldForceTimeout) => {
     ].join(' ');
 
   const outcomeMsgs = gs =>
-    [ `${label} Alice thinks outcome is ${gs.outcomeAlice}.`
-    , `${label} Bob thinks outcome is ${gs.outcomeBob}.`
+    [ `${label} Alice thinks outcome is ${D.stringOfOutcome(gs.outcomeAlice)}.`
+    , `${label} Bob thinks outcome is ${D.stringOfOutcome(gs.outcomeBob)}.`
     ].join('\n');
 
   const theRPS = doWhile ? RPSW : RPS;
 
   const runGameWithTheRPS = s =>
-    runGameWith(theRPS
-              , s
-              , doWhile
-              , drawFirst
-              , mkInteractWith(label, shouldForceTimeout)
-              , wagerInEth
-              , escrowInEth
-              , uri);
+    D.runGameWith(theRPS
+                , s
+                , doWhile
+                , drawFirst
+                , mkInteractWith(label, shouldForceTimeout)
+                , wagerInEth
+                , escrowInEth
+                , uri);
 
   return new Promise(resolve =>
     Promise.resolve(console.log(introMsg))
@@ -77,9 +77,9 @@ const mkDemo = (doWhile, drawFirst, shouldForceTimeout) => {
 
 
 // TODO re-enable `WHILE` demo
-mkDemo(false, true, timeoutPred.aliceForces)
-  .then(() => mkDemo(false, false, timeoutPred.bobForces))
-  .then(() => mkDemo(false, true,  timeoutPred.never))
-  .then(() => mkDemo(false, false, timeoutPred.never))
+mkDemo(false, true, D.timeoutPred.aliceForces)
+  .then(() => mkDemo(false, false, D.timeoutPred.bobForces))
+  .then(() => mkDemo(false, true,  D.timeoutPred.never))
+  .then(() => mkDemo(false, false, D.timeoutPred.never))
   .then(() => process.exit(0))
   .catch(e => console.error(e) || process.exit(1));
