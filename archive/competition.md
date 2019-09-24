@@ -202,7 +202,13 @@ they do not offer deployment services.
   in between the contracts and the blockchain, with its impedance mismatch, with no obvious gain.
   The vat layer is very relevant, the other layers less so.
 
-* [Archetype](https://docs.archetype-lang.org/) looks very interesting. Currently Tezos-focused, but the approach seems to be general. They also feature extraction to several outputs. They don't seem to have the adversarial aspect, but on the other hand seem competitive with the usual crowd of "formally verified" languages.
+* [Archetype](https://docs.archetype-lang.org/) looks very interesting.
+  Currently Tezos-focused, but the approach seems to be general enough
+  that it could be easily ported to other platforms.
+  Like Alacrity, Archetype features extraction to several outputs;
+  it doesn't currently seem to output client and server, but it probably could.
+  Archetype seems competitive with the usual crowd of "formally verified" languages,
+  but doesn't seem to handle the adversarial aspect of interactions, that is central to Alacrity.
 
 * ??? Is there anything useful in this article? [Impossibility of the Obama-Trump contract](https://eprint.iacr.org/2018/252.pdf) - looks like they assume a successful 51% attack, which makes the entire article moot.
 
