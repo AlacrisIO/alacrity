@@ -44,7 +44,7 @@ const makeDemo = (doWhile, drawFirst) => {
   const theRPS = doWhile ? RPSW : RPS;
 
   return new Promise(resolve =>
-    Promise.resolve(console.log(introMsg, 'theRPS.ABI=', theRPS.ABI))
+    Promise.resolve(console.log(introMsg))
       .then(() => stdlibNode(theRPS.ABI, theRPS.Bytecode, uri))
       .then(s  => runGameWith(theRPS, s, doWhile, drawFirst, makeInteractWith(label), wagerInEth, escrowInEth, uri))
       .then(gs => console.log(outcomeMsgs(gs)))

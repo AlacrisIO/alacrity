@@ -1,6 +1,8 @@
 // vim: filetype=javascript
 import abiDecoder      from 'abi-decoder';
 
+const use_state_channel = true;
+
 const panic = e => { throw Error(e); };
 
 const k = (reject, f) => (err, ...d) =>
@@ -120,20 +122,20 @@ const SC_mkCreateIdentity = A => () =>
 
 // The cases to cover for digest computations are
 // 1: close
-//   digest = keccak256(abi.encode(session, UnanimousAction.Closing, withdrawals, beneficiary))
+//   digest = keccak256(encode(A)(session, UnanimousAction.Closing, withdrawals, beneficiary))
 // 2: settle
-//   digest = keccak256(abi.encode(session, UnanimousAction.Settling, deposit, withdrawals, newState)
+//   digest = keccak256(encode(A)(session, UnanimousAction.Settling, deposit, withdrawals, newState)
 // 3: updateState
-//   digest = keccak256(abi.encode(session, UnanimousAction.Updating, newClock, newBalancedState))
+//   digest = keccak256(encode(A)(session, UnanimousAction.Updating, newClock, newBalancedState))
 // The signature
 //
 const get_digest = A => (oper) => {
     if (oper.nature == 0)
-        return keccak256(A)(A.abi.encode(oper.session, 'closing', oper.withdrawals, oper.beneficiary));
+        return keccak256(A)(encode(A)(oper.session, 'closing', oper.withdrawals, oper.beneficiary));
     if (oper.nature == 1)
-        return keccak256(A)(A.abi.encode(oper.session, 'settling', oper.deposit, oper.withdrawals, oper.newState));
+        return keccak256(A)(encode(A)(oper.session, 'settling', oper.deposit, oper.withdrawals, oper.newState));
     if (oper.nature == 2)
-        return keccak256(A)(A.abi.encode(oper.session, 'updating', oper.clock, oper.data));
+        return keccak256(A)(encode(A)(oper.session, 'updating', oper.clock, oper.data));
 };
 
 let CheckCorrectnessOperation = A => B => (oper) => {
@@ -194,7 +196,9 @@ const SC_GetSingle_VRSsignature = A => B => (requestpair, state) =>
 
 
 const digestState = A => full_state => {
-    return keccak256(A)(A.abi.encoded(full_state.session, full_state.clock, full_state.participant, full_state.data));
+    console.log('A=', A);
+    console.log('full_state=', full_state);
+    return keccak256(A)(encode(A)(full_state.session, full_state.clock, full_state.participant, full_state.data));
 };
 
 
@@ -462,21 +466,37 @@ const mkRecv = A => B => (label, eventName, cb) =>
 
 // https://web3js.readthedocs.io/en/v1.2.0/web3-eth.html#sendtransaction
 // Change of code. We no longer return a full contract, just the contract address.
-const mkDeploy = A => userAddress => ctors => {
+const mkDeploy = A => userAddress => (full_state, ctors) => {
   // TODO track down solid docs RE: why the ABI would have extra constructor
     // fields and when/how/why dropping leading `0x`s is necessary
-    console.log('A.abi=', A.abi);
-  const ctorTypes = A.abi
+  console.log('mkDeploy : full_state=', full_state);
+//    console.log('A.abi=', A.abi);
+  if (use_state_channel) {
+    const newState = digestState(A)(full_state);
+    ctor_state = encode(A.ethers)('bytes32', newState);
+    const data = [ A.bytecode, ctor_state ].join('');
+  }
+  else {
+    const ctorTypes = A.abi
     .find(a => a.constructor)
     .inputs
     .map(i => i.type)
     .slice(0, ctors.length);
 
-  const encodedCtors = ctors
+    const ctor1 = A.abi.find(a =>a.constructor);
+    const ctor2 = A.abi.find(a =>a.constructor).inputs;
+    const ctor3 = A.abi.find(a =>a.constructor).inputs.map(i => i.type);
+
+    console.log('ctor1=', ctor1);
+    console.log('ctor2=', ctor2);
+    console.log('ctor3=', ctor3);
+    console.log('ctorsTypes=', ctorTypes);
+    console.log('ctors=', ctors);
+    const encodedCtors = ctors
     .map(c => encode(A.ethers)(ctorTypes[ctors.indexOf(c)], c))
     .map(un0x);
-
-  const data = [ A.bytecode, ...encodedCtors ].join('');
+    const data = [ A.bytecode, ...encodedCtors ].join('');
+  }
 
 //  const contractFromReceipt = r =>
 //    Contract(A)(userAddress)(ctors, r.contractAddress);
