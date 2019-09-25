@@ -34,7 +34,7 @@ const nat16_to_fixed_size_hex =
 // Parameterized ///////////////////////////////////////////////////////////////
 
 const balanceOf = A => a =>
-  a.web3.eth.getBalance(a.userAddress)
+  A.web3.eth.getBalance(a.userAddress)
     .then(toBN(A));
 
 const assert = ({ asserter }) => d => asserter(d);
@@ -124,8 +124,14 @@ const transfer = ({ web3 }) => (to, from, value) =>
   web3.eth.sendTransaction({ to, from, value });
 
 
+// https://web3js.readthedocs.io/en/v1.2.0/web3-eth.html#getblocknumber
+const now = ({ web3 }) =>
+  web3.eth.getBlockNumber;
+
+
 // https://web3js.readthedocs.io/en/v1.2.0/web3-eth-contract.html#web3-eth-contract
 const mkSendRecv = A => (address, from, ctors) => (label, funcName, args, value, eventName, cb) => {
+
   // https://github.com/ethereum/web3.js/issues/2077
   const munged = [ ...ctors, ...args ]
     .map(m => isBN(A)(m) ? m.toString() : m);
@@ -146,15 +152,13 @@ const consumedEventKeyOf = (name, e) =>
 
 
 // https://docs.ethers.io/ethers.js/html/api-contract.html#configuring-events
-const mkRecv = ({ web3, ethers }) => c => (label, eventName, cb) => {
-  let alreadyConsumed = false;
-
+const mkRecv = ({ web3, ethers }) => (c, w) => (label, eventName, cb) => {
   const consume = (e, bns, resolve, reject) =>
     fetchAndRejectInvalidReceiptFor({ web3 })(e.transactionHash)
       .then(() => web3.eth.getTransaction(e.transactionHash, k(reject, t => {
         const key = consumedEventKeyOf(eventName, e);
 
-        if (alreadyConsumed || (c.consumedEvents[key] !== undefined))
+        if (w.alreadyConsumed || (c.consumedEvents[key] !== undefined))
           return reject(`${label} has already consumed ${key}!`);
 
         // Sanity check: events ought to be consumed monotonically
@@ -167,7 +171,7 @@ const mkRecv = ({ web3, ethers }) => c => (label, eventName, cb) => {
           reject(`${label} attempted to consume ${eventName} out of sequential block # order!`);
         }
 
-        alreadyConsumed = true;
+        w.alreadyConsumed = true;
         Object.assign(c.consumedEvents, { [key]: Object.assign({}, e, { eventName }) });
 
         resolve();
@@ -203,7 +207,7 @@ const mkRecv = ({ web3, ethers }) => c => (label, eventName, cb) => {
   const pollPast = () => new Promise(resolve => {
     const attempt = () => past()
       .then(resolve)
-      .catch(() => flip(setTimeout, 500, () => !alreadyConsumed && attempt()));
+      .catch(() => flip(setTimeout, 500, () => !w.alreadyConsumed && attempt()));
 
     return attempt();
   });
@@ -227,16 +231,69 @@ const mkRecv = ({ web3, ethers }) => c => (label, eventName, cb) => {
 };
 
 
+const mkRecvWithin = A => c => (label, eventName, blocks, tcb, cb) => {
+  if (blocks < 0)
+    return Promise.reject('`blocks` cannot be less than 0!');
+
+  const w = { alreadyConsumed: false };
+
+  const runAlternativeAfter = timeoutBlock => new Promise((resolve, reject) => {
+    const subs = new A.ethers.providers.Web3Provider(A.web3.currentProvider);
+
+    subs.on('error', e => {
+      subs.removeAllListeners('block');
+      reject(e);
+    });
+
+    subs.on('block', n => {
+      if (w.alreadyConsumed)
+        return subs.removeAllListeners('block');
+
+      if (n < timeoutBlock)
+        return;
+
+      w.alreadyConsumed = true;
+      subs.removeAllListeners('block');
+      resolve();
+      tcb();
+    });
+  });
+
+  const raceUntil = timeoutBlock =>
+    Promise.race([ mkRecv(A)(c, w)(label, eventName, cb)
+                 , runAlternativeAfter(timeoutBlock) ]);
+
+  return now(A)()
+    .then(currentBlock => raceUntil(currentBlock + blocks))
+    .catch(panic);
+};
+
+
+const mkTimeoutTerminate = A => (address, userAddress) => () =>
+  new A.web3.eth.Contract(A.abi, address)
+    .methods['timeout']()
+    .send({ from: userAddress, value: 0 })
+    .then(r => fetchAndRejectInvalidReceiptFor(A)(r.transactionHash));
+
+
 const Contract = A => userAddress => (ctors, address) => {
+  const recv = (label, eventName, cb) =>
+    mkRecv(A)(c, { alreadyConsumed: false })(label, eventName, cb);
+
+  const recvWithin = (label, eventName, blocks, tcb, cb) =>
+    mkRecvWithin(A)(c)(label, eventName, blocks, tcb, cb);
+
   const c =
-    { abi:            A.abi
-    , bytecode:       A.bytecode
-    , sendrecv:       mkSendRecv(A)(address, userAddress, ctors)
-    , recv:           (l, n, cb) => mkRecv(A)(c)(l, n, cb)
-    , consumedEvents: {}
+    { abi:              A.abi
+    , bytecode:         A.bytecode
+    , sendrecv:         mkSendRecv(A)(address, userAddress, ctors)
+    , timeoutTerminate: mkTimeoutTerminate(A)(address, userAddress)
+    , consumedEvents:   {}
     , ctors
     , address
     };
+
+  Object.assign(c, { recv, recvWithin });
 
   return c;
 };
@@ -244,6 +301,7 @@ const Contract = A => userAddress => (ctors, address) => {
 
 // https://web3js.readthedocs.io/en/v1.2.0/web3-eth.html#sendtransaction
 const mkDeploy = A => userAddress => ctors => {
+
   // TODO track down solid docs RE: why the ABI would have extra constructor
   // fields and when/how/why dropping leading `0x`s is necessary
   const ctorTypes = A.abi
@@ -268,12 +326,19 @@ const mkDeploy = A => userAddress => ctors => {
 };
 
 
-const EthereumNetwork = A => userAddress =>
-  ({ deploy: mkDeploy(A)(userAddress)
-   , attach: (ctors, address) => Promise.resolve(Contract(A)(userAddress)(ctors, address))
-   , web3:   A.web3
-   , userAddress
-   });
+const EthereumNetwork = A => userAddress => {
+  const attach = (ctors, address) =>
+    Promise.resolve(Contract(A)(userAddress)(ctors, address));
+
+  const onTimeout = (contract, label, cb) =>
+    mkRecv(A)(contract, { alreadyConsumed: false })(label, 'etimeout', cb);
+
+  return { deploy: mkDeploy(A)(userAddress)
+         , attach
+         , onTimeout
+         , userAddress
+         };
+};
 
 
 // devnet-specific /////////////////////////////////////////////////////////////
@@ -284,7 +349,7 @@ const EthereumNetwork = A => userAddress =>
 const prefundedDevnetAcct = ({ web3 }) => () =>
   web3.eth.personal.getAccounts()
     .then(a => a[0])
-    .catch(e => panic(`Cannot infer prefunded account!\n${e}`));
+    .catch(() => panic(`Cannot infer prefunded account!\n`));
 
 
 const createAndUnlockAcct = ({ web3 }) => () =>
@@ -328,6 +393,7 @@ export const mkStdlib = A =>
   , bnToHex:          bnToHex(A)
   , isBN:             isBN(A)
   , transfer:         transfer(A)
+  , now:              now(A)
   , Contract:         Contract(A)
   , EthereumNetwork:  EthereumNetwork(A)
 

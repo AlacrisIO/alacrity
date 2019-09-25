@@ -1,12 +1,25 @@
 module Alacrity.AST where
 
 import qualified Data.ByteString.Char8 as B
-import qualified Data.Map.Strict as M
-import Data.Text.Prettyprint.Doc
-import Data.List (intersperse)
+import qualified Data.Map.Strict       as M
+
+import Data.List       (intersperse)
+import Numeric.Natural (Natural)
+
 import Control.Monad.Except
+import Data.Text.Prettyprint.Doc
 
 -- Shared types
+
+type TimeoutWindowInBlocks = Natural
+
+defaultTimeoutWindowInBlocks :: TimeoutWindowInBlocks
+defaultTimeoutWindowInBlocks =  100
+
+
+use_timeout :: Bool
+use_timeout = True
+
 
 data BaseType
   = AT_UInt256

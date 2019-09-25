@@ -36,15 +36,18 @@ participant B { }
 main {
     @A const handA = getHand();
     @A const commitA, saltA = precommit(handA);
+    @A interact("commits");
     @A publish! wagerAmount, escrowAmount, commitA
        w/ (wagerAmount + escrowAmount);
     commit;
 
     @B const handB = getHand();
+    @B interact("shows");
     @B publish! handB w/ wagerAmount;
     require! isHand(handB);
     commit;
 
+    @A interact("reveals");
     @A publish! saltA, handA w/ 0;
     check_commit(commitA, saltA, handA);
     require! isHand(handA);

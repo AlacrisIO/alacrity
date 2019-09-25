@@ -2,18 +2,19 @@
 
 module Alacrity.Compiler where
 
-import Control.Monad.State.Lazy
-import qualified Data.Map.Strict as M
-import qualified Data.Set as Set
-import qualified Data.Sequence as S
-import Data.Text.Prettyprint.Doc
-import System.Exit
+import qualified Data.Map.Strict           as M
+import qualified Data.Sequence             as S
+import qualified Data.Set                  as Set
 import qualified Filesystem.Path.CurrentOS as FP
 
+import Control.Monad.State.Lazy
+import Data.Text.Prettyprint.Doc
+import System.Exit
+
 import Alacrity.AST
-import Alacrity.Parser
 import Alacrity.EmitJS
 import Alacrity.EmitSol
+import Alacrity.Parser
 import Alacrity.VerifyZ3
 
 {- Inliner
@@ -23,8 +24,8 @@ import Alacrity.VerifyZ3
 
  -}
 
-type XLFuns = M.Map XLVar ([XLVar], XLExpr)
-type XLIFuns = M.Map XLVar (Bool, ([XLVar], XLExpr))
+type XLFuns        = M.Map XLVar ([XLVar], XLExpr)
+type XLIFuns       = M.Map XLVar (Bool, ([XLVar], XLExpr))
 type InlineMonad a = State (XLFuns, XLIFuns) (Bool, a)
 
 inline_fun :: XLVar -> InlineMonad ([XLVar], XLExpr)
@@ -616,23 +617,37 @@ epp (IL_Prog ips it) = BL_Prog bps cp
         initarg ((n, s), et) = ((n, s), et)
         γ = M.insert RoleContract M.empty γi
 
+
 data CompilerOpts = CompilerOpts
-  { output_dir :: FilePath
-  , source :: FilePath }
+  { output_dir            :: FilePath
+  , timeoutWindowInBlocks :: TimeoutWindowInBlocks
+  , source                :: FilePath
+  }
+
 
 compile :: CompilerOpts -> IO ()
 compile copts = do
-  let srcp = source copts
-  let out ext = FP.encodeString $ FP.append (FP.decodeString $ output_dir copts) (FP.basename (FP.decodeString srcp) `FP.addExtension` ext)
+  let srcp           = source copts
+      timeoutWithin  = timeoutWindowInBlocks copts
+      writeFile' e p = writeFile (out e) $ (show . pretty) p
+      out ext        = FP.encodeString $ FP.append
+                         (FP.decodeString $ output_dir copts)
+                         (FP.basename (FP.decodeString srcp) `FP.addExtension` ext)
+
   xlp <- readAlacrityFile srcp
-  writeFile (out "xl") (show (pretty xlp))
+
   let xilp = inline xlp
-  writeFile (out "xil") (show (pretty xilp))
-  let ilp = anf xilp
-  writeFile (out "il") (show (pretty ilp))
-  let blp = epp ilp
-  writeFile (out "bl") (show (pretty blp))
+      ilp  = anf xilp
+      blp  = epp ilp
+
+  writeFile' "xl"  xlp
+  writeFile' "xil" xilp
+  writeFile' "il"  ilp
+  writeFile' "bl"  blp
+
   verify_z3 (out "z3") ilp blp
   cs <- compile_sol (out "sol") blp
-  writeFile (out "mjs") (show (emit_js blp cs))
+
+  writeFile (out "mjs") (show (emit_js timeoutWithin blp cs))
+
   exitSuccess

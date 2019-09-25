@@ -41,4 +41,13 @@ contract Stdlib {
       uint16 len = uint16(c.length) - start;
       return ALA_BYTES_SLICE(c, start, len);
   }
+
+  function get_block_number() internal view returns(int) {
+    int nbr;
+    assembly {
+      let y := number
+      nbr := y
+    }
+    return nbr;
+  }
 }

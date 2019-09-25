@@ -226,18 +226,26 @@ solCExpr ρ (C_PrimApp pr al) = solPrimApply pr $ map (solArg ρ) al
 
 solCStmt :: SolRenaming a -> CStmt -> Doc a
 solCStmt _ (C_Claim CT_Possible _) = emptyDoc
-solCStmt _ (C_Claim CT_Assert _) = emptyDoc
-solCStmt ρ (C_Claim _ a) = (solRequire $ solArg ρ a) <> semi <> hardline
-solCStmt ρ (C_Transfer p a) = solPartVar p <> "." <> solApply "transfer" [ solArg ρ a ] <> semi <> hardline
+solCStmt _ (C_Claim CT_Assert _)   = emptyDoc
+solCStmt ρ (C_Claim _ a)           = (solRequire $ solArg ρ a) <> semi <> hardline
+solCStmt ρ (C_Transfer p a)        = solPartVar p <> "."
+                                                  <> solApply "transfer" [ solArg ρ a ]
+                                                  <> semi
+                                                  <> hardline
 
 solCTail :: [Participant] -> Doc a -> SolRenaming a -> CCounts -> CTail -> Doc a
 solCTail ps emitp ρ ccs ct =
   case ct of
     C_Halt ->
-      emitp <> vsep [ solSet ("current_state") ("0x0") <> semi,
-                      solApply "selfdestruct" [ solApply "address" [ pretty alacrisAddress ] ] <> semi ]
+      emitp <> vsep [ solSet ("current_state") ("0x0") <> semi
+                    , solApply "selfdestruct"
+                        [ solApply "address" [ pretty alacrisAddress ]] <> semi <> hardline
+                    ]
     C_Wait i svs ->
-      emitp <> (solSet ("current_state") (solHashState ρ i ps svs)) <> semi
+      emitp <> vsep [ "last_address = msg.sender"                      <> semi
+                    , "block_nbr = get_block_number()"                 <> semi
+                    , solSet "current_state" (solHashState ρ i ps svs) <> semi <> hardline
+                    ]
     C_If ca tt ft ->
       "if" <+> parens (solArg ρ ca) <+> bp tt <> hardline <> "else" <+> bp ft
       where bp at = solBraces $ solCTail ps emitp ρ ccs at
@@ -284,13 +292,33 @@ vsep_with_blank l = vsep $ intersperse emptyDoc l
 emit_sol :: BLProgram -> Doc a
 emit_sol (BL_Prog _ (C_Prog ps hs)) =
   vsep_with_blank $ [ solVersion, solStdLib, ctcp ]
-  where ctcp = solContract "ALAContract is Stdlib"
-               $ ctcbody
-        ctcbody = vsep $ [state_defn, emptyDoc, consp, emptyDoc, solHandlers ps hs]
-        consp = solApply "constructor" p_ds <+> "public payable" <+> solBraces consbody
+  where ctcp     = solContract "ALAContract is Stdlib" ctcbody
+        consp    = solApply "constructor" p_ds <+> "public payable" <+> solBraces consbody
         consbody = solCTail ps emptyDoc M.empty M.empty (C_Wait 0 [])
-        state_defn = "uint256 current_state;"
-        p_ds = map solPartDecl ps
+        p_ds     = map solPartDecl ps
+        ctcbody  = vsep [ "uint256 current_state;"
+                        , "int block_nbr;"
+                        , "address last_address;"
+                        , "int timeout_depth = 10;"
+                        , emptyDoc
+                        -- TODO: * Process correct reimbursements
+                        --       * Replace hard-coded timeout implementation
+                        -- NOTE: * `emit` must precede `selfdestruct` for anyone to
+                        --         actually receive the event, but unfortunately this
+                        --         introduces a race condition until we implement
+                        --         fully programmable timeout handlers
+                        , "event etimeout(address payable m);"
+                        , "function timeout() public payable {"
+                        , "  require(msg.sender == last_address);"
+                        , "  require(get_block_number() > block_nbr + timeout_depth);"
+                        , "  emit etimeout(msg.sender);"
+                        , "  selfdestruct(msg.sender);"
+                        , "}"
+                        , emptyDoc
+                        , consp
+                        , emptyDoc
+                        , solHandlers ps hs
+                        ]
 
 type CompiledSol = (String, String)
 
@@ -308,17 +336,19 @@ extract v = (abi, code)
 compile_sol :: String -> BLProgram -> IO CompiledSol
 compile_sol solf blp = do
   writeFile solf (show (emit_sol blp))
-  ( ec, stdout, stderr ) <- readProcessWithExitCode "solc" ["--optimize", "--combined-json", "abi,bin", solf] []
+  ( ec, stdout, stderr ) <- readProcessWithExitCode
+    "solc" ["--optimize", "--combined-json", "abi,bin", solf] []
+
   case ec of
     ExitFailure _ ->
       die $ "solc errored:\n"
-      ++ "STDOUT:\n" ++ stdout ++ "\n"
-      ++ "STDERR:\n" ++ stderr ++ "\n"
+         ++ "STDOUT:\n" ++ stdout ++ "\n"
+         ++ "STDERR:\n" ++ stderr ++ "\n"
     ExitSuccess ->
       case (eitherDecode $ B.pack stdout) of
-        Right v -> return $ extract v
+        Right v  -> return $ extract v
         Left err ->
           die $ "solc failed to produce valid output:\n"
-          ++ "STDOUT:\n" ++ stdout ++ "\n"
-          ++ "STDERR:\n" ++ stderr ++ "\n"
-          ++ "Decode Error:\n" ++ err ++ "\n"
+             ++ "STDOUT:\n"       ++ stdout ++ "\n"
+             ++ "STDERR:\n"       ++ stderr ++ "\n"
+             ++ "Decode Error:\n" ++ err    ++ "\n"

@@ -8,7 +8,7 @@ build: build/rps.ala.mjs build/rps_while.ala.mjs
 
 build/%.ala.mjs: rps/%.ala
 	stack build
-	stack exec -- alacrityc -o build $^
+	stack exec -- alacrityc -o build -t 10 $^
 
 lint:
 	@`npm bin`/eslint -c .eslintrc.yaml "rps/**/*.mjs"
