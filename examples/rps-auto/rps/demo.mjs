@@ -70,29 +70,32 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
   const txn0 = { balance: 0, value: 0 };
 
   const bobShoot = contractAddress =>
-    new Promise(resolve =>
-      MutableState(contractAddress, gameState.ctors, gameState.bob, gameState.alice,
-                   gameState.deposit, gameState.full_state)
-      .then(mutStat => SpanCTC(mutStat))
-      .then(ctc => Promise.race([ctc.SC_SpanThreads(),
+    new Promise(resolve => {
+        const mutStat = MutableState(contractAddress, gameState.ctors, gameState.bob, gameState.alice,
+                                     gameState.deposit, gameState.full_state);
+        const ctc = SpanCTC(mutStat);
+        return new Promise.race([ctc.SC_SpanThreads(),
           new Promise.resolve(ctc =>
             ctc.SC_CreateSC()
             .then(ctc => theRPS.B(stdlib
                   , ctc, txn0, interactWith('Bob', makeWhichHand())
-                                  , resolve)))])));
+                                  , resolve)))]);
+    });
+
 
 
   const aliceShoot = contractAddress =>
-    new Promise(resolve =>
-      MutableState(contractAddress, gameState.ctors, gameState.alice, [0,0],
-                   gameState.deposit, gameState.full_state)
-      .then(mutStat => SpanCTC(mutStat))
-      .then(ctc => Promise.race([ctc.SC_SpanThreads(),
+        new Promise(resolve => {
+            const mutStat = MutableState(contractAddress, gameState.ctors, gameState.alice, [0,0],
+                                         gameState.deposit, gameState.full_state);
+            const ctc = SpanCTC(mutStat);
+            return new Promise.race([ctc.SC_SpanThreads(),
           new Promise.resolve(ctc =>
             ctc.SC_CreateSC()
             .then(ctc => theRPS.A(stdlib
                   , ctc, txn0, interactWith('Alice', makeWhichHand())
-                                  , wagerInWei, escrowInWei, resolve)))])));
+                                  , wagerInWei, escrowInWei, resolve)))]);
+        });
 
   return prefundedDevnetAcct()
     .then(p   => Promise.all([ newPlayer(p), newPlayer(p) ]))

@@ -110,8 +110,10 @@ const lt    = A => (a, b) => toBN(A)(a).lt( toBN(A)(b));
 
 
 // `t` is a type name in string form; `v` is the value to cast
-const encode = ({ ethers }) => (t, v) =>
-  ethers.utils.defaultAbiCoder.encode([t], [v]);
+const encode = ({ ethers }) => (t, v) => {
+  console.log('t=', t, ' v=', v);
+  return ethers.utils.defaultAbiCoder.encode([t], [v]);
+  }
 
 const SC_mkCreateIdentity = A => () =>
       new Promise(resolve => {
@@ -196,9 +198,9 @@ const SC_GetSingle_VRSsignature = A => B => (requestpair, state) =>
 
 
 const digestState = A => full_state => {
-    console.log('A=', A);
-    console.log('full_state=', full_state);
-    return keccak256(A)(encode(A)(full_state.session, full_state.clock, full_state.participant, full_state.data));
+//    console.log('A=', A);
+//    console.log('full_state=', full_state);
+    return keccak256(A)(full_state.session + A.web3.utils.toHex(full_state.clock) + A.web3.utils.toHex(full_state.participant) + full_state.data);
 };
 
 
@@ -355,7 +357,7 @@ const SC_ScanMessage = A => B =>
 
 
 const SC_WaitEvents = A => B =>
-  new Promise.race([
+  Promise.race([
       SC_ScanUnanimously(A)(B),
       SC_ScanChallenge(A)(B),
       SC_ScanTimeOut(A)(B),
@@ -471,10 +473,12 @@ const mkDeploy = A => userAddress => (full_state, ctors) => {
     // fields and when/how/why dropping leading `0x`s is necessary
   console.log('mkDeploy : full_state=', full_state);
 //    console.log('A.abi=', A.abi);
+  var data;
   if (use_state_channel) {
     const newState = digestState(A)(full_state);
-    ctor_state = encode(A.ethers)('bytes32', newState);
-    const data = [ A.bytecode, ctor_state ].join('');
+    const ctor_state = un0x(encode(A.ethers)('bytes32', newState));
+//    console.log('ctor_state=', ctor_state);
+    data = [ A.bytecode, ctor_state ].join('');
   }
   else {
     const ctorTypes = A.abi
@@ -495,12 +499,12 @@ const mkDeploy = A => userAddress => (full_state, ctors) => {
     const encodedCtors = ctors
     .map(c => encode(A.ethers)(ctorTypes[ctors.indexOf(c)], c))
     .map(un0x);
-    const data = [ A.bytecode, ...encodedCtors ].join('');
+    data = [ A.bytecode, ...encodedCtors ].join('');
   }
 
 //  const contractFromReceipt = r =>
 //    Contract(A)(userAddress)(ctors, r.contractAddress);
-
+//  console.log('data=', data);
   return A.web3.eth.estimateGas({ data })
     .then(gas => A.web3.eth.sendTransaction({ data, gas, from: userAddress }))
     .then(r => rejectInvalidReceiptFor(r.transactionHash)(r))
