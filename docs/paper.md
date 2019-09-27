@@ -6,6 +6,9 @@ Head of Research, Alacris
 
 Associate Professor, University of Massachusetts Lowell
 
+(Edited and updated for the current language version
+by François-René Rideau.)
+
 # Introduction
 
 Alacrity is a domain-specific language for writing decentralized
@@ -138,26 +141,14 @@ her commitment (`commitA`). She also needs to actually transfer this
 amount of resources into the contract's account. Finally, all parties
 need to agree that Alice actually sent this information.
 
-There is a small wrinkle, however. Alacrity uses an information-flow
-security type system to ensure that participants do not accidentally
-reveal secret information. All information that only one participant
-knows is assumed to be secret until explicitly declassified. In this
-case, Alice's knowledge of the terms of the bet and her commitment are
-secret. Therefore, Alice needs to first declassify this information
-before performing the transfer.
-
 ```
-    @A declassify! wagerAmount;
-    @A declassify! escrowAmount;
-    @A declassify! commitA;
     @A publish! wagerAmount, escrowAmount, commitA
        w/ (wagerAmount + escrowAmount);
     commit;
 ```
 
-The first two lines perform the declassification, while the next two
-perform the publishing and payment to the contract. The last line
-(`commit;`) finishes the consensual block and returns to the next
+The first two lines perform the publishing and payment to the contract.
+The last line (`commit;`) finishes the consensual block and returns to the next
 local block. After this statement, it is now consensual knowledge that
 Alice shared these three values and transferred the appropriate
 amount.
@@ -169,11 +160,10 @@ always exactly one participant that initiates a consensus block. (This
 is not intrinsic to decentralized applications, but a particular
 limitation of the first version of Alacrity. In [Future
 Work](#future-work), we discuss lifting this limitation.)  In this
-block, Bob declassifies his hand, publishes it, and transfers the
+block, Bob publishes his hand, and transfers the
 wager amount, which he has just learned from the last consensus block.
 
 ```
-    @B declassify! handB;
     @B publish! handB w/ wagerAmount;
     require! isHand(handB);
     commit;
@@ -193,13 +183,11 @@ attempt to publish it would be rejected.
 The last consensus block is where a lot of action is going to
 happen. We will break it down into a number of steps.
 
-First, Alice publishes the inputs to the commitment, after
-declassifying them, and we consensually verify that the earlier
+First, Alice publishes the inputs to the commitment, and
+we consensually verify that the earlier
 commitment actually is made from these inputs:
 
 ```
-    @A declassify! saltA;
-    @A declassify! handA;
     @A publish! saltA, handA w/ 0;
     check_commit(commitA, saltA, handA);
 ```
@@ -350,21 +338,6 @@ duplicating code, to enforce the previously mentioned conditions on
 `if`s. The compiler does extra purity analysis to turn `if`s in the
 source code into conditional moves in the intermediate representations
 to avoid code growth.
-
-Alacrity's type system is information-flow sensitive. As mentioned
-before, all initial knowledge of participants is marked as secret by
-Alacrity. Any transformation that involves secret information in any
-way produces secret information. Most importantly, this means that `if
-Secret then Public else Public` produces secret information, not
-public, because a secret value was used to compute the branch
-taken. When Alacrity programmers attempt to publish information, the
-compiler refuses to continue if the information is secret; instead,
-the programmer must explicitly declassify it before sending. We could
-remove these annotations by always assuming that published information
-is implicitly declassified, but we view manual declassification
-annotations as a fundamental step in security auditing: programmers
-should have to explicitly decide when something is free to release to
-the public.
 
 Alacrity's variable scope rules are subtle because programs involve
 the actions of many parties. During type checking, the compiler must
@@ -861,8 +834,7 @@ try again. It is likely that this is a special case of a `WHILE` and a
 In the longer term, we are interested in exploring the semantics of
 decentralized applications that concurrently operate on multiple
 consensus chains, rather than a single network, and only partially
-share information, rather than only distinguishing between `Public`
-and `Secret`.
+share information.
 
 Finally, Alacrity is implemented as an approximately 2,500 line
 Haskell program that must be trusted for the claims made about
