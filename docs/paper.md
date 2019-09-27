@@ -52,7 +52,7 @@ properties. This is in contrast to designing an unconstrained language
 and providing a novel proving technique specialized for decentralized
 applications.
 
-In this article, we take walk-through of an example Alacrity program
+In this article we take a walk-through of an example Alacrity program
 and show how Alacrity performs each function.
 
 # External References and Example Program
@@ -69,9 +69,8 @@ In this article, we will repeatedly refer to a simple example program:
 
 https://github.com/AlacrisIO/alacrity/blob/master/examples/rps-auto/rps/rps.ala
 
-And the results of Alacrity's compilation of the program:
-
-https://github.com/AlacrisIO/alacrity/tree/master/examples/rps-auto/build
+Having compiled the example Rock-Paper-Scissors DApp you may inspect the output
+in the project's `./build` directory.
 
 This program models a wager on the result of a game of
 Rock-Paper-Scissors between Alice and Bob. In the game, Alice
@@ -129,7 +128,7 @@ main {
 Next, Alice computes the commitment by calling a library function
 `precommit` and receiving the multiple values it returns. It binds
 these values to the new constants `commitA` (the commitment) and
-`saltA` (the random salt.)
+`saltA` (the random salt).
 
 ```
     @A const commitA, saltA = precommit(handA);
@@ -159,7 +158,7 @@ consensus block, which is initiated by Bob. In Alacrity, there is
 always exactly one participant that initiates a consensus block. (This
 is not intrinsic to decentralized applications, but a particular
 limitation of the first version of Alacrity. In [Future
-Work](#future-work), we discuss lifting this limitation.)  In this
+Work](#future-work) we discuss lifting this limitation.) In this
 block, Bob publishes his hand, and transfers the
 wager amount, which he has just learned from the last consensus block.
 
@@ -276,6 +275,7 @@ Participant Internal := {
     start : Internal x Maybe Block
     react : Internal x State x Block
          -> Internal x Maybe Block
+}
 ```
 
 The `start` object represents the initial private knowledge of the
@@ -362,10 +362,10 @@ delivers it to an SMT solver (e.g. Z3) for verification.
 (Skip this paragraph if you do not need an introduction to SMT.)
 Satisfiability Modulo Theories (SMT) is a decision problem on logical
 formulas and sets of equational theories. SMT can be seen as an
-optimization of satisfiability (SAT). A SAT problem concerns a set of
+optimization of satisfiability (SAT). An SAT problem concerns a set of
 boolean variables ($x_0$, $x_1$, ... $x_n$) and a formula over them
 (e.g., $x_0 \vee \neg x_1 \implies x_2$). The SAT solver determines if
-there is an assignment of the variables to values such that the
+there is an assignment of values to the variables such that the
 formula evaluates to true. SAT was the first problem proved to be
 NP-complete. If NP does not equal P, then SAT is intractable and there
 is no solution that is not exponential. SMT generalizes SAT by adding
@@ -376,13 +376,12 @@ a function from boolean to boolean and `not (not x) = x` is an
 equation. Rich SMT solvers have many more theories, such as a theory
 of natural number, bit vectors, arrays, and so on. They also give
 users the ability to define new sorts and new equational theories over
-them. The main thing that a SMT solver does is determine if a formula
-is satisfiable, i.e. there exists an assignment of variables to values
-where the formula is true. Most SMT solvers, including Z3 which we
-use, also provide the ability to derive models, which are the actual
-values that satisfy the formula. (It is important to understand that
-simply determining if an assignment exists does not entail that you
-know the values.)
+them. _**The main purpose of an SMT solver is to determine if a formula is
+satisfiable, i.e. whether there exists an assignment of values to variables
+where the formula's result is `true`**_. Most SMT solvers, including Z3, which
+is what we use, also provide the ability to derive models, which are the actual
+values that satisfy the formula. (It is important to understand that simply
+determining if an assignment exists does not entail that you know the values.)
 
 Given the low-computational complexity of Alacrity and the A-Normal
 Form of the intermediate language, representing Alacrity programs as
@@ -391,9 +390,8 @@ language becomes a variable in the SMT problems of the appropriate
 sort and is constrained to be equal to the right-hand side of the
 variable definition. We extend the set of sorts and theories to deal
 with the particular kinds of values, like message digests and byte
-strings, used in Alacrity programs. (See the
-[build/rps.z3](https://github.com/AlacrisIO/alacrity/blob/master/examples/rps-auto/build/rps.z3)
-file for an example Z3 verification session.)
+strings, used in Alacrity programs. (See the `./build/rps.z3` file for an
+example Z3 verification session.)
 
 Alacrity verifies the correctness of each property from the
 perspective of each participant, as well as the contract, and under a
@@ -460,7 +458,7 @@ committed to. In addition to these requirements specified by the
 programmer, Alacrity automatically generates requirements that the
 amount transferred to the consensus at each interaction is the same as
 is specified in the program (e.g., Bob actually transmits the wager
-amount.)
+amount).
 
 **Possibilities** (`possible?`) are ignored at runtime and are checked
 for satisfiability in the SMT problem. Unlike assertions, these are
@@ -506,16 +504,13 @@ application: the behavior of each individual client-side participant,
 as well as the on-chain behavior of the contract. Unlike traditional
 languages, where compilation results in a single binary, Alacrity
 compilations result in N clients, one for each participant, and a
-contract. In our example program, there is a client for Alice and Bob,
-plus a contract. The clients are contained in one source file,
-[build/rps.mjs](https://github.com/AlacrisIO/alacrity/blob/master/examples/rps-auto/build/rps.mjs),
-while the contract is in
-[build/rps.sol](https://github.com/AlacrisIO/alacrity/blob/master/examples/rps-auto/build/rps.sol).
+contract. In our example program there is a client for Alice and Bob
+and also a contract. The clients are contained in one source file,
+`./build/rps.mjs`, while the contract is in `./build/rps.sol`.
 
 This process of compiling multiple end-points from a single source
 program is called end-point projection and is one stage of our
-compiler. (The result of this stage is its own program,
-[build/rps.bl](https://github.com/AlacrisIO/alacrity/blob/master/examples/rps-auto/build/rps.bl).)
+compiler. (The result of this stage is its own program, `./build/rps.bl`.)
 In this discussion, we will mix the process of projection with the
 process of compiling to the target languages.
 
@@ -563,7 +558,7 @@ Here is the first step of the example program:
 ```
 
 In this step, the free variables are `pA` and `pB` (the identities of
-the participants) and the message are the three variables
+the participants) and the message is the three variables
 `v15/wagerAmount`, `v16/escrowAmount`, and `v14/commitA`. We require
 that the state is one where the step is `0` and the participants are
 the same as from the constructor. We require that `pA` is the sender
@@ -641,8 +636,8 @@ interaction with the blockchain requires a continuation argument. In
 fact, the entire client is written in continuation-passing style, so
 the front-end code, authored by Alacrity users, passes a continuation
 into the Alacrity client, which will be called with the final value
-returned from the program. This front-end code is available at
-[spec/rps-spec.mjs](https://github.com/AlacrisIO/alacrity/blob/master/examples/rps-auto/rps/spec/rps-spec.mjs).
+returned from the program. Example front-end code is available
+[here](../examples/rps-auto/rps/demo-run-stdout.mjs).
 
 Let's take a look at the header of the function for Alice:
 
@@ -695,9 +690,9 @@ As mentioned, the initiating participant first sends the message
 the method ran successfully by waiting to receive the corresponding
 event. Once the event is received, it ensures that the received event
 is the same one that it sent by checking that the values are the same
-as those predicted by it (comparing `v15` with `p15` and so on.) In
-addition the publication, the `ctc.recv` function exposes the transfer
-amount `v18`. At this point, Alice has the same information that
+as those predicted by it (comparing `v15` with `p15` and so on). In
+addition to publication, the `ctc.recv` function exposes the transfer
+amount `v18`. At this point, Alice has the same information the
 consensus block did, so it runs the exact same code as the consensus:
 
 ```
@@ -763,8 +758,8 @@ transfer amount:
 The code for Bob is similar, except dual: where Alice sends, Bob
 receives and vice versa. All together, Bob's code is 46 lines and
 Alice's code is 60 lines. It would be tedious to produce this code
-manually, because there is so much duplication of computation between
-each of the sides and the contract. Any inconsistency between these
+manually due to the amount of repeated computation between
+both sides of the client and the contract. Any inconsistency between these
 three programs is a potential error and opening for an attack on the
 resources controlled by the application. Alacrity reduces the required
 engineering effort and increases the reliability and trustworthiness
