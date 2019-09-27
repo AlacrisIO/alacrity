@@ -165,7 +165,8 @@ they do not offer deployment services.
   in client code.
   But Alacrity provides exactly the missing higher-level programming model.
 
-* DeepSea is a general-purpose language for writing code at the level of abstraction of C,
+* [DeepSea](https://certik.org/deepsea_blockchain.html)
+  is a general-purpose language for writing code at the level of abstraction of C,
   but with proofs of correctness using separation logic in Coq.
   You can do anything with it, including proving smart contract,
   but you're going to have to have a large team of PhD-level logicians do it the hard way;
@@ -200,7 +201,8 @@ they do not offer deployment services.
   In the end, instead of being able to provide a language that minimizes the complexity of writing DApps,
   they end up introducing a complex, arbitrary language (E, just with JavaScript syntax)
   in between the contracts and the blockchain, with its impedance mismatch, with no obvious gain.
-  The vat layer is very relevant, the other layers less so.
+  The vat layer is very relevant; the four dimensions of rights in erights are interesting,
+  though not always relevant.
 
 * [Archetype](https://docs.archetype-lang.org/) looks very interesting.
   Currently Tezos-focused, but the approach seems to be general enough
