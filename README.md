@@ -16,8 +16,8 @@ This code is being developed as free software by LegiLogic, Inc., for
 the sake of Alacris, Ltd., that owns the copyright and publishes the
 code.
 
-The Alacrity software is distributed under the GNU Lesser General
-Public License, version 2.1. See the file [LICENSE](LICENSE).
+The Alacrity software is distributed under the
+Apache License, version 2.0. See the file [LICENSE](LICENSE).
 
 
 ### Being worked on
