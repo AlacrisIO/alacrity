@@ -1,3 +1,3 @@
 [//]: # (title: FAQs)
 
-This should be a list of frequntly asked questions with answers
+This should be a list of frequently asked questions with answers.

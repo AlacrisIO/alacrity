@@ -1,5 +1,7 @@
 [//]: # (title: Tuple)
 
+We currently only support pairs. In the future, we will support arbitrary tuples.
+
 Tuples are
 
 - immutable
@@ -9,7 +11,7 @@ Tuples are
 
 ```alacrity
 let ageAndName = (24, "Lil' Reason");
-let my3dCoordinates = (20.0, 30.5, 100.0);
+let my2dCoordinates = (20.0, 30.5);
 ```
 
 Tuples' types can be used in type annotations as well. Tuple types visually resemble tuples values.
@@ -17,8 +19,8 @@ Tuples' types can be used in type annotations as well. Tuple types visually rese
 ```alacrity
 let ageAndName: (int, string) = (24, "Lil' Reason");
 /* a tuple type alias */
-type coord3d = (float, float, float);
-let my3dCoordinates: coord3d = (20.0, 30.5, 100.0);
+type coord2d = (float, float);
+let my3dCoordinates: coord2d = (20.0, 30.5);
 ```
 
 **Note**: there's no tuple of size 1. You'd just use the value itself.

@@ -13,3 +13,5 @@ let myList = [1, 2, 3];
 ```
 
 Alacrity lists are simple, singly linked lists.
+
+(Actually, Alacrity does not support lists yet, but will, soon.)

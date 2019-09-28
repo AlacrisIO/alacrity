@@ -1,11 +1,9 @@
-[//]: # (title: Imperative Loops)
+[//]: # (title: Loops)
 
-## For Loops
+## Do Loops
 
-For loops iterate from a starting value up to (and including) the ending value.
+Alacrity supports a very constrained form of loops.
+What more, you must manually provide a loop invariant (and in the future, also a loop variant?).
 
-```alacrity
-for (myBinding in startValue to endValue) {
-  /* use myBinding here */
-};
-```
+The syntax and semantics are in flux and are not documented yet.
+See an example of what is currently supported in the file `rps_while.ala` in our source code.

@@ -97,7 +97,7 @@ Our system will grow features from the initial MVP along the following multiple 
        in a common logical framework involving modal logic for the temporal aspect (also epistemic?).
        Explain this framework (January 2020).
 
-  * *Multiple Parties*
+  * *Multiple Parties*:
      * MVP: we enable the specification of financial interactions between two participants (August 2019)
      * A static finite number of participants in a DApp (September 2019)
      * A dynamic finite number of participants in a DApp (October 2019)
@@ -133,8 +133,9 @@ Our system will grow features from the initial MVP along the following multiple 
        first with limitations corresponding to stack depth limits in bytecode instructions;
        later with spilling strategies if data doesn't fit in the directly accessible stack
        (August 2020)
+     * Support SKALE.io and other scaling solutions for Ethereum (2019)
 
-  * *Gas cost optimization*
+  * *Gas cost optimization*:
      * MVP: Use user-level merklization instead of system storage to save on gas
        (August 2019)
      * Generate EVM code that shortcuts the Solidity ABIs, instead of using Solidity
@@ -142,13 +143,13 @@ Our system will grow features from the initial MVP along the following multiple 
      * Have estimates show that our fees are lower than our savings
        (April 2020)
 
-  * *DApp Upgrade*
+  * *DApp Upgrade*:
      * Code migration within one contract by participant/operator agreement (August 2020)
      * Support for centralized upgradable contracts (September 2020)
      * Asset migration from one contract to the next (October 2020)
      * Support for centralized upgradable contracts with grace period for migration (October 2020)
 
-  * *Type System*
+  * *Type System*:
      * ADTs
      * many integer types
      * string/bytes types?
@@ -156,7 +157,11 @@ Our system will grow features from the initial MVP along the following multiple 
      * higher-order module
      * implicits or typeclasses
 
-  * *Tooling*
+  * *Runtime*:
+     * local persistence
+     * distributed persistence
+
+  * *Tooling*:
      * property-based
      * debug
      * editor

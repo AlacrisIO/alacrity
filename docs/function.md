@@ -1,11 +1,12 @@
 [//]: # (title: Function)
 
-_Cheat sheet for the full function syntax at the end_
+Functions are declared with a variant of the traditional javascript syntax:
 
-Can you believe we haven't covered function until now?
-
-Functions are declared with an arrow and return the expression.
-
+```alacrity
+function funName(arg1, arg2) : returnType {
+    body...;
+    result }
 ```
-let greet = (name) => "Hello " ++ name;
-```
+
+With Alacrity's current only "direct-style" backend,
+functions are inlined at compile-time and may not recurse.

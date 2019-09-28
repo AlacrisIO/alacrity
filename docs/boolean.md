@@ -5,6 +5,5 @@ A boolean has the type `bool` and can be either `true` or `false`. Common operat
 - `&&`: logical and
 - `||`: logical or
 - `!`: logical not.
-- `<=`, `>=`, `<`, `>`
-- `==`: structural equal
-- `!=`: structural unequal
+- `==`: structural equality test between two values of any type, returns a boolean
+- `!=`: structural inequality test between two values of any type, returns a boolean
