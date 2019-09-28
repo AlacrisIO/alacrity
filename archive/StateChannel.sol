@@ -175,6 +175,7 @@ therefore it mightn't be safe to play those games on the blockchain.
 */
 
 pragma solidity ^0.5.9;
+pragma experimental ABIEncoderV2;
 
 contract StateChannelTypes {
     struct ProcessState {
@@ -221,11 +222,20 @@ contract StateChannelFunctions is StateChannelTypes {
             return keccak256(abi.encodePacked(processor, stateRoot));
     }
 
+    function digestArray (
+            uint[] memory array)
+            internal
+            pure
+            returns(bytes32 digest)
+    {
+            return keccak256(abi.encodePacked(array));
+    }
+
     function digestBalances (
-        uint[] memory owned,
-        uint[] memory collaterals,
-        uint[] memory failures,
-        uint[] memory deadlines)
+        bytes32 owned,
+        bytes32 collaterals,
+        bytes32 failures,
+        bytes32 deadlines)
         internal
         pure
         returns(bytes32 digest)
@@ -269,27 +279,29 @@ contract MessageProcessor is StateChannelTypes {
         TODO: make that a call to a different contract, which is more expensive, but that's OK
         since it's not supposed to be used in normal case.
      */
-    function processMessage(
-        bytes32 session, // Mutually-generated random nonce that identifies the StateChannel session.
-        uint64 clock, // serial number for the off-chain state within the session.
-        address payable[] calldata participants, // the list of current participants in the state channel.
-        address processor, // address of the MessageProcessor contract
-        bytes32 stateRoot, // root of merklized data describing the state of the interaction.
-        bytes32 balances, // the digest for the balancedState
-        bytes calldata message, // new data, that will be logged as event
-        bytes calldata evidence // old data that won't be logged because users already know it, but that will be used to convince the judge that the transition is correct. Typically, it consists in revealing a subgraph of the merklized balancedState.
-    ) external pure returns(bytes32 newBalancedState);
+     struct ProcessMessageParams {
+        bytes32 session; // Mutually-generated random nonce that identifies the StateChannel session.
+        uint64 clock; // serial number for the off-chain state within the session.
+        address payable[] participants; // the list of current participants in the state channel.
+        address processor; // address of the MessageProcessor contract
+        bytes32 stateRoot; // root of merklized data describing the state of the interaction.
+        bytes32 balances; // the digest for the balancedState
+        bytes message; // new data, that will be logged as event
+        bytes evidence; // old data that won't be logged because users already know it, but that will
+     }
+     function processMessage(
+         ProcessMessageParams calldata p)
+         external pure returns(bytes32 newBalancedState);
 }
 
 contract StateChannelBase is StateChannelTypes, StateChannelFunctions {
     // This function returns the number of blocks before a timeout
-    function timeoutInBlocks() public pure returns(uint timeout);
+        function timeoutInBlocks() public pure returns(uint timeout) { return 12 ;}
 
     // TODO: we possibly want a function to rebalance the balances after a participant timed out,
     // by distributing their collateral to remaining participants somehow,
     // rather than require each MessageProcessor to handle that case with an explicit message.
 }
-
 
 contract StateChannel is StateChannelBase {
 
@@ -401,37 +413,41 @@ contract StateChannel is StateChannelBase {
     }
 
     event Challenge(uint challengedParticipant);
+    struct ChallengeParams
+    {
+        bytes32 session;
+        uint64 clock;
+        address payable[] participants;
+        bytes32 processState;
+        bytes32 owned;
+        bytes32 collaterals;
+        bytes32 failures;
+        uint[] deadlines;
+        uint8 challengingParticipant;
+        uint8 challengedParticipant;
+    }
 
     function challenge(
-        bytes32 session,
-        uint64 clock,
-        address payable[] calldata participants,
-        bytes32 processState,
-        uint[] calldata owned,
-        uint[] calldata collaterals,
-        uint[] calldata failures,
-        uint[] calldata _deadlines,
-        uint8 challengingParticipant,
-        uint8 challengedParticipant
+        ChallengeParams calldata p
     )
         external
     {
-        require(msg.sender == participants[challengingParticipant]);
+        require(msg.sender == p.participants[p.challengingParticipant]);
         // You can challenge another participant whose turn it is to reply, yet who is timing out,
         // or you can challenge yourself, which allows you to throw yourself out with what you own
         // (but no collateral or pot money if there is any), which challenges other people to post
         // an update where you own less, if any.
-        require(_deadlines[challengedParticipant] == 1 ||
-                challengedParticipant == challengingParticipant);
-        bytes32 balances = digestBalances(owned, collaterals, failures, _deadlines);
-        bytes32 balancedState = digestBalancedState(processState, balances);
-        checkState(session, clock, participants, balancedState);
-        emit Challenge(challengedParticipant);
-        uint[] memory deadlines = _deadlines;
-        deadlines[challengedParticipant] = block.number + timeoutInBlocks();
-        bytes32 newBalances = digestBalances(owned, collaterals, failures, deadlines);
-        bytes32 newBalancedState = digestBalancedState(processState, newBalances);
-        currentState = digestState(session, clock, participants, newBalancedState);
+        require(p.deadlines[p.challengedParticipant] == 1 ||
+                p.challengedParticipant == p.challengingParticipant);
+        bytes32 balances = digestBalances(p.owned, p.collaterals, p.failures, digestArray(p.deadlines));
+        bytes32 balancedState = digestBalancedState(p.processState, balances);
+        checkState(p.session, p.clock, p.participants, balancedState);
+        emit Challenge(p.challengedParticipant);
+        uint[] memory deadlines = p.deadlines;
+        deadlines[p.challengedParticipant] = block.number + timeoutInBlocks();
+        bytes32 newBalances = digestBalances(p.owned, p.collaterals, p.failures, digestArray(deadlines));
+        bytes32 newBalancedState = digestBalancedState(p.processState, newBalances);
+        currentState = digestState(p.session, p.clock, p.participants, newBalancedState);
     }
 
     function updateState(
@@ -471,77 +487,94 @@ contract StateChannel is StateChannelBase {
     }
 
     event TimeOut(uint64 clock, uint failedParticipant);
+    struct TimeOutParams
+    {
+        bytes32 session;
+        uint64 clock;
+        address payable[] participants;
+        bytes32 processState;
+        uint[] owned;
+        uint[] collaterals;
+        uint[] failures;
+        uint[] deadlines;
+        uint8 failedParticipant;
+    }
 
     function timeOut(
-        bytes32 session,
-        uint64 clock,
-        address payable[] calldata _participants,
-        bytes32 processState,
-        uint[] calldata _owned,
-        uint[] calldata _collaterals,
-        uint[] calldata _failures,
-        uint[] calldata _deadlines,
-        uint8 failedParticipant
-    )
+        TimeOutParams calldata p)
         external
         payable
     {
-        address payable[] memory participants = _participants;
-        uint[] memory owned = _owned;
-        uint[] memory collaterals = _collaterals;
-        uint[] memory failures = _failures;
-        uint[] memory deadlines = _deadlines;
-        bytes32 balances = digestBalances(owned, collaterals, failures, deadlines);
-        bytes32 balancedState = digestBalancedState(processState, balances);
-        checkState(session, clock, participants, balancedState);
-        uint deadline = deadlines[failedParticipant];
+        address payable[] memory participants = p.participants;
+        uint[] memory owned = p.owned;
+        uint[] memory collaterals = p.collaterals;
+        uint[] memory failures = p.failures;
+        uint[] memory deadlines = p.deadlines;
+        bytes32 balances = digestBalances(
+                digestArray(owned),
+                digestArray(collaterals),
+                digestArray(failures),
+                digestArray(deadlines));
+        bytes32 balancedState = digestBalancedState(p.processState, balances);
+        checkState(p.session, p.clock, p.participants, balancedState);
+        uint deadline = deadlines[p.failedParticipant];
         require(deadline > 1 && block.number > deadline);
 
-        address payable failedParticipantAddress = participants[failedParticipant];
-        failedParticipantAddress.transfer(owned[failedParticipant]);
-        participants[failedParticipant] = address(0);
-        failures[failedParticipant] = uint(failedParticipantAddress);
-        owned[failedParticipant] = 0;
+        address payable failedParticipantAddress = p.participants[p.failedParticipant];
+        failedParticipantAddress.transfer(owned[p.failedParticipant]);
+        participants[p.failedParticipant] = address(0);
+        failures[p.failedParticipant] = uint(failedParticipantAddress);
+        owned[p.failedParticipant] = 0;
 
-        uint64 newClock = nextClock(clock, participants);
-        emit TimeOut(newClock, failedParticipant);
+        uint64 newClock = nextClock(p.clock, participants);
+        emit TimeOut(newClock, p.failedParticipant);
 
-        bytes32 newBalances = digestBalances(owned, collaterals, failures, deadlines);
-        bytes32 newBalancedState = digestBalancedState(processState, newBalances);
-        currentState = digestState(session, newClock, participants, newBalancedState);
+        bytes32 newBalances = digestBalances(
+                digestArray(owned),
+                digestArray(collaterals),
+                digestArray(failures),
+                digestArray(deadlines));
+        bytes32 newBalancedState = digestBalancedState(p.processState, newBalances);
+        currentState = digestState(p.session, newClock, participants, newBalancedState);
     }
 
     event Message(uint64 clock, bytes message);
 
+    struct SendMessageParams
+    {
+        bytes32 session;
+        uint64 clock;
+        address payable[] participants;
+        address processor;
+        bytes32 stateRoot;
+        bytes32 balances;
+        bytes message;
+        bytes evidence;
+    }
+
     function sendMessage(
-        bytes32 _session,
-        uint64 _clock,
-        address payable[] calldata _participants,
-        address _processor,
-        bytes32 _stateRoot,
-        bytes32 _balances,
-        bytes calldata _message,
-        bytes calldata _evidence
-    )
+        SendMessageParams calldata p)
         external
         payable
     {
-        address payable[] memory participants = _participants;
-        bytes32 processState = digestProcessState(_processor, _stateRoot);
-        bytes32 balancedState = digestBalancedState(processState, _balances);
-        checkState(_session, _clock, participants, balancedState);
+        address payable[] memory participants = p.participants;
+        bytes32 processState = digestProcessState(p.processor, p.stateRoot);
+        bytes32 balancedState = digestBalancedState(processState, p.balances);
+        checkState(p.session, p.clock, participants, balancedState);
 
-        uint64 new_clock = nextClock(_clock, participants);
-        uint8 participant = uint8(new_clock % _participants.length);
+        uint64 new_clock = nextClock(p.clock, participants);
+        uint8 participant = uint8(new_clock % participants.length);
         address payable participantAddress = participants[participant];
         require(msg.sender == participantAddress);
 
-        bytes32 newBalancedState = MessageProcessor(_processor).processMessage(
-                _session, new_clock, participants,
-                _processor, _stateRoot, _balances, _message, _evidence);
+        MessageProcessor.ProcessMessageParams memory q =
+            MessageProcessor.ProcessMessageParams(
+                p.session, new_clock, participants,
+                p.processor, p.stateRoot, p.balances, p.message, p.evidence);
+        bytes32 newBalancedState = MessageProcessor(p.processor).processMessage(q);
 
-        emit Message(new_clock, _message);
-        currentState = digestState(_session, new_clock, participants, newBalancedState);
+        emit Message(new_clock, p.message);
+        currentState = digestState(p.session, new_clock, participants, newBalancedState);
     }
 
     constructor (bytes32 state) public payable
