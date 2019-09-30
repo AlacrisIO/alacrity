@@ -1,6 +1,6 @@
  
 
-pragma solidity ^0.5.9;
+pragma solidity ^0.5.2;
 
 contract StateChannelTypes {
     struct ProcessState {

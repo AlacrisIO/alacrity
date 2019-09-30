@@ -174,7 +174,7 @@ or by ganging up on a player, attackers will naturally collude to win,
 therefore it mightn't be safe to play those games on the blockchain.
 */
 
-pragma solidity ^0.5.9;
+pragma solidity ^0.5.2;
 
 contract StateChannelTypes {
     struct ProcessState {
