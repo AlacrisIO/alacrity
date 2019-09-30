@@ -88,6 +88,21 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
         const ctc = SpanCTC(mutStat);
         return Promise.race([
             ctc.SC_SpanThreads(),
+
+          // Problem #2 based on our Slack discussion:
+          //
+          // (node:8254) UnhandledPromiseRejectionWarning: TypeError: Cannot read property 'then' of undefined
+          //     at file:///home/mathieu/GITall/GITc/alacrity/examples/rps-auto/rps/demo.mjs:92:17
+          //     at new Promise (<anonymous>)
+          //     at bobShoot (file:///home/mathieu/GITall/GITc/alacrity/examples/rps-auto/rps/demo.mjs:85:5)
+          //
+          // Any function that doesn't explicitly `return` a value implicitly
+          // `return`s `undefined` (e.g. your implementation of
+          // `SC_mkCreateSC`), but since you're trying to construct an async
+          // pipeline with `.then(...)` what you want here is an instance of a
+          // `Promise`.
+          //
+          // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise
             ctc.SC_CreateSC(gameState.full_state)
                 .then(() => theRPS.B(
                     stdlib, ctc, txn0, interactWith('Bob', makeWhichHand())
@@ -109,7 +124,7 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
                         , wagerInWei, escrowInWei, resolve))]);
         });
 
-//    
+//
 //    .then(contractAddress => Promise.all([ specificShoot(contractAddress) ]))
 //    .then(contractAddress => Promise.all([ bobShoot(contractAddress), aliceShoot(contractAddress) ]))
   return prefundedDevnetAcct()
