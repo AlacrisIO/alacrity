@@ -304,6 +304,7 @@ const SC_Send_ListParticipant = A => B =>
       console.log('SC_Send_ListParticipant, step 1');
       const myId_shh = B.userpairaddress[1];
       console.log('SC_Send_ListParticipant, step 2');
+
       const fctSendListParticipant = (result_filt) => {
           console.log('SC_Send_ListParticipant, step 3');
           const list_part = B.sc_idx_participants.map(x => B.sc_list_address[x]);
@@ -325,6 +326,7 @@ const SC_Send_ListParticipant = A => B =>
                   reject(err);
               });
       };
+
       console.log('SC_Send_ListParticipant, step 5');
       var subscription = null;
       console.log('SC_Send_ListParticipant, step 6');
@@ -444,6 +446,26 @@ const SC_WaitEvents = A => B =>
           });
       });
 
+
+// We can refactor these out (before merging the PR) once new features have
+// been stabilized (definitely keep using them in the meantime if it helps you
+// make progress) but `async` + `await` are almost always the wrong choice
+// IMHO.
+//
+// They're also wholly unnecessary once you're familiar enough with plugging
+// `Promise` pipelines together. Don't worry about TCO, for instance; I think
+// what you alluded to before didn't actually need a TCO solution anyway and
+// it'll become clear why given a little more practice.
+//
+// `async` + `await`'s inclusion into the language has way more to do with user
+// adoption/appeasement than facilitating good code composition or removing
+// technical barriers, and they're kind of an anti-pattern, especially when
+// favoring a functional style like we do.
+//
+// Projects that use them tend to look more like C# or Java over time, and
+// consequently they grow increasingly more difficult to extend or maintain +
+// suffer from all the usual issues inherent to OOP/imperative-styled programs.
+
 async function SC_Inf_WaitEvents(A,B) {
     let iter = 0;
     while (iter >= 0)
@@ -458,6 +480,8 @@ async function SC_Inf_WaitEvents(A,B) {
 
 
 
+// I suspect you might be using `Promise.race` in some places where what you
+// really want instead is `Promise.all`
 const SC_mkSpanThreads = A => B => () =>
       Promise.race([SC_Inf_Send_ListParticipant(A,B),
                     SC_Inf_Send_VRSsignature(A,B),
@@ -615,7 +639,10 @@ const MutableState = (contractAddress,ctors,userpairaddress,initiatorpairaddress
 
 
 
-
+// See note in `demo.mjs` RE: Problem #2 - the `full_state => { .. }` function
+// produced below never returns a `Promise` (or anything else), so execution
+// fails due to the absence of a `.then()` method to execute on the
+// (non-)result of its invocation.
 const SC_mkCreateSC = A => B => (full_state) => {
     console.log('SC_mkCreateSC, step 1');
     const state = digestState(A)(full_state);
@@ -624,6 +651,18 @@ const SC_mkCreateSC = A => B => (full_state) => {
     console.log('SC_mkCreateSC, step 3, ctor_state=', ctor_state);
     if (B.initiatorpairaddress[0] == 0) {
         console.log('SC_mkCreateSC, step 4');
+
+      // Problem #1 based on our Slack discussion:
+      //
+      // The issue here is confusion between `sendRecv` vs. `deploy`. If you're
+      // trying to replicate how we instantiate contracts on the chain you'll
+      // need to model your code after the latter. See:
+      // https://github.com/AlacrisIO/alacrity/blob/37b4db2d0f27f8f563551b6eebeeca6949a024f4/examples/rps-auto/rps/stdlib/web3/common.mjs#L302
+      //
+      // However... It's not clear to me why you'd try to call a contract's
+      // constructor more than once for what (presumably?) would be a shared
+      // instance of a contract, and keep in mind that a contract that hasn't
+      // yet been deployed will - by definition - lack any available methods :-)
         new A.web3.eth.Contract(A.abi, B.contractaddress)
             .methods['constructor'](state)
             .send({ from: B.userpairaddress[0], value: 0 })
