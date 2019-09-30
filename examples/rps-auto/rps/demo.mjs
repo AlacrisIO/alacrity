@@ -1,4 +1,5 @@
 // vim: filetype=javascript
+import { SC_Inf_Send_ListParticipant  } from './stdlib/web3/common.mjs';
 
 const init = (stdlib, wagerInEth, escrowInEth) => {
   const wagerInWei  = stdlib.toBN(stdlib.toWei(wagerInEth,  'ether'));
@@ -8,7 +9,7 @@ const init = (stdlib, wagerInEth, escrowInEth) => {
 };
 
 const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
-  const { balanceOf, devnet, transfer, SC_createIdentity,
+  const { balanceOf, devnet, transfer, SC_createIdentity, deploy,
           MutableState, SpanCTC, random_uint256, uint256_to_bytes } = stdlib;
   const { prefundedDevnetAcct         } = devnet;
   const { wagerInWei, escrowInWei     } = gameState;
@@ -19,17 +20,18 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
   const newPlayer = prefunder =>
     devnet.createAndUnlockAcct()
       .then(to => transfer(to, prefunder, startingBalance)
-                    .then(() => Promise.resolve(SC_createIdentity()))
-                    .then(sc_identity => stdlib.EthereumNetwork(to, sc_identity)));
+            .then(() => Promise.resolve(SC_createIdentity()))
+            .then(sc_identity => [to, sc_identity]));
+//                    .then(sc_identity => stdlib.EthereumNetwork(to, sc_identity)));
 
   const captureOpeningGameState = ([ a, b ]) =>
     Promise.all([ balanceOf(a), balanceOf(b) ])
     .then(([ balanceStartAlice, balanceStartBob ]) =>
     Object.assign(gameState
        , { alice: a
-           , bob:   b
-           , list_nodes: [a.userAddress, b.userAddress]
-           , ctors: [ a.userAddress[0], b.userAddress[0] ]
+           , bob: b
+           , list_nodes: [a, b]
+           , ctors: [ a[0], b[0] ]
            , full_state: {session: uint256_to_bytes(random_uint256()), clock: 0, participants: [a], data: 0}
            , deposit
            , balanceStartAlice
@@ -69,6 +71,21 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
 
   const txn0 = { balance: 0, value: 0 };
 
+
+  const specificShoot = contractAddress =>
+    new Promise(resolve => {
+        const mutStat = MutableState(contractAddress, gameState.ctors, gameState.bob, gameState.alice,
+                                     gameState.deposit, gameState.full_state);
+        console.log('mutStat.userpairaddress=', mutStat.userpairaddress);
+        const ctc = SpanCTC(mutStat);
+//        var A =10;
+//        var B =10;
+//        ctc.SC_Inf_Send_ListParticipant(A,B);
+        return new Promise.race([ctc.SC_SpanThreads_DEBUG()]);
+        resolve('foo');
+    });
+
+
   const bobShoot = contractAddress =>
     new Promise(resolve => {
         const mutStat = MutableState(contractAddress, gameState.ctors, gameState.bob, gameState.alice,
@@ -97,12 +114,13 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
                                   , wagerInWei, escrowInWei, resolve)))]);
         });
 
+//    .then(contractAddress => Promise.all([ bobShoot(contractAddress), aliceShoot(contractAddress) ]))
   return prefundedDevnetAcct()
-    .then(p   => Promise.all([ newPlayer(p), newPlayer(p) ]))
-    .then(captureOpeningGameState)
-    .then(()  => gameState.alice.deploy(gameState.full_state, gameState.ctors))
-    .then(ctc => Promise.all([ bobShoot(ctc), aliceShoot(ctc) ]))
-    .then(captureClosingGameState);
+        .then(p   => Promise.all([ newPlayer(p), newPlayer(p) ]))
+        .then(captureOpeningGameState)
+        .then(()  => deploy(gameState.alice[0])(gameState.full_state, gameState.ctors))
+        .then(contractAddress => Promise.all([ specificShoot(contractAddress) ]))
+        .then(captureClosingGameState);
 };
 
 export const runGameWith = (theRPS, stdlib, doWhile, drawFirst, interactWith, wagerInEth, escrowInEth, uri) =>

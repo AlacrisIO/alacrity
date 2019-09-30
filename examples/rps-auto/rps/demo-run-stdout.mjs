@@ -4,6 +4,7 @@ import * as RPS        from '../build/rps.mjs';
 import * as RPSW       from '../build/rps_while.mjs';
 import { runGameWith } from './demo.mjs';
 import { stdlibNode  } from './stdlib/web3/node.mjs';
+//import { SC_Inf_Send_ListParticipant  } from './stdlib/web3/common.mjs';
 
 const wagerInEth  = '1.5';
 const escrowInEth = '0.15';
@@ -51,6 +52,7 @@ const makeDemo = (doWhile, drawFirst) => {
       .then(() => console.log(`${label} Done!`))
       .then(resolve));
 };
+
 
 makeDemo(true, true)
   .then(() => makeDemo(false, true))

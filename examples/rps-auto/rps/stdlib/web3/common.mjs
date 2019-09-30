@@ -41,7 +41,7 @@ const nat16_to_fixed_size_hex =
 // Parameterized ///////////////////////////////////////////////////////////////
 
 const balanceOf = A => a =>
-  A.web3.eth.getBalance(a.userAddress[0])
+  A.web3.eth.getBalance(a[0])
     .then(toBN(A));
 
 const assert = ({ asserter }) => d => asserter(d);
@@ -113,13 +113,13 @@ const lt    = A => (a, b) => toBN(A)(a).lt( toBN(A)(b));
 const encode = ({ ethers }) => (t, v) => {
   console.log('t=', t, ' v=', v);
   return ethers.utils.defaultAbiCoder.encode([t], [v]);
-  }
+};
 
 const SC_mkCreateIdentity = A => () =>
       new Promise(resolve => {
           var identities = [];
           A.web3.shh.newSymKey().then((id) => {identities.push(id);}),
-          A.web3.shh.newKeyPair().then((id) => {identities.push(id);})
+          A.web3.shh.newKeyPair().then((id) => {identities.push(id);});
           resolve(identities);});
 
 // The cases to cover for digest computations are
@@ -143,7 +143,9 @@ const get_digest = A => (oper) => {
 let CheckCorrectnessOperation = A => B => (oper) => {
     // We need to insert code for checking correctness of operation
     console.log('Code need to be inserted here');
-    console.log('A=', A, ' B=', B, ' oper=', oper);
+    console.log('CheckCorrectnessOperation A=', A);
+    console.log('CheckCorrectnessOperation B=', B);
+    console.log('CheckCorrectnessOperation oper=', oper);
     return true;
 };
 
@@ -161,23 +163,37 @@ let SC_SignState = A => B => (oper) => {
 // SHH: Functionality for signing messages from the computing side.
 //
 const SC_Send_VRSsignature = A => B =>
-  new Promise((resolve, reject) => {
-    const myId_shh = B.userpairaddress[1];
-    const fctSendVRS = (result_sign) => {
-        A.web3.shh.post({'from':myId_shh, 'to':result_sign.from, 'topics':['VRSsignature2'], 'payload':result_sign.XXXX},
-        (err_post, result_post) => !!err_post ? reject('error shh.pos') : resolve('success shh.post' + result_post));
-    };
-//    const fctProcess = (data_to_sign) => {
-//      A.web3.eth.sign(myId_eth, data_to_sign,
-//        (err_sign, result_sign) => !!err_sign ? reject('error signature') : fctSendVRS(result_sign));
-//    };
-    const fctComputeHash = (data_to_sign) => {
-        const state_to_sign = keccak256(A)(data_to_sign);
-        SC_SignState(A)(B)(state_to_sign).then(fctSendVRS);
-    };
-    A.web3.shh.filter({'topics':['VRSsignature1'], 'to':B.userpairaddress[1]},
-    (err_filt, result_filt) => !!err_filt ? reject('error web3.shh.filter') : fctComputeHash(result_filt));
-  });
+      new Promise((resolve, reject) => {
+          console.log('B.userpairaddress=', B.userpairaddress);
+          const myId_shh = B.userpairaddress[1];
+          const fctSendVRS = (result_sign) => {
+              A.web3.shh.post({
+                  symKeyID: myId_shh[0],
+                  sig: myId_shh[1],
+                  ttl: 10,
+                  topic: 'listparticipant2',
+                  payload: list_part,
+                  powTime: 3,
+                  powTarget: 0.5})
+                  .then(h => console.log('Message with hash was successfully sent h=', h))
+                  .catch(err => console.log('Error: ', err));
+          };
+          const CompHash_and_send = (data_to_sign) => {
+              const state_to_sign = keccak256(A)(data_to_sign);
+              SC_SignState(A)(B)(state_to_sign).then(fctSendVRS);
+          };
+          var subscription = null;
+          console.log('myId_shh=', myId_shh);
+          subscription = A.web3.shh.subscribe('messages', {
+              symKeyID: myId_shh[0],
+              topics: ['VRSsignature1']})
+              .on('data', CompHash_and_send);
+          resolve();
+      });
+
+
+
+
 
 
 
@@ -265,18 +281,63 @@ async function SC_Inf_Send_VRSsignature(A,B) {
 //
 // SHH: Functionality for obtaining list of participants
 //
-const SC_Send_ListParticipant = A => B =>
-  new Promise((resolve, reject) => {
+const SC_Send_ListParticipant = A => B => (iter) =>
+  new Promise(resolve => {
+      console.log('SC_Send_ListParticipant, step 1');
       const myId_shh = B.userpairaddress[1];
+      console.log('SC_Send_ListParticipant, step 2');
       const fctSendListParticipant = (result_filt) => {
+          console.log('SC_Send_ListParticipant, step 3');
           const list_part = B.sc_idx_participants.map(x => B.sc_list_address[x]);
-          A.web3.shh.post(
-              {'from':myId_shh, 'to':result_filt.from, 'topics':['listparticipant2'], 'payload':list_part},
-              (err_post, result_post) => !!err_post ? reject('error shh.pos') : resolve('success shh.post' + result_post));
-    };
-    A.web3.shh.filter({'topics':['listparticipant1'], 'to':myId_shh},
-    (err_filt, result_filt) => !!err_filt ? reject('error web3.shh.filter') : fctSendListParticipant(result_filt));
+          console.log('SC_Send_ListParticipant, step 4');
+          A.web3.shh.post({
+            symKeyID: myId_shh[0],
+            sig: myId_shh[1],
+            ttl: 10,
+            topic: 'listparticipant2',
+            payload: list_part,
+            powTime: 3,
+            powTarget: 0.5})
+              .then(h => console.log('Message with hash was successfully sent h=', h))
+              .catch(err => console.log('Error: ', err));
+      };
+      console.log('SC_Send_ListParticipant, step 5');
+      var subscription = null;
+      console.log('SC_Send_ListParticipant, step 6');
+      subscription = A.web3.shh.subscribe('messages', {
+          symKeyID: myId_shh[0],
+          topics: ['listparticipant1']})
+          .on('data', fctSendListParticipant);
+      console.log('SC_Send_ListParticipant, step 7');
+      console.log('subscription=', subscription);
+      resolve(iter);
   });
+
+
+const SC_Test = (iter) => new Promise(resolve => {
+    console.log('SC_Test, iter=', iter);
+    setTimeout(function() {
+        resolve('foo');
+    }, 300);
+});
+
+
+export async function SC_Inf_Send_ListParticipant(A,B) {
+  let iter = 0;
+  while (1)
+  {
+//      let var_reply = await SC_Send_ListParticipant(A)(B)(iter);
+      let var_reply = await SC_Test(iter);
+      iter = iter + 1;
+      console.log('SC_Inf_Send_ListParticipant, iter=' + iter + ' var_reply=' + var_reply);
+  }
+}
+
+
+
+
+
+
 
 const SC_Get_ListParticipant = A => B =>
   new Promise((resolve, reject) => {
@@ -297,33 +358,43 @@ const SC_Get_ListParticipant = A => B =>
   });
 
 
-async function SC_Inf_Send_ListParticipant(A,B) {
-  let iter = 0;
-  while (iter >= 0)
-  {
-    let var_reply = await SC_Send_ListParticipant(A)(B);
-    iter = iter + 1;
-    console.log('SC_Inf_Send_ListParticipant, iter=' + iter + ' var_reply=' + var_reply);
-  }
-}
 
 
 
 
 const SC_UpdateCurrentState = A => B => (oper) => {
     console.log('Code needs to be written to update state from the operation');
-    console.log('A=', A, ' B=', B, ' oper=', oper);
-    process.exit();
+    console.log('SC_UpdateCurrentState A=', A);
+    console.log('SC_UpdateCurrentState B=', B);
+    console.log('SC_UpdateCurrentState oper=', oper);
+//    process.exit();
 };
 
 
 const SC_ScanUnanimously = A => B =>
-      new A.ethers
-      .Contract(B.contractAddress, A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider))
-      .on('Unanimously', (digest) => {
-          const oper = B.pending_unanimous_operations.find(x => x.digest === digest);
-          SC_UpdateCurrentState(A)(B)(oper);
+      new Promise(resolve => {
+//          console.log('A=', A, ' B=', B);
+          const subs = new A.ethers.Contract(B.contractAddress,
+                                             A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider));
+          subs.on('Unanimously', (digest) => {
+              console.log('SC_ScanUnanimously, on operation');
+              const oper = B.pending_unanimous_operations.find(x => x.digest === digest);
+              SC_UpdateCurrentState(A)(B)(oper);
+              resolve();
+          });
       });
+
+const SC_ScanUnanimously_V1 = A => B =>
+      new Promise(resolve => {
+          console.log('SC_Test, iter=', iter);
+          setTimeout(function() {
+              resolve('foo');
+          }, 300);
+      });
+
+
+
+
 
 const SC_ScanChallenge = A => B =>
   new A.ethers
@@ -355,13 +426,27 @@ const SC_ScanMessage = A => B =>
       process.exit();
     });
 
-
 const SC_WaitEvents = A => B =>
   Promise.race([
       SC_ScanUnanimously(A)(B),
       SC_ScanChallenge(A)(B),
       SC_ScanTimeOut(A)(B),
       SC_ScanMessage(A)(B)]);
+
+const SC_WaitEvents_DEBUG = A => B =>
+  Promise.race([ SC_ScanUnanimously(A)(B) ]);
+
+async function SC_Inf_WaitEvents_DEBUG(A,B) {
+    let iter = 0;
+    while (iter >= 0)
+    {
+        let var_reply = await SC_WaitEvents_DEBUG(A)(B);
+        iter = iter + 1;
+        console.log('SC_Inf_Send_ListParticipant, iter=' + iter + ' var_reply=' + var_reply);
+    }
+}
+
+
 
 async function SC_Inf_WaitEvents(A,B) {
     let iter = 0;
@@ -376,10 +461,15 @@ async function SC_Inf_WaitEvents(A,B) {
 
 
 const SC_mkSpanThreads = A => B => () =>
-      new Promise.race([SC_Inf_Send_ListParticipant(A,B),
-                        SC_Inf_Send_VRSsignature(A,B),
-                        SC_Inf_WaitEvents(A,B)]);
+      Promise.race([SC_Inf_Send_ListParticipant(A,B),
+                    SC_Inf_Send_VRSsignature(A,B),
+                    SC_Inf_WaitEvents(A,B)]);
 
+const SC_mkSpanThreads_DEBUG = A => B => () =>
+      Promise.race([SC_Inf_Send_ListParticipant(A,B),
+                    SC_Inf_Send_VRSsignature(A,B),
+                    SC_Inf_WaitEvents_DEBUG(A,B)
+                   ]);
 
 
 
@@ -535,7 +625,9 @@ const MutableState = (contractAddress,ctors,userpairaddress,initiatorpairaddress
 
 
 const SC_mkCreateSC = A => B => (state) => {
+    console.log('SC_mkCreateSC, step 1');
     if (B.initiatorpairaddress[0] == 0) {
+        console.log('SC_mkCreateSC, step 2');
         new A.web3.eth.Contract(A.abi, B.contractaddress)
             .methods['constructor'](state)
             .send({ from: B.userpairaddress[0], value: 0 })
@@ -543,18 +635,19 @@ const SC_mkCreateSC = A => B => (state) => {
             .then(() => 'Successful construction of contract');
     }
     else {
+        console.log('SC_mkCreateSC, step 3');
         SC_Get_ListParticipant(A)(B)
             .then(mesg => SC_GetAll_VRSsignatures(A,B, state)
                   .then(list_signature => {
                       const prev_state = B.list_full_state[0];
                       const participants = prev_state.participants;
-                      participants[participants.length] = B.userpairaddress[0];
+                      participants.push(B.userpairaddress[0]);
                       const new_state = {session: prev_state.session, data: prev_state.data,
                                          participants, clock: prev_state.clock };
                       const deposit = B.deposit;
                       const withdrawals = [];
                       for (var i=0; i<mesg.length; i++) {
-                          withdrawals[i] = 0;
+                          withdrawals.push(0);
                       }
                       SC_SubmitSettleOperation(A)(B)(prev_state, new_state, deposit, withdrawals, list_signature);
                   }));
@@ -570,7 +663,9 @@ const mkSpanCTC = A => B =>
    , recv:     mkRecv(A)(B)
    , SC_sendTransaction: SC_mkSendTransaction(A)
    , SC_SpanThreads: SC_mkSpanThreads(A)(B)
+   , SC_SpanThreads_DEBUG: SC_mkSpanThreads_DEBUG(A)(B)
    , SC_CreateSC: SC_mkCreateSC(A)(B)
+   , SC_Inf_Send_ListParticipant
    });
 
 
@@ -635,10 +730,9 @@ export const mkStdlib = A =>
   , bnToHex:          bnToHex(A)
   , isBN:             isBN(A)
   , transfer:         transfer(A)
-//  , Contract:         Contract(A)
   , SpanCTC:          mkSpanCTC(A)
+  , deploy:           mkDeploy(A)
   , EthereumNetwork:  EthereumNetwork(A)
-
   , devnet: { prefundedDevnetAcct: prefundedDevnetAcct(A)
             , createAndUnlockAcct: createAndUnlockAcct(A)
             }
