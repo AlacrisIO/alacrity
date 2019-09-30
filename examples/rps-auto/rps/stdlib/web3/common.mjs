@@ -395,6 +395,7 @@ const SC_UpdateCurrentState = A => B => (oper) => {
 
 const SC_WaitEvents = A => B =>
       new Promise(resolve => {
+          console.log('Beginning of SC_WaitEvents');
           const subs = new A.ethers.Contract(B.contractAddress,
                                              A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider));
           subs.on('Unanimously', (digest) => {
