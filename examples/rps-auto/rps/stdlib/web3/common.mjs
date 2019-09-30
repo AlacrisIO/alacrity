@@ -164,7 +164,7 @@ let SC_SignState = A => B => (oper) => {
 //
 const SC_Send_VRSsignature = A => B =>
       new Promise((resolve, reject) => {
-          console.log('B.userpairaddress=', B.userpairaddress);
+          console.log('SC_Send_VRSsignature, step 1');
           const myId_shh = B.userpairaddress[1];
           const fctSendVRS = (result_sign) => {
               A.web3.shh.post({
@@ -172,25 +172,50 @@ const SC_Send_VRSsignature = A => B =>
                   sig: myId_shh[1],
                   ttl: 10,
                   topic: 'listparticipant2',
-                  payload: list_part,
+                  payload: result_sign,
                   powTime: 3,
                   powTarget: 0.5})
-                  .then(h => console.log('Message with hash was successfully sent h=', h))
-                  .catch(err => console.log('Error: ', err));
+                  .then(h => {
+                      console.log('Message with hash was successfully sent h=', h);
+                      resolve(h);
+                  })
+                  .catch(err => {
+                      console.log('Error: ', err);
+                      reject(err);
+                  });
           };
+          console.log('SC_Send_VRSsignature, step 2');
           const CompHash_and_send = (data_to_sign) => {
               const state_to_sign = keccak256(A)(data_to_sign);
               SC_SignState(A)(B)(state_to_sign).then(fctSendVRS);
           };
-          var subscription = null;
-          console.log('myId_shh=', myId_shh);
-          subscription = A.web3.shh.subscribe('messages', {
+          console.log('SC_Send_VRSsignature, step 3');
+//          var subscription = null;
+//          console.log('myId_shh=', myId_shh);
+          var subscription = A.web3.shh.subscribe('messages', {
               symKeyID: myId_shh[0],
-              topics: ['VRSsignature1']})
-              .on('data', CompHash_and_send);
-          resolve();
+              topics: ['VRSsignature1']});
+          console.log('SC_Send_VRSsignature, step 4');
+          subscription.on('error', e => {
+              console.log('Error e=', e);
+              reject(e);
+          });
+          console.log('SC_Send_VRSsignature, step 5');
+          subscription.on('data', CompHash_and_send);
+          console.log('SC_Send_VRSsignature, step 6');
+//          resolve('leaving');
       });
 
+
+async function SC_Inf_Send_VRSsignature(A,B) {
+  let iter = 0;
+  while (iter >= 0)
+  {
+    let var_reply = await SC_Send_VRSsignature(A)(B);
+    iter = iter + 1;
+    console.log('SC_Inf_Send_VRSsignature, iter=' + iter + ' var_reply=' + var_reply);
+  }
+}
 
 
 
@@ -198,18 +223,19 @@ const SC_Send_VRSsignature = A => B =>
 
 
 const SC_GetSingle_VRSsignature = A => B => (requestpair, state) =>
-  new Promise((resolve, reject) => {
-      const myId_shh = B.userpairaddress[1];
-      const request_shh = requestpair[1];
-      const waitForSignature = () => {
-          A.web3.shh.filter(
-              {'topics':['VRSsignature2'], 'to':myId_shh},
-              (err_filt, result_filt) => !!err_filt ? reject('error web3.filter') : resolve(result_filt));
-      };
-      A.web3.shh.post(
-          {'from':myId_shh, 'to':request_shh, 'topics':['VRSsignature1'], 'payload':state},
-          (err_post, _result_post) => !!err_post ? reject('error shh.pos') : waitForSignature());
-  });
+      new Promise((resolve, reject) => {
+          console.log('Beginning of SC_GetSingle_VRSsignature');
+          const myId_shh = B.userpairaddress[1];
+          const request_shh = requestpair[1];
+          const waitForSignature = () => {
+              A.web3.shh.filter(
+                  {'topics':['VRSsignature2'], 'to':myId_shh},
+                  (err_filt, result_filt) => !!err_filt ? reject('error web3.filter') : resolve(result_filt));
+          };
+          A.web3.shh.post(
+              {'from':myId_shh, 'to':request_shh, 'topics':['VRSsignature1'], 'payload':state},
+              (err_post, _result_post) => !!err_post ? reject('error shh.pos') : waitForSignature());
+      });
 
 
 
@@ -265,24 +291,14 @@ async function SC_GetAll_VRSsignatures(A,B, state) {
 
 
 
-async function SC_Inf_Send_VRSsignature(A,B) {
-  let iter = 0;
-  while (iter >= 0)
-  {
-    let var_reply = await SC_Send_VRSsignature(A)(B);
-    iter = iter + 1;
-    console.log('SC_Inf_Send_VRSsignature, iter=' + iter + ' var_reply=' + var_reply);
-  }
-}
-
 
 
 
 //
 // SHH: Functionality for obtaining list of participants
 //
-const SC_Send_ListParticipant = A => B => (iter) =>
-  new Promise(resolve => {
+const SC_Send_ListParticipant = A => B =>
+      new Promise((resolve, reject) => {
       console.log('SC_Send_ListParticipant, step 1');
       const myId_shh = B.userpairaddress[1];
       console.log('SC_Send_ListParticipant, step 2');
@@ -298,8 +314,14 @@ const SC_Send_ListParticipant = A => B => (iter) =>
             payload: list_part,
             powTime: 3,
             powTarget: 0.5})
-              .then(h => console.log('Message with hash was successfully sent h=', h))
-              .catch(err => console.log('Error: ', err));
+              .then(h => {
+                  console.log('Message with hash was successfully sent h=', h);
+                  resolve(h);
+              })
+              .catch(err => {
+                  console.log('Error: ', err);
+                  reject(err);
+              });
       };
       console.log('SC_Send_ListParticipant, step 5');
       var subscription = null;
@@ -309,8 +331,8 @@ const SC_Send_ListParticipant = A => B => (iter) =>
           topics: ['listparticipant1']})
           .on('data', fctSendListParticipant);
       console.log('SC_Send_ListParticipant, step 7');
-      console.log('subscription=', subscription);
-      resolve(iter);
+//      console.log('subscription=', subscription);
+//      resolve(iter);
   });
 
 
@@ -324,10 +346,10 @@ const SC_Test = (iter) => new Promise(resolve => {
 
 export async function SC_Inf_Send_ListParticipant(A,B) {
   let iter = 0;
-  while (1)
+  while (iter >= 0)
   {
-//      let var_reply = await SC_Send_ListParticipant(A)(B)(iter);
-      let var_reply = await SC_Test(iter);
+      let var_reply = await SC_Send_ListParticipant(A)(B);
+//      let var_reply = await SC_Test(iter);
       iter = iter + 1;
       console.log('SC_Inf_Send_ListParticipant, iter=' + iter + ' var_reply=' + var_reply);
   }
@@ -364,89 +386,41 @@ const SC_Get_ListParticipant = A => B =>
 
 const SC_UpdateCurrentState = A => B => (oper) => {
     console.log('Code needs to be written to update state from the operation');
-    console.log('SC_UpdateCurrentState A=', A);
-    console.log('SC_UpdateCurrentState B=', B);
-    console.log('SC_UpdateCurrentState oper=', oper);
+//    console.log('SC_UpdateCurrentState A=', A);
+//    console.log('SC_UpdateCurrentState B=', B);
+//    console.log('SC_UpdateCurrentState oper=', oper);
 //    process.exit();
 };
 
 
-const SC_ScanUnanimously = A => B =>
+const SC_WaitEvents = A => B =>
       new Promise(resolve => {
-//          console.log('A=', A, ' B=', B);
           const subs = new A.ethers.Contract(B.contractAddress,
                                              A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider));
           subs.on('Unanimously', (digest) => {
-              console.log('SC_ScanUnanimously, on operation');
+              console.log('SC_ScanUnanimously, on operation digest=', digest);
               const oper = B.pending_unanimous_operations.find(x => x.digest === digest);
+              console.log('SC_ScanUnanimously, oper=', oper);
               SC_UpdateCurrentState(A)(B)(oper);
-              resolve();
+              resolve('successful completion of  Unanimously');
+          });
+          subs.on('Challenge', (challengedParticipant) => {
+              console.log('challengedParticipant=', challengedParticipant);
+              resolve('Successful completion of ScanChallenge');
+          });
+          subs.on('TimeOut', (clock, failedParticipant) => {
+              console.log('clock=', clock, ' failedParticipant=', failedParticipant);
+              console.log('myIdentity=', B.userpairaddress[1]);
+              console.log('Code needs to be written to handle challenge events');
+              resolve('Successful completion of TimeOut');
+          });
+          subs.on('Message', (clock, message) => {
+              console.log('clock=', clock, ' message=', message);
+              console.log('myIdentity=', B.userpairaddress[1]);
+              console.log('Code needs to be written to handle challenge events');
+              process.exit();
           });
       });
-
-const SC_ScanUnanimously_V1 = A => B =>
-      new Promise(resolve => {
-          console.log('SC_Test, iter=', iter);
-          setTimeout(function() {
-              resolve('foo');
-          }, 300);
-      });
-
-
-
-
-
-const SC_ScanChallenge = A => B =>
-  new A.ethers
-    .Contract(B.contractAddress, A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider))
-    .on('Challenge', (challengedParticipant) => {
-      console.log('challengedParticipant=', challengedParticipant);
-      console.log('myIdentity=', B.userpairaddress[1]);
-      console.log('Code needs to be written to handle challenge events');
-      process.exit();
-    });
-
-const SC_ScanTimeOut = A => B =>
-  new A.ethers
-    .Contract(B.contractAddress, A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider))
-    .on('TimeOut', (clock, failedParticipant) => {
-      console.log('clock=', clock, ' failedParticipant=', failedParticipant);
-      console.log('myIdentity=', B.userpairaddress[1]);
-      console.log('Code needs to be written to handle challenge events');
-      process.exit();
-    });
-
-const SC_ScanMessage = A => B =>
-  new A.ethers
-    .Contract(B.contractAddress, A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider))
-    .on('Message', (clock, message) => {
-      console.log('clock=', clock, ' message=', message);
-      console.log('myIdentity=', B.userpairaddress[1]);
-      console.log('Code needs to be written to handle challenge events');
-      process.exit();
-    });
-
-const SC_WaitEvents = A => B =>
-  Promise.race([
-      SC_ScanUnanimously(A)(B),
-      SC_ScanChallenge(A)(B),
-      SC_ScanTimeOut(A)(B),
-      SC_ScanMessage(A)(B)]);
-
-const SC_WaitEvents_DEBUG = A => B =>
-  Promise.race([ SC_ScanUnanimously(A)(B) ]);
-
-async function SC_Inf_WaitEvents_DEBUG(A,B) {
-    let iter = 0;
-    while (iter >= 0)
-    {
-        let var_reply = await SC_WaitEvents_DEBUG(A)(B);
-        iter = iter + 1;
-        console.log('SC_Inf_Send_ListParticipant, iter=' + iter + ' var_reply=' + var_reply);
-    }
-}
-
-
 
 async function SC_Inf_WaitEvents(A,B) {
     let iter = 0;
@@ -454,9 +428,11 @@ async function SC_Inf_WaitEvents(A,B) {
     {
         let var_reply = await SC_WaitEvents(A)(B);
         iter = iter + 1;
-        console.log('SC_Inf_Send_ListParticipant, iter=' + iter + ' var_reply=' + var_reply);
+        console.log('SC_Inf_WaitEvents, iter=' + iter + ' var_reply=' + var_reply);
     }
 }
+
+
 
 
 
@@ -464,12 +440,6 @@ const SC_mkSpanThreads = A => B => () =>
       Promise.race([SC_Inf_Send_ListParticipant(A,B),
                     SC_Inf_Send_VRSsignature(A,B),
                     SC_Inf_WaitEvents(A,B)]);
-
-const SC_mkSpanThreads_DEBUG = A => B => () =>
-      Promise.race([SC_Inf_Send_ListParticipant(A,B),
-                    SC_Inf_Send_VRSsignature(A,B),
-                    SC_Inf_WaitEvents_DEBUG(A,B)
-                   ]);
 
 
 
@@ -560,7 +530,7 @@ const mkRecv = A => B => (label, eventName, cb) =>
 // Change of code. We no longer return a full contract, just the contract address.
 const mkDeploy = A => userAddress => (full_state, ctors) => {
   // TODO track down solid docs RE: why the ABI would have extra constructor
-    // fields and when/how/why dropping leading `0x`s is necessary
+  // fields and when/how/why dropping leading `0x`s is necessary
   console.log('mkDeploy : full_state=', full_state);
 //    console.log('A.abi=', A.abi);
   var data;
@@ -663,7 +633,6 @@ const mkSpanCTC = A => B =>
    , recv:     mkRecv(A)(B)
    , SC_sendTransaction: SC_mkSendTransaction(A)
    , SC_SpanThreads: SC_mkSpanThreads(A)(B)
-   , SC_SpanThreads_DEBUG: SC_mkSpanThreads_DEBUG(A)(B)
    , SC_CreateSC: SC_mkCreateSC(A)(B)
    , SC_Inf_Send_ListParticipant
    });
@@ -672,11 +641,6 @@ const mkSpanCTC = A => B =>
 
 
 
-
-const EthereumNetwork = A => (userAddress, sc_identity) =>
-  ({ deploy: mkDeploy(A)(userAddress)
-   , userAddress: [userAddress, sc_identity]
-   });
 
 
 // devnet-specific /////////////////////////////////////////////////////////////
@@ -732,7 +696,6 @@ export const mkStdlib = A =>
   , transfer:         transfer(A)
   , SpanCTC:          mkSpanCTC(A)
   , deploy:           mkDeploy(A)
-  , EthereumNetwork:  EthereumNetwork(A)
   , devnet: { prefundedDevnetAcct: prefundedDevnetAcct(A)
             , createAndUnlockAcct: createAndUnlockAcct(A)
             }

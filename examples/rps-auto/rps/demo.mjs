@@ -1,5 +1,4 @@
 // vim: filetype=javascript
-import { SC_Inf_Send_ListParticipant  } from './stdlib/web3/common.mjs';
 
 const init = (stdlib, wagerInEth, escrowInEth) => {
   const wagerInWei  = stdlib.toBN(stdlib.toWei(wagerInEth,  'ether'));
@@ -76,12 +75,8 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
     new Promise(resolve => {
         const mutStat = MutableState(contractAddress, gameState.ctors, gameState.bob, gameState.alice,
                                      gameState.deposit, gameState.full_state);
-        console.log('mutStat.userpairaddress=', mutStat.userpairaddress);
         const ctc = SpanCTC(mutStat);
-//        var A =10;
-//        var B =10;
-//        ctc.SC_Inf_Send_ListParticipant(A,B);
-        return new Promise.race([ctc.SC_SpanThreads_DEBUG()]);
+        return Promise.race([ctc.SC_SpanThreads()]);
         resolve('foo');
     });
 
@@ -91,8 +86,8 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
         const mutStat = MutableState(contractAddress, gameState.ctors, gameState.bob, gameState.alice,
                                      gameState.deposit, gameState.full_state);
         const ctc = SpanCTC(mutStat);
-        return new Promise.race([ctc.SC_SpanThreads(),
-          new Promise.resolve(ctc =>
+        return Promise.race([ctc.SC_SpanThreads(),
+          Promise.resolve(ctc =>
             ctc.SC_CreateSC()
             .then(ctc => theRPS.B(stdlib
                   , ctc, txn0, interactWith('Bob', makeWhichHand())
@@ -106,20 +101,21 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
             const mutStat = MutableState(contractAddress, gameState.ctors, gameState.alice, [0,0],
                                          gameState.deposit, gameState.full_state);
             const ctc = SpanCTC(mutStat);
-            return new Promise.race([ctc.SC_SpanThreads(),
-          new Promise.resolve(ctc =>
+            return Promise.race([ctc.SC_SpanThreads(),
+          Promise.resolve(ctc =>
             ctc.SC_CreateSC()
             .then(ctc => theRPS.A(stdlib
                   , ctc, txn0, interactWith('Alice', makeWhichHand())
                                   , wagerInWei, escrowInWei, resolve)))]);
         });
 
-//    .then(contractAddress => Promise.all([ bobShoot(contractAddress), aliceShoot(contractAddress) ]))
+//    
+//    .then(contractAddress => Promise.all([ specificShoot(contractAddress) ]))
   return prefundedDevnetAcct()
         .then(p   => Promise.all([ newPlayer(p), newPlayer(p) ]))
         .then(captureOpeningGameState)
         .then(()  => deploy(gameState.alice[0])(gameState.full_state, gameState.ctors))
-        .then(contractAddress => Promise.all([ specificShoot(contractAddress) ]))
+        .then(contractAddress => Promise.all([ bobShoot(contractAddress), aliceShoot(contractAddress) ]))
         .then(captureClosingGameState);
 };
 
