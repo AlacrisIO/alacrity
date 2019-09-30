@@ -289,8 +289,8 @@ solHandlers ps hs = vsep $ intersperse emptyDoc $ zipWith (solHandler ps) [0..] 
 vsep_with_blank :: [Doc a] -> Doc a
 vsep_with_blank l = vsep $ intersperse emptyDoc l
 
-emit_sol :: BLProgram -> Doc a
-emit_sol (BL_Prog _ (C_Prog ps hs)) =
+emit_sol :: TimeoutWindowInBlocks -> BLProgram -> Doc a
+emit_sol timeoutWithin (BL_Prog _ (C_Prog ps hs)) =
   vsep_with_blank $ [ solVersion, solStdLib, ctcp ]
   where ctcp     = solContract "ALAContract is Stdlib" ctcbody
         consp    = solApply "constructor" p_ds <+> "public payable" <+> solBraces consbody
@@ -299,10 +299,9 @@ emit_sol (BL_Prog _ (C_Prog ps hs)) =
         ctcbody  = vsep [ "uint256 current_state;"
                         , "int block_nbr;"
                         , "address last_address;"
-                        , "int timeout_depth = 10;"
+                        , "int timeout_depth = " <> pretty timeoutWithin <> ";"
                         , emptyDoc
                         -- TODO: * Process correct reimbursements
-                        --       * Replace hard-coded timeout implementation
                         -- NOTE: * `emit` must precede `selfdestruct` for anyone to
                         --         actually receive the event, but unfortunately this
                         --         introduces a race condition until we implement
@@ -333,9 +332,9 @@ extract v = (abi, code)
         Just (String codebodyt) = HM.lookup "bin" ctc
         code = "\"0x" ++ T.unpack codebodyt ++ "\""
 
-compile_sol :: String -> BLProgram -> IO CompiledSol
-compile_sol solf blp = do
-  writeFile solf (show (emit_sol blp))
+compile_sol :: String -> TimeoutWindowInBlocks -> BLProgram -> IO CompiledSol
+compile_sol solf timeoutWithin blp = do
+  writeFile solf (show (emit_sol timeoutWithin blp))
   ( ec, stdout, stderr ) <- readProcessWithExitCode
     "solc" ["--optimize", "--combined-json", "abi,bin", solf] []
 
