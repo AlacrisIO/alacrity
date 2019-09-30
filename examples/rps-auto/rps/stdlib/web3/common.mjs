@@ -271,7 +271,9 @@ const SC_SubmitSettleOperation = A => B => (prev_state, new_state, deposit, with
 
 
 async function SC_GetAll_VRSsignatures(A,B, state) {
+    console.log('SC_GetAll_VRSsignatures, begin');
     const nb_part = B.sc_idx_participants.length;
+    console.log('SC_GetAll_VRSsignatures, nb_part=', nb_part);
     const ListSignatures = [];
     for (var i=0; i<nb_part; i++) {
         if (i == B.sc_my_idx) {
@@ -344,7 +346,7 @@ const SC_Test = (iter) => new Promise(resolve => {
 });
 
 
-export async function SC_Inf_Send_ListParticipant(A,B) {
+async function SC_Inf_Send_ListParticipant(A,B) {
   let iter = 0;
   while (iter >= 0)
   {
@@ -363,20 +365,39 @@ export async function SC_Inf_Send_ListParticipant(A,B) {
 
 const SC_Get_ListParticipant = A => B =>
   new Promise((resolve, reject) => {
+      console.log('SC_Get_ListParticipant, step 1');
       const myId_shh = B.userpairaddress[1];
-      const initiatorId = B.initiatorpairaddress[1];
+//      const initiatorId = B.initiatorpairaddress[1];
+      console.log('SC_Get_ListParticipant, step 2');
       const updateListPart = (listpart) => {
+          console.log('listpart');
           B.sc_list_address = B.sc_list_address.concat(listpart);
           resolve('successful update of list_address');
       };
+      console.log('SC_Get_ListParticipant, step 3');
       const fctRecvListParticipant = () => {
-          A.web3.shh.filter(
-              {'topics':['listparticipant2'], 'to':myId_shh},
-              (err_filt, result_filt) => !!err_filt ? updateListPart(result_filt) : fctRecvListParticipant(result_filt));
+          const subscription = A.web3.shh.subscribe('messages', {
+              symKeyID: myId_shh[0],
+              topics: ['listparticipant2']})
+                .on('data', updateListPart);
       };
-      A.web3.shh.post(
-          {'from':myId_shh, 'to':initiatorId, 'payload':'', 'topics':['listparticipant1']},
-          (err_post, result_post) => !!err_post ? reject('error shh.pos') : fctRecvListParticipant());
+      console.log('SC_Get_ListParticipant, step 4');
+      A.web3.shh.post({
+          symKeyID: myId_shh[0],
+          sig: myId_shh[1],
+          ttl: 10,
+          topic: 'listparticipant1',
+          payload: '',
+          powTime: 3,
+          powTarget: 0.5})
+          .then(h => {
+              console.log('Message with hash was successfully sent h=', h);
+              resolve(h);
+              })
+          .catch(err => {
+              console.log('Error: ', err);
+              reject(err);
+          });
   });
 
 
@@ -397,7 +418,7 @@ const SC_WaitEvents = A => B =>
       new Promise(resolve => {
           console.log('Beginning of SC_WaitEvents');
           const subs = new A.ethers.Contract(B.contractAddress,
-                                             A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider));
+                 A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider));
           subs.on('Unanimously', (digest) => {
               console.log('SC_ScanUnanimously, on operation digest=', digest);
               const oper = B.pending_unanimous_operations.find(x => x.digest === digest);
@@ -595,21 +616,29 @@ const MutableState = (contractAddress,ctors,userpairaddress,initiatorpairaddress
 
 
 
-const SC_mkCreateSC = A => B => (state) => {
+const SC_mkCreateSC = A => B => (full_state) => {
     console.log('SC_mkCreateSC, step 1');
+    const state = digestState(A)(full_state);
+    console.log('SC_mkCreateSC, step 2, state=', state);
+    const ctor_state = un0x(encode(A.ethers)('bytes32', state));
+    console.log('SC_mkCreateSC, step 3, ctor_state=', ctor_state);
     if (B.initiatorpairaddress[0] == 0) {
-        console.log('SC_mkCreateSC, step 2');
+        console.log('SC_mkCreateSC, step 4');
         new A.web3.eth.Contract(A.abi, B.contractaddress)
             .methods['constructor'](state)
             .send({ from: B.userpairaddress[0], value: 0 })
             .then(r  => fetchAndRejectInvalidReceiptFor(A)(r.transactionHash))
-            .then(() => 'Successful construction of contract');
+            .then(() => {
+                console.log('Successful construction of contract');
+                Promise.resolve();
+            });
     }
     else {
-        console.log('SC_mkCreateSC, step 3');
+        console.log('SC_mkCreateSC, step 5');
         SC_Get_ListParticipant(A)(B)
             .then(mesg => SC_GetAll_VRSsignatures(A,B, state)
                   .then(list_signature => {
+                      console.log('SC_mkCreateSC, step 6');
                       const prev_state = B.list_full_state[0];
                       const participants = prev_state.participants;
                       participants.push(B.userpairaddress[0]);
@@ -620,6 +649,7 @@ const SC_mkCreateSC = A => B => (state) => {
                       for (var i=0; i<mesg.length; i++) {
                           withdrawals.push(0);
                       }
+                      console.log('SC_mkCreateSC, step 7');
                       SC_SubmitSettleOperation(A)(B)(prev_state, new_state, deposit, withdrawals, list_signature);
                   }));
     }
