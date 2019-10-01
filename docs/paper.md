@@ -850,8 +850,9 @@ program operation.
 
 Although Alacrity is usable today, it is a work-in-progress with room
 for growth and development. You can start using it today by visiting
-[AlacrisIO/alacrity](https://github.com/AlacrisIO/alacrity). We will
-be running a workshop in Boston in Fall 2019. Please visit
+[alacrity-lang.org](https://alacrity-lang.org/).
+The source code [AlacrisIO/alacrity](https://github.com/AlacrisIO/alacrity).
+We will be running a workshop in Boston in Fall 2019. Please visit
 [alacris.io](https://alacris.io) or follow us on Twitter
 [@alacrisos](https://twitter.com/alacrisos) or Telegram at
 https://t.me/alacrisio for more information!
