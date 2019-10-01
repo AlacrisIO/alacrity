@@ -165,7 +165,7 @@ they do not offer deployment services.
   in client code.
   But Alacrity provides exactly the missing higher-level programming model.
 
-* [DeepSea](https://certik.org/deepsea_blockchain.html)
+* [DeepSEA/Blockchain](https://certik.org/deepsea_blockchain.html)
   is a general-purpose language for writing code at the level of abstraction of C,
   but with proofs of correctness using separation logic in Coq.
   You can do anything with it, including proving smart contract,
