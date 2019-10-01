@@ -646,7 +646,7 @@ compile copts = do
   writeFile' "bl"  blp
 
   verify_z3 (out "z3") ilp blp
-  cs <- compile_sol (out "sol") blp
+  cs <- compile_sol (out "sol") timeoutWithin blp
 
   writeFile (out "mjs") (show (emit_js timeoutWithin blp cs))
 
