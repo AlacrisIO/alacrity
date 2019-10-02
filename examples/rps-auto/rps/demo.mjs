@@ -88,11 +88,11 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
         const ctc = SpanCTC(mutStat);
         return Promise.race([
             ctc.SC_SpanThreads(),
-            ctc.SC_CreateSC(gameState.full_state)
-                .then(() => theRPS.B(
-                    stdlib, ctc, txn0, interactWith('Bob', makeWhichHand())
-                    , resolve))]);
+            ctc.SC_CreateSC(gameState.full_state)]);
     });
+//                .then(() => theRPS.B(
+//                    stdlib, ctc, txn0, interactWith('Bob', makeWhichHand())
+//                    , resolve))]);
 
 
 

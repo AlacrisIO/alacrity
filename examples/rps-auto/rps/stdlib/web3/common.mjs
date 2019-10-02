@@ -171,7 +171,7 @@ const SC_Send_VRSsignature = A => B =>
                   symKeyID: myId_shh[0],
                   sig: myId_shh[1],
                   ttl: 10,
-                  topic: 'listparticipant2',
+                  topic: '0xeeaadd22', // vrssignature2
                   payload: result_sign,
                   powTime: 3,
                   powTarget: 0.5})
@@ -194,7 +194,7 @@ const SC_Send_VRSsignature = A => B =>
 //          console.log('myId_shh=', myId_shh);
           var subscription = A.web3.shh.subscribe('messages', {
               symKeyID: myId_shh[0],
-              topics: ['VRSsignature1']});
+              topics: ['0xeeaadd11']});
           console.log('SC_Send_VRSsignature, step 4');
           subscription.on('error', e => {
               console.log('Error e=', e);
@@ -229,11 +229,11 @@ const SC_GetSingle_VRSsignature = A => B => (requestpair, state) =>
           const request_shh = requestpair[1];
           const waitForSignature = () => {
               A.web3.shh.filter(
-                  {'topics':['VRSsignature2'], 'to':myId_shh},
+                  {'topics':['0xeeaadd22'], 'to':myId_shh},
                   (err_filt, result_filt) => !!err_filt ? reject('error web3.filter') : resolve(result_filt));
           };
           A.web3.shh.post(
-              {'from':myId_shh, 'to':request_shh, 'topics':['VRSsignature1'], 'payload':state},
+              {'from':myId_shh, 'to':request_shh, 'topics':['0xeeaadd11'], 'payload':state},
               (err_post, _result_post) => !!err_post ? reject('error shh.pos') : waitForSignature());
       });
 
@@ -247,16 +247,20 @@ const digestState = A => full_state => {
 
 
 const SC_SubmitSettleOperation = A => B => (prev_state, new_state, deposit, withdrawals, list_signature) => {
+    console.log('SC_SubmitSettleOperation, step 1');
     const session = prev_state.session;
     const clock = prev_state.clock;
     const participants = prev_state.participants.map(x => x[0]);
     const data = prev_state.data;
+    console.log('SC_SubmitSettleOperation, step 2');
     //
     const signatures_v = list_signature.map(x => x.v);
     const signatures_r = list_signature.map(x => x.r);
     const signatures_s = list_signature.map(x => x.s);
+    console.log('SC_SubmitSettleOperation, step 3');
     //
     const newState = digestState(A)(new_state);
+    console.log('SC_SubmitSettleOperation, step 4');
     return new A.web3.eth.Contract(A.abi, B.contractAddress)
         .methods['settle'](session, clock, participants, data, deposit, withdrawals,
                            newState, signatures_v, signatures_r, signatures_s)
@@ -312,7 +316,7 @@ const SC_Send_ListParticipant = A => B =>
             symKeyID: myId_shh[0],
             sig: myId_shh[1],
             ttl: 10,
-            topic: 'listparticipant2',
+            topic: '0xffaadd22',
             payload: list_part,
             powTime: 3,
             powTarget: 0.5})
@@ -330,7 +334,7 @@ const SC_Send_ListParticipant = A => B =>
       console.log('SC_Send_ListParticipant, step 6');
       subscription = A.web3.shh.subscribe('messages', {
           symKeyID: myId_shh[0],
-          topics: ['listparticipant1']})
+          topics: ['0xffaadd11']})
           .on('data', fctSendListParticipant);
       console.log('SC_Send_ListParticipant, step 7');
 //      console.log('subscription=', subscription);
@@ -378,15 +382,17 @@ const SC_Get_ListParticipant = A => B =>
       const fctRecvListParticipant = () => {
           const subscription = A.web3.shh.subscribe('messages', {
               symKeyID: myId_shh[0],
-              topics: ['listparticipant2']})
+              topics: ['0xffaadd22']})
                 .on('data', updateListPart);
       };
       console.log('SC_Get_ListParticipant, step 4');
+      console.log('SC_Get_ListParticipant, myId_shh[0]=', myId_shh[0]);
+      console.log('SC_Get_ListParticipant, myId_shh[1]=', myId_shh[1]);
       A.web3.shh.post({
           symKeyID: myId_shh[0],
           sig: myId_shh[1],
           ttl: 10,
-          topic: 'listparticipant1',
+          topic: '0xffaadd11', // listparticipant1
           payload: '',
           powTime: 3,
           powTarget: 0.5})
@@ -604,7 +610,7 @@ const MutableState = (contractAddress,ctors,userpairaddress,initiatorpairaddress
                          // table
      , sc_idx_participants: [] // The list of participants of the SC (list of index of sc_list_address)
      , sc_my_idx: 0
-     , sc_status_sequence: [full_state]
+     , list_full_state: [full_state]
      , pending_unanimous_operations: []
      , deposit
      , userpairaddress
