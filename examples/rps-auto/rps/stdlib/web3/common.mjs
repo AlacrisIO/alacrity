@@ -208,13 +208,16 @@ const SC_Send_VRSsignature = A => B =>
 
 
 async function SC_Inf_Send_VRSsignature(A,B) {
-  let iter = 0;
-  while (iter >= 0)
-  {
-    let var_reply = await SC_Send_VRSsignature(A)(B);
-    iter = iter + 1;
-    console.log('SC_Inf_Send_VRSsignature, iter=' + iter + ' var_reply=' + var_reply);
-  }
+    let iter = 0;
+    while (iter >= 0)
+    {
+        let var_reply = await SC_Send_VRSsignature(A)(B);
+        iter = iter + 1;
+        console.log('SC_Inf_Send_VRSsignature, iter=' + iter + ' var_reply=' + var_reply);
+        if (B.stop_threads) {
+            break;
+        }
+    }
 }
 
 
@@ -342,23 +345,18 @@ const SC_Send_ListParticipant = A => B =>
   });
 
 
-const SC_Test = (iter) => new Promise(resolve => {
-    console.log('SC_Test, iter=', iter);
-    setTimeout(function() {
-        resolve('foo');
-    }, 300);
-});
-
 
 async function SC_Inf_Send_ListParticipant(A,B) {
-  let iter = 0;
-  while (iter >= 0)
-  {
-      let var_reply = await SC_Send_ListParticipant(A)(B);
-//      let var_reply = await SC_Test(iter);
-      iter = iter + 1;
-      console.log('SC_Inf_Send_ListParticipant, iter=' + iter + ' var_reply=' + var_reply);
-  }
+    let iter = 0;
+    while (iter >= 0)
+    {
+        let var_reply = await SC_Send_ListParticipant(A)(B);
+        iter = iter + 1;
+        console.log('SC_Inf_Send_ListParticipant, iter=' + iter + ' var_reply=' + var_reply);
+        if (B.stop_threads) {
+            break;
+        }
+    }
 }
 
 
@@ -450,13 +448,28 @@ const SC_WaitEvents = A => B =>
           });
       });
 
+
+const SC_Test = (iter) => new Promise(resolve => {
+    console.log('SC_Test, iter=', iter);
+    setTimeout(function() {
+        resolve('foo');
+    }, 300);
+});
+
+
+
+
 async function SC_Inf_WaitEvents(A,B) {
     let iter = 0;
     while (iter >= 0)
     {
-        let var_reply = await SC_WaitEvents(A)(B);
+//        let var_reply = await SC_WaitEvents(A)(B);
+        let var_reply = await SC_Test(iter);
         iter = iter + 1;
         console.log('SC_Inf_WaitEvents, iter=' + iter + ' var_reply=' + var_reply);
+        if (B.stop_threads) {
+            break;
+        }
     }
 }
 
@@ -468,6 +481,9 @@ const SC_mkSpanThreads = A => B => () =>
       Promise.race([SC_Inf_Send_ListParticipant(A,B),
                     SC_Inf_Send_VRSsignature(A,B),
                     SC_Inf_WaitEvents(A,B)]);
+//      Promise.race([SC_Inf_Send_ListParticipant(A,B),
+//                    SC_Inf_Send_VRSsignature(A,B),
+//                    SC_Inf_WaitEvents(A,B)]);
 
 
 
@@ -612,6 +628,7 @@ const MutableState = (contractAddress,ctors,userpairaddress,initiatorpairaddress
      , sc_my_idx: 0
      , list_full_state: [full_state]
      , pending_unanimous_operations: []
+     , stop_threads: false
      , deposit
      , userpairaddress
      , initiatorpairaddress
@@ -656,7 +673,10 @@ const SC_mkCreateSC = A => B => (full_state) => {
                           withdrawals.push(0);
                       }
                       console.log('SC_mkCreateSC, step 7');
-                      SC_SubmitSettleOperation(A)(B)(prev_state, new_state, deposit, withdrawals, list_signature);
+//                      SC_SubmitSettleOperation(A)(B)(prev_state, new_state, deposit, withdrawals, list_signature);
+                      console.log('SC_mkCreateSC, step 8');
+                      B.stop_threads=true;
+                      Promise.resolve();
                   }));
     }
 };
