@@ -23,6 +23,9 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
             .then(sc_identity => [to, sc_identity]));
 //                    .then(sc_identity => stdlib.EthereumNetwork(to, sc_identity)));
 
+    const session = '0x' + uint256_to_bytes(random_uint256());
+    const data = '0x' + uint256_to_bytes(random_uint256());
+
   const captureOpeningGameState = ([ a, b ]) =>
     Promise.all([ balanceOf(a), balanceOf(b) ])
     .then(([ balanceStartAlice, balanceStartBob ]) =>
@@ -31,7 +34,7 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
            , bob: b
            , list_nodes: [a, b]
            , ctors: [ a[0], b[0] ]
-           , full_state: {session: uint256_to_bytes(random_uint256()), clock: 0, participants: [a], data: 0}
+           , full_state: {session, clock: 0, participants: [a], data}
            , deposit
            , balanceStartAlice
            , balanceStartBob

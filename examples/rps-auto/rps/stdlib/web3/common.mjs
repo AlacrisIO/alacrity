@@ -209,14 +209,11 @@ const SC_Send_VRSsignature = A => B =>
 
 async function SC_Inf_Send_VRSsignature(A,B) {
     let iter = 0;
-    while (iter >= 0)
+    while (B.run_threads)
     {
         let var_reply = await SC_Send_VRSsignature(A)(B);
         iter = iter + 1;
         console.log('SC_Inf_Send_VRSsignature, iter=' + iter + ' var_reply=' + var_reply);
-        if (B.stop_threads) {
-            break;
-        }
     }
 }
 
@@ -251,22 +248,36 @@ const digestState = A => full_state => {
 
 const SC_SubmitSettleOperation = A => B => (prev_state, new_state, deposit, withdrawals, list_signature) => {
     console.log('SC_SubmitSettleOperation, step 1');
-    const session = prev_state.session;
-    const clock = prev_state.clock;
-    const participants = prev_state.participants.map(x => x[0]);
-    const data = prev_state.data;
+    const session = typeConversionToWeb3(A)(prev_state.session);
+    const clock = typeConversionToWeb3(A)(prev_state.clock);
+    const participants = prev_state.participants.map(x => typeConversionToWeb3(A)(x[0]));
+    const data = typeConversionToWeb3(A)(prev_state.data);
+    const deposit_web3 = typeConversionToWeb3(A)(deposit);
+    const withdrawals_web3 = withdrawals.map(typeConversionToWeb3(A));
+    console.log('withdrawals=', withdrawals);
     console.log('SC_SubmitSettleOperation, step 2');
     //
     const signatures_v = list_signature.map(x => x.v);
     const signatures_r = list_signature.map(x => x.r);
     const signatures_s = list_signature.map(x => x.s);
+    console.log('list_signature=', list_signature);
     console.log('SC_SubmitSettleOperation, step 3');
     //
     const newState = digestState(A)(new_state);
     console.log('SC_SubmitSettleOperation, step 4');
+    console.log('session=', session);
+    console.log('clock=', clock);
+    console.log('participants=', participants);
+    console.log('data=', data);
+    console.log('signatures_v=', signatures_v);
+    console.log('signatures_r=', signatures_r);
+    console.log('signatures_s=', signatures_s);
+    console.log('newState=', newState);
+//        .methods['settle'](session, clock, participants, data, deposit, withdrawals,
+//                           newState, signatures_v, signatures_r, signatures_s)
     return new A.web3.eth.Contract(A.abi, B.contractAddress)
-        .methods['settle'](session, clock, participants, data, deposit, withdrawals,
-                           newState, signatures_v, signatures_r, signatures_s)
+        .methods['settle_test1'](session, clock, participants, data, deposit_web3, withdrawals_web3,
+                                 newState)
         .send({ from: B.userpairaddress[0], value: deposit })
         .then(r => fetchAndRejectInvalidReceiptFor(A)(r.transactionHash));
 };
@@ -348,14 +359,11 @@ const SC_Send_ListParticipant = A => B =>
 
 async function SC_Inf_Send_ListParticipant(A,B) {
     let iter = 0;
-    while (iter >= 0)
+    while (B.run_threads)
     {
         let var_reply = await SC_Send_ListParticipant(A)(B);
         iter = iter + 1;
         console.log('SC_Inf_Send_ListParticipant, iter=' + iter + ' var_reply=' + var_reply);
-        if (B.stop_threads) {
-            break;
-        }
     }
 }
 
@@ -424,27 +432,27 @@ const SC_WaitEvents = A => B =>
           const subs = new A.ethers.Contract(B.contractAddress,
                  A.abi, new A.ethers.providers.Web3Provider(A.web3.currentProvider));
           subs.on('Unanimously', (digest) => {
-              console.log('SC_ScanUnanimously, on operation digest=', digest);
+              console.log('Unanimously, on digest=', digest);
               const oper = B.pending_unanimous_operations.find(x => x.digest === digest);
-              console.log('SC_ScanUnanimously, oper=', oper);
+              console.log('Unanimously, oper=', oper);
               SC_UpdateCurrentState(A)(B)(oper);
-              resolve('successful completion of  Unanimously');
+              resolve('successful processing of event Unanimously');
           });
           subs.on('Challenge', (challengedParticipant) => {
               console.log('challengedParticipant=', challengedParticipant);
-              resolve('Successful completion of ScanChallenge');
+              resolve('Successful processing of event Challenge');
           });
           subs.on('TimeOut', (clock, failedParticipant) => {
               console.log('clock=', clock, ' failedParticipant=', failedParticipant);
               console.log('myIdentity=', B.userpairaddress[1]);
               console.log('Code needs to be written to handle challenge events');
-              resolve('Successful completion of TimeOut');
+              resolve('Successful processing of event TimeOut');
           });
           subs.on('Message', (clock, message) => {
               console.log('clock=', clock, ' message=', message);
               console.log('myIdentity=', B.userpairaddress[1]);
               console.log('Code needs to be written to handle challenge events');
-              process.exit();
+              resolve('Successful processing of event Message');
           });
       });
 
@@ -461,16 +469,16 @@ const SC_Test = (iter) => new Promise(resolve => {
 
 async function SC_Inf_WaitEvents(A,B) {
     let iter = 0;
-    while (iter >= 0)
+    while (B.run_threads)
     {
-//        let var_reply = await SC_WaitEvents(A)(B);
-        let var_reply = await SC_Test(iter);
+        console.log('Before SC_WaitEvents');
+        let var_reply = await SC_WaitEvents(A)(B);
+//        let var_reply = await SC_Test(iter);
         iter = iter + 1;
         console.log('SC_Inf_WaitEvents, iter=' + iter + ' var_reply=' + var_reply);
-        if (B.stop_threads) {
-            break;
-        }
     }
+    console.log('After exiting while loop. Need to know which promises are still pending');
+    debugger;
 }
 
 
@@ -529,6 +537,10 @@ const fetchAndRejectInvalidReceiptFor = ({ web3 }) => txHash =>
 // https://web3js.readthedocs.io/en/v1.2.0/web3-eth.html#sendtransaction
 const transfer = ({ web3 }) => (to, from, value) =>
   web3.eth.sendTransaction({ to, from, value });
+
+const typeConversionToWeb3 = A => m =>
+      isBN(A)(m) ? m.toString() : m;
+
 
 
 // https://github.com/ethereum/wiki/wiki/JavaScript-API#contract-methods
@@ -628,7 +640,7 @@ const MutableState = (contractAddress,ctors,userpairaddress,initiatorpairaddress
      , sc_my_idx: 0
      , list_full_state: [full_state]
      , pending_unanimous_operations: []
-     , stop_threads: false
+     , run_threads: true
      , deposit
      , userpairaddress
      , initiatorpairaddress
@@ -662,20 +674,23 @@ const SC_mkCreateSC = A => B => (full_state) => {
             .then(mesg => SC_GetAll_VRSsignatures(A,B, state)
                   .then(list_signature => {
                       console.log('SC_mkCreateSC, step 6');
+                      console.log('mesg=', mesg);
                       const prev_state = B.list_full_state[0];
-                      const participants = prev_state.participants;
-                      participants.push(B.userpairaddress[0]);
+//                      console.log('1: prev_state=', prev_state);
+                      const participants = prev_state.participants.map(x => x);
+                      participants.push(B.userpairaddress);
                       const new_state = {session: prev_state.session, data: prev_state.data,
                                          participants, clock: prev_state.clock };
+//                      console.log('participants=', participants);
                       const deposit = B.deposit;
                       const withdrawals = [];
-                      for (var i=0; i<mesg.length; i++) {
+                      for (var i=0; i<prev_state.participants.length; i++) {
                           withdrawals.push(0);
                       }
                       console.log('SC_mkCreateSC, step 7');
-//                      SC_SubmitSettleOperation(A)(B)(prev_state, new_state, deposit, withdrawals, list_signature);
+                      SC_SubmitSettleOperation(A)(B)(prev_state, new_state, deposit, withdrawals, list_signature);
                       console.log('SC_mkCreateSC, step 8');
-                      B.stop_threads=true;
+                      B.run_threads=false;
                       Promise.resolve();
                   }));
     }
