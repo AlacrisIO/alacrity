@@ -106,11 +106,11 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
             const ctc = SpanCTC(mutStat);
             return Promise.race([
                 ctc.SC_SpanThreads(),
-                ctc.SC_CreateSC(gameState.full_state)
-                    .then(() => theRPS.A(
-                        stdlib, ctc, txn0, interactWith('Alice', makeWhichHand())
-                        , wagerInWei, escrowInWei, resolve))]);
+                ctc.SC_CreateSC(gameState.full_state)]);
         });
+//                    .then(() => theRPS.A(
+//                        stdlib, ctc, txn0, interactWith('Alice', makeWhichHand())
+//                        , wagerInWei, escrowInWei, resolve))]);
 
 //    
 //    .then(contractAddress => Promise.all([ specificShoot(contractAddress) ]))
@@ -119,7 +119,7 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
         .then(p   => Promise.all([ newPlayer(p), newPlayer(p) ]))
         .then(captureOpeningGameState)
         .then(()  => deploy(gameState.alice[0])(gameState.full_state, gameState.ctors))
-        .then(contractAddress => Promise.all([ bobShoot(contractAddress) ]))
+        .then(contractAddress => Promise.all([ aliceShoot(contractAddress) ]))
         .then(captureClosingGameState);
 };
 

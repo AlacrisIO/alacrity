@@ -618,9 +618,6 @@ const mkDeploy = A => userAddress => (full_state, ctors) => {
     data = [ A.bytecode, ...encodedCtors ].join('');
   }
 
-//  const contractFromReceipt = r =>
-//    Contract(A)(userAddress)(ctors, r.contractAddress);
-//  console.log('data=', data);
   return A.web3.eth.estimateGas({ data })
     .then(gas => A.web3.eth.sendTransaction({ data, gas, from: userAddress }))
     .then(r => rejectInvalidReceiptFor(r.transactionHash)(r))
@@ -657,9 +654,12 @@ const SC_mkCreateSC = A => B => (full_state) => {
     console.log('SC_mkCreateSC, step 2, state=', state);
     const ctor_state = un0x(encode(A.ethers)('bytes32', state));
     console.log('SC_mkCreateSC, step 3, ctor_state=', ctor_state);
-    if (B.initiatorpairaddress[0] == 0) {
+    if (B.initiatorpairaddress[0] !== 0) {
+        /* NOT "constructor" because the constructor is called at the
+           instantiation of the contract
         console.log('SC_mkCreateSC, step 4');
-        new A.web3.eth.Contract(A.abi, B.contractaddress)
+        console.log('B.contractAddress=', B.contractAddress);
+        new A.web3.eth.Contract(A.abi, B.contractAddress)
             .methods['constructor'](state)
             .send({ from: B.userpairaddress[0], value: 0 })
             .then(r  => fetchAndRejectInvalidReceiptFor(A)(r.transactionHash))
@@ -667,8 +667,7 @@ const SC_mkCreateSC = A => B => (full_state) => {
                 console.log('Successful construction of contract');
                 Promise.resolve();
             });
-    }
-    else {
+        */
         console.log('SC_mkCreateSC, step 5');
         SC_Get_ListParticipant(A)(B)
             .then(mesg => SC_GetAll_VRSsignatures(A,B, state)
