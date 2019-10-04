@@ -1,2 +1,0 @@
-[//]: # (title: Overall Program Structure)
-

@@ -28,7 +28,7 @@ The current syntax is `parameterType parameterName`,
 but in the near future may be changed to `parameterName : parameterType`.
 For example, in the following interaction,
 Bob is selling a secret to Alice for an agreed upon amount,
-after having committed
+after having committed to a given digest.
 
 ```alacrity
 participant Alice {
@@ -57,7 +57,7 @@ main {
   transfer! Bob <- price;
   commit;
 
-  0
+  bobSecret
 }
 ```
 
@@ -76,16 +76,9 @@ If Alice never puts down the money, nothing happen except Bob leaving the intera
 If Alice puts down her money but Bob never reveals his secret,
 then Bob times out and Alice gets her money back.
 
-In a further future, we will introduce nesting and composition of transactions.
-
-
-
-Primitive                             | Example
---------------------------------------|--------------------------------
-Integers                              |  `23`, `-23`
-Integer Addition                      |  `23 + 1`
-Integer Division/Multiplication       |  `2 / 23 * 1`
-Comparison                            |  `>`, `<`, `>=`, `=<`
-Boolean operations                    |  `!`, `&&`, <code>&#124;&#124;</code>
-Block Comments                        |  `/* Comment here */`
-Line Comments                         |  `// Comment from here to the end of this line`
+The final value (`bobsSecret` in the example above) is returned by the DApp.
+For the moment this is a bit moot, since Alacrity currently only supports a single interaction,
+with neither nesting nor composition of interactions.
+In some future, we will introduce such nesting and composition of interactions,
+and the return value, which may differ per participant,
+will be usable by the context of the interaction.
