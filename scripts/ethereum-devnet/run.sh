@@ -16,6 +16,7 @@ cd $GETH_RUNDIR
 
 PORT=30303
 RPCPORT=8545
+SHHPORT=8546
 DATADIR=geth-data
 
 # clean out any existing data dir, thereby resetting eth blockchain state.
@@ -41,7 +42,7 @@ geth ${V1_9_X_ARGS} \
     --nodiscover \
     --maxpeers 0 \
     --ws \
-    --wsport=8546 \
+    --wsport=$SHHPORT \
     --wsorigins="*" \
     --rpc --rpcapi "db,eth,net,debug,web3,light,personal,admin,shh" --rpcport $RPCPORT --rpccorsdomain "*" \
     --port $PORT \

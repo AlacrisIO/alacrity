@@ -196,7 +196,27 @@ let SC_SignState = A => B => (oper) => {
 };
 
 
+const topic_vrs_step1 = '0xeeaadd11';
+const topic_vrs_step2 = '0xeeaadd22';
+const topic_listparticipant_step1 = '0xffaadd11';
+const topic_listparticipant_step2 = '0xffaadd22';
 
+
+const SC_post = A => (Id_shh, topic, payload) =>
+      A.web3_shh.shh.post({
+          symKeyID: Id_shh[0],
+          sig: Id_shh[1],
+          ttl: 10,
+          topic,
+          payload: array_to_hexa(payload),
+          powTime: 3,
+          powTarget: 0.5});
+
+const SC_receive = A => (Id_shh, topic) =>
+      A.web3_shh.shh.subscribe('messages', {
+        symKeyID: Id_shh[0],
+        topics: [topic]
+      });
 
 
 //
@@ -207,14 +227,7 @@ const SC_Send_VRSsignature = A => B =>
           console.log('SC_Send_VRSsignature, step 1');
           const myId_shh = B.userpairaddress[1];
           const fctSendVRS = (result_sign) => {
-              A.web3.shh.post({
-                  symKeyID: myId_shh[0],
-                  sig: myId_shh[1],
-                  ttl: 10,
-                  topic: '0xeeaadd22', // vrssignature2
-                  payload: result_sign,
-                  powTime: 3,
-                  powTarget: 0.5})
+              SC_post(A)(myId_shh, topic_vrs_step2, result_sign)
                   .then(h => {
                       console.log('Message with hash was successfully sent h=', h);
                       resolve(h);
@@ -230,18 +243,15 @@ const SC_Send_VRSsignature = A => B =>
               SC_SignState(A)(B)(state_to_sign).then(fctSendVRS);
           };
           console.log('SC_Send_VRSsignature, step 3');
-          var subscription = A.web3.shh.subscribe('messages', {
-              symKeyID: myId_shh[0],
-              topics: ['0xeeaadd11']});
-          console.log('SC_Send_VRSsignature, step 4');
+          var subscription = SC_receive(A)(myId_shh, topic_vrs_step1);
+          subscription.on('data', x => {
+              console.log('Receiving message');
+              CompHash_and_send(hexa_to_array(x));
+          });
           subscription.on('error', e => {
               console.log('Error e=', e);
               reject(e);
           });
-          console.log('SC_Send_VRSsignature, step 5');
-          subscription.on('data', CompHash_and_send);
-          console.log('SC_Send_VRSsignature, step 6');
-//          resolve('leaving');
       });
 
 
@@ -266,13 +276,25 @@ const SC_GetSingle_VRSsignature = A => B => (requestpair, state) =>
           const myId_shh = B.userpairaddress[1];
           const request_shh = requestpair[1];
           const waitForSignature = () => {
-              A.web3.shh.filter(
-                  {'topics':['0xeeaadd22'], 'to':myId_shh},
-                  (err_filt, result_filt) => !!err_filt ? reject('error web3.filter') : resolve(result_filt));
+              SC_receive(A)(myId_shh, topic_vrs_step2)
+                  .on('data', x => {
+                      console.log('Receive message');
+                      resolve(hexa_to_array(x));
+                  })
+                  .on('error', e => {
+                      console.log('Error e=', e);
+                      reject(e);
+                  });
           };
-          A.web3.shh.post(
-              {'from':myId_shh, 'to':request_shh, 'topics':['0xeeaadd11'], 'payload':state},
-              (err_post, _result_post) => !!err_post ? reject('error shh.pos') : waitForSignature());
+          SC_post(A)(myId_shh, topic_vrs_step1, state)
+              .then(h => {
+                  console.log('Message with hash was successfully sent h=', h);
+                  waitForSignature();
+              })
+              .catch(err => {
+                  console.log('Error: ', err);
+                  reject(err);
+              });
       });
 
 
@@ -357,40 +379,34 @@ async function SC_GetAll_VRSsignatures(A,B, state) {
 //
 const SC_Send_ListParticipant = A => B =>
       new Promise((resolve, reject) => {
-      console.log('SC_Send_ListParticipant, step 1');
-      const myId_shh = B.userpairaddress[1];
-      console.log('SC_Send_ListParticipant, step 2');
-      const fctSendListParticipant = (result_filt) => {
-          console.log('SC_Send_ListParticipant, step 3');
-          const list_part = B.sc_idx_participants.map(x => B.sc_list_address[x]);
-          console.log('SC_Send_ListParticipant, step 4');
-          A.web3.shh.post({
-              symKeyID: myId_shh[0],
-              sig: myId_shh[1],
-              ttl: 10,
-              topic: '0xffaadd22',
-              payload: list_part,
-              powTime: 3,
-              powTarget: 0.5})
-              .then(h => {
-                  console.log('Message with hash was successfully sent h=', h);
-                  resolve(h);
+          console.log('SC_Send_ListParticipant, step 1');
+          const myId_shh = B.userpairaddress[1];
+          console.log('SC_Send_ListParticipant, step 2');
+          const fctSendListParticipant = (result_filt) => {
+              console.log('SC_Send_ListParticipant, step 3');
+              const list_part = B.sc_idx_participants.map(x => B.sc_list_address[x]);
+              console.log('SC_Send_ListParticipant, step 4');
+              SC_post(A)(myId_shh, topic_listparticipant_step2, list_part)
+                  .then(h => {
+                      console.log('Message with hash was successfully sent h=', h);
+                      resolve(h);
+                  })
+                  .catch(err => {
+                      console.log('Error: ', err);
+                      reject(err);
+                  });
+          };
+          console.log('SC_Send_ListParticipant, step 5');
+          SC_receive(A)(myId_shh, topic_listparticipant_step1)
+              .on('data', x => {
+                  console.log('Receiving of topic');
+                  fctSendListParticipant(hexa_to_array(x));
               })
-              .catch(err => {
-                  console.log('Error: ', err);
-                  reject(err);
+              .on('error', e => {
+                  console.log('Error e=', e);
+                  reject(e);
               });
-      };
-      console.log('SC_Send_ListParticipant, step 5');
-      var subscription = null;
-      console.log('SC_Send_ListParticipant, step 6');
-      subscription = A.web3.shh.subscribe('messages', {
-          symKeyID: myId_shh[0],
-          topics: ['0xffaadd11']})
-          .on('data', fctSendListParticipant);
-      console.log('SC_Send_ListParticipant, step 7');
-//      console.log('subscription=', subscription);
-//      resolve(iter);
+          console.log('SC_Send_ListParticipant, step 7');
   });
 
 
@@ -424,22 +440,17 @@ const SC_Get_ListParticipant = A => B =>
       };
       console.log('SC_Get_ListParticipant, step 3');
       const fctRecvListParticipant = () => {
-          const subscription = A.web3.shh.subscribe('messages', {
-              symKeyID: myId_shh[0],
-              topics: ['0xffaadd22']})
-                .on('data', updateListPart);
+          SC_receive(A)(myId_shh, topic_listparticipant_step2)
+              .on('data', x => updateListPart(hexa_to_array(x)))
+              .on('error', e => {
+                  console.log('Error e=', e);
+                  reject(e);
+              });
       };
       console.log('SC_Get_ListParticipant, step 4');
       console.log('SC_Get_ListParticipant, myId_shh[0]=', myId_shh[0]);
       console.log('SC_Get_ListParticipant, myId_shh[1]=', myId_shh[1]);
-      A.web3.shh.post({
-          symKeyID: myId_shh[0],
-          sig: myId_shh[1],
-          ttl: 10,
-          topic: '0xffaadd11', // listparticipant1
-          payload: '',
-          powTime: 3,
-          powTarget: 0.5})
+      SC_post(A)(myId_shh, topic_listparticipant_step1, {})
           .then(h => {
               console.log('Message with hash was successfully sent h=', h);
               resolve(h);
