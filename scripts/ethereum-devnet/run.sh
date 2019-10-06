@@ -40,6 +40,9 @@ geth ${V1_9_X_ARGS} \
     --datadir $DATADIR \
     --nodiscover \
     --maxpeers 0 \
+    --ws \
+    --wsport=8546 \
+    --wsorigins="*" \
     --rpc --rpcapi "db,eth,net,debug,web3,light,personal,admin,shh" --rpcport $RPCPORT --rpccorsdomain "*" \
     --port $PORT \
     --nousb \

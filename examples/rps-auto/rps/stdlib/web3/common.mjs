@@ -98,6 +98,42 @@ const random_uint256 = A => () =>
   hexToBN(A)(byteArrayToHex(A.random32Bytes()));
 
 
+
+const function ascii_to_hexa(str)
+{
+    var arr1 = ['0x'];
+    for (var n = 0, l = str.length; n < l; n ++) 
+    {
+	var hex = Number(str.charCodeAt(n)).toString(16);
+	arr1.push(hex);
+    }
+    return arr1.join('');
+}
+
+const function hexa_to_ascii(str1)
+{
+    var hex  = un0x(str1.toString());
+    var str = '';
+    for (var n = 0; n < hex.length; n += 2) {
+	str += String.fromCharCode(parseInt(hex.substr(n, 2), 16));
+    }
+    return str;
+}
+
+const function array_to_hexa(arr)
+{
+    return ascii_to_hexa(JSON.stringify(arr));
+}
+
+const function hexa_to_array(hexstr)
+{
+    return JSON.parse(hexa_to_ascii(hexstr));
+}
+
+
+
+
+
 const equal = A => (a, b) => toBN(A)(a).eq( toBN(A)(b));
 const add   = A => (a, b) => toBN(A)(a).add(toBN(A)(b));
 const sub   = A => (a, b) => toBN(A)(a).sub(toBN(A)(b));
@@ -159,6 +195,10 @@ let SC_SignState = A => B => (oper) => {
     }
 };
 
+
+
+
+
 //
 // SHH: Functionality for signing messages from the computing side.
 //
@@ -190,8 +230,6 @@ const SC_Send_VRSsignature = A => B =>
               SC_SignState(A)(B)(state_to_sign).then(fctSendVRS);
           };
           console.log('SC_Send_VRSsignature, step 3');
-//          var subscription = null;
-//          console.log('myId_shh=', myId_shh);
           var subscription = A.web3.shh.subscribe('messages', {
               symKeyID: myId_shh[0],
               topics: ['0xeeaadd11']});
@@ -327,13 +365,13 @@ const SC_Send_ListParticipant = A => B =>
           const list_part = B.sc_idx_participants.map(x => B.sc_list_address[x]);
           console.log('SC_Send_ListParticipant, step 4');
           A.web3.shh.post({
-            symKeyID: myId_shh[0],
-            sig: myId_shh[1],
-            ttl: 10,
-            topic: '0xffaadd22',
-            payload: list_part,
-            powTime: 3,
-            powTarget: 0.5})
+              symKeyID: myId_shh[0],
+              sig: myId_shh[1],
+              ttl: 10,
+              topic: '0xffaadd22',
+              payload: list_part,
+              powTime: 3,
+              powTarget: 0.5})
               .then(h => {
                   console.log('Message with hash was successfully sent h=', h);
                   resolve(h);
@@ -489,36 +527,8 @@ const SC_mkSpanThreads = A => B => () =>
       Promise.race([SC_Inf_Send_ListParticipant(A,B),
                     SC_Inf_Send_VRSsignature(A,B),
                     SC_Inf_WaitEvents(A,B)]);
-//      Promise.race([SC_Inf_Send_ListParticipant(A,B),
-//                    SC_Inf_Send_VRSsignature(A,B),
-//                    SC_Inf_WaitEvents(A,B)]);
 
 
-
-const SC_mkSendTransaction = A => B => (to, payload) =>
-  new Promise((resolve, reject) => {
-    const myId_shh = B.userpairaddress[1];
-    const pSend = new Promise((resolve_loc, reject_loc) =>
-      A.web3.shh.post({'from': myId_shh, 'to': to, 'payload': payload},
-          (err, result) =>
-          !!err ? reject_loc(err) : resolve_loc(result)));
-    pSend.catch((message) => reject(message))
-    .then((result) => // eslint-disable-line no-unused-vars
-    new Promise((resolve, reject) => {
-      const pTimeOut = new Promise((resolve_time, reject_time) => {
-        setTimeout(reject_time, 500, 'timeout');
-      });
-      const pWait = new Promise((resolve_wait, reject_wait) => { // eslint-disable-line no-unused-vars
-        const fct = (payload_input, result_filt) => {
-          A.SC.state = A.SC.state + payload_input;
-          resolve_wait(result_filt);
-        };
-        A.web3.shh.filter({'topics':['state-channel'], 'to':myId_shh},
-          (err_filt, result_filt) => !!err_filt ? reject(err_filt) : fct(payload, result_filt));
-        });
-      return Promise.race([pTimeOut,pWait]);
-    }));
-  });
 
 
 
@@ -654,20 +664,8 @@ const SC_mkCreateSC = A => B => (full_state) => {
     console.log('SC_mkCreateSC, step 2, state=', state);
     const ctor_state = un0x(encode(A.ethers)('bytes32', state));
     console.log('SC_mkCreateSC, step 3, ctor_state=', ctor_state);
+    // Nothing to be done if you are the initiator.
     if (B.initiatorpairaddress[0] !== 0) {
-        /* NOT "constructor" because the constructor is called at the
-           instantiation of the contract
-        console.log('SC_mkCreateSC, step 4');
-        console.log('B.contractAddress=', B.contractAddress);
-        new A.web3.eth.Contract(A.abi, B.contractAddress)
-            .methods['constructor'](state)
-            .send({ from: B.userpairaddress[0], value: 0 })
-            .then(r  => fetchAndRejectInvalidReceiptFor(A)(r.transactionHash))
-            .then(() => {
-                console.log('Successful construction of contract');
-                Promise.resolve();
-            });
-        */
         console.log('SC_mkCreateSC, step 5');
         SC_Get_ListParticipant(A)(B)
             .then(mesg => SC_GetAll_VRSsignatures(A,B, state)
@@ -702,7 +700,6 @@ const mkSpanCTC = A => B =>
    , bytecode: A.bytecode
    , sendrecv: mkSendRecv(A)(B)
    , recv:     mkRecv(A)(B)
-   , SC_sendTransaction: SC_mkSendTransaction(A)
    , SC_SpanThreads: SC_mkSpanThreads(A)(B)
    , SC_CreateSC: SC_mkCreateSC(A)(B)
    , SC_Inf_Send_ListParticipant
@@ -738,6 +735,7 @@ export const mkStdlib = A =>
   , un0x
   , k
   , web3:             A.web3
+  , web3_shh:         A.web3_shh
   , SC_createIdentity: SC_mkCreateIdentity(A)
   , MutableState:     MutableState
   , ethers:           A.ethers

@@ -4,12 +4,12 @@ import * as RPS        from '../build/rps.mjs';
 import * as RPSW       from '../build/rps_while.mjs';
 import { runGameWith } from './demo.mjs';
 import { stdlibNode  } from './stdlib/web3/node.mjs';
-//import { SC_Inf_Send_ListParticipant  } from './stdlib/web3/common.mjs';
 
 const wagerInEth  = '1.5';
 const escrowInEth = '0.15';
 
 const uri = process.env.ETH_NODE_URI || 'http://localhost:8545';
+const uri_shh = 'ws://localhost:8546';
 
 const makeInteractWith = label => (name, handf) => (a, cb) => {
   const res = a === 'getHand' ? handf() : '';
@@ -46,7 +46,7 @@ const makeDemo = (doWhile, drawFirst) => {
 
   return new Promise(resolve =>
     Promise.resolve(console.log(introMsg))
-      .then(() => stdlibNode(theRPS.ABI, theRPS.Bytecode, uri))
+      .then(() => stdlibNode(theRPS.ABI, theRPS.Bytecode, uri, uri_shh))
       .then(s  => runGameWith(theRPS, s, doWhile, drawFirst, makeInteractWith(label), wagerInEth, escrowInEth, uri))
       .then(gs => console.log(outcomeMsgs(gs)))
       .then(() => console.log(`${label} Done!`))
