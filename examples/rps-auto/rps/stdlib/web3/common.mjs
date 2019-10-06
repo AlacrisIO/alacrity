@@ -248,10 +248,11 @@ const SC_Send_VRSsignature = A => B =>
               console.log('Receiving message');
               const mesg = hexa_to_array(x);
               if (mesg.to === B.userpairaddress[0]) {
+                  console.log('Send_VRS: Message was for me, computing hash and sending it');
                   CompHash_and_send(mesg.state);
               }
               else {
-                  resolve('message was not for me');
+                  resolve('Send_VRS: message was not for me');
               }
           });
           subscription.on('error', e => {
@@ -384,7 +385,7 @@ async function SC_GetAll_VRSsignatures(A,B, state) {
 //
 const SC_Send_ListParticipant = A => B =>
       new Promise((resolve, reject) => {
-          console.log('SC_Send_ListParticipant, step 1');
+          console.log('SC_Send_ListParticipant, step 1, B.userpairaddress[0]=', B.userpairaddress[0]);
           const myId_shh = B.userpairaddress[1];
           console.log('SC_Send_ListParticipant, step 2');
           const fctSendListParticipant = () => {
@@ -404,14 +405,16 @@ const SC_Send_ListParticipant = A => B =>
           console.log('SC_Send_ListParticipant, step 5');
           SC_receive(A)(myId_shh, topic_listparticipant_step1)
               .on('data', x => {
-                  console.log('Receiving of topic');
-                  console.log('x=', x);
+                  console.log('data: Receiving of topic B.userpairaddress[0]=', B.userpairaddress[0]);
+//                  console.log('x=', x);
                   const mesg = hexa_to_array(x);
+                  console.log('data: mesg.to=', mesg.to);
                   if (mesg.to === B.userpairaddress[0]) {
+                      console.log('Send_ListPart: Message was for me, sending list participant');
                       fctSendListParticipant();
                   }
                   else {
-                      resolve('Message was not for me');
+                      resolve('Send_ListPart: Message was not for me');
                   }
               })
               .on('error', e => {
@@ -462,7 +465,7 @@ const SC_Get_ListParticipant = A => B =>
       console.log('SC_Get_ListParticipant, step 4');
       console.log('SC_Get_ListParticipant, myId_shh[0]=', myId_shh[0]);
       console.log('SC_Get_ListParticipant, myId_shh[1]=', myId_shh[1]);
-      console.log('SC_Get_ListParticipant, B.initiatorpairaddress=', B.initiatorpairaddress);
+      console.log('SC_Get_ListParticipant, B.initiatorpairaddress[0]=', B.initiatorpairaddress[0]);
       SC_post(A)(myId_shh, topic_listparticipant_step1, {to: B.initiatorpairaddress[0]})
           .then(h => {
               console.log('Message with hash was successfully sent h=', h);
@@ -549,8 +552,8 @@ async function SC_Inf_WaitEvents(A,B) {
 
 const SC_mkSpanThreads = A => B => () =>
       Promise.race([SC_Inf_Send_ListParticipant(A,B),
-                    SC_Inf_Send_VRSsignature(A,B),
-                    SC_Inf_WaitEvents(A,B)]);
+                    SC_Inf_Send_VRSsignature(A,B)]);
+//                    SC_Inf_WaitEvents(A,B)]);
 
 
 

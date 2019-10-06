@@ -21,24 +21,26 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
       .then(to => transfer(to, prefunder, startingBalance)
             .then(() => Promise.resolve(SC_createIdentity()))
             .then(sc_identity => [to, sc_identity]));
-//                    .then(sc_identity => stdlib.EthereumNetwork(to, sc_identity)));
 
     const session = '0x' + uint256_to_bytes(random_uint256());
     const data = '0x' + uint256_to_bytes(random_uint256());
 
   const captureOpeningGameState = ([ a, b ]) =>
     Promise.all([ balanceOf(a), balanceOf(b) ])
-    .then(([ balanceStartAlice, balanceStartBob ]) =>
-    Object.assign(gameState
-       , { alice: a
-           , bob: b
-           , list_nodes: [a, b]
-           , ctors: [ a[0], b[0] ]
-           , full_state: {session, clock: 0, participants: [a], data}
-           , deposit
-           , balanceStartAlice
-           , balanceStartBob
-         }));
+    .then(([ balanceStartAlice, balanceStartBob ]) => {
+        console.log('alice a[0]=', a[0]);
+        console.log('bob   b[0]=', b[0]);
+        Object.assign(gameState
+                      , { alice: a
+                          , bob: b
+                          , list_nodes: [a, b]
+                          , ctors: [ a[0], b[0] ]
+                          , full_state: {session, clock: 0, participants: [a], data}
+                          , deposit
+                          , balanceStartAlice
+                          , balanceStartBob
+                        });
+    });
 
   const captureClosingGameState = ([ outcomeBob, outcomeAlice ]) =>
     Promise.all([ balanceOf(gameState.alice), balanceOf(gameState.bob) ])
