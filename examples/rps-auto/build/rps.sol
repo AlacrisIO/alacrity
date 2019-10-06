@@ -188,6 +188,21 @@ contract StateChannel is StateChannelBase {
         selfdestruct(beneficiary);
     }
 
+
+    function settle_test1(
+        bytes32 session,
+        uint clock,
+        address payable[] calldata participants,
+        bytes32 data,
+        uint deposit,
+        uint[] calldata withdrawals,
+        bytes32 newState
+    )
+        external
+        payable
+    {
+    }
+
     function settle(
         bytes32 session,
         uint clock,

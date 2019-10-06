@@ -112,14 +112,14 @@ const play = (theRPS, drawFirst, interactWith) => ({ stdlib, gameState }) => {
 //                        stdlib, ctc, txn0, interactWith('Alice', makeWhichHand())
 //                        , wagerInWei, escrowInWei, resolve))]);
 
-//    
+//
 //    .then(contractAddress => Promise.all([ specificShoot(contractAddress) ]))
 //    .then(contractAddress => Promise.all([ bobShoot(contractAddress), aliceShoot(contractAddress) ]))
   return prefundedDevnetAcct()
         .then(p   => Promise.all([ newPlayer(p), newPlayer(p) ]))
         .then(captureOpeningGameState)
         .then(()  => deploy(gameState.alice[0])(gameState.full_state, gameState.ctors))
-        .then(contractAddress => Promise.all([ aliceShoot(contractAddress) ]))
+        .then(contractAddress => Promise.all([ bobShoot(contractAddress), aliceShoot(contractAddress) ]))
         .then(captureClosingGameState);
 };
 

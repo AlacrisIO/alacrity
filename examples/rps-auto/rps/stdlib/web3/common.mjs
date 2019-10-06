@@ -99,18 +99,18 @@ const random_uint256 = A => () =>
 
 
 
-const function ascii_to_hexa(str)
+const ascii_to_hexa = str =>
 {
     var arr1 = ['0x'];
-    for (var n = 0, l = str.length; n < l; n ++) 
+    for (var n = 0, l = str.length; n < l; n ++)
     {
 	var hex = Number(str.charCodeAt(n)).toString(16);
 	arr1.push(hex);
     }
     return arr1.join('');
-}
+};
 
-const function hexa_to_ascii(str1)
+const hexa_to_ascii = str1 =>
 {
     var hex  = un0x(str1.toString());
     var str = '';
@@ -118,17 +118,17 @@ const function hexa_to_ascii(str1)
 	str += String.fromCharCode(parseInt(hex.substr(n, 2), 16));
     }
     return str;
-}
+};
 
-const function array_to_hexa(arr)
+const array_to_hexa = arr =>
 {
     return ascii_to_hexa(JSON.stringify(arr));
-}
+};
 
-const function hexa_to_array(hexstr)
+const hexa_to_array = recvmesg =>
 {
-    return JSON.parse(hexa_to_ascii(hexstr));
-}
+    return JSON.parse(hexa_to_ascii(recvmesg.payload));
+};
 
 
 
@@ -246,7 +246,13 @@ const SC_Send_VRSsignature = A => B =>
           var subscription = SC_receive(A)(myId_shh, topic_vrs_step1);
           subscription.on('data', x => {
               console.log('Receiving message');
-              CompHash_and_send(hexa_to_array(x));
+              const mesg = hexa_to_array(x);
+              if (mesg.to === B.userpairaddress[0]) {
+                  CompHash_and_send(mesg.state);
+              }
+              else {
+                  resolve('message was not for me');
+              }
           });
           subscription.on('error', e => {
               console.log('Error e=', e);
@@ -274,7 +280,6 @@ const SC_GetSingle_VRSsignature = A => B => (requestpair, state) =>
       new Promise((resolve, reject) => {
           console.log('Beginning of SC_GetSingle_VRSsignature');
           const myId_shh = B.userpairaddress[1];
-          const request_shh = requestpair[1];
           const waitForSignature = () => {
               SC_receive(A)(myId_shh, topic_vrs_step2)
                   .on('data', x => {
@@ -286,7 +291,7 @@ const SC_GetSingle_VRSsignature = A => B => (requestpair, state) =>
                       reject(e);
                   });
           };
-          SC_post(A)(myId_shh, topic_vrs_step1, state)
+          SC_post(A)(myId_shh, topic_vrs_step1, {state, to: requestpair[0]})
               .then(h => {
                   console.log('Message with hash was successfully sent h=', h);
                   waitForSignature();
@@ -382,7 +387,7 @@ const SC_Send_ListParticipant = A => B =>
           console.log('SC_Send_ListParticipant, step 1');
           const myId_shh = B.userpairaddress[1];
           console.log('SC_Send_ListParticipant, step 2');
-          const fctSendListParticipant = (result_filt) => {
+          const fctSendListParticipant = () => {
               console.log('SC_Send_ListParticipant, step 3');
               const list_part = B.sc_idx_participants.map(x => B.sc_list_address[x]);
               console.log('SC_Send_ListParticipant, step 4');
@@ -400,7 +405,14 @@ const SC_Send_ListParticipant = A => B =>
           SC_receive(A)(myId_shh, topic_listparticipant_step1)
               .on('data', x => {
                   console.log('Receiving of topic');
-                  fctSendListParticipant(hexa_to_array(x));
+                  console.log('x=', x);
+                  const mesg = hexa_to_array(x);
+                  if (mesg.to === B.userpairaddress[0]) {
+                      fctSendListParticipant();
+                  }
+                  else {
+                      resolve('Message was not for me');
+                  }
               })
               .on('error', e => {
                   console.log('Error e=', e);
@@ -450,11 +462,12 @@ const SC_Get_ListParticipant = A => B =>
       console.log('SC_Get_ListParticipant, step 4');
       console.log('SC_Get_ListParticipant, myId_shh[0]=', myId_shh[0]);
       console.log('SC_Get_ListParticipant, myId_shh[1]=', myId_shh[1]);
-      SC_post(A)(myId_shh, topic_listparticipant_step1, {})
+      console.log('SC_Get_ListParticipant, B.initiatorpairaddress=', B.initiatorpairaddress);
+      SC_post(A)(myId_shh, topic_listparticipant_step1, {to: B.initiatorpairaddress[0]})
           .then(h => {
               console.log('Message with hash was successfully sent h=', h);
-              resolve(h);
-              })
+              fctRecvListParticipant();
+          })
           .catch(err => {
               console.log('Error: ', err);
               reject(err);
@@ -570,7 +583,7 @@ const mkSendRecvETH = A => B => (label, funcName, args, value, eventName, cb) =>
   // https://github.com/ethereum/web3.js/issues/2077
   const munged = [ ...B.ctors, ...args ]
     .map(m => isBN(A)(m) ? m.toString() : m);
-
+  //
   return new A.web3.eth.Contract(A.abi, B.contractAddress)
     .methods[funcName](...munged)
     .send({ from: B.userpairaddress[0], value })
