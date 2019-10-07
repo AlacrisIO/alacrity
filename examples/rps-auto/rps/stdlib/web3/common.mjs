@@ -201,6 +201,14 @@ const topic_vrs_step2 = '0xeeaadd22';
 const topic_listparticipant_step1 = '0xffaadd11';
 const topic_listparticipant_step2 = '0xffaadd22';
 
+/*
+const SC_SpanningSubscribe = A => B => {
+    
+};
+*/
+
+
+
 
 const SC_post = A => (Id_shh, topic, payload) =>
       A.web3_shh.shh.post({
@@ -243,22 +251,18 @@ const SC_Send_VRSsignature = A => B =>
               SC_SignState(A)(B)(state_to_sign).then(fctSendVRS);
           };
           console.log('SC_Send_VRSsignature, step 3');
-          var subscription = SC_receive(A)(myId_shh, topic_vrs_step1);
-          subscription.on('data', x => {
-              console.log('Receiving message');
-              const mesg = hexa_to_array(x);
-              if (mesg.to === B.userpairaddress[0]) {
-                  console.log('Send_VRS: Message was for me, computing hash and sending it');
-                  CompHash_and_send(mesg.state);
-              }
-              else {
-                  resolve('Send_VRS: message was not for me');
-              }
-          });
-          subscription.on('error', e => {
-              console.log('Error e=', e);
-              reject(e);
-          });
+          SC_receive(A)(myId_shh, topic_vrs_step1)
+              .once('data', x => {
+                  console.log('Receiving message');
+                  const mesg = hexa_to_array(x);
+                  if (mesg.to === B.userpairaddress[0]) {
+                      console.log('Send_VRS: Message was for me, computing hash and sending it');
+                      CompHash_and_send(mesg.state);
+                  }
+                  else {
+                      resolve('Send_VRS: message was not for me');
+                  }
+              });
       });
 
 
@@ -283,13 +287,9 @@ const SC_GetSingle_VRSsignature = A => B => (requestpair, state) =>
           const myId_shh = B.userpairaddress[1];
           const waitForSignature = () => {
               SC_receive(A)(myId_shh, topic_vrs_step2)
-                  .on('data', x => {
+                  .once('data', x => {
                       console.log('Receive message');
                       resolve(hexa_to_array(x));
-                  })
-                  .on('error', e => {
-                      console.log('Error e=', e);
-                      reject(e);
                   });
           };
           SC_post(A)(myId_shh, topic_vrs_step1, {state, to: requestpair[0]})
@@ -404,7 +404,7 @@ const SC_Send_ListParticipant = A => B =>
           };
           console.log('SC_Send_ListParticipant, step 5');
           SC_receive(A)(myId_shh, topic_listparticipant_step1)
-              .on('data', x => {
+              .once('data', x => {
                   console.log('data: Receiving of topic B.userpairaddress[0]=', B.userpairaddress[0]);
 //                  console.log('x=', x);
                   const mesg = hexa_to_array(x);
@@ -416,12 +416,8 @@ const SC_Send_ListParticipant = A => B =>
                   else {
                       resolve('Send_ListPart: Message was not for me');
                   }
-              })
-              .on('error', e => {
-                  console.log('Error e=', e);
-                  reject(e);
               });
-          console.log('SC_Send_ListParticipant, step 7');
+//          console.log('SC_Send_ListParticipant, step 7');
   });
 
 
@@ -440,41 +436,43 @@ async function SC_Inf_Send_ListParticipant(A,B) {
 
 
 
-
-
 const SC_Get_ListParticipant = A => B =>
   new Promise((resolve, reject) => {
       console.log('SC_Get_ListParticipant, step 1');
       const myId_shh = B.userpairaddress[1];
 //      const initiatorId = B.initiatorpairaddress[1];
       console.log('SC_Get_ListParticipant, step 2');
+      var received_listpart = false;
       const updateListPart = (listpart) => {
           console.log('listpart');
           B.sc_list_address = B.sc_list_address.concat(listpart);
-          resolve('successful update of list_address');
+          received_listpart = true;
       };
       console.log('SC_Get_ListParticipant, step 3');
-      const fctRecvListParticipant = () => {
-          SC_receive(A)(myId_shh, topic_listparticipant_step2)
-              .on('data', x => updateListPart(hexa_to_array(x)))
-              .on('error', e => {
-                  console.log('Error e=', e);
-                  reject(e);
-              });
-      };
+      SC_receive(A)(myId_shh, topic_listparticipant_step2)
+          .once('data', x => updateListPart(hexa_to_array(x)));
       console.log('SC_Get_ListParticipant, step 4');
       console.log('SC_Get_ListParticipant, myId_shh[0]=', myId_shh[0]);
       console.log('SC_Get_ListParticipant, myId_shh[1]=', myId_shh[1]);
       console.log('SC_Get_ListParticipant, B.initiatorpairaddress[0]=', B.initiatorpairaddress[0]);
-      SC_post(A)(myId_shh, topic_listparticipant_step1, {to: B.initiatorpairaddress[0]})
-          .then(h => {
-              console.log('Message with hash was successfully sent h=', h);
-              fctRecvListParticipant();
-          })
-          .catch(err => {
-              console.log('Error: ', err);
-              reject(err);
-          });
+      for (var iter=0; iter<10; iter++)
+      {
+          SC_post(A)(myId_shh, topic_listparticipant_step1, {to: B.initiatorpairaddress[0]})
+              .then(h => {
+                  console.log('Message with hash was successfully sent h=', h);
+              });
+      }
+/*
+      while(received_listpart === false)
+      {
+          console.log('Before the SC_Wait event iter=', iter);
+          SC_post(A)(myId_shh, topic_listparticipant_step1, {to: B.initiatorpairaddress[0]})
+              .then(h => {
+                  console.log('Message with hash was successfully sent h=', h);
+              });
+          iter = iter + 1;
+      }*/
+      resolve('successful update of listparticipant');
   });
 
 
@@ -522,11 +520,11 @@ const SC_WaitEvents = A => B =>
       });
 
 
-const SC_Test = (iter) => new Promise(resolve => {
-    console.log('SC_Test, iter=', iter);
+const SC_Wait = (delay) => new Promise(resolve => {
+    console.log('SC_Wait, iter=', iter);
     setTimeout(function() {
-        resolve('foo');
-    }, 300);
+        resolve();
+    }, delay);
 });
 
 
