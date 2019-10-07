@@ -451,7 +451,7 @@ async function SC_Get_ListParticipant(A,B)
     while(received_listpart === false)
     {
         console.log('Before the SC_Wait event iter=', iter);
-        await SC_Wait(300);
+        await SC_Wait(1500);
         SC_post(A)(myId_shh, topic_listparticipant_step1, {to: B.initiatorpairaddress[0]})
             .then(h => {
                 console.log('Message with hash was successfully sent h=', h);
