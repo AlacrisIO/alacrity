@@ -201,12 +201,6 @@ const topic_vrs_step2 = '0xeeaadd22';
 const topic_listparticipant_step1 = '0xffaadd11';
 const topic_listparticipant_step2 = '0xffaadd22';
 
-/*
-const SC_SpanningSubscribe = A => B => {
-    
-};
-*/
-
 
 
 
@@ -406,7 +400,6 @@ const SC_Send_ListParticipant = A => B =>
           SC_receive(A)(myId_shh, topic_listparticipant_step1)
               .once('data', x => {
                   console.log('data: Receiving of topic B.userpairaddress[0]=', B.userpairaddress[0]);
-//                  console.log('x=', x);
                   const mesg = hexa_to_array(x);
                   console.log('data: mesg.to=', mesg.to);
                   if (mesg.to === B.userpairaddress[0]) {
@@ -417,7 +410,6 @@ const SC_Send_ListParticipant = A => B =>
                       resolve('Send_ListPart: Message was not for me');
                   }
               });
-//          console.log('SC_Send_ListParticipant, step 7');
   });
 
 
@@ -436,44 +428,38 @@ async function SC_Inf_Send_ListParticipant(A,B) {
 
 
 
-const SC_Get_ListParticipant = A => B =>
-  new Promise((resolve, reject) => {
-      console.log('SC_Get_ListParticipant, step 1');
-      const myId_shh = B.userpairaddress[1];
-//      const initiatorId = B.initiatorpairaddress[1];
-      console.log('SC_Get_ListParticipant, step 2');
-      var received_listpart = false;
-      const updateListPart = (listpart) => {
-          console.log('listpart');
-          B.sc_list_address = B.sc_list_address.concat(listpart);
+async function SC_Get_ListParticipant(A,B)
+{
+    console.log('SC_Get_ListParticipant, step 1');
+    const myId_shh = B.userpairaddress[1];
+    //      const initiatorId = B.initiatorpairaddress[1];
+    console.log('SC_Get_ListParticipant, step 2');
+    var received_listpart = false;
+    const updateListPart = (listpart) => {
+        console.log('listpart');
+        B.sc_list_address = B.sc_list_address.concat(listpart);
           received_listpart = true;
-      };
-      console.log('SC_Get_ListParticipant, step 3');
-      SC_receive(A)(myId_shh, topic_listparticipant_step2)
-          .once('data', x => updateListPart(hexa_to_array(x)));
-      console.log('SC_Get_ListParticipant, step 4');
-      console.log('SC_Get_ListParticipant, myId_shh[0]=', myId_shh[0]);
-      console.log('SC_Get_ListParticipant, myId_shh[1]=', myId_shh[1]);
-      console.log('SC_Get_ListParticipant, B.initiatorpairaddress[0]=', B.initiatorpairaddress[0]);
-      for (var iter=0; iter<10; iter++)
-      {
-          SC_post(A)(myId_shh, topic_listparticipant_step1, {to: B.initiatorpairaddress[0]})
-              .then(h => {
-                  console.log('Message with hash was successfully sent h=', h);
-              });
-      }
-/*
-      while(received_listpart === false)
-      {
-          console.log('Before the SC_Wait event iter=', iter);
-          SC_post(A)(myId_shh, topic_listparticipant_step1, {to: B.initiatorpairaddress[0]})
-              .then(h => {
-                  console.log('Message with hash was successfully sent h=', h);
-              });
+    };
+    console.log('SC_Get_ListParticipant, step 3');
+    SC_receive(A)(myId_shh, topic_listparticipant_step2)
+        .once('data', x => updateListPart(hexa_to_array(x)));
+    console.log('SC_Get_ListParticipant, step 4');
+    console.log('SC_Get_ListParticipant, myId_shh[0]=', myId_shh[0]);
+    console.log('SC_Get_ListParticipant, myId_shh[1]=', myId_shh[1]);
+    console.log('SC_Get_ListParticipant, B.initiatorpairaddress[0]=', B.initiatorpairaddress[0]);
+    var iter=0;
+    while(received_listpart === false)
+    {
+        console.log('Before the SC_Wait event iter=', iter);
+        await SC_Wait(300);
+        SC_post(A)(myId_shh, topic_listparticipant_step1, {to: B.initiatorpairaddress[0]})
+            .then(h => {
+                console.log('Message with hash was successfully sent h=', h);
+            });
           iter = iter + 1;
-      }*/
-      resolve('successful update of listparticipant');
-  });
+    }
+    console.log('successful update of listparticipant');
+}
 
 
 
@@ -521,7 +507,7 @@ const SC_WaitEvents = A => B =>
 
 
 const SC_Wait = (delay) => new Promise(resolve => {
-    console.log('SC_Wait, iter=', iter);
+    console.log('SC_Wait, delay=', delay);
     setTimeout(function() {
         resolve();
     }, delay);
@@ -692,7 +678,7 @@ const SC_mkCreateSC = A => B => (full_state) => {
     // Nothing to be done if you are the initiator.
     if (B.initiatorpairaddress[0] !== 0) {
         console.log('SC_mkCreateSC, step 5');
-        SC_Get_ListParticipant(A)(B)
+        SC_Get_ListParticipant(A,B)
             .then(mesg => SC_GetAll_VRSsignatures(A,B, state)
                   .then(list_signature => {
                       console.log('SC_mkCreateSC, step 6');
