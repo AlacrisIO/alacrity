@@ -178,6 +178,14 @@ const get_digest = A => (oper) => {
         return keccak256(A)(encode(A)(oper.session, 'updating', oper.clock, oper.data));
 };
 
+const digestState = A => full_state => {
+//    console.log('A=', A);
+//    console.log('full_state=', full_state);
+    return keccak256(A)(full_state.session + A.web3.utils.toHex(full_state.clock) + A.web3.utils.toHex(full_state.participant) + full_state.data);
+};
+
+
+
 let CheckCorrectnessOperation = A => B => (oper) => {
     // We need to insert code for checking correctness of operation
     console.log('The code of CheckCorrectnessOperation needs to be inserted');
@@ -311,11 +319,6 @@ const SC_GetSingle_VRSsignature = A => B => (requestpair, state) =>
 
 
 
-const digestState = A => full_state => {
-//    console.log('A=', A);
-//    console.log('full_state=', full_state);
-    return keccak256(A)(full_state.session + A.web3.utils.toHex(full_state.clock) + A.web3.utils.toHex(full_state.participant) + full_state.data);
-};
 
 
 const SC_SubmitSettleOperation = A => B => (prev_state, new_state, deposit, withdrawals, list_signature) => {
