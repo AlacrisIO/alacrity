@@ -168,6 +168,8 @@ const SC_mkCreateIdentity = A => () =>
 // The signature
 //
 const get_digest = A => (oper) => {
+    console.log('oper=', oper);
+    console.log('oper.nature=', oper.nature);
     if (oper.nature == 0)
         return keccak256(A)(encode(A)(oper.session, 'closing', oper.withdrawals, oper.beneficiary));
     if (oper.nature == 1)
@@ -178,21 +180,22 @@ const get_digest = A => (oper) => {
 
 let CheckCorrectnessOperation = A => B => (oper) => {
     // We need to insert code for checking correctness of operation
-    console.log('Code need to be inserted here');
-    console.log('CheckCorrectnessOperation A=', A);
-    console.log('CheckCorrectnessOperation B=', B);
-    console.log('CheckCorrectnessOperation oper=', oper);
+    console.log('The code of CheckCorrectnessOperation needs to be inserted');
+//    console.log('CheckCorrectnessOperation A=', A);
+//    console.log('CheckCorrectnessOperation B=', B);
+//    console.log('CheckCorrectnessOperation oper=', oper);
     return true;
 };
 
 
-let SC_SignState = A => B => (oper) => {
-    if (CheckCorrectnessOperation(A)(B)(oper)) {
-        const digest = get_digest(A)(oper);
-        B.pending_unanimous_operations[B.pending_unanimous_operations.length] = {digest, oper};
-        const myId_eth = B.userpairaddress[0];
-        return A.web3.eth.sign(myId_eth, digest);
-    }
+let SC_SignState = A => B => (state_to_sign) => {
+    console.log('SC_SignState: operation is correct state_to_sign=', state_to_sign);
+    const digest = get_digest(A)(state_to_sign);
+    console.log('SC_SignState: digest=', digest);
+    B.pending_unanimous_operations[B.pending_unanimous_operations.length] = {digest, state_to_sign};
+    const myId_eth = B.userpairaddress[0];
+    console.log('SC_SignState: myId_eth=', myId_eth);
+    return A.web3.eth.sign(digest, myId_eth);
 };
 
 
@@ -229,9 +232,10 @@ const SC_Send_VRSsignature = A => B =>
           console.log('SC_Send_VRSsignature, step 1');
           const myId_shh = B.userpairaddress[1];
           const fctSendVRS = (result_sign) => {
+              console.log('fctSendVRS: Before call to SC_post');
               SC_post(A)(myId_shh, topic_vrs_step2, result_sign)
                   .then(h => {
-                      console.log('Message with hash was successfully sent h=', h);
+                      console.log('Successfully send required VRS signature h=', h);
                       resolve(h);
                   })
                   .catch(err => {
@@ -241,16 +245,24 @@ const SC_Send_VRSsignature = A => B =>
           };
           console.log('SC_Send_VRSsignature, step 2');
           const CompHash_and_send = (data_to_sign) => {
-              const state_to_sign = keccak256(A)(data_to_sign);
-              SC_SignState(A)(B)(state_to_sign).then(fctSendVRS);
+              if (CheckCorrectnessOperation(A)(B)(data_to_sign)) {
+                  console.log('data_to_sign=', data_to_sign);
+                  const state_to_sign = keccak256(A)(data_to_sign);
+                  console.log('state_to_sign=', state_to_sign);
+                  SC_SignState(A)(B)(state_to_sign).then(fctSendVRS);
+              }
+              else {
+                  resolve('The state did not pass sanity check');
+              }
           };
           console.log('SC_Send_VRSsignature, step 3');
           SC_receive(A)(myId_shh, topic_vrs_step1)
               .once('data', x => {
-                  console.log('Receiving message');
+                  console.log('Receiving a request for VRS signature');
                   const mesg = hexa_to_array(x);
                   if (mesg.to === B.userpairaddress[0]) {
                       console.log('Send_VRS: Message was for me, computing hash and sending it');
+                      console.log('mesg.state=', mesg.state);
                       CompHash_and_send(mesg.state);
                   }
                   else {
@@ -277,7 +289,7 @@ async function SC_Inf_Send_VRSsignature(A,B) {
 
 const SC_GetSingle_VRSsignature = A => B => (requestpair, state) =>
       new Promise((resolve, reject) => {
-          console.log('Beginning of SC_GetSingle_VRSsignature');
+          console.log('Beginning of SC_GetSingle_VRSsignature, state=', state);
           const init_shh = B.initiatorpairaddress[1];
           const waitForSignature = () => {
               SC_receive(A)(init_shh, topic_vrs_step2)
@@ -288,7 +300,7 @@ const SC_GetSingle_VRSsignature = A => B => (requestpair, state) =>
           };
           SC_post(A)(init_shh, topic_vrs_step1, {state, to: requestpair[0]})
               .then(h => {
-                  console.log('Message with hash was successfully sent h=', h);
+                  console.log('Successful send of request for VRS signature h=', h);
                   waitForSignature();
               })
               .catch(err => {
@@ -349,7 +361,7 @@ const SC_SubmitSettleOperation = A => B => (prev_state, new_state, deposit, with
 
 
 async function SC_GetAll_VRSsignatures(A,B, state) {
-    console.log('SC_GetAll_VRSsignatures, begin');
+    console.log('SC_GetAll_VRSsignatures, begin state=', state);
     const nb_part = B.sc_idx_participants.length;
     console.log('SC_GetAll_VRSsignatures, nb_part=', nb_part);
     const ListSignatures = [];
@@ -388,7 +400,7 @@ const SC_Send_ListParticipant = A => B =>
               console.log('SC_Send_ListParticipant, step 4, list_part=', list_part);
               SC_post(A)(myId_shh, topic_listparticipant_step2, list_part)
                   .then(h => {
-                      console.log('Message with hash was successfully sent h=', h);
+                      console.log('Successful send of listparticipant h=', h);
                       resolve(h);
                   })
                   .catch(err => {
@@ -437,8 +449,15 @@ async function SC_Get_ListParticipant(A,B)
     var received_listpart = false;
     const updateListPart = (listpart) => {
         console.log('listpart=', listpart);
+        const oldlen = B.sc_list_address.length;
         B.sc_list_address = B.sc_list_address.concat(listpart);
+        const lenappend=listpart.length;
+        for (var u=0; u<lenappend; u++)
+        {
+            B.sc_idx_participants.push(oldlen + u);
+        }
         console.log('updateListPart : B.sc_list_address=', B.sc_list_address);
+        console.log('updateListPart : B.sc_idx_participants=', B.sc_idx_participants);
         received_listpart = true;
     };
     console.log('SC_Get_ListParticipant, step 3');
@@ -455,7 +474,7 @@ async function SC_Get_ListParticipant(A,B)
         await SC_Wait(1500);
         SC_post(A)(init_shh, topic_listparticipant_step1, {to: B.initiatorpairaddress[0]})
             .then(h => {
-                console.log('Message with hash was successfully sent h=', h);
+                console.log('Successful send of request for listparticipant h=', h);
             });
           iter = iter + 1;
     }
