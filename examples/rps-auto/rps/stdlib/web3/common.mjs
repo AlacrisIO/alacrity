@@ -278,15 +278,15 @@ async function SC_Inf_Send_VRSsignature(A,B) {
 const SC_GetSingle_VRSsignature = A => B => (requestpair, state) =>
       new Promise((resolve, reject) => {
           console.log('Beginning of SC_GetSingle_VRSsignature');
-          const myId_shh = B.userpairaddress[1];
+          const init_shh = B.initiatorpairaddress[1];
           const waitForSignature = () => {
-              SC_receive(A)(myId_shh, topic_vrs_step2)
+              SC_receive(A)(init_shh, topic_vrs_step2)
                   .once('data', x => {
                       console.log('Receive message');
                       resolve(hexa_to_array(x));
                   });
           };
-          SC_post(A)(myId_shh, topic_vrs_step1, {state, to: requestpair[0]})
+          SC_post(A)(init_shh, topic_vrs_step1, {state, to: requestpair[0]})
               .then(h => {
                   console.log('Message with hash was successfully sent h=', h);
                   waitForSignature();
@@ -385,7 +385,7 @@ const SC_Send_ListParticipant = A => B =>
           const fctSendListParticipant = () => {
               console.log('SC_Send_ListParticipant, step 3');
               const list_part = B.sc_idx_participants.map(x => B.sc_list_address[x]);
-              console.log('SC_Send_ListParticipant, step 4');
+              console.log('SC_Send_ListParticipant, step 4, list_part=', list_part);
               SC_post(A)(myId_shh, topic_listparticipant_step2, list_part)
                   .then(h => {
                       console.log('Message with hash was successfully sent h=', h);
@@ -431,28 +431,29 @@ async function SC_Inf_Send_ListParticipant(A,B) {
 async function SC_Get_ListParticipant(A,B)
 {
     console.log('SC_Get_ListParticipant, step 1');
-    const myId_shh = B.userpairaddress[1];
+    const init_shh = B.initiatorpairaddress[1];
     //      const initiatorId = B.initiatorpairaddress[1];
     console.log('SC_Get_ListParticipant, step 2');
     var received_listpart = false;
     const updateListPart = (listpart) => {
-        console.log('listpart');
+        console.log('listpart=', listpart);
         B.sc_list_address = B.sc_list_address.concat(listpart);
-          received_listpart = true;
+        console.log('updateListPart : B.sc_list_address=', B.sc_list_address);
+        received_listpart = true;
     };
     console.log('SC_Get_ListParticipant, step 3');
-    SC_receive(A)(myId_shh, topic_listparticipant_step2)
+    SC_receive(A)(init_shh, topic_listparticipant_step2)
         .once('data', x => updateListPart(hexa_to_array(x)));
     console.log('SC_Get_ListParticipant, step 4');
-    console.log('SC_Get_ListParticipant, myId_shh[0]=', myId_shh[0]);
-    console.log('SC_Get_ListParticipant, myId_shh[1]=', myId_shh[1]);
+    console.log('SC_Get_ListParticipant, init_shh[0]=', init_shh[0]);
+    console.log('SC_Get_ListParticipant, init_shh[1]=', init_shh[1]);
     console.log('SC_Get_ListParticipant, B.initiatorpairaddress[0]=', B.initiatorpairaddress[0]);
     var iter=0;
-    while(received_listpart === false)
+    while (received_listpart === false)
     {
         console.log('Before the SC_Wait event iter=', iter);
         await SC_Wait(1500);
-        SC_post(A)(myId_shh, topic_listparticipant_step1, {to: B.initiatorpairaddress[0]})
+        SC_post(A)(init_shh, topic_listparticipant_step1, {to: B.initiatorpairaddress[0]})
             .then(h => {
                 console.log('Message with hash was successfully sent h=', h);
             });
@@ -650,22 +651,35 @@ const mkDeploy = A => userAddress => (full_state, ctors) => {
 
 // This array should contain all the data
 // of the process.
-const MutableState = (contractAddress,ctors,userpairaddress,initiatorpairaddress,deposit,full_state) =>
-   ({sc_list_address: [] // This should contain the ethereum addresses as well as shh ones.
-                         // Not everyone in this list has joined the SC. It is just a lookup
-                         // table
-     , sc_idx_participants: [] // The list of participants of the SC (list of index of sc_list_address)
-     , sc_my_idx: 0
-     , list_full_state: [full_state]
-     , pending_unanimous_operations: []
-     , run_threads: true
-     , deposit
-     , userpairaddress
-     , initiatorpairaddress
-     , contractAddress
-     , ctors
-    });
-
+const MutableState = (contractAddress,ctors,userpairaddress,initiatorpairaddress,deposit,full_state) => {
+    var sc_list_address;
+    var sc_idx_participants;
+    var sc_my_idx;
+    if (initiatorpairaddress[0] === 0) {
+        sc_list_address = [userpairaddress];
+        sc_idx_participants = [0];
+        sc_my_idx = 0;
+    }
+    else {
+        sc_list_address = [];
+        sc_idx_participants = [];
+        sc_my_idx = -1;
+    }
+    return {sc_list_address // This should contain the ethereum addresses as well as shh ones.
+            // Not everyone in this list has joined the SC. It is just a lookup
+            // table
+            , sc_idx_participants // The list of participants of the SC (list of index of sc_list_address)
+            , sc_my_idx
+            , list_full_state: [full_state]
+            , pending_unanimous_operations: []
+            , run_threads: true
+            , deposit
+            , userpairaddress
+            , initiatorpairaddress
+            , contractAddress
+            , ctors
+           };
+};
 
 
 
@@ -701,6 +715,9 @@ const SC_mkCreateSC = A => B => (full_state) => {
                       B.run_threads=false;
                       Promise.resolve();
                   }));
+    }
+    else {
+        Promise.resolve();
     }
 };
 
