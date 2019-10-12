@@ -45,7 +45,7 @@ which will be updated as we refine our plan:
   * Operator Markets (May 2020)
   * Plasma Chains (April 2020)
   * Game-semantic enforcement of contractual obligations as logical predicates (March 2020)
-  * Logical queries about a monotonic verifiable data structure (February 2020)
+  * Logical queries about a monotonic verifiable data structure (February 2020 - based on [CQL](https://conexus.ai/cql)?)
   * Alacrity VM in Alacrity [#59](https://github.com/AlacrisIO/meta/issues/59) [#60](https://github.com/AlacrisIO/meta/issues/60) [#131](https://github.com/AlacrisIO/meta/issues/131) (January 2020)
   * Time Compression [#129](https://github.com/AlacrisIO/meta/issues/129) (December 2019)
   * Space Compression [#128](https://github.com/AlacrisIO/meta/issues/128) (November 2019)
@@ -152,35 +152,33 @@ Our system will grow features from the initial MVP along the following multiple 
 
   * *Type System*:
      * ADTs
-     * many integer types
-     * string/bytes types?
+     * A variety of integer types. Refinement typing of Nat with Z3 ?
+     * bytes type, maybe also string types?
      * abstract asset types
      * higher-order module
      * implicits or typeclasses
 
   * *Runtime*:
-     * local persistence
-     * distributed persistence
+     * Local persistence
+     * Distributed persistence
 
   * *Tooling*:
-     * property-based
-     * debug
-     * editor
-     * better err msg
-     * better ui integration
-     * better monitoring ...
-     * better macros for haskell or types for racket
+     * Property-based testing
+     * Debugging support (SLIME and/or language server)
+     * Editor integration
+     * Better error msg
+     * Better UI integration
+     * Better monitoring ...
+     * Better macros for Haskell, or better types for Racket
 
 
 ## Chronological Details
 
-### Status pre-MVP: Having a Compiler At All
+### Status at MVP: Having a Compiler for simple DApps
 
-That's where we are: we can compile some language to Solidity and JavaScript.
+That's where we are: we can compile to Solidity and JavaScript, with proper timeouts,
+a language sufficient to express the "Rock, Paper, Scissors" example.
 
-The language can barely compile the "Rock, Paper, Scissors" example,
-though it is missing a crucial feature before it is production-ready (support for timeouts),
-as well as cleanups, simplifications and documentation to make it usable outside our team.
 
 ### TO BE CONTINUED...
 
