@@ -282,6 +282,7 @@ contract MessageProcessor is StateChannelTypes {
      struct ProcessMessageParams {
         bytes32 session; // Mutually-generated random nonce that identifies the StateChannel session.
         uint64 clock; // serial number for the off-chain state within the session.
+        uint8 participant; // which of the participants sent the message
         address payable[] participants; // the list of current participants in the state channel.
         address processor; // address of the MessageProcessor contract
         bytes32 stateRoot; // root of merklized data describing the state of the interaction.
@@ -580,7 +581,7 @@ contract StateChannel is StateChannelBase {
 
         MessageProcessor.ProcessMessageParams memory q =
             MessageProcessor.ProcessMessageParams(
-                p.session, new_clock, participants,
+                p.session, new_clock, participant, participants,
                 p.processor, p.stateRoot, p.balances, p.message, p.evidence);
         bytes32 newBalancedState = MessageProcessor(p.processor).processMessage(q);
 
