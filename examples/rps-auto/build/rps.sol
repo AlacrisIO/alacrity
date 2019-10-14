@@ -3,6 +3,7 @@ pragma solidity ^0.5.2;
  
 
 pragma solidity ^0.5.9;
+pragma experimental ABIEncoderV2;
 
 contract StateChannelTypes {
     struct ProcessState {
@@ -27,9 +28,15 @@ contract StateChannelTypes {
 
     struct State {
         bytes32 session;  
-        uint clock;  
+        uint64 clock;  
         address[] participants;  
         bytes32 balancedState;  
+    }
+
+    enum UnanimousAction {
+        Updating,  
+        Settling,  
+        Closing  
     }
 }
 
@@ -43,11 +50,20 @@ contract StateChannelFunctions is StateChannelTypes {
             return keccak256(abi.encodePacked(processor, stateRoot));
     }
 
+    function digestArray (
+            uint[] memory array)
+            internal
+            pure
+            returns(bytes32 digest)
+    {
+            return keccak256(abi.encodePacked(array));
+    }
+
     function digestBalances (
-        uint[] memory owned,
-        uint[] memory collaterals,
-        uint[] memory failures,
-        uint[] memory deadlines)
+        bytes32 owned,
+        bytes32 collaterals,
+        bytes32 failures,
+        bytes32 deadlines)
         internal
         pure
         returns(bytes32 digest)
@@ -65,7 +81,7 @@ contract StateChannelFunctions is StateChannelTypes {
 
     function digestState(
         bytes32 session,
-        uint clock,
+        uint64 clock,
         address payable[] memory participants,
         bytes32 balancedState
     )
@@ -73,41 +89,45 @@ contract StateChannelFunctions is StateChannelTypes {
         pure
         returns(bytes32 digest)
     {
-        return keccak256(abi.encodePacked(session, clock, participants, balancedState));
+        return keccak256(abi.encodePacked(session, UnanimousAction.Updating, clock, participants, balancedState));
     }
 }
 
 contract MessageProcessor is StateChannelTypes {
      
-    function processMessage(
-        bytes32 session,  
-        uint clock,  
-        address payable[] calldata participants,  
-        address processor,  
-        bytes32 stateRoot,  
-        bytes32 balances,  
-        bytes calldata message,  
-        bytes calldata evidence  
-    ) external pure returns(bytes32 newBalancedState);
+     struct ProcessMessageParams {
+        bytes32 session;  
+        uint64 clock;  
+        address payable[] participants;  
+        address processor;  
+        bytes32 stateRoot;  
+        bytes32 balances;  
+        bytes message;  
+        bytes evidence;  
+     }
+     function processMessage(
+         ProcessMessageParams calldata p)
+         external pure returns(bytes32 newBalancedState);
 }
 
 contract StateChannelBase is StateChannelTypes, StateChannelFunctions {
      
-    function timeoutInBlocks() public pure returns(uint)
-    {
-      return 42;
-    }
-}
+        function timeoutInBlocks() public pure returns(uint timeout) { return 12 ;}
 
+     
+     
+     
+}
 
 contract StateChannel is StateChannelBase {
 
+     
     bytes32 currentState;
 
      
     function checkState(
         bytes32 session,
-        uint clock,
+        uint64 clock,
         address payable[] memory participants,
         bytes32 balancedState
     )
@@ -158,100 +178,132 @@ contract StateChannel is StateChannelBase {
      
     event Unanimously(bytes32);
 
-    enum UnanimousAction {
-        Updating,  
-        Settling,  
-        Closing  
+    struct CloseParams {
+        bytes32 session;
+        uint64 clock;
+        address payable[] participants;
+        bytes32 balancedState;
+        uint[] withdrawals;
+        address payable beneficiary;
+        bytes signatures_v;
+        bytes32[] signatures_r;
+        bytes32[] signatures_s;
     }
 
     function close(
-        bytes32 session,
-        uint clock,
-        address payable[] calldata participants,
-        bytes32 data,
-        uint[] calldata withdrawals,
-        address payable beneficiary,
-        bytes calldata signatures_v,
-        bytes32[] calldata signatures_r,
-        bytes32[] calldata signatures_s
-    )
+        CloseParams calldata p)
         external
         payable
     {
         require(msg.value == 0);
-        checkState(session, clock, participants, data);
-        bytes32 digest = keccak256(abi.encode(session, UnanimousAction.Closing, withdrawals, beneficiary));
-        checkSignatures(digest, participants, signatures_v, signatures_r, signatures_s);
+        checkState(p.session, p.clock, p.participants, p.balancedState);
+        bytes32 digest = keccak256(abi.encodePacked(p.session, UnanimousAction.Closing, p.withdrawals, p.beneficiary));
+        checkSignatures(digest, p.participants, p.signatures_v, p.signatures_r, p.signatures_s);
         emit Unanimously(digest);
-        withdraw(participants, withdrawals);
+        withdraw(p.participants, p.withdrawals);
         currentState = 0;
-        selfdestruct(beneficiary);
+        selfdestruct(p.beneficiary);
     }
 
-
-    function settle_test1(
-        bytes32 session,
-        uint clock,
-        address payable[] calldata participants,
-        bytes32 data,
-        uint deposit,
-        uint[] calldata withdrawals,
-        bytes32 newState
-    )
-        external
-        payable
-    {
+    struct SettleParams {
+        bytes32 session;
+        uint64 clock;
+        address payable[] participants;
+        bytes32 data;
+        uint deposit;
+        uint[] withdrawals;
+        bytes32 newState;
+        bytes signatures_v;
+        bytes32[] signatures_r;
+        bytes32[] signatures_s;
     }
 
     function settle(
-        bytes32 session,
-        uint clock,
-        address payable[] calldata participants,
-        bytes32 data,
-        uint deposit,
-        uint[] calldata withdrawals,
-        bytes32 newState,
-        bytes calldata signatures_v,
-        bytes32[] calldata signatures_r,
-        bytes32[] calldata signatures_s
-    )
+        SettleParams calldata p)
         external
         payable
     {
-        require(msg.value == deposit);
-        checkState(session, clock, participants, data);
-        bytes32 digest = keccak256(abi.encode(session, UnanimousAction.Settling, deposit, withdrawals, newState));
-        checkSignatures(digest, participants, signatures_v, signatures_r, signatures_s);
+        require(msg.value == p.deposit);
+        checkState(p.session, p.clock, p.participants, p.data);
+        bytes32 digest = keccak256(abi.encodePacked(
+                                           p.session, UnanimousAction.Settling,
+                                           p.deposit, p.withdrawals, p.newState));
+        checkSignatures(digest, p.participants, p.signatures_v, p.signatures_r, p.signatures_s);
         emit Unanimously(digest);
-        withdraw(participants, withdrawals);
-        currentState = newState;
+        withdraw(p.participants, p.withdrawals);
+        currentState = p.newState;
     }
 
     event Challenge(uint challengedParticipant);
- 
-    function updateState(
-        bytes32 session,
-        uint clock,
-        address payable[] calldata participants,
-        bytes32 balancedState,
-        uint newClock,
-        bytes32 newBalancedState,
-        bytes calldata signatures_v,
-        bytes32[] calldata signatures_r,
-        bytes32[] calldata signatures_s
+
+    struct ChallengeParams {
+        bytes32 session;
+        uint64 clock;
+        address payable[] participants;
+        bytes32 processState;
+        bytes32 owned;
+        bytes32 collaterals;
+        bytes32 failures;
+        uint[] deadlines;
+        uint8 challengingParticipant;
+        uint8 challengedParticipant;
+    }
+
+    function challenge(
+        ChallengeParams calldata p
     )
         external
     {
-        checkState(session, clock, participants, balancedState);
-        require(newClock > clock);
-        bytes32 digest = keccak256(
-                abi.encode(session, UnanimousAction.Updating, newClock, newBalancedState));
-        checkSignatures(digest, participants, signatures_v, signatures_r, signatures_s);
-        emit Unanimously(digest);
-        currentState = digestState(session, newClock, participants, newBalancedState);
+        require(msg.sender == p.participants[p.challengingParticipant]);
+         
+         
+         
+         
+        require(p.deadlines[p.challengedParticipant] == 1 ||
+                p.challengedParticipant == p.challengingParticipant);
+        bytes32 balances = digestBalances(p.owned, p.collaterals, p.failures, digestArray(p.deadlines));
+        bytes32 balancedState = digestBalancedState(p.processState, balances);
+        checkState(p.session, p.clock, p.participants, balancedState);
+        emit Challenge(p.challengedParticipant);
+        uint[] memory deadlines = p.deadlines;
+        deadlines[p.challengedParticipant] = block.number + timeoutInBlocks();
+        bytes32 newBalances = digestBalances(p.owned, p.collaterals, p.failures, digestArray(deadlines));
+        bytes32 newBalancedState = digestBalancedState(p.processState, newBalances);
+        currentState = digestState(p.session, p.clock, p.participants, newBalancedState);
     }
 
-    function nextClock(uint clock, address payable[] memory participants) public pure returns(uint) {
+    struct UpdateStateParams {
+        bytes32 session;
+        uint64 clock;
+        address payable[] participants;
+        bytes32 balancedState;
+        uint64 newClock;
+        bytes32 newBalancedState;
+        bytes signatures_v;
+        bytes32[] signatures_r;
+        bytes32[] signatures_s;
+    }
+
+    function updateState(
+        UpdateStateParams calldata p)
+        external
+    {
+        checkState(p.session, p.clock, p.participants, p.balancedState);
+        require(p.newClock > p.clock);
+        bytes32 digest = digestState(p.session, p.newClock, p.participants, p.newBalancedState);
+        checkSignatures(digest, p.participants, p.signatures_v, p.signatures_r, p.signatures_s);
+        emit Unanimously(digest);
+        currentState = digest;
+    }
+
+    function nextClock(
+        uint64 clock,
+        address payable[] memory participants
+    )
+        public
+        pure
+        returns(uint64 newClock)
+    {
         uint n = participants.length;
         do {
             clock++;
@@ -259,10 +311,97 @@ contract StateChannel is StateChannelBase {
         return clock;
     }
 
-    event TimeOut(uint clock, uint failedParticipant);
- 
-    event Message(uint clock, bytes message);
- 
+    event TimeOut(uint64 clock, uint failedParticipant);
+    struct TimeOutParams
+    {
+        bytes32 session;
+        uint64 clock;
+        address payable[] participants;
+        bytes32 processState;
+        uint[] owned;
+        uint[] collaterals;
+        uint[] failures;
+        uint[] deadlines;
+        uint8 failedParticipant;
+    }
+
+    function timeOut(
+        TimeOutParams calldata p)
+        external
+        payable
+    {
+        address payable[] memory participants = p.participants;
+        uint[] memory owned = p.owned;
+        uint[] memory collaterals = p.collaterals;
+        uint[] memory failures = p.failures;
+        uint[] memory deadlines = p.deadlines;
+        bytes32 balances = digestBalances(
+                digestArray(owned),
+                digestArray(collaterals),
+                digestArray(failures),
+                digestArray(deadlines));
+        bytes32 balancedState = digestBalancedState(p.processState, balances);
+        checkState(p.session, p.clock, p.participants, balancedState);
+        uint deadline = deadlines[p.failedParticipant];
+        require(deadline > 1 && block.number > deadline);
+
+        address payable failedParticipantAddress = p.participants[p.failedParticipant];
+        failedParticipantAddress.transfer(owned[p.failedParticipant]);
+        participants[p.failedParticipant] = address(0);
+        failures[p.failedParticipant] = uint(failedParticipantAddress);
+        owned[p.failedParticipant] = 0;
+
+        uint64 newClock = nextClock(p.clock, participants);
+        emit TimeOut(newClock, p.failedParticipant);
+
+        bytes32 newBalances = digestBalances(
+            digestArray(owned),
+            digestArray(collaterals),
+            digestArray(failures),
+            digestArray(deadlines));
+        bytes32 newBalancedState = digestBalancedState(p.processState, newBalances);
+        currentState = digestState(p.session, newClock, participants, newBalancedState);
+    }
+
+    event Message(uint64 clock, bytes message);
+
+    struct SendMessageParams
+    {
+        bytes32 session;
+        uint64 clock;
+        address payable[] participants;
+        address processor;
+        bytes32 stateRoot;
+        bytes32 balances;
+        bytes message;
+        bytes evidence;
+    }
+
+    function sendMessage(
+        SendMessageParams calldata p)
+        external
+        payable
+    {
+        address payable[] memory participants = p.participants;
+        bytes32 processState = digestProcessState(p.processor, p.stateRoot);
+        bytes32 balancedState = digestBalancedState(processState, p.balances);
+        checkState(p.session, p.clock, participants, balancedState);
+
+        uint64 new_clock = nextClock(p.clock, participants);
+        uint8 participant = uint8(new_clock % participants.length);
+        address payable participantAddress = participants[participant];
+        require(msg.sender == participantAddress);
+
+        MessageProcessor.ProcessMessageParams memory q =
+            MessageProcessor.ProcessMessageParams(
+                p.session, new_clock, participants,
+                p.processor, p.stateRoot, p.balances, p.message, p.evidence);
+        bytes32 newBalancedState = MessageProcessor(p.processor).processMessage(q);
+
+        emit Message(new_clock, p.message);
+        currentState = digestState(p.session, new_clock, participants, newBalancedState);
+    }
+
     constructor (bytes32 state) public payable
     {
         emit Unanimously(state);

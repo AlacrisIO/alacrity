@@ -147,8 +147,9 @@ const lt    = A => (a, b) => toBN(A)(a).lt( toBN(A)(b));
 
 // `t` is a type name in string form; `v` is the value to cast
 const encode = ({ ethers }) => (t, v) => {
-  console.log('t=', t, ' v=', v);
-  return ethers.utils.defaultAbiCoder.encode([t], [v]);
+    console.log('ehers=', ethers);
+    console.log('t=', t, ' v=', v);
+    return ethers.utils.defaultAbiCoder.encode([t], [v]);
 };
 
 const SC_mkCreateIdentity = A => () =>
@@ -168,14 +169,24 @@ const SC_mkCreateIdentity = A => () =>
 // The signature
 //
 const get_digest = A => (oper) => {
-    console.log('oper=', oper);
-    console.log('oper.nature=', oper.nature);
-    if (oper.nature == 0)
-        return keccak256(A)(encode(A)(oper.session, 'closing', oper.withdrawals, oper.beneficiary));
-    if (oper.nature == 1)
-        return keccak256(A)(encode(A)(oper.session, 'settling', oper.deposit, oper.withdrawals, oper.newState));
-    if (oper.nature == 2)
-        return keccak256(A)(encode(A)(oper.session, 'updating', oper.clock, oper.data));
+    console.log('get_digest: oper=', oper);
+    console.log('get_digest: oper.nature=', oper.nature);
+    if (oper.nature == 0) // updating
+        return keccak256(A)(encode(A.ethers)(oper.session, 0, oper.clock, oper.data));
+    if (oper.nature == 1) { // settling
+        console.log('session=', oper.session);
+        console.log('deposit=', oper.deposit);
+        console.log('withdrawals=', oper.withdrawals);
+        console.log('newState=', oper.newState);
+        const the_encode = encode(A.ethers)(['bytes32', 'uint256', 'uint256', 'uint256', 'bytes32'],
+                                            [oper.session, 1, oper.deposit, oper.withdrawals, oper.newState]);
+        console.log('the_encode=', the_encode);
+        return keccak256(A)(the_encode);
+//        return keccak256(A)(encode(A)(oper.session, 1, oper.deposit, oper.withdrawals, oper.newState));
+    }
+    if (oper.nature == 2) // closing
+        return keccak256(A)(encode(A.ethers)(oper.session, 2, oper.withdrawals, oper.beneficiary));
+    
 };
 
 const digestState = A => full_state => {
@@ -196,13 +207,13 @@ let CheckCorrectnessOperation = A => B => (oper) => {
 };
 
 
-let SC_SignState = A => B => (state_to_sign) => {
-    console.log('SC_SignState: operation is correct state_to_sign=', state_to_sign);
-    const digest = get_digest(A)(state_to_sign);
+let SC_SignState = A => B => (toward_digest) => {
+    console.log('SC_SignState: toward_digest=', toward_digest);
+    const digest = get_digest(A)(toward_digest);
     console.log('SC_SignState: digest=', digest);
-    B.pending_unanimous_operations[B.pending_unanimous_operations.length] = {digest, state_to_sign};
+    B.pending_unanimous_operations[B.pending_unanimous_operations.length] = {digest, toward_digest};
     const myId_eth = B.userpairaddress[0];
-    console.log('SC_SignState: myId_eth=', myId_eth);
+    console.log('SC_SignState: digest=', digest, ' myId_eth=', myId_eth);
     return A.web3.eth.sign(digest, myId_eth);
 };
 
@@ -252,12 +263,10 @@ const SC_Send_VRSsignature = A => B =>
                   });
           };
           console.log('SC_Send_VRSsignature, step 2');
-          const CompHash_and_send = (data_to_sign) => {
-              if (CheckCorrectnessOperation(A)(B)(data_to_sign)) {
-                  console.log('data_to_sign=', data_to_sign);
-                  const state_to_sign = keccak256(A)(data_to_sign);
-                  console.log('state_to_sign=', state_to_sign);
-                  SC_SignState(A)(B)(state_to_sign).then(fctSendVRS);
+          const CompHash_and_send = (toward_digest) => {
+              if (CheckCorrectnessOperation(A)(B)(toward_digest)) {
+                  console.log('toward_digest=', toward_digest);
+                  SC_SignState(A)(B)(toward_digest).then(fctSendVRS);
               }
               else {
                   resolve('The state did not pass sanity check');
@@ -270,8 +279,8 @@ const SC_Send_VRSsignature = A => B =>
                   const mesg = hexa_to_array(x);
                   if (mesg.to === B.userpairaddress[0]) {
                       console.log('Send_VRS: Message was for me, computing hash and sending it');
-                      console.log('mesg.state=', mesg.state);
-                      CompHash_and_send(mesg.state);
+                      console.log('mesg.state=', mesg.toward_digest);
+                      CompHash_and_send(mesg.toward_digest);
                   }
                   else {
                       resolve('Send_VRS: message was not for me');
@@ -295,9 +304,9 @@ async function SC_Inf_Send_VRSsignature(A,B) {
 
 
 
-const SC_GetSingle_VRSsignature = A => B => (requestpair, state) =>
+const SC_GetSingle_VRSsignature = A => B => (requestpair, toward_digest) =>
       new Promise((resolve, reject) => {
-          console.log('Beginning of SC_GetSingle_VRSsignature, state=', state);
+          console.log('Beginning of SC_GetSingle_VRSsignature, toward_digest=', toward_digest);
           const init_shh = B.initiatorpairaddress[1];
           const waitForSignature = () => {
               SC_receive(A)(init_shh, topic_vrs_step2)
@@ -306,7 +315,7 @@ const SC_GetSingle_VRSsignature = A => B => (requestpair, state) =>
                       resolve(hexa_to_array(x));
                   });
           };
-          SC_post(A)(init_shh, topic_vrs_step1, {state, to: requestpair[0]})
+          SC_post(A)(init_shh, topic_vrs_step1, {toward_digest, to: requestpair[0]})
               .then(h => {
                   console.log('Successful send of request for VRS signature h=', h);
                   waitForSignature();
@@ -363,21 +372,21 @@ const SC_SubmitSettleOperation = A => B => (prev_state, new_state, deposit, with
 
 
 
-async function SC_GetAll_VRSsignatures(A,B, state) {
-    console.log('SC_GetAll_VRSsignatures, begin state=', state);
+async function SC_GetAll_VRSsignatures(A, B, toward_digest) {
+    console.log('SC_GetAll_VRSsignatures, begin toward_digest=', toward_digest);
     const nb_part = B.sc_idx_participants.length;
     console.log('SC_GetAll_VRSsignatures, nb_part=', nb_part);
     const ListSignatures = [];
     for (var i=0; i<nb_part; i++) {
         if (i == B.sc_my_idx) {
             // my signature is needed
-            let the_sign = await SC_SignState(A)(B)(state);
+            let the_sign = await SC_SignState(A)(B)(toward_digest);
             ListSignatures[i] = the_sign;
         }
         else {
             // others participants
             let requestpair = B.sc_list_address[B.sc_idx_participants[i]];
-            let the_sign = await SC_GetSingle_VRSsignature(A)(B)(requestpair, state);
+            let the_sign = await SC_GetSingle_VRSsignature(A)(B)(requestpair, toward_digest);
             ListSignatures[i] = the_sign;
         }
     }
@@ -706,8 +715,12 @@ const MutableState = (contractAddress,ctors,userpairaddress,initiatorpairaddress
 
 
 const SC_mkCreateSC = A => B => (full_state) => {
-    console.log('SC_mkCreateSC, step 1');
+    console.log('SC_mkCreateSC, step 1, full_state=', full_state);
     const state = digestState(A)(full_state);
+    const toward_digest = {session: full_state.session,
+                           nature:1, withdrawals:[],
+                           deposit: B.deposit,
+                           newState: state};
     console.log('SC_mkCreateSC, step 2, state=', state);
     const ctor_state = un0x(encode(A.ethers)('bytes32', state));
     console.log('SC_mkCreateSC, step 3, ctor_state=', ctor_state);
@@ -715,7 +728,7 @@ const SC_mkCreateSC = A => B => (full_state) => {
     if (B.initiatorpairaddress[0] !== 0) {
         console.log('SC_mkCreateSC, step 5');
         SC_Get_ListParticipant(A,B)
-            .then(mesg => SC_GetAll_VRSsignatures(A,B, state)
+            .then(mesg => SC_GetAll_VRSsignatures(A, B, toward_digest)
                   .then(list_signature => {
                       console.log('SC_mkCreateSC, step 6');
                       console.log('mesg=', mesg);
