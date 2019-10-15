@@ -83,12 +83,38 @@ contract StateChannelFunctions is StateChannelTypes {
         address payable[] memory participants,
         bytes32 balancedState
     )
-        internal
+        public
         pure
         returns(bytes32 digest)
     {
         return keccak256(abi.encodePacked(session, UnanimousAction.Updating, clock, participants, balancedState));
     }
+
+    function digestSettle(
+        bytes32 session,
+        uint deposit,
+        uint[] memory withdrawals,
+        bytes32 newState
+    )
+        public
+        pure
+        returns(bytes32 digest)
+    {
+        return keccak256(abi.encodePacked(session, UnanimousAction.Settling, deposit, withdrawals, newState));
+    }
+
+    function digestClose(
+        bytes32 session,
+        uint[] memory withdrawals,
+        address beneficiary
+    )
+        public
+        pure
+        returns(bytes32 digest)
+    {
+        return keccak256(abi.encodePacked(session, UnanimousAction.Closing, withdrawals, beneficiary));
+    }
+
 }
 
 contract MessageProcessor is StateChannelTypes {
@@ -195,7 +221,7 @@ contract StateChannel is StateChannelBase {
     {
         require(msg.value == 0);
         checkState(p.session, p.clock, p.participants, p.balancedState);
-        bytes32 digest = keccak256(abi.encodePacked(p.session, UnanimousAction.Closing, p.withdrawals, p.beneficiary));
+        bytes32 digest = digestClose(p.session, p.withdrawals, p.beneficiary);
         checkSignatures(digest, p.participants, p.signatures_v, p.signatures_r, p.signatures_s);
         emit Unanimously(digest);
         withdraw(p.participants, p.withdrawals);
@@ -223,9 +249,7 @@ contract StateChannel is StateChannelBase {
     {
         require(msg.value == p.deposit);
         checkState(p.session, p.clock, p.participants, p.data);
-        bytes32 digest = keccak256(abi.encodePacked(
-                                           p.session, UnanimousAction.Settling,
-                                           p.deposit, p.withdrawals, p.newState));
+        bytes32 digest = digestSettle(p.session, p.deposit, p.withdrawals, p.newState);
         checkSignatures(digest, p.participants, p.signatures_v, p.signatures_r, p.signatures_s);
         emit Unanimously(digest);
         withdraw(p.participants, p.withdrawals);
