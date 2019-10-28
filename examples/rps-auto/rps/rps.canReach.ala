@@ -1,0 +1,59 @@
+#lang alacrity/exe
+
+enum isHand { ROCK, PAPER, SCISSORS };
+// TODO: automatically extract getHand, handOfString, stringOfHand, etc.
+
+function getHand() : isHand {
+    const s = interact("getHand");
+    assume! isHand(s);
+    s }
+
+enum isOutcome { B_WINS, DRAW, A_WINS };
+
+function winner(handA, handB) : isOutcome {
+    assert! isHand(handA);
+    assert! isHand(handB);
+    ((handA + (4 - handB)) % 3) }
+
+participant A {
+    uint256 wagerAmount,
+    uint256 escrowAmount }
+
+participant B { }
+
+main {
+    @A const handA = getHand();
+    // @A assert! canReach(end, end.outcome == A_WINS); // @A canReach means that A can even against others.
+    @A const commitA, saltA = precommit(handA);
+    @A interact("commits");
+    @A publish! wagerAmount, escrowAmount, commitA
+       w/ (wagerAmount + escrowAmount);
+    commit;
+
+    // @B assert! canReachAgainstOdds(end, end.outcome == B_WINS);
+    @B const handB = getHand();
+    @B interact("shows");
+    @B publish! handB w/ wagerAmount;
+    require! isHand(handB);
+    commit;
+
+    @A interact("reveals");
+    @A publish! saltA, handA w/ 0;
+    check_commit(commitA, saltA, handA);
+    require! isHand(handA);
+    const outcome = winner(handA, handB);
+
+    const getsA, getsB =
+          if (outcome == A_WINS) {
+              values (2 * wagerAmount), 0 }
+          else if (outcome == B_WINS) {
+              values 0, (2 * wagerAmount) }
+          else {
+              values wagerAmount, wagerAmount };
+    transfer! A <- (escrowAmount + getsA);
+    transfer! B <- getsB;
+  //end:
+    commit;
+
+    outcome
+}
