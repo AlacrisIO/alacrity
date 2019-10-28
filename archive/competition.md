@@ -212,6 +212,14 @@ they do not offer deployment services.
   Archetype seems competitive with the usual crowd of "formally verified" languages,
   but doesn't seem to handle the adversarial aspect of interactions, that is central to Alacrity.
 
+* [AxLang](https://axoni.com/axlang/) by axoni
+
+* [CX](https://www.skycoin.com/cx/)
+
+* [vyper](https://github.com/ethereum/vyper)
+
+* [radicle](http://radicle.xyz/)
+
 * ??? Is there anything useful in this article? [Impossibility of the Obama-Trump contract](https://eprint.iacr.org/2018/252.pdf) - looks like they assume a successful 51% attack, which makes the entire article moot.
 
 * https://www.cs.tau.ac.il/~odedp/modularity-for-decidability.pdf
