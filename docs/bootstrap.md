@@ -127,13 +127,20 @@ Our system will grow features from the initial MVP along the following multiple 
   * *End-Point Projection Backends*:
      * MVP: we automatically generate JavaScript client, Solidity contract and Z3 proof requirements
        from a single specification (August 2019)
-     * We will also generate code for Bitcoin Cash, Tezos, Cardano, Zilliqa, Hedera, Algorand
-       (first one in November 2019)
+     * We will also generate code for the following platforms (first one in November 2019)
+        + Bitcoin Cash (cashscript)
+        + Tezos (Michelson + OCaml)
+        + Nervos (RISC V)
+        + Cardano (Plutus + Haskell)
+        + Zilliqa (Scilla + JavaScript)
+        + Hedera (Solidity + Java)
+        + Algorand (? + ?)
+        + PolkaDot (WebAsm)
      * At some point, we will generate direct optimized EVM bytecode instead of Solidity;
        first with limitations corresponding to stack depth limits in bytecode instructions;
        later with spilling strategies if data doesn't fit in the directly accessible stack.
        Or maybe use [DeepSEA/Blockchain](https://certik.org/deepsea_blockchain.html) as a backend?
-       (August 2020)
+       That might get us RISC V (Nervos) and WebAsm for free. (August 2020)
      * Support SKALE.io and other scaling solutions for Ethereum (2019)
 
   * *Gas cost optimization*:
