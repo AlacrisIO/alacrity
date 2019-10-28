@@ -115,7 +115,8 @@ contract StateChannelRps is MessageProcessor, StateChannelFunctions {
           // update balances
           e.owned[p.participant] += aGets + e.state.escrowAmount;
           e.collaterals[p.participant] -= e.state.escrowAmount;
-          e.owned[e.state.bob] += bGets;
+          e.owned[e.state.bob] += bGets + e.state.escrowAmount;
+          e.collaterals[e.state.bob] -= e.state.escrowAmount;
           // Set the deadlines
           e.deadlines[p.participant] = 0;
           // Now, reconstruct the state from these elements

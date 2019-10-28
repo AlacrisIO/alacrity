@@ -564,6 +564,7 @@ contract StateChannel is StateChannelBase {
         bytes evidence;
     }
 
+    // TODO: do we need to bump the clock to handle more than 2 participants???
     function sendMessage(
         SendMessageParams calldata p)
         external
