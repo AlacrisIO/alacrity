@@ -1,7 +1,6 @@
 #lang alacrity/exe
 
 enum isHand { ROCK, PAPER, SCISSORS };
-// TODO: automatically extract getHand, handOfString, stringOfHand, etc.
 
 function getHand() : isHand {
     const s = interact("getHand");
@@ -14,18 +13,6 @@ function winner(handA, handB) : isOutcome {
     assert! isHand(handA);
     assert! isHand(handB);
     ((handA + (4 - handB)) % 3) }
-
-function fair_if(handX, optionX, canWinX) {
-    possible? ((handX == optionX) && canWinX) }
-
-function fair_for_player(handX, canWinX) {
-    fair_if(handX, ROCK, canWinX);
-    fair_if(handX, PAPER, canWinX);
-    fair_if(handX, SCISSORS, canWinX) }
-
-function fair_game(handA, handB, outcome) {
-    fair_for_player(handA, (outcome == A_WINS));
-    fair_for_player(handB, (outcome == B_WINS)) }
 
 participant A {
     uint256 wagerAmount,
@@ -52,7 +39,6 @@ main {
     check_commit(commitA, saltA, handA);
     require! isHand(handA);
     const outcome = winner(handA, handB);
-    fair_game(handA, handB, outcome);
 
     const getsA, getsB =
           if (outcome == A_WINS) {
@@ -65,5 +51,4 @@ main {
     transfer! B <- getsB;
     commit;
 
-    outcome
-}
+    outcome }
