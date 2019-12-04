@@ -128,6 +128,14 @@ Our system will grow features from the initial MVP along the following multiple 
      * MVP: we automatically generate JavaScript client, Solidity contract and Z3 proof requirements
        from a single specification (August 2019)
      * We will also generate code for the following platforms (first one in November 2019)
+        + Ethereum derivatives including:
+          [Ethereum Classic](https://etclabs.org/),
+          [SKALE](https://skale.network/),
+          [Quorum](https://www.goquorum.com/developers),
+          [Klaytn](https://www.klaytn.com/),
+          [TRON](https://tron.network/)
+        + Chains with the EVM but not Web3, such as
+          [Hedera Hashgraph](https://www.hedera.com/smart-contract/)
         + Bitcoin Cash (cashscript)
         + Tezos (Michelson + OCaml)
         + Nervos (RISC V)
@@ -141,7 +149,7 @@ Our system will grow features from the initial MVP along the following multiple 
        later with spilling strategies if data doesn't fit in the directly accessible stack.
        Or maybe use [DeepSEA/Blockchain](https://certik.org/deepsea_blockchain.html) as a backend?
        That might get us RISC V (Nervos) and WebAsm for free. (August 2020)
-     * Support SKALE.io and other scaling solutions for Ethereum (2019)
+     * Support [SKALE](https://skale.network/) and other scaling solutions for Ethereum (2019)
 
   * *Gas cost optimization*:
      * MVP: Use user-level merklization instead of system storage to save on gas
@@ -168,15 +176,24 @@ Our system will grow features from the initial MVP along the following multiple 
   * *Runtime*:
      * Local persistence
      * Distributed persistence
+     * Have compiler support first-class implementation protocol,
+       enabling dynamic code instrumentation at runtime.
+     * Implement said runtime instrumentation, for e.g.
+       debugging, monitoring, performance tracking, etc.
+       --- also, when we do verification of VM computations,
+       for automatic working graph extraction.
 
   * *Tooling*:
+     * Unit tests with minimal need for infrastructure.
+     * Integration tests with various supported networks.
+     * Continuous testing and delivery
      * Property-based testing
      * Debugging support (SLIME and/or language server)
      * Editor integration
      * Better error msg
      * Better UI integration
      * Better monitoring ...
-     * Better macros for Haskell, or better types for Racket
+     * Better macros for Haskell, or better types for Scheme
 
 
 ## Chronological Details

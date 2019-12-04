@@ -10,14 +10,10 @@ security, and efficiency. It uses a suite of verification methods,
 like type theory, theorem proving, model checking, the strand spaces
 method, and dynamical system simulation.
 
-### License
+### Copyright and License
 
-This code is being developed as free software by LegiLogic, Inc., for
-the sake of Alacris, Ltd., that owns the copyright and publishes the
-code.
-
-The Alacrity software is distributed under the
-Apache License, version 2.0. See the file [LICENSE](LICENSE).
+Copyright 2019 Alacris, Ltd. All rights reserved.
+Alacrity is distributed under the Apache License, version 2.0. See the file [LICENSE](LICENSE).
 
 
 ### Being worked on

@@ -39,8 +39,10 @@ they write contract and client code separately in Solidity and Javascript;
 they do not offer deployment services.
 
 * [Scilla](https://scilla-lang.org/)
-  is the smart contract language for Zilliqa.
-  It is embedded in Coq, and features total functions with eventual message sends.
+  is the smart contract language for Zilliqa;
+  it features total functions with eventual message sends.
+  There is a version embedded in Coq, but it is not used in production.
+  On the other hand, they have a good IDE for developers, [savant](https://savant-ide.zilliqa.com/).
 
 * [Plutus](https://cardanodocs.com/technical/plutus/introduction/)
   is the smart contract language for Cardano.
@@ -219,6 +221,18 @@ they do not offer deployment services.
 * [vyper](https://github.com/ethereum/vyper)
 
 * [radicle](http://radicle.xyz/)
+
+* [Mainframe OS](https://docs.mainframeos.com/docs/faq)
+
+* [Rell](https://chromapolis.com/preview/index.html) is the SQL-like relational blockchain language used by the Chromia blockchain. What is the cost model for it??? They don't seem to understand what a DApp is.
+
+* [TVM](https://github.com/ton-blockchain/ton/blob/master/doc/tvm.tex) TON Virtual Machine
+
+* [Second State](https://docs.secondstate.io/)
+
+* [Motoko](https://sdk.dfinity.org/language-guide/index.html)
+
+* Algorand: [Smart Contracts](https://developer.algorand.org/docs/asc), [TEAL](https://developer.algorand.org/docs/teal). TEAL looks like a much nicer variant of Bitcoin script: using uint64 instead of crazy signed 32 bits without MININT of BTC.
 
 * ??? Is there anything useful in this article? [Impossibility of the Obama-Trump contract](https://eprint.iacr.org/2018/252.pdf) - looks like they assume a successful 51% attack, which makes the entire article moot.
 
