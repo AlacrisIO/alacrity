@@ -180,6 +180,8 @@ they do not offer deployment services.
 
 * [Actus](https://www.actusfrf.org/)
 
+* [Common Accord](http://www.commonaccord.org/)
+
 * Works by [Fritz Henglein](http://hjemmesider.diku.dk/~henglein/).
 
 * See what O(1)labs has, etc.
@@ -234,9 +236,19 @@ they do not offer deployment services.
 
 * Algorand: [Smart Contracts](https://developer.algorand.org/docs/asc), [TEAL](https://developer.algorand.org/docs/teal). TEAL looks like a much nicer variant of Bitcoin script: using uint64 instead of crazy signed 32 bits without MININT of BTC.
 
+* Parity's [ink!](https://github.com/paritytech/ink/) for smart contracts on Substrate / Polka Dot (Rust eDSL compiled to Wasm)
+
+* [Chialisp](https://www.chia.net/2019/11/27/chialisp.en.html), https://twitter.com/bramcohen/status/1202700142370902016 -- the Lisp is embedded in Python, and not super Lispy.
+
+* [Lexon](http://demo.lexon.tech/apps/editor/)
+
 * ??? Is there anything useful in this article? [Impossibility of the Obama-Trump contract](https://eprint.iacr.org/2018/252.pdf) - looks like they assume a successful 51% attack, which makes the entire article moot.
 
 * https://www.cs.tau.ac.il/~odedp/modularity-for-decidability.pdf
 * https://www.csail.mit.edu/event/type-system-resource-bounds-type-preserving-compilation-and-its-application-ethereum-smart
 * https://arxiv.org/pdf/1812.08829.pdf
 * https://eprint.iacr.org/2018/416.pdf
+
+* https://www.aztecprotocol.com/
+* https://www.theblockcrypto.com/post/52004/look-there-where-emerging-use-cases-for-zkps-in-2019
+
