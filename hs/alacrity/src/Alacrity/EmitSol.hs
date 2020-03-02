@@ -243,7 +243,7 @@ solCTail ps emitp ρ ccs ct =
                     ]
     C_Wait i svs ->
       emitp <> vsep [ "last_address = msg.sender"                      <> semi
-                    , "block_nbr = get_block_number()"                 <> semi
+                    , "block_nbr = block.number"                       <> semi
                     , solSet "current_state" (solHashState ρ i ps svs) <> semi <> hardline
                     ]
     C_If ca tt ft ->
@@ -297,9 +297,9 @@ emit_sol timeoutWithin (BL_Prog _ (C_Prog ps hs)) =
         consbody = solCTail ps emptyDoc M.empty M.empty (C_Wait 0 [])
         p_ds     = map solPartDecl ps
         ctcbody  = vsep [ "uint256 current_state;"
-                        , "int block_nbr;"
+                        , "uint256 block_nbr;"
                         , "address last_address;"
-                        , "int timeout_depth = " <> pretty timeoutWithin <> ";"
+                        , "uint256 timeout_depth = " <> pretty timeoutWithin <> ";"
                         , emptyDoc
                         -- TODO: * Process correct reimbursements
                         -- NOTE: * `emit` must precede `selfdestruct` for anyone to
@@ -309,7 +309,7 @@ emit_sol timeoutWithin (BL_Prog _ (C_Prog ps hs)) =
                         , "event etimeout(address payable m);"
                         , "function timeout() public payable {"
                         , "  require(msg.sender == last_address);"
-                        , "  require(get_block_number() > block_nbr + timeout_depth);"
+                        , "  require(block.number > block_nbr + timeout_depth);"
                         , "  emit etimeout(msg.sender);"
                         , "  selfdestruct(msg.sender);"
                         , "}"
