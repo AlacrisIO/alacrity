@@ -4,7 +4,7 @@
 
 * [nginx](nginx): a simple configuration for running nginx on your localhost,
   such that after you run the [./start.sh](nginx/start.sh) script,
-  you can point your browser at < http://localhost:8088/rps-demo/ >
+  you can point your browser at < http://localhost:8088/archive/rps-demo/ >
   and play our "Rock, Paper, Scissors" demo.
   To stop the server, run the [./stop.sh](nginx/stop.sh).
 
@@ -30,7 +30,7 @@
   Allow for censorship-resistant side-chains with higher-latency initially blinded blocks.
   Maybe have a separate file for each variant?
 
-* nft.ala: a Non-Fungible Token in the style of ERC-721, or cryptoscalies,
+* nft.ala: a Non-Fungible Token in the style of ERC-721 (or ERC-998, ERC-1155), or cryptoscalies,
   video-game tokens, foo-on-the-blockchain.
   Include atomic swap capability so contracts can be written that atomically sell a NFT for ETH, etc.
 

@@ -1,6 +1,11 @@
 /**
 State Channels
 
+Multisig: BLS that accepts a combination of optional deposit, withdrawals, and optional death.
+Beware: you cannot prevent a contract from having additional money via another contract death,
+so just decide in advance which address (or contract?) will get any remainder at the end.
+
+
 A state channel is a contract guaranteeing the correct behavior of participants
 in an interaction where the normal behavior is for participants to
 send messages to each other and collect unanimous signatures

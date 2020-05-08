@@ -78,6 +78,15 @@ they do not offer deployment services.
   is the main smart contract language for Blockstream's Liquid Network.
   It is a functional language that can express finitary computations only,
   rebuilding everything from bits and pairs.
+  Simplicity does indeed have a lot of simplicity, but mostly at the wrong level:
+  finite computations are great when you can reduce your computation to that...
+  but then the entire difficulty becomes this reduction, that Simplicity requires but doesn't provide.
+  An obvious answer to reducing arbitrary computations to a finite one is zk-SNARK's;
+  but at that point, Simplicity is just an "abstraction inversion":
+  it's a very awkward backend for zk-SNARK's; in practice a specialized zk-SNARK's "JET"
+  (Urbit-style Just-In-Time pattern recognition and compilation) would be used,
+  and then why not just short-circuit the entire Simplicity layer entirely?
+  In the end, it's a great conceptual exercise, and a terrible solution.
 
 * [Michelson](https://www.michelson-lang.com/)
   is the native smart contract language for Tezos.
@@ -252,3 +261,4 @@ they do not offer deployment services.
 * https://www.aztecprotocol.com/
 * https://www.theblockcrypto.com/post/52004/look-there-where-emerging-use-cases-for-zkps-in-2019
 
+* blockstack
