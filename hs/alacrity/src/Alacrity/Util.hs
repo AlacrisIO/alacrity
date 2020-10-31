@@ -3,9 +3,10 @@ module Alacrity.Util where
 import System.Exit
 import Control.Monad
 
-maybeDie :: IO ExitCode -> IO ()
-maybeDie ma = do
+maybeDie :: String -> IO ExitCode -> IO ()
+maybeDie msg ma = do
   ec <- ma
   unless (ec == ExitSuccess)
-    (do (exitWith ec))
+    (do putStrLn msg
+        (exitWith ec))
   return ()

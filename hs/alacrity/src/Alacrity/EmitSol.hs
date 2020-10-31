@@ -156,7 +156,7 @@ solContract :: String -> Doc a -> Doc a
 solContract s body = "contract" <+> pretty s <+> solBraces body
 
 solVersion :: Doc a
-solVersion = "pragma solidity ^0.5.2;"
+solVersion = "pragma solidity ^0.7.4;"
 
 withoutSolVersionPragmas :: BS.ByteString -> String
 withoutSolVersionPragmas b = (BS.unpack . BS.unlines) s
@@ -239,7 +239,7 @@ solCTail ps emitp ρ ccs ct =
     C_Halt ->
       emitp <> vsep [ solSet ("current_state") ("0x0") <> semi
                     , solApply "selfdestruct"
-                        [ solApply "address" [ pretty alacrisAddress ]] <> semi <> hardline
+                        [ pretty alacrisAddress ] <> semi <> hardline
                     ]
     C_Wait i svs ->
       emitp <> vsep [ "last_address = msg.sender"                      <> semi
@@ -293,7 +293,7 @@ emit_sol :: TimeoutWindowInBlocks -> BLProgram -> Doc a
 emit_sol timeoutWithin (BL_Prog _ (C_Prog ps hs)) =
   vsep_with_blank $ [ solVersion, solStdLib, ctcp ]
   where ctcp     = solContract "ALAContract is Stdlib" ctcbody
-        consp    = solApply "constructor" p_ds <+> "public payable" <+> solBraces consbody
+        consp    = solApply "constructor" p_ds <+> solBraces consbody
         consbody = solCTail ps emptyDoc M.empty M.empty (C_Wait 0 [])
         p_ds     = map solPartDecl ps
         ctcbody  = vsep [ "uint256 current_state;"

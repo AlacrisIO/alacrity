@@ -5,5 +5,5 @@ import Alacrity.Util
 
 main :: IO ()
 main = do
-  maybeDie $ system "cd ../../examples/rps-auto && make build"
+  maybeDie "make build failed" $ system "cd ../../examples/rps-auto && make build"
   exitSuccess
