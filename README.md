@@ -15,6 +15,12 @@ method, and dynamical system simulation.
 Copyright 2019 Alacris, Ltd. All rights reserved.
 Alacrity is distributed under the Apache License, version 2.0. See the file [LICENSE](LICENSE).
 
+### Prerequisites
+
+- [Stack](https://docs.haskellstack.org/en/stable/README/)
+- [z3](https://github.com/Z3Prover/z3)
+- [solc](https://github.com/ethereum/solidity)
+- [geth](https://geth.ethereum.org/)
 
 ### Being worked on
 
